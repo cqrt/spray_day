@@ -103,12 +103,18 @@ android {
      *
      * This applies to debug builds too, so the debug output is per-ABI as well:
      * `app-x86_64-debug.apk` for an emulator, `app-arm64-v8a-debug.apk` for a phone,
-     * and `app-universal-debug.apk` when in doubt. The app bundle is unaffected -
-     * Play splits by ABI itself.
+     * and `app-universal-debug.apk` when in doubt.
+     *
+     * Splits and the app bundle cannot be produced in the same invocation: with
+     * resource shrinking on, R8 writes one shrunk-resources file per ABI and the
+     * bundle task refuses to choose between them (AGP issue 402800800). The bundle
+     * does not need splits - Play splits by ABI itself - so `-PnoAbiSplits` turns
+     * them off for that build, and the release workflow uses it for `bundleRelease`.
      */
+    val abiSplitsEnabled = !project.hasProperty("noAbiSplits")
     splits {
         abi {
-            isEnable = true
+            isEnable = abiSplitsEnabled
             reset()
             // No x86: MapLibre has no 32-bit x86 libraries, and nothing needs them.
             include("arm64-v8a", "armeabi-v7a", "x86_64")

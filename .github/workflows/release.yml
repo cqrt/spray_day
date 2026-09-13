@@ -56,7 +56,11 @@ jobs:
           fi
           printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.jks"
 
-      - name: Build the signed APK and app bundle
+      # Two invocations on purpose: ABI splits and the app bundle cannot both be
+      # built at once while resources are shrunk (AGP issue 402800800), so the
+      # bundle is built with -PnoAbiSplits. The bundle does not need them - Play
+      # splits by ABI itself.
+      - name: Build the signed APKs
         env:
           LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
           KEYSTORE_FILE: ${{ runner.temp }}/release.jks
@@ -64,7 +68,19 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew --no-daemon assembleRelease bundleRelease \
+          ./gradlew --no-daemon assembleRelease \
+            -PversionCode="${{ github.run_number }}" \
+            -PversionName="${{ steps.version.outputs.name }}"
+
+      - name: Build the app bundle
+        env:
+          LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
+          KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon bundleRelease -PnoAbiSplits \
             -PversionCode="${{ github.run_number }}" \
             -PversionName="${{ steps.version.outputs.name }}"
 

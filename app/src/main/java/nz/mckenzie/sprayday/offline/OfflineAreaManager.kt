@@ -1,211 +1,198 @@
 package nz.mckenzie.sprayday.offline
 
-import android.content.Context
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import nz.mckenzie.sprayday.map.LinzBasemap
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
-import org.maplibre.android.offline.OfflineManager
-import org.maplibre.android.offline.OfflineRegion
-import org.maplibre.android.offline.OfflineRegionError
-import org.maplibre.android.offline.OfflineRegionStatus
-import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
-import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.map
+import nz.mckenzie.sprayday.data.db.OfflineAreaDao
+import nz.mckenzie.sprayday.data.db.OfflineAreaEntity
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
-/** Progress of an offline area, as reported by MapLibre. */
+/**
+ * A downloaded offline imagery area, as the screen shows it.
+ *
+ * [storedTiles] counts the plan's tiles that are on disk, which is not the same
+ * as "tiles this download fetched": tiles browsed on the map beforehand count
+ * too, and a resumed download starts from what is already there. [missingTiles]
+ * is therefore the honest answer to "what is not covered", whether because LINZ
+ * has no imagery for those tiles or because they failed to download.
+ */
 data class OfflineArea(
     val id: Long,
     val name: String,
+    val plannedTiles: Int,
+    val storedTiles: Int,
+    val bytes: Long,
     val isComplete: Boolean,
-    val completedResources: Long,
-    val requiredResources: Long,
-    val completedBytes: Long,
-    /**
-     * True when the download stopped making progress without reaching 100%.
-     * MapLibre retries a resource the service never serves, indefinitely -
-     * measured on an emulator, a 6 km area sat at 3,174 of 3,175 files
-     * indefinitely (the missing file is most likely a tile LINZ has no imagery
-     * for). The pack is perfectly usable at that point, so callers stop the
-     * retry loop and report the shortfall honestly instead of hanging.
-     */
-    val stalled: Boolean = false
+    /** Why the last attempt stopped early, if it did. Only real failures. */
+    val lastError: String? = null
 ) {
-    /** 0-100, or 100 once complete. Unknown totals report 0 rather than lying. */
+    /**
+     * 0-100. Reports 100 only once the download has finished: an interrupted area
+     * must not look done. An area that is *finished* but short of tiles LINZ has
+     * no imagery for does report 100 - there is nothing left to wait for, and the
+     * shortfall is reported through [missingTiles] rather than by a progress bar
+     * that would sit at 99% for ever.
+     */
     val percent: Int
         get() = when {
+            plannedTiles <= 0 -> 0
             isComplete -> 100
-            requiredResources <= 0L -> 0
-            else -> ((completedResources * 100) / requiredResources).toInt().coerceIn(0, 100)
+            else -> ((storedTiles * 100L) / plannedTiles).toInt().coerceIn(0, 99)
         }
 
-    val sizeLabel: String get() = formatBytes(completedBytes)
+    val sizeLabel: String get() = formatBytes(bytes)
 
-    /** Files the service never served (missing imagery, not a failure to fetch). */
-    val missingResources: Long
-        get() = (requiredResources - completedResources).coerceAtLeast(0L)
+    val missingTiles: Int get() = (plannedTiles - storedTiles).coerceAtLeast(0)
 
-    /** Good enough to rely on in the field, even if a few tiles are missing. */
-    val isUsable: Boolean get() = isComplete || (stalled && completedResources > 0L)
+    /** Complete, but with tiles LINZ had no imagery for. Worth saying out loud. */
+    val isShortButComplete: Boolean get() = isComplete && missingTiles > 0
+}
+
+/** What is actually on the device, for the screen's summary line. */
+data class TileStoreSummary(val tiles: Long, val bytes: Long) {
+    val sizeLabel: String get() = formatBytes(bytes)
 }
 
 /**
- * Downloads basemap areas for use with no reception.
+ * Downloads and records offline imagery areas.
  *
- * MapLibre's OfflineManager requires a style *URL*: it cannot read a `file://`
- * path (verified - `Mbgl-HttpRequest: [HTTP] Unable to parse resourceUrl`), nor
- * inline JSON, so downloads are defined against LINZ's hosted aerial style.
+ * Tiles come straight from LINZ into [OfflineTileStore] - the same store the
+ * map's own tile server reads - so a downloaded area is usable the moment it
+ * lands, with no export or import step. This replaces MapLibre's OfflineManager
+ * for imagery, which could only be pointed at LINZ's hosted style and measured
+ * 3,175 resources / 74.6 MB for an area needing ~304 aerial tiles (~13 MB),
+ * because that style declares two terrain sources its own layers never use and
+ * MapLibre walks every source in a style.
  *
- * Two consequences worth knowing:
- *  - The hosted style's aerial tile template is identical to the one our live
- *    map uses, so cached tiles ARE served to the map when offline. That is the
- *    property the whole feature depends on, and it holds.
- *  - The hosted style also declares two `raster-dem` terrain sources that its
- *    own layer list never uses, and MapLibre walks every source in the style.
- *    Measured on an emulator: a 6 km area that needs ~304 aerial tiles (~13 MB)
- *    actually pulled 3,175 resources / 74.6 MB, and took a couple of minutes.
- *    The UI therefore reports the aerial estimate AND warns that the real
- *    download is larger. Fetching the tiles ourselves into an MBTiles pack and
- *    merging it with OfflineManager.mergeOfflineRegions() is the way to
- *    eliminate that overhead; it is deliberately deferred rather than rushed.
+ * The Room row is the *record* for the screen. The tiles are shared between
+ * areas and with ordinary map browsing, so deleting a record frees no disk
+ * space - which is why [clearTiles] exists as a separate, explicit action.
  */
-class OfflineAreaManager(private val context: Context) {
+class OfflineAreaManager(
+    private val store: OfflineTileStore,
+    private val dao: OfflineAreaDao,
+    /** Injected so tests never reach LINZ. */
+    private val fetcherFor: (apiKey: String) -> TileFetcher = { key -> LinzTileFetcher(key) },
+    private val now: () -> Long = System::currentTimeMillis
+) {
 
-    private val statuses = ConcurrentHashMap<Long, MutableStateFlow<OfflineArea>>()
+    /** The screen's list, straight from the database, updating as progress lands. */
+    fun observeAreas(): Flow<List<OfflineArea>> =
+        dao.observeAll().map { rows -> rows.map { it.toOfflineArea() } }
 
-    /** Creates the region and starts downloading it. */
-    suspend fun startArea(plan: OfflineAreaPlan, apiKey: String): OfflineArea {
-        val manager = OfflineManager.getInstance(context)
-        // Cap tiles per region so a mis-sized plan cannot quietly become a
-        // multi-gigabyte download, or a burst of requests against LINZ.
-        manager.setOfflineMapboxTileCountLimit(MAX_TILES_PER_REGION)
+    suspend fun listAreas(): List<OfflineArea> = dao.getAll().map { it.toOfflineArea() }
 
-        val definition = OfflineTilePyramidRegionDefinition(
-            LinzBasemap.hostedAerialStyleUrl(apiKey),
-            LatLngBounds.Builder()
-                .include(LatLng(plan.bounds.minLat, plan.bounds.minLng))
-                .include(LatLng(plan.bounds.maxLat, plan.bounds.maxLng))
-                .build(),
-            plan.minZoom.toDouble(),
-            plan.maxZoom.toDouble(),
-            context.resources.displayMetrics.density
+    suspend fun area(id: Long): OfflineArea? = dao.getById(id)?.toOfflineArea()
+
+    /** Tiles and bytes actually on disk, covering every area and map browsing. */
+    suspend fun summary(): TileStoreSummary =
+        TileStoreSummary(store.storedTileCount(), store.storedBytes())
+
+    /**
+     * Validates the plan and records it, so progress has somewhere to be written
+     * before the first tile arrives. Throws [IllegalArgumentException] for a plan
+     * too large to be a sensible offline pack.
+     */
+    suspend fun createArea(plan: OfflineAreaPlan): OfflineArea {
+        val planned = plan.tileCount
+        require(planned <= MAX_TILES_PER_AREA) {
+            "That area needs $planned tiles, more than the $MAX_TILES_PER_AREA limit. " +
+                "Narrow the zoom range or the area."
+        }
+        val id = dao.insert(
+            OfflineAreaEntity(
+                name = plan.name,
+                minLat = plan.bounds.minLat,
+                minLng = plan.bounds.minLng,
+                maxLat = plan.bounds.maxLat,
+                maxLng = plan.bounds.maxLng,
+                minZoom = plan.minZoom,
+                maxZoom = plan.maxZoom,
+                plannedTiles = planned,
+                createdAtEpochMs = now()
+            )
         )
+        return area(id) ?: error("area $id was not stored")
+    }
 
-        val region = OfflineManager.getInstance(context)
-            .createRegionAsync(definition, plan.name.toByteArray(Charsets.UTF_8))
+    /**
+     * Downloads a recorded area, resuming from the tiles already on disk.
+     *
+     * Cancelling is safe and cheap to resume: tiles land on disk as they arrive
+     * and progress is written to the database as it goes, so a second call picks
+     * up where this one stopped rather than starting over.
+     */
+    suspend fun download(areaId: Long, apiKey: String): OfflineArea {
+        val row = dao.getById(areaId) ?: error("no offline area with id $areaId")
+        val downloader = TileDownloader(store = store, fetcher = fetcherFor(apiKey))
 
-        val initial = OfflineArea(
-            id = region.id,
-            name = plan.name,
-            isComplete = false,
-            completedResources = 0L,
-            requiredResources = 0L,
-            completedBytes = 0L
-        )
-        val state = MutableStateFlow(initial)
-        statuses[region.id] = state
-
-        region.setObserver(object : OfflineRegion.OfflineRegionObserver {
-            override fun onStatusChanged(status: OfflineRegionStatus) {
-                state.value = status.toOfflineArea(region.id, plan.name)
+        var lastWrite = 0L
+        val progress = downloader.download(
+            bounds = LatLngBounds(row.minLat, row.minLng, row.maxLat, row.maxLng),
+            minZoom = row.minZoom,
+            maxZoom = row.maxZoom
+        ) { current ->
+            val at = now()
+            // The screen reads the database, so progress is written as it happens
+            // - but not once per chunk of four tiles.
+            if (at - lastWrite >= PROGRESS_WRITE_MS) {
+                lastWrite = at
+                dao.updateProgress(areaId, current.stored.toLong(), current.bytes)
             }
+        }
 
-            override fun onError(error: OfflineRegionError) {
-                // A stalled download is turned into a visible failure by the
-                // caller's timeout rather than being hidden here.
-                state.value = state.value.copy(isComplete = false)
-            }
+        if (progress.failed == 0) {
+            // Tiles LINZ serves no imagery for - the edge of coverage, offshore -
+            // will never arrive. The area is as complete as it can be: mark it
+            // finished and let missingTiles report the shortfall.
+            dao.markComplete(
+                id = areaId,
+                completedAtEpochMs = now(),
+                downloaded = progress.stored.toLong(),
+                bytes = progress.bytes
+            )
+        } else {
+            dao.updateProgress(areaId, progress.stored.toLong(), progress.bytes)
+            dao.recordError(
+                areaId,
+                "${progress.failed} of ${progress.total} tiles failed to download."
+            )
+        }
+        return area(areaId) ?: error("area $areaId vanished during download")
+    }
 
-            override fun mapboxTileCountLimitExceeded(limit: Long) {
-                // The region blew past MAX_TILES_PER_REGION, so it will never
-                // report complete - leaving it as an explicit stall.
-                state.value = state.value.copy(isComplete = false)
-            }
-        })
+    /** Forgets an area. The tiles stay: they are shared, and this frees no space. */
+    suspend fun deleteArea(areaId: Long) {
+        dao.delete(areaId)
+    }
 
-        region.setDownloadState(OfflineRegion.STATE_ACTIVE)
-        return initial
+    /**
+     * Removes every downloaded tile and every area record, returning how many
+     * files went. The only action that actually reclaims disk space.
+     */
+    suspend fun clearTiles(): Int {
+        val removed = store.deleteAll()
+        dao.deleteAll()
+        return removed
     }
 
     companion object {
-        /** Roughly 360 MB at the 45 KB average tile size our estimates assume. */
-        const val MAX_TILES_PER_REGION = 8_000L
+        /**
+         * ~540 MB at the 45 KB average tile size our estimates assume. High
+         * enough for a large block across zoom 10-16, low enough that a
+         * mis-typed zoom range cannot fill the device.
+         */
+        const val MAX_TILES_PER_AREA = 12_000L
 
-        private const val POLL_MS = 1_000L
-    }
-
-    /** Progress stream for an area started in this session. */
-    fun progress(regionId: Long): Flow<OfflineArea>? = statuses[regionId]
-
-    /**
-     * Waits for an area to finish downloading.
-     *
-     * Updates are pushed by MapLibre's observer, so this does not poll the
-     * service - but it does watch for a *stall*: MapLibre retries resources the
-     * server never serves (missing imagery) indefinitely, so once the resource
-     * count stops moving the area is reported as stalled-but-usable instead of
-     * hanging the caller. Throws [IllegalStateException] only if the deadline
-     * passes with no progress at all.
-     */
-    suspend fun awaitComplete(
-        regionId: Long,
-        timeoutMs: Long,
-        stallMillis: Long = 30_000L
-    ): OfflineArea {
-        val state = statuses[regionId]
-            ?: error("No offline area with id $regionId in this session")
-
-        val startedAt = System.currentTimeMillis()
-        var lastCount = -1L
-        var lastChangeAt = startedAt
-
-        while (true) {
-            val current = state.value
-            if (current.isComplete) return current
-            if (current.completedResources != lastCount) {
-                lastCount = current.completedResources
-                lastChangeAt = System.currentTimeMillis()
-            }
-            val now = System.currentTimeMillis()
-            if (current.completedResources > 0L && now - lastChangeAt > stallMillis) {
-                return current.copy(stalled = true)
-            }
-            if (now - startedAt > timeoutMs) {
-                throw IllegalStateException(
-                    "Download timed out after ${timeoutMs}ms with " +
-                        "${current.completedResources}/${current.requiredResources} files"
-                )
-            }
-            kotlinx.coroutines.delay(POLL_MS)
-        }
-    }
-
-    /** Stops a stalled download so MapLibre stops retrying missing tiles. */
-    suspend fun pauseArea(regionId: Long) {
-        OfflineManager.getInstance(context)
-            .listRegionsAsync()
-            .firstOrNull { it.id == regionId }
-            ?.setDownloadState(OfflineRegion.STATE_INACTIVE)
-    }
-
-    /** Areas already stored on the device, with the name we gave them. */
-    suspend fun listAreas(): List<OfflineArea> =
-        OfflineManager.getInstance(context).listRegionsAsync().map { region ->
-            statuses[region.id]?.value ?: OfflineArea(
-                id = region.id,
-                name = region.metadata?.toString(Charsets.UTF_8).orEmpty().ifBlank { "Offline area" },
-                isComplete = false,
-                completedResources = 0L,
-                requiredResources = 0L,
-                completedBytes = 0L
-            )
-        }
-
-    suspend fun deleteArea(regionId: Long) {
-        OfflineManager.getInstance(context)
-            .listRegionsAsync()
-            .firstOrNull { it.id == regionId }
-            ?.deleteAsync()
-        statuses.remove(regionId)
+        private const val PROGRESS_WRITE_MS = 1_000L
     }
 }
+
+private fun OfflineAreaEntity.toOfflineArea() = OfflineArea(
+    id = id,
+    name = name,
+    plannedTiles = plannedTiles.toInt(),
+    storedTiles = downloadedTiles.toInt(),
+    bytes = bytes,
+    isComplete = isComplete,
+    lastError = lastError
+)

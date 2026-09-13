@@ -69,7 +69,12 @@ class TileDownloader(
         bounds: LatLngBounds,
         minZoom: Int,
         maxZoom: Int,
-        onProgress: (Progress) -> Unit = {}
+        /**
+         * Called after each chunk, from the download coroutine itself - never
+         * concurrently - so an implementation may safely persist progress (that
+         * is what lets a killed download resume with honest numbers).
+         */
+        onProgress: suspend (Progress) -> Unit = {}
     ): Progress = coroutineScope {
         val planned = plannedTiles(bounds, minZoom, maxZoom)
         require(planned.size <= maxTiles) {

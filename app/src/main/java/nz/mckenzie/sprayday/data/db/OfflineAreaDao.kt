@@ -46,4 +46,8 @@ abstract class OfflineAreaDao {
 
     @Query("DELETE FROM offline_areas WHERE id = :id")
     abstract suspend fun delete(id: Long)
+
+    /** Used when the tiles themselves are cleared: the records describe nothing then. */
+    @Query("DELETE FROM offline_areas")
+    abstract suspend fun deleteAll()
 }

@@ -24,6 +24,9 @@ class SprayRepository(private val db: SprayDayDatabase) {
 
     fun observeProducts(): Flow<List<ProductEntity>> = productDao.observeActive()
 
+    /** Every product, archived ones included, for managing the catalogue. */
+    fun observeAllProducts(): Flow<List<ProductEntity>> = productDao.observeAll()
+
     suspend fun getProduct(productId: Long): ProductEntity? = productDao.getById(productId)
 
     suspend fun addProduct(
@@ -36,6 +39,13 @@ class SprayRepository(private val db: SprayDayDatabase) {
     )
 
     suspend fun updateProduct(product: ProductEntity) = productDao.update(product)
+
+    /**
+     * Renames a product. Throws if the name is already taken (the column is
+     * unique), which is the behaviour wanted: two products must not become one
+     * chemical by accident.
+     */
+    suspend fun renameProduct(productId: Long, name: String) = productDao.rename(productId, name)
 
     suspend fun setProductArchived(productId: Long, archived: Boolean) =
         productDao.setArchived(productId, archived)

@@ -47,11 +47,13 @@ jobs:
             app/build/reports/tests/testDebugUnitTest
             app/build/reports/lint-results-debug.html
 
+      # Debug builds are split by ABI as well; the universal one runs anywhere,
+      # which is what a debug artifact is for.
       - name: Upload the debug APK
         uses: actions/upload-artifact@v4
         with:
           name: sprayday-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-universal-debug.apk
 
   # The unit-test job above is fast and runs on every push. This one boots an
   # emulator so the instrumented tests (Room, migrations, view-model signals,

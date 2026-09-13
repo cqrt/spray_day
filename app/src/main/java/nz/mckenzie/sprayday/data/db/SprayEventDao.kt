@@ -94,6 +94,13 @@ abstract class SprayEventDao {
     @Query("DELETE FROM spray_events WHERE id = :id")
     abstract suspend fun deleteEvent(id: Long)
 
+    /**
+     * Forgets the link to a recording that has been deleted. The spray record
+     * itself stays: it is the history, and the recording was only the evidence.
+     */
+    @Query("UPDATE spray_events SET recordedSessionId = NULL WHERE recordedSessionId = :sessionId")
+    abstract suspend fun clearRecordedSession(sessionId: Long)
+
     // --- Per-track product defaults -------------------------------------------------
 
     @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)

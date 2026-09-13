@@ -96,6 +96,26 @@ android {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 
+    /**
+     * The default APK carries native libraries for every ABI, which measured 49.8 MB
+     * for an app that will run on exactly one of them. Splitting gives a much smaller
+     * APK per architecture, and a universal one is still built for anything unusual.
+     *
+     * This applies to debug builds too, so the debug output is per-ABI as well:
+     * `app-x86_64-debug.apk` for an emulator, `app-arm64-v8a-debug.apk` for a phone,
+     * and `app-universal-debug.apk` when in doubt. The app bundle is unaffected -
+     * Play splits by ABI itself.
+     */
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            // No x86: MapLibre has no 32-bit x86 libraries, and nothing needs them.
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

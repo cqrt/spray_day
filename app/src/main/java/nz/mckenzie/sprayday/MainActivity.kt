@@ -14,6 +14,8 @@ import nz.mckenzie.sprayday.ui.screens.DrawTrackScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
 import nz.mckenzie.sprayday.ui.screens.RecordScreen
+import nz.mckenzie.sprayday.ui.screens.RecordingDetailScreen
+import nz.mckenzie.sprayday.ui.screens.RecordingsScreen
 import nz.mckenzie.sprayday.ui.screens.SprayEntryScreen
 import nz.mckenzie.sprayday.ui.screens.TrackDetailScreen
 import nz.mckenzie.sprayday.ui.screens.TrackListScreen
@@ -21,13 +23,15 @@ import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
+import nz.mckenzie.sprayday.viewmodel.RecordingDetailViewModel
+import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, TRACK_DETAIL, SPRAY_ENTRY }
+private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +41,7 @@ class MainActivity : ComponentActivity() {
             SprayDayTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
                 var selectedTrackId by rememberSaveable { mutableStateOf<Long?>(null) }
+                var selectedSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
                 // Bumped on every visit to the draw screen so it gets its own view
                 // model: a shared one would carry the previous visit's draft (and
@@ -75,7 +80,8 @@ class MainActivity : ComponentActivity() {
                                 drawVisit++
                                 destination = Destination.DRAW
                             },
-                            onRecordTrack = { destination = Destination.RECORD }
+                            onRecordTrack = { destination = Destination.RECORD },
+                            onOpenRecordings = { destination = Destination.RECORDINGS }
                         )
                     }
 
@@ -132,6 +138,36 @@ class MainActivity : ComponentActivity() {
                             viewModel = drawViewModel,
                             onBack = { destination = Destination.TRACKS }
                         )
+                    }
+
+                    Destination.RECORDINGS -> {
+                        val recordingsViewModel: RecordingsViewModel = viewModel(
+                            factory = RecordingsViewModel.factory(applicationContext)
+                        )
+                        RecordingsScreen(
+                            viewModel = recordingsViewModel,
+                            onBack = { destination = Destination.TRACKS },
+                            onOpenRecording = { sessionId ->
+                                selectedSessionId = sessionId
+                                destination = Destination.RECORDING_DETAIL
+                            }
+                        )
+                    }
+
+                    Destination.RECORDING_DETAIL -> {
+                        val sessionId = selectedSessionId
+                        if (sessionId == null) {
+                            destination = Destination.RECORDINGS
+                        } else {
+                            val detailViewModel: RecordingDetailViewModel = viewModel(
+                                key = "recording-$sessionId",
+                                factory = RecordingDetailViewModel.factory(applicationContext, sessionId)
+                            )
+                            RecordingDetailScreen(
+                                viewModel = detailViewModel,
+                                onBack = { destination = Destination.RECORDINGS }
+                            )
+                        }
                     }
 
                     Destination.OFFLINE -> {

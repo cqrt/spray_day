@@ -1,0 +1,98 @@
+package nz.mckenzie.sprayday.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import nz.mckenzie.sprayday.data.RecordingRepository
+import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
+import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.recording.RecordingStatus
+
+/**
+ * One recording, as the browser lists it.
+ *
+ * [trackName] is null when the session was never tied to a track *or* when the
+ * track has since been deleted - recordings deliberately outlive the plans they
+ * were recorded against, so the browser says "track deleted" rather than
+ * pretending the session had no track.
+ */
+data class RecordingRow(
+    val id: Long,
+    val name: String,
+    val startedAtEpochMs: Long,
+    val distanceM: Double,
+    val durationMs: Long,
+    val pointCount: Int,
+    val status: RecordingStatus,
+    val trackId: Long?,
+    val trackName: String?
+) {
+    val isFinished: Boolean get() = status == RecordingStatus.FINISHED
+
+    val trackWasDeleted: Boolean get() = trackId != null && trackName == null
+}
+
+/**
+ * The recordings browser: every GPS recording on the device, what it was for, and
+ * how far it went - the way back to the evidence for a spray.
+ */
+class RecordingsViewModel(
+    private val recordings: RecordingRepository,
+    tracks: TrackRepository
+) : ViewModel() {
+
+    val sessions: StateFlow<List<RecordingRow>> =
+        combine(recordings.observeSessions(), tracks.observeTracksWithDue()) { sessions, trackList ->
+            val names = trackList.associate { item -> item.track.id to item.track.name }
+            sessions.map { session -> session.toRow(names) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message
+
+    fun delete(sessionId: Long) {
+        viewModelScope.launch {
+            runCatching { recordings.deleteRecording(sessionId) }
+                .onFailure { _message.value = it.message ?: "Could not delete the recording" }
+        }
+    }
+
+    companion object {
+        private const val STOP_TIMEOUT_MS = 5_000L
+
+        fun factory(context: Context): ViewModelProvider.Factory {
+            val appContext = context.applicationContext
+            return viewModelFactory {
+                initializer {
+                    val database = SprayDayDatabase.get(appContext)
+                    RecordingsViewModel(
+                        recordings = RecordingRepository(database),
+                        tracks = TrackRepository(database)
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun RecordedSessionEntity.toRow(trackNames: Map<Long, String>) = RecordingRow(
+    id = id,
+    name = name,
+    startedAtEpochMs = startedAtEpochMs,
+    distanceM = distanceM,
+    durationMs = endedAtEpochMs?.let { it - startedAtEpochMs }?.coerceAtLeast(0L) ?: 0L,
+    pointCount = pointCount,
+    status = runCatching { RecordingStatus.valueOf(status) }.getOrDefault(RecordingStatus.FINISHED),
+    trackId = trackId,
+    trackName = trackId?.let { trackNames[it] }
+)

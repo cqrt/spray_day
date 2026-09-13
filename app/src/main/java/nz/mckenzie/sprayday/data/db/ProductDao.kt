@@ -28,4 +28,11 @@ abstract class ProductDao {
 
     @Query("UPDATE products SET archived = :archived WHERE id = :id")
     abstract suspend fun setArchived(id: Long, archived: Boolean)
+
+    /**
+     * Renames a product. The name column is unique, so renaming onto an existing
+     * product name fails rather than silently merging two chemicals.
+     */
+    @Query("UPDATE products SET name = :name WHERE id = :id")
+    abstract suspend fun rename(id: Long, name: String)
 }

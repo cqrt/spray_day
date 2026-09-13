@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.SprayProductQuantity
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.db.ProductEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.TrackEntity
 import nz.mckenzie.sprayday.ui.formatQuantityMl
@@ -45,6 +46,10 @@ class SprayEntryViewModel(
 
     private val _rows = MutableStateFlow<List<ProductRow>>(emptyList())
     val rows: StateFlow<List<ProductRow>> = _rows
+
+    /** Every product including archived ones, for the manage-products dialog. */
+    val allProducts: StateFlow<List<ProductEntity>> = sprays.observeAllProducts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     private val _waterLitres = MutableStateFlow("")
     val waterLitres: StateFlow<String> = _waterLitres
@@ -122,6 +127,37 @@ class SprayEntryViewModel(
         viewModelScope.launch {
             runCatching { sprays.addProduct(name = trimmed) }
                 .onFailure { _message.value = it.message ?: "Could not add the product" }
+        }
+    }
+
+    /** Renames a product, keeping its history: sprays keep pointing at the same id. */
+    fun renameProduct(productId: Long, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) {
+            _message.value = "Give the product a name"
+            return
+        }
+        viewModelScope.launch {
+            _message.value = null
+            runCatching { sprays.renameProduct(productId, trimmed) }
+                .onFailure {
+                    _message.value = if (it is android.database.sqlite.SQLiteConstraintException) {
+                        "A product called \"$trimmed\" already exists"
+                    } else {
+                        it.message ?: "Could not rename the product"
+                    }
+                }
+        }
+    }
+
+    /**
+     * Hides a product from the entry form without touching the sprays that used it,
+     * so an out-of-favour chemical stops being offered but stays in the history.
+     */
+    fun setProductArchived(productId: Long, archived: Boolean) {
+        viewModelScope.launch {
+            runCatching { sprays.setProductArchived(productId, archived) }
+                .onFailure { _message.value = it.message ?: "Could not update the product" }
         }
     }
 

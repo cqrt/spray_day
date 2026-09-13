@@ -24,6 +24,12 @@ sprayed).
   the recording and the spray together, linked by session id, so the traffic
   light updates and the spray history carries the distance actually driven.
 - **GPX export** of any track, shareable to QGIS/Google Earth/forestry tools.
+- **Recordings browser**: every GPS recording kept as evidence, showing the line
+  that was driven, the plan it was for, and how much of the planned line it
+  covered. Deleting a plan never deletes the recording.
+- **Product catalogue you can keep tidy**: rename a product without breaking its
+  history, or archive one so it stops being offered without losing what was
+  sprayed with it.
 
 ## How offline imagery works
 
@@ -95,6 +101,11 @@ and AAB attached. Signing comes from repository secrets:
 Locally, the same values can live in a gitignored `keystore.properties`. Keep a
 backup of the keystore: without it you cannot ship an update that installs over
 an existing install.
+
+Each release carries one APK per architecture plus a universal one, so a phone
+downloads ~15 MB (arm64) rather than ~50 MB of native libraries for four
+architectures it will never use. Take the `arm64-v8a` APK for any phone from the
+last few years; the universal APK runs anywhere.
 
 ## Data attribution
 

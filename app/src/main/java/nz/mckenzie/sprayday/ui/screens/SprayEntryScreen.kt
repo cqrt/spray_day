@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.data.db.ProductEntity
 import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
 
 /**
@@ -55,6 +57,10 @@ fun SprayEntryScreen(
 
     var addingProduct by remember { mutableStateOf(false) }
     var newProductName by remember { mutableStateOf("") }
+    var managingProducts by remember { mutableStateOf(false) }
+    var renamingProduct by remember { mutableStateOf<ProductEntity?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    val allProducts by viewModel.allProducts.collectAsStateWithLifecycle()
 
     LaunchedEffect(saved) {
         if (saved) {
@@ -108,6 +114,7 @@ fun SprayEntryScreen(
             }
 
             OutlinedButton(onClick = { addingProduct = true }) { Text("Add product") }
+            OutlinedButton(onClick = { managingProducts = true }) { Text("Manage products") }
 
             OutlinedTextField(
                 value = waterLitres,
@@ -167,6 +174,76 @@ fun SprayEntryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { addingProduct = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (managingProducts) {
+        AlertDialog(
+            onDismissRequest = { managingProducts = false },
+            title = { Text("Products") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Archiving keeps a product out of the entry form. Sprays that " +
+                            "already used it keep their history.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (allProducts.isEmpty()) {
+                        Text("No products yet.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    allProducts.forEach { product ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (product.archived) "${product.name} (archived)" else product.name,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            TextButton(onClick = {
+                                renamingProduct = product
+                                renameText = product.name
+                            }) { Text("Rename") }
+                            TextButton(
+                                onClick = { viewModel.setProductArchived(product.id, !product.archived) }
+                            ) { Text(if (product.archived) "Restore" else "Archive") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { managingProducts = false }) { Text("Done") }
+            }
+        )
+    }
+
+    renamingProduct?.let { product ->
+        AlertDialog(
+            onDismissRequest = { renamingProduct = null },
+            title = { Text("Rename product") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("Product name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.renameProduct(product.id, renameText)
+                    renamingProduct = null
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingProduct = null }) { Text("Cancel") }
             }
         )
     }

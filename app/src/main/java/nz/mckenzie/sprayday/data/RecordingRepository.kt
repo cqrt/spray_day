@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import androidx.room.withTransaction
 import nz.mckenzie.sprayday.data.db.RecordedPointEntity
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
@@ -17,6 +18,7 @@ import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 class RecordingRepository(private val db: SprayDayDatabase) {
 
     private val recordingDao = db.recordingDao()
+    private val sprayEventDao = db.sprayEventDao()
 
     suspend fun startRecording(
         name: String,
@@ -92,7 +94,12 @@ class RecordingRepository(private val db: SprayDayDatabase) {
 
     suspend fun pointCount(sessionId: Long): Int = recordingDao.pointCount(sessionId)
 
-    suspend fun deleteRecording(sessionId: Long) = recordingDao.deleteSession(sessionId)
+    suspend fun deleteRecording(sessionId: Long) = db.withTransaction {
+        // A spray recorded from this recording stays - it is the history - but its
+        // link is cleared first, so nothing points at a session that is gone.
+        sprayEventDao.clearRecordedSession(sessionId)
+        recordingDao.deleteSession(sessionId)
+    }
 }
 
 internal fun RecordedPointEntity.toGeoPoint() = GeoPoint(

@@ -46,7 +46,8 @@ fun TrackListScreen(
     onBack: () -> Unit,
     onOpenTrack: (Long) -> Unit,
     onDrawTrack: () -> Unit,
-    onRecordTrack: () -> Unit
+    onRecordTrack: () -> Unit,
+    onOpenRecordings: () -> Unit
 ) {
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -80,6 +81,7 @@ fun TrackListScreen(
                 }
                 OutlinedButton(onClick = onDrawTrack) { Text("Draw") }
                 OutlinedButton(onClick = onRecordTrack) { Text("Record") }
+                OutlinedButton(onClick = onOpenRecordings) { Text("Recordings") }
             }
 
             message?.let {

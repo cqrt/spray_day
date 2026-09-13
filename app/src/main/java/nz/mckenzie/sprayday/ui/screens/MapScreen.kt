@@ -16,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,14 +37,21 @@ import nz.mckenzie.sprayday.viewmodel.MapViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(viewModel: MapViewModel) {
+fun MapScreen(viewModel: MapViewModel, onOpenOffline: () -> Unit = {}) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.trackGeoJson.collectAsStateWithLifecycle()
     val trackBounds by viewModel.trackBounds.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    TextButton(onClick = onOpenOffline) { Text("Offline") }
+                }
+            )
+        }
     ) { innerPadding ->
         Box(
             modifier = Modifier

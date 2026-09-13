@@ -42,6 +42,19 @@ object LinzBasemap {
     fun topographicStyleUrl(apiKey: String): String =
         "$HOST/v1/tiles/topographic/$TILE_MATRIX/style/topographic.json?api=${sanitiseKey(apiKey)}"
 
+    /**
+     * LINZ's hosted **aerial** style, used only as the entry point for MapLibre's
+     * OfflineManager, which requires a style URL rather than inline JSON.
+     *
+     * Verified against the live service: the aerial tile template inside this
+     * document is byte-identical to [aerialTileTemplate], so tiles an offline
+     * region caches are reused by our own inline style when the app is offline.
+     * The hosted document also declares two unused terrain sources, which is why
+     * the live map renders our leaner inline style instead.
+     */
+    fun hostedAerialStyleUrl(apiKey: String): String =
+        "$HOST/v1/tiles/aerial/$TILE_MATRIX/style/aerial.json?api=${sanitiseKey(apiKey)}"
+
     /** Single-quoted href so the HTML drops straight into JSON without escaping. */
     fun attributionHtml(): String = "<a href='$ATTRIBUTION_LINK'>$ATTRIBUTION</a>"
 

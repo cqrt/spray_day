@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +48,7 @@ import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 /**
  * One track: where it is, when it is next due, and what it has been given.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TrackDetailScreen(
     viewModel: TrackDetailViewModel,
@@ -138,7 +140,14 @@ fun TrackDetailScreen(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wrapping rather than a fixed row: "Record spray" and "Export GPX" are
+            // long labels, and on a narrow screen a single row squeezed one of them
+            // to nothing.
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(onClick = onRecordSpray) { Text("Record spray") }
                 OutlinedButton(
                     onClick = { exportLauncher.launch("${track?.name ?: "track"}.gpx") }

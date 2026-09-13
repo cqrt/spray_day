@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +41,7 @@ import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
  * The track library: what tracks exist, how long they are, and when each is next
  * due. Tracks can be imported from GPX or drawn on the map.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TrackListScreen(
     viewModel: TrackListViewModel,
@@ -72,15 +74,24 @@ fun TrackListScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+            // These four actions do not fit across a phone as one row: the last one
+            // was squeezed to a blank sliver against the right edge, which is how the
+            // recordings page went missing. A wrapping row keeps every label readable
+            // at any width, and the primary action - recording a track - is the one
+            // that gets the filled treatment, not the rarest.
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onRecordTrack) { Text("Record") }
+                OutlinedButton(onClick = onDrawTrack) { Text("Draw") }
+                OutlinedButton(
                     onClick = { importLauncher.launch(GPX_MIME_TYPES) },
                     enabled = !busy
                 ) {
                     Text("Import GPX")
                 }
-                OutlinedButton(onClick = onDrawTrack) { Text("Draw") }
-                OutlinedButton(onClick = onRecordTrack) { Text("Record") }
                 OutlinedButton(onClick = onOpenRecordings) { Text("Recordings") }
             }
 

@@ -21,6 +21,36 @@ sprayed).
   written to the database as it arrives.
 - **GPX export** of any track, shareable to QGIS/Google Earth/forestry tools.
 
+## How offline imagery works
+
+The map never talks to LINZ directly. Tiles are served by a small HTTP server
+inside the app, bound to `127.0.0.1`, which:
+
+- serves a tile from the on-disk store when it is held, so downloaded areas —
+  and imagery you have simply browsed — work with no reception;
+- otherwise fetches it from LINZ and stores it on the way through, so ordinary
+  use of the map builds up offline coverage;
+- answers 404 for a tile that is neither held nor available, so the map shows
+  its background colour rather than an error.
+
+**Download area** fetches exactly the tiles the zoom pyramid needs: the tile
+count shown before you commit is the count downloaded, verified on a device
+(304 planned, 304 stored, ~5 MB). It resumes rather than restarts, and a killed
+download picks up where it stopped.
+
+Tiles are plain `{z}/{x}/{y}.webp` files under `filesDir/tiles`, not MapLibre's
+offline database, which keeps them inspectable, resumable tile by tile, and
+servable straight back to the map. That matters because MapLibre's own
+downloader, pointed at LINZ's hosted style, pulled ~10x the needed tiles (3,175
+resources for a ~304-tile area) by walking style sources the imagery layers
+never use.
+
+One subtlety worth knowing: MapLibre gates HTTP requests on device connectivity,
+so with no reception it requests nothing at all — including from our local
+server, which is precisely where the offline imagery is. The app therefore tells
+MapLibre it is connected (`MapLibre.setConnected(true)`); the server, not the
+radio, decides what is available.
+
 ## Build
 
 Requires JDK 17–23 (this project is developed on JDK 23; Gradle 8.13 cannot run

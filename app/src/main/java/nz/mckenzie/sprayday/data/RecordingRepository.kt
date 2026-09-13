@@ -72,6 +72,14 @@ class RecordingRepository(private val db: SprayDayDatabase) {
 
     suspend fun getSession(sessionId: Long): RecordedSessionEntity? = recordingDao.getSession(sessionId)
 
+    /**
+     * The session to reattach to on launch: one that was left recording or
+     * paused, e.g. because the app was killed mid-spray. Returns null when
+     * everything is finished.
+     */
+    suspend fun findUnfinishedSession(): RecordedSessionEntity? =
+        recordingDao.findUnfinishedSession(RecordingStatus.FINISHED.name)
+
     fun observePoints(sessionId: Long): Flow<List<GeoPoint>> =
         recordingDao.observePoints(sessionId).map { rows -> rows.map { it.toGeoPoint() } }
 

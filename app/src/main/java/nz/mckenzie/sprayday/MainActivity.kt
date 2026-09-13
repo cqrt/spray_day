@@ -13,15 +13,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.mckenzie.sprayday.ui.screens.DrawTrackScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
+import nz.mckenzie.sprayday.ui.screens.RecordScreen
 import nz.mckenzie.sprayday.ui.screens.TrackListScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
+import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, OFFLINE }
+private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,7 +57,18 @@ class MainActivity : ComponentActivity() {
                         TrackListScreen(
                             viewModel = trackViewModel,
                             onBack = { destination = Destination.MAP },
-                            onDrawTrack = { destination = Destination.DRAW }
+                            onDrawTrack = { destination = Destination.DRAW },
+                            onRecordTrack = { destination = Destination.RECORD }
+                        )
+                    }
+
+                    Destination.RECORD -> {
+                        val recordingViewModel: RecordingViewModel = viewModel(
+                            factory = RecordingViewModel.factory(applicationContext)
+                        )
+                        RecordScreen(
+                            viewModel = recordingViewModel,
+                            onBack = { destination = Destination.TRACKS }
                         )
                     }
 

@@ -44,7 +44,8 @@ import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 fun TrackListScreen(
     viewModel: TrackListViewModel,
     onBack: () -> Unit,
-    onDrawTrack: () -> Unit
+    onDrawTrack: () -> Unit,
+    onRecordTrack: () -> Unit
 ) {
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -76,7 +77,8 @@ fun TrackListScreen(
                 ) {
                     Text("Import GPX")
                 }
-                OutlinedButton(onClick = onDrawTrack) { Text("Draw on map") }
+                OutlinedButton(onClick = onDrawTrack) { Text("Draw") }
+                OutlinedButton(onClick = onRecordTrack) { Text("Record") }
             }
 
             message?.let {

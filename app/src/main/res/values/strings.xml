@@ -7,4 +7,11 @@
     <string name="linz_key_missing">Not configured. Paste your key into local.properties (LINZ_API_KEY), or set it later in Settings.</string>
     <string name="linz_key_configured">Configured from local.properties.</string>
     <string name="next_steps">Next: offline LINZ aerial basemap, track library and due-status colours.</string>
+
+    <!-- Recording notification -->
+    <string name="recording_channel_name">Track recording</string>
+    <string name="recording_channel_description">Shown while Spray Day is recording a GPS track</string>
+    <string name="recording_notification_title">Recording spray track</string>
+    <string name="recording_notification_text">%1$s \u00b7 %2$d points</string>
+    <string name="recording_paused_text">Paused</string>
 </resources>

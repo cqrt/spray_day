@@ -14,6 +14,17 @@ abstract class RecordingDao {
     @Query("SELECT * FROM recorded_sessions WHERE id = :id")
     abstract suspend fun getSession(id: Long): RecordedSessionEntity?
 
+    /** The most recent session that has not been finished, if any. */
+    @Query(
+        """
+        SELECT * FROM recorded_sessions
+        WHERE status != :finishedStatus
+        ORDER BY startedAtEpochMs DESC
+        LIMIT 1
+        """
+    )
+    abstract suspend fun findUnfinishedSession(finishedStatus: String): RecordedSessionEntity?
+
     @Query("SELECT * FROM recorded_sessions ORDER BY startedAtEpochMs DESC")
     abstract fun observeSessions(): Flow<List<RecordedSessionEntity>>
 

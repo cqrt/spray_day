@@ -38,6 +38,13 @@ object LinzBasemap {
     fun aerialTileTemplate(apiKey: String): String =
         "$HOST/v1/tiles/aerial/$TILE_MATRIX/{z}/{x}/{y}.webp?api=${sanitiseKey(apiKey)}"
 
+    /** One specific tile, as the downloader and the fetcher need it. */
+    fun aerialTileUrl(apiKey: String, zoom: Int, x: Int, y: Int): String =
+        aerialTileUrlAt(HOST, apiKey, zoom, x, y)
+
+    private fun aerialTileUrlAt(host: String, apiKey: String, zoom: Int, x: Int, y: Int): String =
+        "$host/v1/tiles/aerial/$TILE_MATRIX/$zoom/$x/$y.webp?api=${sanitiseKey(apiKey)}"
+
     /** LINZ's hosted topographic vector style, keyed at the style URL. */
     fun topographicStyleUrl(apiKey: String): String =
         "$HOST/v1/tiles/topographic/$TILE_MATRIX/style/topographic.json?api=${sanitiseKey(apiKey)}"
@@ -83,37 +90,44 @@ object LinzBasemap {
         }
     """.trimIndent()
 
-    fun aerialStyleJson(apiKey: String): String {
-        val tiles = aerialTileTemplate(apiKey)
-        return """
-            {
-              "version": 8,
-              "name": "Spray Day - LINZ Aerial Imagery",
-              "sources": {
-                "linz-aerial": {
-                  "type": "raster",
-                  "tiles": ["$tiles"],
-                  "tileSize": 256,
-                  "minzoom": 0,
-                  "maxzoom": $AERIAL_MAX_ZOOM,
-                  "attribution": "${attributionHtml()}"
-                }
-              },
-              "layers": [
-                {
-                  "id": "background",
-                  "type": "background",
-                  "paint": { "background-color": "#0B1F13" }
-                },
-                {
-                  "id": "linz-aerial",
-                  "type": "raster",
-                  "source": "linz-aerial",
-                  "minzoom": 0,
-                  "maxzoom": $AERIAL_MAX_ZOOM
-                }
-              ]
+    /**
+     * A minimal style document for the aerial basemap, pointing at [tileUrlTemplate].
+     *
+     * We build our own style (rather than loading LINZ's hosted one) so the tile
+     * URL can be swapped for the local tile server, and so offline downloads are
+     * deterministic.
+     */
+    fun aerialStyleJsonForTemplate(tileUrlTemplate: String): String = """
+        {
+          "version": 8,
+          "name": "Spray Day - LINZ Aerial Imagery",
+          "sources": {
+            "linz-aerial": {
+              "type": "raster",
+              "tiles": ["$tileUrlTemplate"],
+              "tileSize": 256,
+              "minzoom": 0,
+              "maxzoom": $AERIAL_MAX_ZOOM,
+              "attribution": "${attributionHtml()}"
             }
-        """.trimIndent()
-    }
+          },
+          "layers": [
+            {
+              "id": "background",
+              "type": "background",
+              "paint": { "background-color": "#0B1F13" }
+            },
+            {
+              "id": "linz-aerial",
+              "type": "raster",
+              "source": "linz-aerial",
+              "minzoom": 0,
+              "maxzoom": $AERIAL_MAX_ZOOM
+            }
+          ]
+        }
+    """.trimIndent()
+
+    /** The style pointed straight at LINZ, used when the local server is not running. */
+    fun aerialStyleJson(apiKey: String): String = aerialStyleJsonForTemplate(aerialTileTemplate(apiKey))
 }

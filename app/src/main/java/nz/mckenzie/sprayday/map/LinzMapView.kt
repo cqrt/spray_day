@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds as DomainBounds
+import nz.mckenzie.sprayday.offline.TileServerHolder
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -45,6 +46,12 @@ fun LinzMapView(
     trackGeoJson: String,
     modifier: Modifier = Modifier,
     fitBounds: DomainBounds? = null,
+    /**
+     * Tile template to render. Defaults to the app's own tile server so every map
+     * shares one tile path - and therefore one offline store - rather than some
+     * screens talking to LINZ directly and some not.
+     */
+    tileUrlTemplate: String? = TileServerHolder.templateUrl,
     onMapClick: ((latitude: Double, longitude: Double) -> Unit)? = null,
     initialTarget: LatLng = DEFAULT_CAMERA_TARGET,
     initialZoom: Double = DEFAULT_CAMERA_ZOOM
@@ -83,18 +90,23 @@ fun LinzMapView(
                             true
                         }
                     }
-                    map.loadSprayDayStyle(apiKey, trackGeoJson) { style -> styleState.value = style }
+                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, trackGeoJson) { style ->
+                        styleState.value = style
+                    }
                 }
                 mapViewState.value = this
             }
         }
     )
 
-    // The key itself is not used here: the style URL already embeds it.
-    LaunchedEffect(apiKey) {
+    // The key itself is not used here: the style URL already embeds it, or the
+    // tile server holds it.
+    LaunchedEffect(apiKey, tileUrlTemplate) {
         val map = mapState.value
-        if (map != null && apiKey.isNotBlank()) {
-            map.loadSprayDayStyle(apiKey, trackGeoJson) { style -> styleState.value = style }
+        if (map != null && (apiKey.isNotBlank() || !tileUrlTemplate.isNullOrBlank())) {
+            map.loadSprayDayStyle(apiKey, tileUrlTemplate, trackGeoJson) { style ->
+                styleState.value = style
+            }
         }
     }
 
@@ -142,13 +154,20 @@ fun LinzMapView(
  */
 internal fun MapLibreMap.loadSprayDayStyle(
     apiKey: String,
+    tileUrlTemplate: String?,
     trackGeoJson: String,
     onLoaded: (Style) -> Unit
 ) {
-    val json = if (apiKey.isBlank()) {
-        LinzBasemap.blankStyleJson()
-    } else {
-        LinzBasemap.aerialStyleJson(apiKey)
+    val json = when {
+        // A running tile server is the preferred source: it serves downloaded
+        // areas with no reception and keeps whatever it fetches, and it holds the
+        // API key so the style does not have to.
+        !tileUrlTemplate.isNullOrBlank() -> LinzBasemap.aerialStyleJsonForTemplate(tileUrlTemplate)
+
+        // No server (tests, previews): talk to LINZ directly.
+        apiKey.isNotBlank() -> LinzBasemap.aerialStyleJson(apiKey)
+
+        else -> LinzBasemap.blankStyleJson()
     }
 
     setStyle(Style.Builder().fromJson(json)) { style ->

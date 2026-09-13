@@ -37,3 +37,7 @@ fun formatDuration(millis: Long): String {
 /** "13 Sep 2026" - local calendar date of an instant, for spray history. */
 fun formatDate(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US))
+
+/** "13 Sep" - a short label, used to suggest a name for a freshly recorded track. */
+fun formatShortDate(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+    Instant.ofEpochMilli(epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM", Locale.US))

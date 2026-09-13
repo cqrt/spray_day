@@ -46,4 +46,16 @@ class FormattingTest {
         assertEquals("13 Sep 2026", formatDate(eightAmNz, java.time.ZoneId.of("Pacific/Auckland")))
         assertEquals("12 Sep 2026", formatDate(eightAmNz, java.time.ZoneId.of("UTC")))
     }
+
+    @Test
+    fun `short dates drop the year, for suggesting a new track's name`() {
+        val eighthOfSeptember = java.time.LocalDate.of(2026, 9, 8)
+            .atTime(9, 0)
+            .atZone(java.time.ZoneId.of("Pacific/Auckland"))
+            .toInstant()
+            .toEpochMilli()
+
+        assertEquals("8 Sep", formatShortDate(eighthOfSeptember, java.time.ZoneId.of("Pacific/Auckland")))
+        assertEquals("7 Sep", formatShortDate(eighthOfSeptember, java.time.ZoneId.of("UTC")))
+    }
 }

@@ -36,6 +36,7 @@ import nz.mckenzie.sprayday.map.TrackLine
 import nz.mckenzie.sprayday.tracking.TrackingService
 import nz.mckenzie.sprayday.tracking.TrackingState
 import nz.mckenzie.sprayday.ui.formatQuantityMl
+import nz.mckenzie.sprayday.ui.formatShortDate
 import nz.mckenzie.sprayday.ui.parseQuantityMl
 
 /**
@@ -133,6 +134,14 @@ class RecordingViewModel(
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
+
+    /**
+     * The name suggested for the track a finished recording is about to become, or
+     * null when no name is being asked for. The screen shows a dialog while this is
+     * set, so a new line always gets a name before it is saved as a track.
+     */
+    private val _pendingTrackName = MutableStateFlow<String?>(null)
+    val pendingTrackName: StateFlow<String?> = _pendingTrackName
 
     private var observingSession: Long? = null
 
@@ -281,29 +290,80 @@ class RecordingViewModel(
      * line is still safe on the device and the message says exactly that.
      */
     fun finish() {
+        // Spraying a track that already exists finishes straight away - it has a
+        // name. Recording a brand new line asks what to call it first, because on
+        // this screen "record" means "make a track": a recording that only ever
+        // appeared in the recordings list is not what anyone goes looking for.
+        if (_selectedTrackId.value != null) {
+            completeFinish(newTrackName = null)
+        } else {
+            _pendingTrackName.value = defaultTrackName()
+        }
+    }
+
+    /** From the naming dialog: saves the recorded line as a new, named track. */
+    fun confirmFinish(name: String) {
+        completeFinish(newTrackName = name.trim().ifBlank { defaultTrackName() })
+    }
+
+    /** Dismisses the naming dialog without ending the recording. */
+    fun cancelFinish() {
+        _pendingTrackName.value = null
+    }
+
+    private fun completeFinish(newTrackName: String?) {
         val sessionId = sessionIdOrNull() ?: return
         viewModelScope.launch {
+            _pendingTrackName.value = null
+
             val distanceM = TrackingState.current.distanceM
             val points = TrackingState.current.pointCount
-            val trackId = _selectedTrackId.value
-            val trackName = selectedTrackName.value
+            val existingTrackId = _selectedTrackId.value
             val lines = _rows.value.mapNotNull { row ->
                 parseQuantityMl(row.quantityText)?.let { ml -> SprayProductQuantity(row.productId, ml) }
             }
             val coverageNow = _coverage.value
 
+            // Read the geometry back from the database rather than the live flow: the
+            // newest fix may not have reached the flow yet, and it must not be missing
+            // from the track.
+            val geometry = runCatching { recordings.getPoints(sessionId) }
+                .getOrDefault(emptyList())
+
+            var trackError: String? = null
+            val trackId = when {
+                existingTrackId != null -> existingTrackId
+                newTrackName == null -> null
+                geometry.size < 2 -> null
+                else -> runCatching { tracks.createTrack(name = newTrackName, geometry = geometry) }
+                    .onFailure { trackError = it.message ?: "could not save the track" }
+                    .getOrNull()
+            }
+
             recordings.finishRecording(sessionId, distanceM = distanceM)
+            if (newTrackName != null) {
+                runCatching { recordings.renameSession(sessionId, newTrackName) }
+            }
+            trackId?.let { runCatching { recordings.setSessionTrack(sessionId, it) } }
+
             TrackingService.stop(context)
             TrackingState.clear()
             observingSession = null
             sessionPoints.value = emptyList()
             plannedGeometry.value = emptyList()
 
-            var message = "Saved a recording of $points ${if (points == 1) "point" else "points"}"
+            var message = "Saved $points ${if (points == 1) "point" else "points"}"
+            message += when {
+                newTrackName == null -> ""
+                trackId != null -> " as \"$newTrackName\", which is on the Tracks page now"
+                trackError != null -> " - the track could not be saved: $trackError"
+                else -> " - too few points for a track, so it is in Recordings only"
+            }
             if (coverageNow != null) {
                 message += " · covered ${formatCoveragePercent(coverageNow)} of the line"
             }
 
+            val sprayTrackName = newTrackName ?: selectedTrackName.value
             message += when {
                 trackId == null -> ""
                 lines.isEmpty() -> " · no products entered, so no spray was recorded"
@@ -317,7 +377,7 @@ class RecordingViewModel(
                     )
                     if (_rememberDefaults.value) sprays.rememberDefaultsForTrack(trackId, lines)
                 }.fold(
-                    onSuccess = { " · recorded the spray for ${trackName ?: "the track"}" },
+                    onSuccess = { " · recorded the spray for ${sprayTrackName ?: "the track"}" },
                     onFailure = { failure ->
                         " · the recording is saved, but the spray was not recorded: " +
                             (failure.message ?: "unknown error")
@@ -342,6 +402,9 @@ class RecordingViewModel(
     }
 
     private fun defaultName(): String = "Spray run"
+
+    /** Suggests a track name: "Track 14 Sep" beats an empty box to type into. */
+    private fun defaultTrackName(): String = "Track " + formatShortDate(System.currentTimeMillis())
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L

@@ -74,9 +74,16 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     val trackName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksToSpray.collectAsStateWithLifecycle()
     val remember by viewModel.rememberDefaults.collectAsStateWithLifecycle()
+    val pendingTrackName by viewModel.pendingTrackName.collectAsStateWithLifecycle()
 
     var permissionGranted by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     var pickingTrack by remember { mutableStateOf(false) }
+    var trackNameDraft by remember { mutableStateOf("") }
+
+    // Finish asks what to call the line; the suggested name arrives with the prompt.
+    LaunchedEffect(pendingTrackName) {
+        pendingTrackName?.let { trackNameDraft = it }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -143,7 +150,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                     )
                     Text(
                         text = "${formatDistance(state.distanceM)} \u00b7 ${formatDuration(elapsedMs)} " +
-                            "\u00b7 ${state.pointCount} points",
+                            "\u00b7 ${state.pointCount} ${if (state.pointCount == 1) "point" else "points"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     state.lastAccuracyM?.let { accuracy ->
@@ -240,6 +247,35 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                 pickingTrack = false
             },
             onDismiss = { pickingTrack = false }
+        )
+    }
+
+    // Finishing a line that is not already a track makes one, so it needs a name.
+    if (pendingTrackName != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelFinish() },
+            title = { Text("Name this track") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "The line you recorded is saved as a track, so it appears on " +
+                            "the Tracks page and can be sprayed again.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = trackNameDraft,
+                        onValueChange = { trackNameDraft = it },
+                        label = { Text("Track name") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmFinish(trackNameDraft) }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelFinish() }) { Text("Keep recording") }
+            }
         )
     }
 }

@@ -56,6 +56,13 @@ abstract class RecordingDao {
     @Query("UPDATE recorded_sessions SET trackId = :trackId WHERE id = :sessionId")
     abstract suspend fun setSessionTrack(sessionId: Long, trackId: Long)
 
+    /**
+     * Renames a session. Used when a recording is saved as a named track, so the
+     * recordings list and the track list agree on what the line is called.
+     */
+    @Query("UPDATE recorded_sessions SET name = :name WHERE id = :sessionId")
+    abstract suspend fun renameSession(sessionId: Long, name: String)
+
     @Query("DELETE FROM recorded_sessions WHERE id = :id")
     abstract suspend fun deleteSession(id: Long)
 

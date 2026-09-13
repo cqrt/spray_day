@@ -58,6 +58,10 @@ class RecordingRepository(private val db: SprayDayDatabase) {
     suspend fun setSessionTrack(sessionId: Long, trackId: Long) =
         recordingDao.setSessionTrack(sessionId, trackId)
 
+    /** Renames a session, so the recordings list matches the track it became. */
+    suspend fun renameSession(sessionId: Long, name: String) =
+        recordingDao.renameSession(sessionId, name)
+
     /** Closes a session, storing the distance and point count actually recorded. */
     suspend fun finishRecording(
         sessionId: Long,

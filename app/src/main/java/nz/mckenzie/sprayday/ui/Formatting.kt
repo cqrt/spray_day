@@ -1,5 +1,8 @@
 package nz.mckenzie.sprayday.ui
 
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -30,3 +33,7 @@ fun formatDuration(millis: Long): String {
         else -> "${seconds}s"
     }
 }
+
+/** "13 Sep 2026" - local calendar date of an instant, for spray history. */
+fun formatDate(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+    Instant.ofEpochMilli(epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US))

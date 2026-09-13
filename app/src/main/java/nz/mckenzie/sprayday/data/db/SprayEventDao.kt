@@ -15,6 +15,19 @@ data class TrackSpraySummary(
     val sprayCount: Int
 )
 
+/** One product line of a spray, with the product's display name. */
+data class ProductQuantityLine(
+    val name: String,
+    val quantityMl: Double
+)
+
+/** A track's saved pre-fill for one product. */
+data class TrackDefaultLine(
+    val productId: Long,
+    val name: String,
+    val defaultQuantityMl: Double?
+)
+
 @Dao
 abstract class SprayEventDao {
 
@@ -35,6 +48,34 @@ abstract class SprayEventDao {
 
     @Query("SELECT * FROM spray_event_products WHERE sprayEventId = :sprayEventId")
     abstract fun observeEventProducts(sprayEventId: Long): Flow<List<SprayEventProductEntity>>
+
+    /** Spray lines with product names, for showing a history entry. */
+    @Query(
+        """
+        SELECT p.name AS name, ep.quantityMl AS quantityMl
+        FROM spray_event_products ep
+        JOIN products p ON p.id = ep.productId
+        WHERE ep.sprayEventId = :sprayEventId
+        ORDER BY p.name COLLATE NOCASE
+        """
+    )
+    abstract suspend fun productQuantityLines(sprayEventId: Long): List<ProductQuantityLine>
+
+    /**
+     * What a track was last given, as its pre-fill for the next spray. This is
+     * the mechanism behind the three-times-a-year workflow: the amounts are
+     * suggested rather than retyped.
+     */
+    @Query(
+        """
+        SELECT p.id AS productId, p.name AS name, d.defaultQuantityMl AS defaultQuantityMl
+        FROM track_product_defaults d
+        JOIN products p ON p.id = d.productId
+        WHERE d.trackId = :trackId
+        ORDER BY p.name COLLATE NOCASE
+        """
+    )
+    abstract suspend fun trackDefaultLines(trackId: Long): List<TrackDefaultLine>
 
     @Query(
         """

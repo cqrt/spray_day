@@ -185,6 +185,46 @@ class TrackAndSprayDataTest {
     }
 
     @Test
+    fun productDefaultsComeBackWithNamesForPreFilling() = runBlocking {
+        val trackId = tracks.createTrack(name = "Pre-fill", geometry = line)
+        val glyphosate = sprays.addProduct(name = "Glyphosate 360")
+        val surfactant = sprays.addProduct(name = "Surfactant")
+
+        sprays.rememberDefaultsForTrack(
+            trackId = trackId,
+            products = listOf(
+                SprayProductQuantity(productId = glyphosate, quantityMl = 1450.0),
+                SprayProductQuantity(productId = surfactant, quantityMl = 120.0)
+            )
+        )
+
+        val lines = sprays.getTrackDefaultLines(trackId)
+        assertEquals(2, lines.size)
+        // Ordered by name, which is how the form shows them.
+        assertEquals("Glyphosate 360", lines[0].name)
+        assertEquals(1450.0, lines[0].defaultQuantityMl!!, 0.001)
+        assertEquals("Surfactant", lines[1].name)
+    }
+
+    @Test
+    fun sprayHistoryLinesCarryProductNamesAndAmounts() = runBlocking {
+        val trackId = tracks.createTrack(name = "History", geometry = line)
+        val productId = sprays.addProduct(name = "Product Z")
+        val eventId = sprays.recordSpray(
+            trackId = trackId,
+            sprayedAtEpochMs = now,
+            products = listOf(
+                SprayProductQuantity(productId = productId, quantityMl = 875.5)
+            )
+        )
+
+        val lines = sprays.getSprayEventProductLines(eventId)
+        assertEquals(1, lines.size)
+        assertEquals("Product Z", lines[0].name)
+        assertEquals(875.5, lines[0].quantityMl, 0.001)
+    }
+
+    @Test
     fun exportedGpxRoundTripsThroughTheParser() = runBlocking {
         val id = tracks.createTrack(name = "Block 4 & 5", geometry = line)
 

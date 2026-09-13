@@ -14,16 +14,20 @@ import nz.mckenzie.sprayday.ui.screens.DrawTrackScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
 import nz.mckenzie.sprayday.ui.screens.RecordScreen
+import nz.mckenzie.sprayday.ui.screens.SprayEntryScreen
+import nz.mckenzie.sprayday.ui.screens.TrackDetailScreen
 import nz.mckenzie.sprayday.ui.screens.TrackListScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
+import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
+import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE }
+private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, TRACK_DETAIL, SPRAY_ENTRY }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,6 +36,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SprayDayTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
+                var selectedTrackId by rememberSaveable { mutableStateOf<Long?>(null) }
 
                 // System back always returns to the map rather than leaving the app.
                 BackHandler(enabled = destination != Destination.MAP) {
@@ -57,9 +62,47 @@ class MainActivity : ComponentActivity() {
                         TrackListScreen(
                             viewModel = trackViewModel,
                             onBack = { destination = Destination.MAP },
+                            onOpenTrack = { trackId ->
+                                selectedTrackId = trackId
+                                destination = Destination.TRACK_DETAIL
+                            },
                             onDrawTrack = { destination = Destination.DRAW },
                             onRecordTrack = { destination = Destination.RECORD }
                         )
+                    }
+
+                    Destination.TRACK_DETAIL -> {
+                        val trackId = selectedTrackId
+                        if (trackId == null) {
+                            destination = Destination.TRACKS
+                        } else {
+                            val detailViewModel: TrackDetailViewModel = viewModel(
+                                key = "detail-$trackId",
+                                factory = TrackDetailViewModel.factory(applicationContext, trackId)
+                            )
+                            TrackDetailScreen(
+                                viewModel = detailViewModel,
+                                onBack = { destination = Destination.TRACKS },
+                                onRecordSpray = { destination = Destination.SPRAY_ENTRY }
+                            )
+                        }
+                    }
+
+                    Destination.SPRAY_ENTRY -> {
+                        val trackId = selectedTrackId
+                        if (trackId == null) {
+                            destination = Destination.TRACKS
+                        } else {
+                            val sprayViewModel: SprayEntryViewModel = viewModel(
+                                key = "spray-$trackId",
+                                factory = SprayEntryViewModel.factory(applicationContext, trackId)
+                            )
+                            SprayEntryScreen(
+                                viewModel = sprayViewModel,
+                                onBack = { destination = Destination.TRACK_DETAIL },
+                                onSaved = { destination = Destination.TRACK_DETAIL }
+                            )
+                        }
                     }
 
                     Destination.RECORD -> {

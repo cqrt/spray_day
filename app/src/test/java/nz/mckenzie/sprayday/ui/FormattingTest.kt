@@ -32,4 +32,18 @@ class FormattingTest {
         assertEquals("1h 05m", formatDuration(3_900_000))
         assertEquals("2h 00m", formatDuration(7_200_000))
     }
+
+    @Test
+    fun `dates are rendered in the given zone`() {
+        // 8am on 13 Sep in New Zealand (UTC+12) is 8pm on the 12th in UTC, so the
+        // rendered date must depend on the zone it is asked for.
+        val eightAmNz = java.time.LocalDate.of(2026, 9, 13)
+            .atTime(8, 0)
+            .atZone(java.time.ZoneId.of("Pacific/Auckland"))
+            .toInstant()
+            .toEpochMilli()
+
+        assertEquals("13 Sep 2026", formatDate(eightAmNz, java.time.ZoneId.of("Pacific/Auckland")))
+        assertEquals("12 Sep 2026", formatDate(eightAmNz, java.time.ZoneId.of("UTC")))
+    }
 }

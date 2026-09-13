@@ -44,6 +44,7 @@ import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 fun TrackListScreen(
     viewModel: TrackListViewModel,
     onBack: () -> Unit,
+    onOpenTrack: (Long) -> Unit,
     onDrawTrack: () -> Unit,
     onRecordTrack: () -> Unit
 ) {
@@ -93,7 +94,11 @@ fun TrackListScreen(
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.track.id }) { item ->
-                        TrackRow(item = item, onDelete = { viewModel.delete(item.track.id) })
+                        TrackRow(
+                            item = item,
+                            onOpen = { onOpenTrack(item.track.id) },
+                            onDelete = { viewModel.delete(item.track.id) }
+                        )
                     }
                 }
             }
@@ -110,8 +115,8 @@ private val GPX_MIME_TYPES = arrayOf(
 )
 
 @Composable
-private fun TrackRow(item: TrackWithDue, onDelete: () -> Unit) {
-    Card {
+private fun TrackRow(item: TrackWithDue, onOpen: () -> Unit, onDelete: () -> Unit) {
+    Card(onClick = onOpen) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

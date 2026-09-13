@@ -3,9 +3,11 @@ package nz.mckenzie.sprayday.data
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import nz.mckenzie.sprayday.data.db.ProductEntity
+import nz.mckenzie.sprayday.data.db.ProductQuantityLine
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
+import nz.mckenzie.sprayday.data.db.TrackDefaultLine
 import nz.mckenzie.sprayday.data.db.TrackProductDefaultEntity
 
 /**
@@ -65,6 +67,33 @@ class SprayRepository(private val db: SprayDayDatabase) {
 
     suspend fun getSprayEventProducts(sprayEventId: Long): List<SprayEventProductEntity> =
         sprayEventDao.getEventProducts(sprayEventId)
+
+    /** Spray lines with product names, for the history list. */
+    suspend fun getSprayEventProductLines(sprayEventId: Long): List<ProductQuantityLine> =
+        sprayEventDao.productQuantityLines(sprayEventId)
+
+    /** The amounts a track was last given, used to pre-fill the spray form. */
+    suspend fun getTrackDefaultLines(trackId: Long): List<TrackDefaultLine> =
+        sprayEventDao.trackDefaultLines(trackId)
+
+    /**
+     * Remembers what a track was given, so the next spray only needs confirming.
+     * Called from the spray form when "remember for this track" is ticked.
+     */
+    suspend fun rememberDefaultsForTrack(
+        trackId: Long,
+        products: List<SprayProductQuantity>
+    ) = db.withTransaction {
+        products.forEach { line ->
+            sprayEventDao.upsertDefault(
+                TrackProductDefaultEntity(
+                    trackId = trackId,
+                    productId = line.productId,
+                    defaultQuantityMl = line.quantityMl
+                )
+            )
+        }
+    }
 
     /**
      * Records a spray - the event, the mL of each product, and the track's new

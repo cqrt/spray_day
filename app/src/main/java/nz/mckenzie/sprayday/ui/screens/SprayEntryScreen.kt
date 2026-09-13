@@ -57,7 +57,12 @@ fun SprayEntryScreen(
     var newProductName by remember { mutableStateOf("") }
 
     LaunchedEffect(saved) {
-        if (saved) onSaved()
+        if (saved) {
+            // Consume before navigating, so re-entering the form for this track
+            // does not immediately bounce straight back out.
+            viewModel.consumeSaveResult()
+            onSaved()
+        }
     }
 
     Scaffold(

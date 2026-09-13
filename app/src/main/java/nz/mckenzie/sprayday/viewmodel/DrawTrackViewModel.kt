@@ -53,7 +53,22 @@ class DrawTrackViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TrackGeoJson.build(emptyList()))
 
     private val _savedTrackId = MutableStateFlow<Long?>(null)
+
+    /**
+     * The track just saved, or null when there is nothing to act on.
+     *
+     * This is a **one-shot signal**, not state: the screen navigates away and
+     * then calls [consumeSaveResult]. Without consuming it, a view model that
+     * outlives the screen (which is exactly what a ViewModel does) would fire
+     * the navigation again the next time the screen is opened - which is what
+     * made the draw screen flash and close on the second use.
+     */
     val savedTrackId: StateFlow<Long?> = _savedTrackId
+
+    /** Call once the save has been acted on, so it cannot fire twice. */
+    fun consumeSaveResult() {
+        _savedTrackId.value = null
+    }
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message

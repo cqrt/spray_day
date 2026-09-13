@@ -59,7 +59,18 @@ class SprayEntryViewModel(
     val message: StateFlow<String?> = _message
 
     private val _saved = MutableStateFlow(false)
+
+    /**
+     * True once the spray has been recorded. A one-shot signal: the screen calls
+     * [consumeSaveResult] as it navigates away, otherwise a reused view model
+     * (see the per-track view model key) would bounce the operator straight back
+     * out of the form on their next visit.
+     */
     val saved: StateFlow<Boolean> = _saved
+
+    fun consumeSaveResult() {
+        _saved.value = false
+    }
 
     init {
         viewModelScope.launch {

@@ -50,7 +50,11 @@ fun DrawTrackScreen(viewModel: DrawTrackViewModel, onBack: () -> Unit) {
     var draftName by remember { mutableStateOf("") }
 
     LaunchedEffect(savedTrackId) {
-        if (savedTrackId != null) onBack()
+        if (savedTrackId != null) {
+            // Consume before navigating: the signal must not survive this screen.
+            viewModel.consumeSaveResult()
+            onBack()
+        }
     }
 
     Scaffold(

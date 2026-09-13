@@ -38,6 +38,11 @@ class MainActivity : ComponentActivity() {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
                 var selectedTrackId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+                // Bumped on every visit to the draw screen so it gets its own view
+                // model: a shared one would carry the previous visit's draft (and
+                // its "just saved" signal) into the next drawing session.
+                var drawVisit by rememberSaveable { mutableStateOf(0) }
+
                 // System back always returns to the map rather than leaving the app.
                 BackHandler(enabled = destination != Destination.MAP) {
                     destination = Destination.MAP
@@ -66,7 +71,10 @@ class MainActivity : ComponentActivity() {
                                 selectedTrackId = trackId
                                 destination = Destination.TRACK_DETAIL
                             },
-                            onDrawTrack = { destination = Destination.DRAW },
+                            onDrawTrack = {
+                                drawVisit++
+                                destination = Destination.DRAW
+                            },
                             onRecordTrack = { destination = Destination.RECORD }
                         )
                     }
@@ -117,6 +125,7 @@ class MainActivity : ComponentActivity() {
 
                     Destination.DRAW -> {
                         val drawViewModel: DrawTrackViewModel = viewModel(
+                            key = "draw-$drawVisit",
                             factory = DrawTrackViewModel.factory(applicationContext)
                         )
                         DrawTrackScreen(

@@ -64,7 +64,13 @@ class OfflineAreaSourceTest {
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() {
+        // Deliberately no db.close(): the view model keeps a collector on the areas
+        // table for as long as it lives, and closing the database underneath it
+        // throws "the connection pool has been closed" - which kills the whole
+        // instrumentation process, taking unrelated tests with it. An in-memory
+        // database needs no cleaning up beyond the process.
+    }
 
     private fun viewModel(fix: GeoPoint?) = OfflineViewModel(
         manager = OfflineAreaManager(store = store, dao = db.offlineAreaDao()),

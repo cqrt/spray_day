@@ -67,7 +67,9 @@ class OfflineAreaPickerTest {
     @After
     fun tearDown() = runBlocking {
         SettingsRepository(context).setLinzApiKey("")
-        db.close()
+        // No db.close() here: the view model observes the areas table for as long as
+        // it lives, and closing the database underneath it takes the whole test
+        // process down with it.
     }
 
     private fun viewModel(fix: GeoPoint? = null) = OfflineAreaPickerViewModel(

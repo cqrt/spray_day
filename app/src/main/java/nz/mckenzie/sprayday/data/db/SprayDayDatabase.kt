@@ -14,9 +14,10 @@ import androidx.room.RoomDatabase
         SprayEventProductEntity::class,
         TrackProductDefaultEntity::class,
         RecordedSessionEntity::class,
-        RecordedPointEntity::class
+        RecordedPointEntity::class,
+        OfflineAreaEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class SprayDayDatabase : RoomDatabase() {
@@ -25,6 +26,7 @@ abstract class SprayDayDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun sprayEventDao(): SprayEventDao
     abstract fun recordingDao(): RecordingDao
+    abstract fun offlineAreaDao(): OfflineAreaDao
 
     companion object {
         const val NAME = "spray_day.db"
@@ -39,7 +41,8 @@ abstract class SprayDayDatabase : RoomDatabase() {
                     context.applicationContext,
                     SprayDayDatabase::class.java,
                     NAME
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2)
+                    .build().also { instance = it }
             }
     }
 }

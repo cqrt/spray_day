@@ -1,0 +1,45 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, LINZ API key etc - never commit)
+local.properties
+
+# Signing material - never commit
+*.jks
+*.keystore
+keystore.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.hprof
+.DS_Store
+
+# Kotlin
+.kotlin/
+
+# Log/OS files
+*.log
+captures/
+.externalNativeBuild/
+.cxx/

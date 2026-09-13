@@ -58,4 +58,13 @@ class FormattingTest {
         assertEquals("8 Sep", formatShortDate(eighthOfSeptember, java.time.ZoneId.of("Pacific/Auckland")))
         assertEquals("7 Sep", formatShortDate(eighthOfSeptember, java.time.ZoneId.of("UTC")))
     }
+
+    @Test
+    fun `coordinates are readable, signed and offshore-safe`() {
+        // Invercargill: the app used to open on a farm near Blenheim instead.
+        assertEquals("46.4130\u00b0S, 168.3480\u00b0E", formatCoordinates(-46.4130, 168.3480))
+        assertEquals("41.2865\u00b0S, 174.7762\u00b0E", formatCoordinates(-41.2865, 174.7762))
+        assertEquals("51.5074\u00b0N, 0.1278\u00b0W", formatCoordinates(51.5074, -0.1278))
+        assertEquals("0.0000\u00b0N, 0.0000\u00b0E", formatCoordinates(0.0, 0.0))
+    }
 }

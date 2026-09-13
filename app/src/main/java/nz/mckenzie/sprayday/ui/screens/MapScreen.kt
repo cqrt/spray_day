@@ -45,7 +45,7 @@ fun MapScreen(
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.trackGeoJson.collectAsStateWithLifecycle()
-    val trackBounds by viewModel.trackBounds.collectAsStateWithLifecycle()
+    val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -66,7 +66,9 @@ fun MapScreen(
             LinzMapView(
                 apiKey = apiKey,
                 trackGeoJson = geoJson,
-                fitBounds = trackBounds,
+                // The operator's own tracks first; failing that, where the device is;
+                // failing that, the neutral country-wide default.
+                fitBounds = initialFrame,
                 modifier = Modifier.fillMaxSize()
             )
 

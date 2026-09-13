@@ -48,6 +48,13 @@ count shown before you commit is the count downloaded, verified on a device
 (304 planned, 304 stored, ~5 MB). It resumes rather than restarts, and a killed
 download picks up where it stopped.
 
+The area offered is centred on the operator, never on a guess: the device's
+current position if the app may know it, otherwise the middle of the operator's
+own tracks, and if neither is known the screen says so rather than quietly
+caching somewhere they have never been. The screen names the centre in degrees
+and draws the box on a map, because "Spray area" with no location is not an
+answer to "what am I downloading?".
+
 Tiles are plain `{z}/{x}/{y}.webp` files under `filesDir/tiles`, not MapLibre's
 offline database, which keeps them inspectable, resumable tile by tile, and
 servable straight back to the map. That matters because MapLibre's own

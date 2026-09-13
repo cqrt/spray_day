@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** "850 m" / "2.35 km" - operator-facing distances. */
@@ -41,3 +42,19 @@ fun formatDate(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
 /** "13 Sep" - a short label, used to suggest a name for a freshly recorded track. */
 fun formatShortDate(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
+
+/**
+ * "46.4130°S, 168.3480°E" - where something is, in a form that works offline.
+ *
+ * A place name would read better, but reverse geocoding needs a connection and can
+ * fail exactly when the operator is deciding what to cache *because* they are about
+ * to lose reception.
+ */
+fun formatCoordinates(lat: Double, lng: Double): String = String.format(
+    Locale.US,
+    "%.4f\u00b0%s, %.4f\u00b0%s",
+    abs(lat),
+    if (lat < 0.0) "S" else "N",
+    abs(lng),
+    if (lng < 0.0) "W" else "E"
+)

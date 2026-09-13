@@ -149,6 +149,11 @@ class RecordingViewModelTest {
         val session = recordings.getSession(sessionId)!!
         assertEquals(RecordingStatus.FINISHED.name, session.status)
         assertEquals(trackId, session.trackId)
+        assertTrue(
+            "the recording should be named after the track and the date, so the three " +
+                "passes a year are told apart: ${session.name}",
+            session.name.startsWith("Block A · ")
+        )
         assertEquals(
             "the plan should not have been duplicated",
             1,

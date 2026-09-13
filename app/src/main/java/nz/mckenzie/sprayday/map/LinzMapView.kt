@@ -23,9 +23,17 @@ import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 
-/** Rural Marlborough (Wairau plains) - a sensible land start, not open sea. */
-val DEFAULT_CAMERA_TARGET = LatLng(-41.51, 173.96)
-const val DEFAULT_CAMERA_ZOOM = 11.0
+/**
+ * Where the map opens when there is nothing better to show: the whole country, at a
+ * zoom that shows both islands.
+ *
+ * It used to be a farm near Blenheim, which was a reasonable guess for exactly one
+ * person - an operator in Invercargill opened the app looking at Marlborough. The
+ * map prefers the device's own position (see `MapViewModel.startBounds`) and the
+ * operator's own tracks, and only falls back to this.
+ */
+val DEFAULT_CAMERA_TARGET = LatLng(-41.5, 172.8)
+const val DEFAULT_CAMERA_ZOOM = 6.0
 
 internal const val TRACKS_SOURCE = "sprayday-tracks"
 internal const val TRACKS_LAYER = "sprayday-tracks-line"

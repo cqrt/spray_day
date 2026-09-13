@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,26 +28,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.offline.OfflineArea
+import nz.mckenzie.sprayday.offline.OfflineAreaPlan
+import nz.mckenzie.sprayday.ui.formatCoordinates
+import nz.mckenzie.sprayday.viewmodel.AreaSource
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 
 /**
- * Downloads basemap imagery for the spray area so the map still works where
- * there is no reception, and manages what is stored on the device.
+ * Downloads basemap imagery for the operator's own area so the map still works where
+ * there is no reception, and manages what is already stored.
+ *
+ * The screen says which area it is about to cache, in degrees and drawn on a map,
+ * because "Spray area" with no location is not an answer to "what am I downloading?".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OfflineScreen(viewModel: OfflineViewModel, onBack: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
+    val plan by viewModel.plan.collectAsStateWithLifecycle()
+    val areaSource by viewModel.areaSource.collectAsStateWithLifecycle()
+    val previewGeoJson by viewModel.previewGeoJson.collectAsStateWithLifecycle()
     val stored by viewModel.stored.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
     val working by viewModel.working.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
-    val plan = viewModel.plan
-    // Taken from the list, which is the database, so the bar tracks the download
-    // as it writes its progress rather than needing a second source of truth.
+    // Taken from the list, which is the database, so the bar tracks the download as it
+    // writes its progress rather than needing a second source of truth.
     val active: OfflineArea? = activeId?.let { id -> stored.firstOrNull { it.id == id } }
     var confirmingClear by remember { mutableStateOf(false) }
 
@@ -66,33 +76,51 @@ fun OfflineScreen(viewModel: OfflineViewModel, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(plan.name, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "About %.1f km across, zoom %d to %d".format(
-                            plan.approxWidthKm, plan.minZoom, plan.maxZoom
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "${plan.tileCount} aerial tiles, roughly ${plan.estimatedSizeLabel}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Exactly those tiles are fetched and stored on the device, so " +
-                            "the map keeps working with no reception.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+            plan?.let { area ->
+                Card {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(area.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = "Centre ${centreOf(area)} \u2014 ${sourceLabel(areaSource)}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        // The outline is drawn as a closed line, so what is about to be
+                        // cached is visible rather than described.
+                        LinzMapView(
+                            apiKey = apiKey,
+                            trackGeoJson = previewGeoJson,
+                            fitBounds = area.bounds,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                        )
+
+                        Text(
+                            text = "About %.1f km across, zoom %d to %d".format(
+                                area.approxWidthKm, area.minZoom, area.maxZoom
+                            ),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "${area.tileCount} aerial tiles, roughly ${area.estimatedSizeLabel}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Exactly those tiles are fetched and stored on the device, so " +
+                                "the map keeps working with no reception.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
 
             Button(
                 onClick = { viewModel.download() },
-                enabled = apiKey.isNotBlank() && !working,
+                enabled = apiKey.isNotBlank() && !working && plan != null,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -229,6 +257,18 @@ fun OfflineScreen(viewModel: OfflineViewModel, onBack: () -> Unit) {
             }
         )
     }
+}
+
+/** The middle of the area, in degrees - the same numbers a GPS would show. */
+private fun centreOf(area: OfflineAreaPlan): String = formatCoordinates(
+    lat = (area.bounds.minLat + area.bounds.maxLat) / 2.0,
+    lng = (area.bounds.minLng + area.bounds.maxLng) / 2.0
+)
+
+private fun sourceLabel(source: AreaSource): String = when (source) {
+    AreaSource.MY_LOCATION -> "your current location"
+    AreaSource.MY_TRACKS -> "the middle of your tracks"
+    AreaSource.UNKNOWN -> "an unknown area"
 }
 
 /** One line describing where an area got to, honest about anything missing. */

@@ -318,6 +318,7 @@ class RecordingViewModel(
 
             val distanceM = TrackingState.current.distanceM
             val points = TrackingState.current.pointCount
+            val sessionStart = TrackingState.current.startedAtEpochMs ?: System.currentTimeMillis()
             val existingTrackId = _selectedTrackId.value
             val lines = _rows.value.mapNotNull { row ->
                 parseQuantityMl(row.quantityText)?.let { ml -> SprayProductQuantity(row.productId, ml) }
@@ -340,10 +341,26 @@ class RecordingViewModel(
                     .getOrNull()
             }
 
-            recordings.finishRecording(sessionId, distanceM = distanceM)
-            if (newTrackName != null) {
-                runCatching { recordings.renameSession(sessionId, newTrackName) }
+            // Read the name from the database, not from the flow the screen collects:
+            // whether a recording gets its proper name must not depend on the UI
+            // happening to be watching.
+            val sprayTrackName = newTrackName ?: trackId?.let { id ->
+                runCatching { tracks.getTrack(id)?.name }.getOrNull()
             }
+
+            recordings.finishRecording(sessionId, distanceM = distanceM)
+
+            // Name the recording after the work it is: a new line takes the name the
+            // operator typed, and a repeat pass over an existing track takes that
+            // track's name and the date, which is how the three passes a year are
+            // told apart in the recordings list. Neither asks a question - a dialog
+            // on the common path is friction for an answer the app already has.
+            val sessionName = when {
+                newTrackName != null -> newTrackName
+                sprayTrackName != null -> "$sprayTrackName · ${formatShortDate(sessionStart)}"
+                else -> null
+            }
+            sessionName?.let { runCatching { recordings.renameSession(sessionId, it) } }
             trackId?.let { runCatching { recordings.setSessionTrack(sessionId, it) } }
 
             TrackingService.stop(context)
@@ -363,7 +380,6 @@ class RecordingViewModel(
                 message += " · covered ${formatCoveragePercent(coverageNow)} of the line"
             }
 
-            val sprayTrackName = newTrackName ?: selectedTrackName.value
             message += when {
                 trackId == null -> ""
                 lines.isEmpty() -> " · no products entered, so no spray was recorded"

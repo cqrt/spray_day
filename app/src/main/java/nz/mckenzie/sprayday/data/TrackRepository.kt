@@ -16,6 +16,7 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.gpx.GpxParser
 import nz.mckenzie.sprayday.domain.gpx.GpxWriter
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import java.time.ZoneId
 
 /**
@@ -74,6 +75,19 @@ class TrackRepository(
 
     suspend fun getTrackGeometry(trackId: Long): List<GeoPoint> =
         trackDao.getGeometry(trackId).map { it.toGeoPoint() }
+
+    /**
+     * The box containing every planned track, if there is any geometry yet. Used to
+     * centre things on the operator's own work rather than a guessed location.
+     */
+    suspend fun trackBounds(): LatLngBounds? {
+        val bounds = trackDao.pointBounds() ?: return null
+        val minLat = bounds.minLat ?: return null
+        val minLng = bounds.minLng ?: return null
+        val maxLat = bounds.maxLat ?: return null
+        val maxLng = bounds.maxLng ?: return null
+        return LatLngBounds(minLat = minLat, minLng = minLng, maxLat = maxLat, maxLng = maxLng)
+    }
 
     /** Creates a track, stores its planned geometry and computes its length. */
     suspend fun createTrack(

@@ -79,13 +79,35 @@ jobs:
 
       # The release carries one small APK per architecture plus a universal one, so
       # nobody has to download four sets of native libraries to get the one their
-      # phone needs.
+      # phone needs. The assets are renamed to say what they are: a release page is
+      # read on a phone, where "app-arm64-v8a-release.apk" tells you nothing.
+      - name: Name the artifacts for the release page
+        run: |
+          VERSION="${{ steps.version.outputs.name }}"
+          APK_DIR=app/build/outputs/apk/release
+          BUNDLE_DIR=app/build/outputs/bundle/release
+          for apk in "${APK_DIR}"/*.apk; do
+            name="$(basename "${apk}")"
+            variant="${name#app-}"
+            variant="${variant%-release.apk}"
+            cp "${apk}" "${APK_DIR}/spray-day-${VERSION}-${variant}.apk"
+          done
+          cp "${BUNDLE_DIR}/app-release.aab" "${BUNDLE_DIR}/spray-day-${VERSION}.aab"
+          ls -la "${APK_DIR}" "${BUNDLE_DIR}"
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Spray Day ${{ steps.version.outputs.name }}
           generate_release_notes: true
+          body: |
+            **Which file to install:** `spray-day-${{ steps.version.outputs.name }}-arm64-v8a.apk`
+            for any phone from the last few years. The `universal` APK runs anywhere but is
+            four times the size; `x86_64` is only for emulators.
+
+            Signed with the same key as previous releases, so it installs straight over
+            an existing install.
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/apk/release/spray-day-*.apk
+            app/build/outputs/bundle/release/spray-day-*.aab

@@ -49,6 +49,13 @@ abstract class RecordingDao {
     @Query("UPDATE recorded_sessions SET status = :status WHERE id = :sessionId")
     abstract suspend fun setStatus(sessionId: Long, status: String)
 
+    /**
+     * Records which planned track a session is for. The operator may pick the track
+     * after starting to record, so this is not only set at creation.
+     */
+    @Query("UPDATE recorded_sessions SET trackId = :trackId WHERE id = :sessionId")
+    abstract suspend fun setSessionTrack(sessionId: Long, trackId: Long)
+
     @Query("DELETE FROM recorded_sessions WHERE id = :id")
     abstract suspend fun deleteSession(id: Long)
 

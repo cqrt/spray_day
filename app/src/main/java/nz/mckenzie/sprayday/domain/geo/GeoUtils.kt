@@ -10,9 +10,12 @@ import kotlin.math.sqrt
 /** Mean Earth radius in metres (IUGG). */
 const val EARTH_RADIUS_M: Double = 6_371_008.8
 
-private const val METRES_PER_DEG_LAT = 111_132.0
-private const val METRES_PER_DEG_LNG_AT_EQUATOR = 111_320.0
-
+/**
+ * Metres per degree of latitude, and per degree of longitude at the equator.
+ * Used for the small local projections the coverage and proximity maths need.
+ */
+const val METRES_PER_DEG_LAT = 111_132.0
+const val METRES_PER_DEG_LNG_AT_EQUATOR = 111_320.0
 /**
  * Great-circle distance in metres between two coordinates (haversine).
  */

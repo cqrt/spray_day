@@ -3,15 +3,29 @@ package nz.mckenzie.sprayday.ui.screens
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,18 +39,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.map.TrackColors
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatDuration
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 
 /**
- * Records a GPS track. Location is requested here (rather than at app launch) so
- * the permission prompt arrives with an obvious reason.
+ * Records a GPS track, and records the spray while doing it.
+ *
+ * Location is requested here (rather than at app launch) so the permission prompt
+ * arrives with an obvious reason. Choosing the track being sprayed turns this into
+ * the whole job in one screen: the planned line is drawn behind the one being
+ * driven, the products are pre-filled from last time, the coverage tells you
+ * whether the whole line is done, and finishing saves the recording and the spray
+ * together.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,8 +69,14 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val geoJson by viewModel.recordedGeoJson.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val coverage by viewModel.coverage.collectAsStateWithLifecycle()
+    val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val trackName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
+    val tracks by viewModel.tracksToSpray.collectAsStateWithLifecycle()
+    val remember by viewModel.rememberDefaults.collectAsStateWithLifecycle()
 
     var permissionGranted by remember { mutableStateOf(viewModel.hasLocationPermission()) }
+    var pickingTrack by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -96,7 +126,10 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                     .padding(start = 12.dp, end = 12.dp, bottom = 40.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier
+                        .heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
@@ -124,10 +157,41 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+
+                    coverage?.let { covered ->
+                        Text(
+                            text = "Covered ${formatCoveragePercent(covered)} of " +
+                                (trackName ?: "the line"),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+
                     message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
+                    TextButton(onClick = { pickingTrack = true }) {
+                        Text(trackName?.let { "Spraying: $it" } ?: "Choose the track being sprayed")
+                    }
+
+                    if (trackName != null && rows.isNotEmpty()) {
+                        Text("Spray used", style = MaterialTheme.typography.titleSmall)
+                        rows.forEach { row ->
+                            QuantityRow(
+                                name = row.name,
+                                value = row.quantityText,
+                                onChange = { text -> viewModel.updateQuantity(row.productId, text) }
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = remember, onCheckedChange = viewModel::setRememberDefaults)
+                            Text(
+                                text = "Remember these amounts for this track",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+
                     if (!permissionGranted) {
-                        androidx.compose.material3.Button(
+                        Button(
                             onClick = {
                                 permissionLauncher.launch(
                                     arrayOf(
@@ -141,32 +205,20 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                             Text("Allow location to record")
                         }
                     } else {
-                        androidx.compose.foundation.layout.Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             when (state.status) {
                                 RecordingStatus.RECORDING -> {
-                                    androidx.compose.material3.OutlinedButton(
-                                        onClick = viewModel::pause
-                                    ) { Text("Pause") }
-                                    androidx.compose.material3.Button(
-                                        onClick = viewModel::finish
-                                    ) { Text("Finish") }
+                                    OutlinedButton(onClick = viewModel::pause) { Text("Pause") }
+                                    Button(onClick = viewModel::finish) { Text("Finish") }
                                 }
 
                                 RecordingStatus.PAUSED -> {
-                                    androidx.compose.material3.Button(
-                                        onClick = viewModel::resume
-                                    ) { Text("Resume") }
-                                    androidx.compose.material3.OutlinedButton(
-                                        onClick = viewModel::finish
-                                    ) { Text("Finish") }
+                                    Button(onClick = viewModel::resume) { Text("Resume") }
+                                    OutlinedButton(onClick = viewModel::finish) { Text("Finish") }
                                 }
 
                                 else -> {
-                                    androidx.compose.material3.Button(
-                                        onClick = viewModel::start
-                                    ) { Text("Start recording") }
+                                    Button(onClick = viewModel::start) { Text("Start recording") }
                                 }
                             }
                         }
@@ -175,4 +227,94 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
             }
         }
     }
+
+    if (pickingTrack) {
+        TrackPickerDialog(
+            tracks = tracks,
+            onPick = { trackId ->
+                viewModel.selectTrack(trackId)
+                pickingTrack = false
+            },
+            onClear = {
+                viewModel.selectTrack(null)
+                pickingTrack = false
+            },
+            onDismiss = { pickingTrack = false }
+        )
+    }
+}
+
+/** One product and the amount that went in, typed where it is being sprayed. */
+@Composable
+private fun QuantityRow(name: String, value: String, onChange: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            label = { Text("mL") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.width(120.dp)
+        )
+    }
+}
+
+/** Picks the planned track being sprayed, with its due colour for context. */
+@Composable
+private fun TrackPickerDialog(
+    tracks: List<TrackWithDue>,
+    onPick: (Long) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Which track are you spraying?") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (tracks.isEmpty()) {
+                    Text(
+                        text = "No planned tracks yet. You can still record a line.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                tracks.forEach { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(
+                                    parseHexColor(TrackColors.forStatus(item.due.status)),
+                                    CircleShape
+                                )
+                        )
+                        TextButton(onClick = { onPick(item.track.id) }) {
+                            Text(item.track.name)
+                        }
+                    }
+                }
+                TextButton(onClick = onClear) { Text("Just record, no track") }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

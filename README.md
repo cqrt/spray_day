@@ -19,6 +19,10 @@ sprayed).
   track, so the next pass is a confirmation rather than a retype.
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
+- **Spraying while recording**: pick the track, type the amounts as they go in,
+  and watch a live **coverage percentage** of the planned line. Finishing saves
+  the recording and the spray together, linked by session id, so the traffic
+  light updates and the spray history carries the distance actually driven.
 - **GPX export** of any track, shareable to QGIS/Google Earth/forestry tools.
 
 ## How offline imagery works

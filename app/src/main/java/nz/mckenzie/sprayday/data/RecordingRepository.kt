@@ -52,6 +52,10 @@ class RecordingRepository(private val db: SprayDayDatabase) {
     suspend fun setStatus(sessionId: Long, status: RecordingStatus) =
         recordingDao.setStatus(sessionId, status.name)
 
+    /** Records which planned track a session is for, if chosen after starting. */
+    suspend fun setSessionTrack(sessionId: Long, trackId: Long) =
+        recordingDao.setSessionTrack(sessionId, trackId)
+
     /** Closes a session, storing the distance and point count actually recorded. */
     suspend fun finishRecording(
         sessionId: Long,

@@ -9,22 +9,34 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
+import nz.mckenzie.sprayday.data.SprayProductQuantity
+import nz.mckenzie.sprayday.data.SprayRepository
+import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.TrackWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.TrackColors
 import nz.mckenzie.sprayday.map.TrackGeoJson
 import nz.mckenzie.sprayday.map.TrackLine
 import nz.mckenzie.sprayday.tracking.TrackingService
 import nz.mckenzie.sprayday.tracking.TrackingState
+import nz.mckenzie.sprayday.ui.formatQuantityMl
+import nz.mckenzie.sprayday.ui.parseQuantityMl
 
 /**
  * Drives the recorder screen.
@@ -32,35 +44,92 @@ import nz.mckenzie.sprayday.tracking.TrackingState
  * The service owns the recording loop; this only starts/stops it and mirrors
  * [TrackingState] plus the growing geometry from the database, so leaving and
  * re-entering the screen (or restarting the app) loses nothing.
+ *
+ * Beyond recording the line, this is where a spray is recorded *while driving it*:
+ * pick the planned track, type the amounts as they go in, watch the live coverage
+ * tell you whether the whole line has been done, and finish - which saves the
+ * recording and the spray together, linked by session id.
  */
 class RecordingViewModel(
     private val recordings: RecordingRepository,
+    private val tracks: TrackRepository,
+    private val sprays: SprayRepository,
     settingsRepository: SettingsRepository,
     private val context: Context
 ) : ViewModel() {
+
+    /** One product line as the operator enters it. */
+    data class SprayRow(
+        val productId: Long,
+        val name: String,
+        val quantityText: String
+    )
 
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val tracking: StateFlow<TrackingState.State> = TrackingState.state
 
-    private val sessionPoints = MutableStateFlow<List<GeoPoint>>(emptyList())
+    /** Planned tracks to choose from, with their due colours. */
+    val tracksToSpray: StateFlow<List<TrackWithDue>> = tracks.observeTracksWithDue()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
-    /** The line as recorded so far, drawn red like any un-sprayed track. */
-    val recordedGeoJson: StateFlow<String> = sessionPoints
-        .map { points ->
+    private val _selectedTrackId = MutableStateFlow<Long?>(null)
+    val selectedTrackId: StateFlow<Long?> = _selectedTrackId
+
+    val selectedTrackName: StateFlow<String?> =
+        combine(_selectedTrackId, tracksToSpray) { id, list ->
+            list.firstOrNull { it.track.id == id }?.track?.name
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    private val _rows = MutableStateFlow<List<SprayRow>>(emptyList())
+    val rows: StateFlow<List<SprayRow>> = _rows
+
+    /** The selected track's remembered amounts, applied as rows appear. */
+    private var trackDefaults: Map<Long, Double> = emptyMap()
+
+    private val _rememberDefaults = MutableStateFlow(true)
+    val rememberDefaults: StateFlow<Boolean> = _rememberDefaults
+
+    /**
+     * How much of the chosen track's line this run has covered so far, or null when
+     * there is nothing to compare (no track chosen, or nothing recorded yet).
+     */
+    private val _coverage = MutableStateFlow<Double?>(null)
+    val coverage: StateFlow<Double?> = _coverage
+
+    private val sessionPoints = MutableStateFlow<List<GeoPoint>>(emptyList())
+    private val plannedGeometry = MutableStateFlow<List<GeoPoint>>(emptyList())
+
+    /**
+     * What the map draws: the planned line being followed, in grey, and the line as
+     * recorded so far in red - so the gap still to drive is visible rather than
+     * something to be worked out from a percentage.
+     */
+    val recordedGeoJson: StateFlow<String> =
+        combine(sessionPoints, plannedGeometry) { recorded, planned ->
             TrackGeoJson.build(
                 listOf(
+                    TrackLine(
+                        trackId = PLANNED_ID,
+                        name = "Planned",
+                        colorHex = TrackColors.UNKNOWN,
+                        points = planned
+                    ),
                     TrackLine(
                         trackId = RECORDING_ID,
                         name = "Recording",
                         colorHex = TrackColors.RED,
-                        points = points
+                        points = recorded
                     )
                 )
             )
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TrackGeoJson.build(emptyList()))
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+                TrackGeoJson.build(emptyList())
+            )
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -69,6 +138,41 @@ class RecordingViewModel(
 
     init {
         viewModelScope.launch {
+            // Products, so the amounts can be entered without leaving the map.
+            sprays.observeProducts().collect { products ->
+                val typed = _rows.value.associate { it.productId to it.quantityText }
+                _rows.value = products.map { product ->
+                    SprayRow(
+                        productId = product.id,
+                        name = product.name,
+                        // Blank means "not entered yet", so a remembered amount still
+                        // applies - which matters because products can load before a
+                        // track is chosen, or after.
+                        quantityText = typed[product.id]?.takeIf { it.isNotBlank() }
+                            ?: trackDefaults[product.id]?.let { formatQuantityMl(it) }
+                            ?: ""
+                    )
+                }
+            }
+        }
+
+        // Live coverage. collectLatest plus a short delay makes this a debounce: a
+        // fresh fix cancels the pending calculation rather than queueing another.
+        viewModelScope.launch {
+            combine(sessionPoints, plannedGeometry) { recorded, planned -> planned to recorded }
+                .collectLatest { (planned, recorded) ->
+                    if (planned.size < 2 || recorded.isEmpty()) {
+                        _coverage.value = null
+                        return@collectLatest
+                    }
+                    delay(COVERAGE_DEBOUNCE_MS)
+                    _coverage.value = withContext(Dispatchers.Default) {
+                        Coverage.coveredFraction(planned, recorded)
+                    }
+                }
+        }
+
+        viewModelScope.launch {
             // Reattach to a session left running, e.g. the app was killed mid-spray.
             val unfinished = recordings.findUnfinishedSession() ?: return@launch
             TrackingState.begin(unfinished.id, unfinished.startedAtEpochMs)
@@ -76,6 +180,7 @@ class RecordingViewModel(
                 .getOrDefault(RecordingStatus.RECORDING)
             TrackingState.setStatus(status)
             observe(unfinished.id)
+            unfinished.trackId?.let { selectTrack(it) }
 
             // A foreground service does not survive a process kill, so a session
             // still marked RECORDING has nothing collecting for it: start the
@@ -97,6 +202,54 @@ class RecordingViewModel(
         _message.value = "Location permission is needed to record a track"
     }
 
+    /**
+     * Chooses which planned track is being sprayed. Its last amounts come back as
+     * the starting point, so a repeat spray is a confirmation rather than a retype.
+     * Can be called before or during a recording.
+     */
+    fun selectTrack(trackId: Long?) {
+        _selectedTrackId.value = trackId
+        viewModelScope.launch {
+            if (trackId == null) {
+                plannedGeometry.value = emptyList()
+                return@launch
+            }
+
+            plannedGeometry.value = tracks.getTrackGeometry(trackId)
+
+            // Only products the track actually remembers an amount for; a null
+            // default means "show the product with an empty amount".
+            trackDefaults = runCatching { sprays.getTrackDefaultLines(trackId) }
+                .getOrDefault(emptyList())
+                .mapNotNull { line -> line.defaultQuantityMl?.let { line.productId to it } }
+                .toMap()
+
+            val typed = _rows.value.associate { it.productId to it.quantityText }
+            _rows.value = _rows.value.map { row ->
+                row.copy(
+                    quantityText = typed[row.productId]?.takeIf { it.isNotBlank() }
+                        ?: trackDefaults[row.productId]?.let { formatQuantityMl(it) }
+                        ?: ""
+                )
+            }
+
+            // Record which track this session is for, even if it was started first.
+            TrackingState.current.sessionId?.let { sessionId ->
+                runCatching { recordings.setSessionTrack(sessionId, trackId) }
+            }
+        }
+    }
+
+    fun updateQuantity(productId: Long, text: String) {
+        _rows.value = _rows.value.map { row ->
+            if (row.productId == productId) row.copy(quantityText = text) else row
+        }
+    }
+
+    fun setRememberDefaults(value: Boolean) {
+        _rememberDefaults.value = value
+    }
+
     fun start() {
         if (!hasLocationPermission()) {
             onPermissionDenied()
@@ -104,7 +257,10 @@ class RecordingViewModel(
         }
         viewModelScope.launch {
             _message.value = null
-            val sessionId = recordings.startRecording(name = defaultName())
+            val sessionId = recordings.startRecording(
+                name = defaultName(),
+                trackId = _selectedTrackId.value
+            )
             TrackingState.begin(sessionId, System.currentTimeMillis())
             observe(sessionId)
             TrackingService.start(context, sessionId)
@@ -115,18 +271,63 @@ class RecordingViewModel(
 
     fun resume() = sessionIdOrNull()?.let { TrackingService.resume(context) }
 
-    /** Closes the session with the distance the service accumulated, then stops it. */
+    /**
+     * Closes the session with the distance the service accumulated, then records the
+     * spray against the chosen track if amounts were entered - linked by
+     * `SprayEventEntity.recordedSessionId`, so a spray record can always be traced
+     * back to the GPS evidence for it, and the track picks up its new due date.
+     *
+     * The recording is saved first and on its own: if recording the spray fails, the
+     * line is still safe on the device and the message says exactly that.
+     */
     fun finish() {
         val sessionId = sessionIdOrNull() ?: return
         viewModelScope.launch {
             val distanceM = TrackingState.current.distanceM
             val points = TrackingState.current.pointCount
+            val trackId = _selectedTrackId.value
+            val trackName = selectedTrackName.value
+            val lines = _rows.value.mapNotNull { row ->
+                parseQuantityMl(row.quantityText)?.let { ml -> SprayProductQuantity(row.productId, ml) }
+            }
+            val coverageNow = _coverage.value
+
             recordings.finishRecording(sessionId, distanceM = distanceM)
             TrackingService.stop(context)
             TrackingState.clear()
             observingSession = null
             sessionPoints.value = emptyList()
-            _message.value = "Saved a recording of $points points"
+            plannedGeometry.value = emptyList()
+
+            var message = "Saved a recording of $points ${if (points == 1) "point" else "points"}"
+            if (coverageNow != null) {
+                message += " · covered ${formatCoveragePercent(coverageNow)} of the line"
+            }
+
+            message += when {
+                trackId == null -> ""
+                lines.isEmpty() -> " · no products entered, so no spray was recorded"
+
+                else -> runCatching {
+                    sprays.recordSpray(
+                        trackId = trackId,
+                        products = lines,
+                        distanceM = distanceM,
+                        recordedSessionId = sessionId
+                    )
+                    if (_rememberDefaults.value) sprays.rememberDefaultsForTrack(trackId, lines)
+                }.fold(
+                    onSuccess = { " · recorded the spray for ${trackName ?: "the track"}" },
+                    onFailure = { failure ->
+                        " · the recording is saved, but the spray was not recorded: " +
+                            (failure.message ?: "unknown error")
+                    }
+                )
+            }
+
+            _message.value = message
+            _selectedTrackId.value = null
+            _rows.value = _rows.value.map { it.copy(quantityText = "") }
         }
     }
 
@@ -145,13 +346,20 @@ class RecordingViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val RECORDING_ID = -2L
+        private const val PLANNED_ID = -3L
+
+        /** Long enough that a burst of fixes causes one calculation, not several. */
+        private const val COVERAGE_DEBOUNCE_MS = 750L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
+                    val database = SprayDayDatabase.get(appContext)
                     RecordingViewModel(
-                        recordings = RecordingRepository(SprayDayDatabase.get(appContext)),
+                        recordings = RecordingRepository(database),
+                        tracks = TrackRepository(database),
+                        sprays = SprayRepository(database),
                         settingsRepository = SettingsRepository(appContext),
                         context = appContext
                     )

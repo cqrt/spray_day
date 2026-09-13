@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Gradle 8.13 runs on Java 17-23; 21 is the long-term choice for AGP 8.x.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build, unit test and lint
+        env:
+          LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lint
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          if-no-files-found: ignore
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/reports/lint-results-debug.html
+
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprayday-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+# Instrumented tests need a device, so they are deliberately not here: they run
+# locally against an emulator. Adding reactivecircus/android-emulator-runner
+# would let CI cover them too, at the cost of a much slower pipeline.

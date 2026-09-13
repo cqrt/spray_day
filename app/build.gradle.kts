@@ -22,10 +22,25 @@ val linzApiKey: String = run {
     (fromFile ?: System.getenv("LINZ_API_KEY") ?: "").trim()
 }
 
-// Release signing is driven entirely by environment variables so that no key
-// material is ever committed. Absent locally -> release builds are unsigned.
-val keystorePath: String? = System.getenv("KEYSTORE_FILE")
-val hasReleaseKeystore: Boolean = keystorePath != null && file(keystorePath).exists()
+// Release signing is driven by environment variables (CI) or by a local
+// keystore.properties (gitignored). No key material is ever committed, and a
+// machine without either simply produces an unsigned release build.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(envName: String, propertyName: String): String? =
+    System.getenv(envName)?.takeIf { it.isNotBlank() }
+        ?: keystoreProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile: String? = signingValue("KEYSTORE_FILE", "storeFile")
+val releaseStorePassword: String? = signingValue("KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias: String? = signingValue("KEY_ALIAS", "keyAlias")
+val releaseKeyPassword: String? = signingValue("KEY_PASSWORD", "keyPassword")
+val hasReleaseKeystore: Boolean = releaseStoreFile != null && file(releaseStoreFile).exists()
 
 android {
     namespace = "nz.mckenzie.sprayday"
@@ -35,13 +50,15 @@ android {
         applicationId = "nz.mckenzie.sprayday"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Overridable from the command line so the release workflow can stamp a
+        // version from the git tag and the run number.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
 
         buildConfigField("String", "LINZ_API_KEY", "\"$linzApiKey\"")
     }
@@ -49,10 +66,10 @@ android {
     signingConfigs {
         create("release") {
             if (hasReleaseKeystore) {
-                storeFile = file(keystorePath!!)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }

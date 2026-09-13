@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -44,6 +45,7 @@ fun LinzMapView(
     trackGeoJson: String,
     modifier: Modifier = Modifier,
     fitBounds: DomainBounds? = null,
+    onMapClick: ((latitude: Double, longitude: Double) -> Unit)? = null,
     initialTarget: LatLng = DEFAULT_CAMERA_TARGET,
     initialZoom: Double = DEFAULT_CAMERA_ZOOM
 ) {
@@ -51,6 +53,9 @@ fun LinzMapView(
     val styleState = remember { mutableStateOf<Style?>(null) }
     val mapViewState = remember { mutableStateOf<MapView?>(null) }
     var boundsApplied by remember { mutableStateOf(false) }
+
+    // Keeps the tap handler current without rebuilding the map.
+    val currentOnMapClick by rememberUpdatedState(onMapClick)
 
     AndroidView(
         modifier = modifier,
@@ -69,6 +74,15 @@ fun LinzMapView(
                         .target(initialTarget)
                         .zoom(initialZoom)
                         .build()
+                    map.addOnMapClickListener { latLng ->
+                        val handler = currentOnMapClick
+                        if (handler == null) {
+                            false
+                        } else {
+                            handler(latLng.latitude, latLng.longitude)
+                            true
+                        }
+                    }
                     map.loadSprayDayStyle(apiKey, trackGeoJson) { style -> styleState.value = style }
                 }
                 mapViewState.value = this

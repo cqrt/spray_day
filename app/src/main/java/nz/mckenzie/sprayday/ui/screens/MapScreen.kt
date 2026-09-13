@@ -37,7 +37,11 @@ import nz.mckenzie.sprayday.viewmodel.MapViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(viewModel: MapViewModel, onOpenOffline: () -> Unit = {}) {
+fun MapScreen(
+    viewModel: MapViewModel,
+    onOpenTracks: () -> Unit = {},
+    onOpenOffline: () -> Unit = {}
+) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.trackGeoJson.collectAsStateWithLifecycle()
@@ -48,6 +52,7 @@ fun MapScreen(viewModel: MapViewModel, onOpenOffline: () -> Unit = {}) {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    TextButton(onClick = onOpenTracks) { Text("Tracks") }
                     TextButton(onClick = onOpenOffline) { Text("Offline") }
                 }
             )
@@ -150,7 +155,7 @@ private fun MissingKeyCard(modifier: Modifier = Modifier) {
 
 /** The LINZ licence requires attribution to be visible, not hidden behind a tap. */
 @Composable
-private fun AttributionStrip(modifier: Modifier = Modifier) {
+internal fun AttributionStrip(modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
     Text(
         text = LinzBasemap.ATTRIBUTION,

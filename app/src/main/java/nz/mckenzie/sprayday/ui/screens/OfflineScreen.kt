@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,7 +45,11 @@ import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OfflineScreen(viewModel: OfflineViewModel, onBack: () -> Unit) {
+fun OfflineScreen(
+    viewModel: OfflineViewModel,
+    onBack: () -> Unit,
+    onChooseArea: () -> Unit
+) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val plan by viewModel.plan.collectAsStateWithLifecycle()
     val areaSource by viewModel.areaSource.collectAsStateWithLifecycle()
@@ -76,6 +81,14 @@ fun OfflineScreen(viewModel: OfflineViewModel, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Picking by hand, for a block that is not where the phone happens to be.
+            OutlinedButton(
+                onClick = onChooseArea,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Choose an area on the map")
+            }
+
             plan?.let { area ->
                 Card {
                     Column(

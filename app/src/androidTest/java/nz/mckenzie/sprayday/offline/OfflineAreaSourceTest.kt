@@ -70,7 +70,7 @@ class OfflineAreaSourceTest {
         manager = OfflineAreaManager(store = store, dao = db.offlineAreaDao()),
         tracks = tracks,
         locationSource = FakeLocationSource(fix),
-        settingsRepository = SettingsRepository(context)
+        settings = SettingsRepository(context)
     )
 
     @Test

@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -50,10 +51,10 @@ class OfflineViewModel(
     private val manager: OfflineAreaManager,
     private val tracks: TrackRepository,
     private val locationSource: LocationSource,
-    settingsRepository: SettingsRepository
+    private val settings: SettingsRepository
 ) : ViewModel() {
 
-    val apiKey: StateFlow<String> = settingsRepository.linzApiKey
+    val apiKey: StateFlow<String> = settings.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     private val _plan = MutableStateFlow<OfflineAreaPlan?>(null)
@@ -102,6 +103,23 @@ class OfflineViewModel(
 
     init {
         refreshSummary()
+
+        // Keep "what is on the device" honest when an area is downloaded elsewhere: the
+        // picker is a different view model, so its download left this figure stale. It
+        // refreshes when the set of areas changes or one finishes - not on every
+        // progress write, which would walk the tile directory once a second.
+        viewModelScope.launch {
+            var previous = emptyList<OfflineArea>()
+            manager.observeAreas().collect { areas ->
+                val somethingFinished = areas.any { area ->
+                    area.isComplete && previous.none { it.id == area.id && it.isComplete }
+                }
+                val setChanged = areas.size != previous.size
+                previous = areas
+                if (somethingFinished || setChanged) refreshSummary()
+            }
+        }
+
         resolveArea()
     }
 
@@ -173,7 +191,6 @@ class OfflineViewModel(
     }
 
     private fun runDownload(existingId: Long?) {
-        val key = requireKey() ?: return
         if (_working.value) return
 
         val area = _plan.value
@@ -186,6 +203,14 @@ class OfflineViewModel(
             _working.value = true
             _error.value = null
             try {
+                // Read the key from settings now rather than from a cached flow: the
+                // button can be tapped before the first read has landed.
+                val key = settings.linzApiKey.first()
+                if (key.isBlank()) {
+                    _error.value = "Add a LINZ Basemaps key before downloading an area."
+                    return@launch
+                }
+
                 val id = existingId ?: manager.createArea(area!!).id
                 _activeId.value = id
                 manager.download(id, key)
@@ -199,15 +224,6 @@ class OfflineViewModel(
                 refreshSummary()
             }
         }
-    }
-
-    private fun requireKey(): String? {
-        val key = apiKey.value
-        if (key.isBlank()) {
-            _error.value = "Add a LINZ Basemaps key before downloading an area."
-            return null
-        }
-        return key
     }
 
     private fun refreshSummary() {
@@ -251,7 +267,7 @@ class OfflineViewModel(
                         ),
                         tracks = TrackRepository(database),
                         locationSource = FusedLocationSource(appContext),
-                        settingsRepository = SettingsRepository(appContext)
+                        settings = SettingsRepository(appContext)
                     )
                 }
             }

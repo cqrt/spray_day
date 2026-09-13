@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.mckenzie.sprayday.ui.screens.DrawTrackScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
+import nz.mckenzie.sprayday.ui.screens.OfflineAreaPickerScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
 import nz.mckenzie.sprayday.ui.screens.RecordScreen
 import nz.mckenzie.sprayday.ui.screens.RecordingDetailScreen
@@ -22,6 +23,7 @@ import nz.mckenzie.sprayday.ui.screens.TrackListScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
+import nz.mckenzie.sprayday.viewmodel.OfflineAreaPickerViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
@@ -31,7 +33,7 @@ import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL }
+private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -176,7 +178,19 @@ class MainActivity : ComponentActivity() {
                         )
                         OfflineScreen(
                             viewModel = offlineViewModel,
-                            onBack = { destination = Destination.MAP }
+                            onBack = { destination = Destination.MAP },
+                            onChooseArea = { destination = Destination.OFFLINE_PICKER }
+                        )
+                    }
+
+                    Destination.OFFLINE_PICKER -> {
+                        val pickerViewModel: OfflineAreaPickerViewModel = viewModel(
+                            factory = OfflineAreaPickerViewModel.factory(applicationContext)
+                        )
+                        OfflineAreaPickerScreen(
+                            viewModel = pickerViewModel,
+                            onBack = { destination = Destination.OFFLINE },
+                            onSaved = { destination = Destination.OFFLINE }
                         )
                     }
                 }

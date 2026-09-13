@@ -55,6 +55,13 @@ caching somewhere they have never been. The screen names the centre in degrees
 and draws the box on a map, because "Spray area" with no location is not an
 answer to "what am I downloading?".
 
+**Choose an area on the map** does the same by hand, for a block that is not
+where the phone happens to be: tap two opposite corners, then set the shallowest
+and deepest zoom levels to cache - the tile count and download size move as the
+sliders do, so the cost of another level of detail is visible before committing -
+and give the area a name to find it by later. Exactly those tiles are fetched,
+and the area's progress is in the list on the way back.
+
 Tiles are plain `{z}/{x}/{y}.webp` files under `filesDir/tiles`, not MapLibre's
 offline database, which keeps them inspectable, resumable tile by tile, and
 servable straight back to the map. That matters because MapLibre's own

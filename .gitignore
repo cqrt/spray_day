@@ -43,3 +43,6 @@ keystore.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Local test builds staged for a device
+dist/

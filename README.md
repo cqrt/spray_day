@@ -230,7 +230,7 @@ downloads ~15 MB (arm64) rather than ~50 MB of native libraries for four
 architectures it will never use. Take the `arm64-v8a` APK for any phone from the
 last few years; the universal APK runs anywhere.
 
-Pushing a tag like `v0.4.0` stamps `versionName 0.4.0` and `versionCode 400`
+Pushing a tag like `v0.5.0` stamps `versionName 0.5.0` and `versionCode 500`
 (major × 10000 + minor × 100 + patch), so release codes are predictable and
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.

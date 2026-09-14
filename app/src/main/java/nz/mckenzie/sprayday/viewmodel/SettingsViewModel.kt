@@ -52,6 +52,14 @@ class SettingsViewModel(
     private val _keyText = MutableStateFlow("")
     val keyText: StateFlow<String> = _keyText
 
+    /**
+     * True once the operator has touched the field, so the seeding read below cannot
+     * land late and wipe a key that is half typed. This is a real race, not a
+     * theoretical one: the field is seeded from DataStore, and on a slow device the
+     * read can take longer than it takes to start typing.
+     */
+    private var typed = false
+
     val keySource: StateFlow<KeySource> = settings.storedLinzApiKey
         .map { stored ->
             when {
@@ -60,12 +68,16 @@ class SettingsViewModel(
                 else -> KeySource.NONE
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), KeySource.NONE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), initialSource())
 
     /** The key actually in force, masked: enough to tell two keys apart, no more. */
     val activeKeyLabel: StateFlow<String> = settings.linzApiKey
         .map { key -> if (key.isBlank()) "" else maskKey(key) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), "")
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+            maskKey(BuildConfig.LINZ_API_KEY)
+        )
 
     private val _check = MutableStateFlow<KeyCheckState>(KeyCheckState.Idle)
     val check: StateFlow<KeyCheckState> = _check
@@ -80,12 +92,14 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch {
-            _keyText.value = settings.storedLinzApiKey.first()
+            val stored = settings.storedLinzApiKey.first()
+            if (!typed) _keyText.value = stored
             _storedTiles.value = TileStoreSummary(store.storedTileCount(), store.storedBytes())
         }
     }
 
     fun setKeyText(text: String) {
+        typed = true
         _keyText.value = text
         // Any edit invalidates a previous verdict.
         _check.value = KeyCheckState.Idle
@@ -107,6 +121,7 @@ class SettingsViewModel(
     /** Falls back to the key shipped in the build, if there is one. */
     fun clearEnteredKey() {
         viewModelScope.launch {
+            typed = true
             _keyText.value = ""
             settings.setLinzApiKey("")
             _check.value = KeyCheckState.Idle
@@ -134,6 +149,14 @@ class SettingsViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        /**
+         * Until the stored setting has been read, the key baked into the build is the
+         * one in force, so the screen says so at once instead of flashing "no key" on a
+         * slow device and correcting itself a moment later.
+         */
+        private fun initialSource(): KeySource =
+            if (BuildConfig.LINZ_API_KEY.isNotBlank()) KeySource.BUILT_IN else KeySource.NONE
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

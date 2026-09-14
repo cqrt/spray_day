@@ -55,7 +55,9 @@ class TrackDetailViewModelTest {
 
     @After
     fun tearDown() {
-        db.close()
+        // No db.close() here, for the reason recorded in the other view-model tests: a
+        // view model that still observes a table will throw against a closed pool, and
+        // the crash lands on an unrelated test.
     }
 
     /** The due status as the map and the lists would compute it right now. */

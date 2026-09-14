@@ -61,7 +61,10 @@ class RecordingViewModelTest {
     @After
     fun tearDown() {
         TrackingState.clear()
-        db.close()
+        // Deliberately no db.close(): this view model observes the session's points for
+        // as long as it lives, so closing the database underneath it throws on a
+        // background thread and takes the whole instrumentation process down - with
+        // whichever test happens to be running blamed for it.
     }
 
     private fun viewModel() = RecordingViewModel(

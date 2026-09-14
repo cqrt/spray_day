@@ -11,7 +11,7 @@ import nz.mckenzie.sprayday.domain.geo.distanceToPolylineMeters
  * track's geometry for drawing, so the answer costs no database access - which keeps
  * the tap instant on a map full of tracks.
  */
-object TrackHitTest {
+object AssetHitTest {
 
     /**
      * How close a tap has to land. Roughly a fingertip width at a working zoom: big
@@ -19,7 +19,7 @@ object TrackHitTest {
      * paddock does not open the wrong block.
      *
      * Callers that know the map's zoom should pass the tolerance in metres that a
-     * fingertip covers at that zoom instead - see [TrackHitTest.toleranceForZoom].
+     * fingertip covers at that zoom instead - see [AssetHitTest.toleranceForZoom].
      */
     const val DEFAULT_TOLERANCE_M = 40.0
 
@@ -52,8 +52,8 @@ object TrackHitTest {
 
         // Sorted so that two equally close tracks always resolve the same way, rather
         // than however the map happened to be built.
-        for (trackId in geometryByTrack.keys.sorted()) {
-            val points = geometryByTrack.getValue(trackId)
+        for (assetId in geometryByTrack.keys.sorted()) {
+            val points = geometryByTrack.getValue(assetId)
             if (points.isEmpty()) continue
 
             val distance = distanceToPolylineMeters(tap, points)
@@ -61,7 +61,7 @@ object TrackHitTest {
 
             if (distance < bestDistance) {
                 bestDistance = distance
-                bestId = trackId
+                bestId = assetId
             }
         }
 

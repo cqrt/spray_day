@@ -55,11 +55,11 @@ object BackupFormat {
      * everything in the app, so they get to see both sides of it in numbers.
      */
     fun summarise(document: BackupDocument): BackupSummary = BackupSummary(
-        tracks = document.tracks.size,
+        tracks = document.assets.size,
         sprays = document.sprayEvents.size,
         recordings = document.recordings.size,
         products = document.products.size,
-        points = document.tracks.sumOf { it.points.size } + document.recordings.sumOf { it.points.size }
+        points = document.assets.sumOf { it.points.size } + document.recordings.sumOf { it.points.size }
     )
 }
 

@@ -43,11 +43,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.LinzMapView
-import nz.mckenzie.sprayday.map.TrackColors
+import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatDuration
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
@@ -71,18 +71,18 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val coverage by viewModel.coverage.collectAsStateWithLifecycle()
     val rows by viewModel.rows.collectAsStateWithLifecycle()
-    val trackName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
-    val tracks by viewModel.tracksToSpray.collectAsStateWithLifecycle()
+    val assetName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
+    val tracks by viewModel.assetsToSpray.collectAsStateWithLifecycle()
     val remember by viewModel.rememberDefaults.collectAsStateWithLifecycle()
     val pendingTrackName by viewModel.pendingTrackName.collectAsStateWithLifecycle()
 
     var permissionGranted by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     var pickingTrack by remember { mutableStateOf(false) }
-    var trackNameDraft by remember { mutableStateOf("") }
+    var assetNameDraft by remember { mutableStateOf("") }
 
     // Finish asks what to call the line; the suggested name arrives with the prompt.
     LaunchedEffect(pendingTrackName) {
-        pendingTrackName?.let { trackNameDraft = it }
+        pendingTrackName?.let { assetNameDraft = it }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -117,7 +117,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
         ) {
             LinzMapView(
                 apiKey = apiKey,
-                trackGeoJson = geoJson,
+                assetGeoJson = geoJson,
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -168,7 +168,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                     coverage?.let { covered ->
                         Text(
                             text = "Covered ${formatCoveragePercent(covered)} of " +
-                                (trackName ?: "the line"),
+                                (assetName ?: "the line"),
                             style = MaterialTheme.typography.titleSmall
                         )
                     }
@@ -176,10 +176,10 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                     message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
                     TextButton(onClick = { pickingTrack = true }) {
-                        Text(trackName?.let { "Spraying: $it" } ?: "Choose the track being sprayed")
+                        Text(assetName?.let { "Spraying: $it" } ?: "Choose the track being sprayed")
                     }
 
-                    if (trackName != null && rows.isNotEmpty()) {
+                    if (assetName != null && rows.isNotEmpty()) {
                         Text("Spray used", style = MaterialTheme.typography.titleSmall)
                         rows.forEach { row ->
                             QuantityRow(
@@ -236,10 +236,10 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     }
 
     if (pickingTrack) {
-        TrackPickerDialog(
+        AssetPickerDialog(
             tracks = tracks,
-            onPick = { trackId ->
-                viewModel.selectTrack(trackId)
+            onPick = { assetId ->
+                viewModel.selectTrack(assetId)
                 pickingTrack = false
             },
             onClear = {
@@ -263,15 +263,15 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedTextField(
-                        value = trackNameDraft,
-                        onValueChange = { trackNameDraft = it },
+                        value = assetNameDraft,
+                        onValueChange = { assetNameDraft = it },
                         label = { Text("Track name") },
                         singleLine = true
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmFinish(trackNameDraft) }) { Text("Save") }
+                TextButton(onClick = { viewModel.confirmFinish(assetNameDraft) }) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.cancelFinish() }) { Text("Keep recording") }
@@ -306,8 +306,8 @@ private fun QuantityRow(name: String, value: String, onChange: (String) -> Unit)
 
 /** Picks the planned track being sprayed, with its due colour for context. */
 @Composable
-private fun TrackPickerDialog(
-    tracks: List<TrackWithDue>,
+private fun AssetPickerDialog(
+    tracks: List<AssetWithDue>,
     onPick: (Long) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
@@ -337,7 +337,7 @@ private fun TrackPickerDialog(
                             modifier = Modifier
                                 .size(12.dp)
                                 .background(
-                                    parseHexColor(TrackColors.forStatus(item.due.status)),
+                                    parseHexColor(AssetColors.forStatus(item.due.status)),
                                     CircleShape
                                 )
                         )

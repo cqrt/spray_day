@@ -16,15 +16,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
 
 /** One recording, in full: what was driven, and how much of the plan it covered. */
 data class RecordingDetail(
@@ -38,8 +38,8 @@ data class RecordingDetail(
     /** Distance computed from the stored geometry, which is the same thing re-derived. */
     val geometryDistanceM: Double,
     val points: List<GeoPoint>,
-    val trackId: Long?,
-    val trackName: String?,
+    val assetId: Long?,
+    val assetName: String?,
     val plannedGeometry: List<GeoPoint>,
     /** Fraction of the planned line covered, or null when there is no plan to compare. */
     val coverage: Double?
@@ -62,7 +62,7 @@ data class RecordingDetail(
 class RecordingDetailViewModel(
     private val sessionId: Long,
     private val recordings: RecordingRepository,
-    private val tracks: TrackRepository,
+    private val assetRepository: AssetRepository,
     settingsRepository: SettingsRepository
 ) : ViewModel() {
 
@@ -75,18 +75,18 @@ class RecordingDetailViewModel(
     /** The recorded line in red over the planned line in grey. */
     val geoJson: StateFlow<String> = _detail
         .map { detail ->
-            TrackGeoJson.build(
+            AssetGeoJson.build(
                 listOf(
-                    TrackLine(
-                        trackId = PLANNED_ID,
-                        name = detail?.trackName ?: "Planned",
-                        colorHex = TrackColors.UNKNOWN,
+                    AssetLine(
+                        assetId = PLANNED_ID,
+                        name = detail?.assetName ?: "Planned",
+                        colorHex = AssetColors.UNKNOWN,
                         points = detail?.plannedGeometry.orEmpty()
                     ),
-                    TrackLine(
-                        trackId = RECORDED_ID,
+                    AssetLine(
+                        assetId = RECORDED_ID,
                         name = detail?.name ?: "Recording",
-                        colorHex = TrackColors.RED,
+                        colorHex = AssetColors.RED,
                         points = detail?.points.orEmpty()
                     )
                 )
@@ -95,7 +95,7 @@ class RecordingDetailViewModel(
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-            TrackGeoJson.build(emptyList())
+            AssetGeoJson.build(emptyList())
         )
 
     private val _message = MutableStateFlow<String?>(null)
@@ -127,11 +127,11 @@ class RecordingDetailViewModel(
             }
 
             val points = recordings.getPoints(sessionId)
-            val planned = session.trackId?.let { trackId ->
-                runCatching { tracks.getTrackGeometry(trackId) }.getOrDefault(emptyList())
+            val planned = session.assetId?.let { assetId ->
+                runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(emptyList())
             }.orEmpty()
-            val trackName = session.trackId?.let { trackId ->
-                runCatching { tracks.getTrack(trackId)?.name }.getOrNull()
+            val assetName = session.assetId?.let { assetId ->
+                runCatching { assetRepository.getAsset(assetId)?.name }.getOrNull()
             }
 
             val coverage = withContext(Dispatchers.Default) {
@@ -152,8 +152,8 @@ class RecordingDetailViewModel(
                 recordedDistanceM = session.distanceM,
                 geometryDistanceM = polylineLengthMeters(points),
                 points = points,
-                trackId = session.trackId,
-                trackName = trackName,
+                assetId = session.assetId,
+                assetName = assetName,
                 plannedGeometry = planned,
                 coverage = coverage
             )
@@ -183,7 +183,7 @@ class RecordingDetailViewModel(
                     RecordingDetailViewModel(
                         sessionId = sessionId,
                         recordings = RecordingRepository(database),
-                        tracks = TrackRepository(database),
+                        assetRepository = AssetRepository(database),
                         settingsRepository = SettingsRepository(appContext)
                     )
                 }

@@ -82,7 +82,7 @@ fun OfflineAreaPickerScreen(
         ) {
             LinzMapView(
                 apiKey = apiKey,
-                trackGeoJson = previewGeoJson,
+                assetGeoJson = previewGeoJson,
                 fitBounds = startBounds,
                 onMapClick = { latitude, longitude, _ -> viewModel.tapAt(latitude, longitude) },
                 modifier = Modifier.fillMaxSize()

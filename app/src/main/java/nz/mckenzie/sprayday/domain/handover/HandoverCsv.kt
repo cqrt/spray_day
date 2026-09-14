@@ -14,7 +14,7 @@ import java.util.Locale
  */
 data class HandoverRow(
     val sprayedAtEpochMs: Long,
-    val trackName: String,
+    val assetName: String,
     val areaLabel: String?,
     val productName: String,
     val amount: Double,
@@ -69,7 +69,7 @@ object HandoverCsv {
             builder.append(
                 listOf(
                     field(date(row.sprayedAtEpochMs, zoneId)),
-                    field(row.trackName),
+                    field(row.assetName),
                     field(row.areaLabel.orEmpty()),
                     field(row.productName),
                     field(formatNumber(row.amount)),

@@ -1,6 +1,6 @@
 package nz.mckenzie.sprayday.ui
 
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -13,9 +13,9 @@ import org.junit.Test
  * known" for a swath width but "fix this" for a name, and an interval of 0 would
  * make every track due forever.
  */
-class TrackEditsTest {
+class AssetEditsTest {
 
-    private val track = TrackEntity(
+    private val track = AssetEntity(
         id = 7L,
         name = "Home block",
         areaLabel = "Home",
@@ -33,16 +33,16 @@ class TrackEditsTest {
         intervalDays: String = track.intervalDays.toString(),
         swathWidthM: String = track.swathWidthM.toString(),
         notes: String = track.notes.orEmpty()
-    ) = TrackEdits.apply(track, name, areaLabel, intervalDays, swathWidthM, notes)
+    ) = AssetEdits.apply(track, name, areaLabel, intervalDays, swathWidthM, notes)
 
-    private fun ok(result: TrackEditResult): TrackEntity {
-        assertTrue("expected a valid edit, got $result", result is TrackEditResult.Ok)
-        return (result as TrackEditResult.Ok).track
+    private fun ok(result: AssetEditResult): AssetEntity {
+        assertTrue("expected a valid edit, got $result", result is AssetEditResult.Ok)
+        return (result as AssetEditResult.Ok).track
     }
 
-    private fun invalid(result: TrackEditResult): String {
-        assertTrue("expected a refused edit, got $result", result is TrackEditResult.Invalid)
-        return (result as TrackEditResult.Invalid).message
+    private fun invalid(result: AssetEditResult): String {
+        assertTrue("expected a refused edit, got $result", result is AssetEditResult.Invalid)
+        return (result as AssetEditResult.Invalid).message
     }
 
     @Test

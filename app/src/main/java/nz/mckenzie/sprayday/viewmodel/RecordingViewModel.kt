@@ -23,16 +23,16 @@ import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayProductQuantity
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
-import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.data.AssetRepository
+import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.tracking.TrackingService
 import nz.mckenzie.sprayday.tracking.TrackingState
 import nz.mckenzie.sprayday.ui.formatQuantityMl
@@ -53,7 +53,7 @@ import nz.mckenzie.sprayday.ui.parseQuantityMl
  */
 class RecordingViewModel(
     private val recordings: RecordingRepository,
-    private val tracks: TrackRepository,
+    private val assetRepository: AssetRepository,
     private val sprays: SprayRepository,
     settingsRepository: SettingsRepository,
     private val context: Context
@@ -72,14 +72,14 @@ class RecordingViewModel(
     val tracking: StateFlow<TrackingState.State> = TrackingState.state
 
     /** Planned tracks to choose from, with their due colours. */
-    val tracksToSpray: StateFlow<List<TrackWithDue>> = tracks.observeTracksWithDue()
+    val assetsToSpray: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
-    private val _selectedTrackId = MutableStateFlow<Long?>(null)
-    val selectedTrackId: StateFlow<Long?> = _selectedTrackId
+    private val _selectedAssetId = MutableStateFlow<Long?>(null)
+    val selectedAssetId: StateFlow<Long?> = _selectedAssetId
 
     val selectedTrackName: StateFlow<String?> =
-        combine(_selectedTrackId, tracksToSpray) { id, list ->
+        combine(_selectedAssetId, assetsToSpray) { id, list ->
             list.firstOrNull { it.track.id == id }?.track?.name
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
@@ -109,18 +109,18 @@ class RecordingViewModel(
      */
     val recordedGeoJson: StateFlow<String> =
         combine(sessionPoints, plannedGeometry) { recorded, planned ->
-            TrackGeoJson.build(
+            AssetGeoJson.build(
                 listOf(
-                    TrackLine(
-                        trackId = PLANNED_ID,
+                    AssetLine(
+                        assetId = PLANNED_ID,
                         name = "Planned",
-                        colorHex = TrackColors.UNKNOWN,
+                        colorHex = AssetColors.UNKNOWN,
                         points = planned
                     ),
-                    TrackLine(
-                        trackId = RECORDING_ID,
+                    AssetLine(
+                        assetId = RECORDING_ID,
                         name = "Recording",
-                        colorHex = TrackColors.RED,
+                        colorHex = AssetColors.RED,
                         points = recorded
                     )
                 )
@@ -129,7 +129,7 @@ class RecordingViewModel(
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                TrackGeoJson.build(emptyList())
+                AssetGeoJson.build(emptyList())
             )
 
     private val _message = MutableStateFlow<String?>(null)
@@ -189,7 +189,7 @@ class RecordingViewModel(
                 .getOrDefault(RecordingStatus.RECORDING)
             TrackingState.setStatus(status)
             observe(unfinished.id)
-            unfinished.trackId?.let { selectTrack(it) }
+            unfinished.assetId?.let { selectTrack(it) }
 
             // A foreground service does not survive a process kill, so a session
             // still marked RECORDING has nothing collecting for it: start the
@@ -216,19 +216,19 @@ class RecordingViewModel(
      * the starting point, so a repeat spray is a confirmation rather than a retype.
      * Can be called before or during a recording.
      */
-    fun selectTrack(trackId: Long?) {
-        _selectedTrackId.value = trackId
+    fun selectTrack(assetId: Long?) {
+        _selectedAssetId.value = assetId
         viewModelScope.launch {
-            if (trackId == null) {
+            if (assetId == null) {
                 plannedGeometry.value = emptyList()
                 return@launch
             }
 
-            plannedGeometry.value = tracks.getTrackGeometry(trackId)
+            plannedGeometry.value = assetRepository.getAssetGeometry(assetId)
 
             // Only products the track actually remembers an amount for; a null
             // default means "show the product with an empty amount".
-            trackDefaults = runCatching { sprays.getTrackDefaultLines(trackId) }
+            trackDefaults = runCatching { sprays.getAssetDefaultLines(assetId) }
                 .getOrDefault(emptyList())
                 .mapNotNull { line -> line.defaultQuantityMl?.let { line.productId to it } }
                 .toMap()
@@ -244,7 +244,7 @@ class RecordingViewModel(
 
             // Record which track this session is for, even if it was started first.
             TrackingState.current.sessionId?.let { sessionId ->
-                runCatching { recordings.setSessionTrack(sessionId, trackId) }
+                runCatching { recordings.setSessionTrack(sessionId, assetId) }
             }
         }
     }
@@ -268,7 +268,7 @@ class RecordingViewModel(
             _message.value = null
             val sessionId = recordings.startRecording(
                 name = defaultName(),
-                trackId = _selectedTrackId.value
+                assetId = _selectedAssetId.value
             )
             TrackingState.begin(sessionId, System.currentTimeMillis())
             observe(sessionId)
@@ -294,7 +294,7 @@ class RecordingViewModel(
         // name. Recording a brand new line asks what to call it first, because on
         // this screen "record" means "make a track": a recording that only ever
         // appeared in the recordings list is not what anyone goes looking for.
-        if (_selectedTrackId.value != null) {
+        if (_selectedAssetId.value != null) {
             completeFinish(newTrackName = null)
         } else {
             _pendingTrackName.value = defaultTrackName()
@@ -319,7 +319,7 @@ class RecordingViewModel(
             val distanceM = TrackingState.current.distanceM
             val points = TrackingState.current.pointCount
             val sessionStart = TrackingState.current.startedAtEpochMs ?: System.currentTimeMillis()
-            val existingTrackId = _selectedTrackId.value
+            val existingAssetId = _selectedAssetId.value
             val lines = _rows.value.mapNotNull { row ->
                 parseQuantityMl(row.quantityText)?.let { ml -> SprayProductQuantity(row.productId, ml) }
             }
@@ -332,11 +332,11 @@ class RecordingViewModel(
                 .getOrDefault(emptyList())
 
             var trackError: String? = null
-            val trackId = when {
-                existingTrackId != null -> existingTrackId
+            val assetId = when {
+                existingAssetId != null -> existingAssetId
                 newTrackName == null -> null
                 geometry.size < 2 -> null
-                else -> runCatching { tracks.createTrack(name = newTrackName, geometry = geometry) }
+                else -> runCatching { assetRepository.createAsset(name = newTrackName, geometry = geometry) }
                     .onFailure { trackError = it.message ?: "could not save the track" }
                     .getOrNull()
             }
@@ -344,8 +344,8 @@ class RecordingViewModel(
             // Read the name from the database, not from the flow the screen collects:
             // whether a recording gets its proper name must not depend on the UI
             // happening to be watching.
-            val sprayTrackName = newTrackName ?: trackId?.let { id ->
-                runCatching { tracks.getTrack(id)?.name }.getOrNull()
+            val sprayTrackName = newTrackName ?: assetId?.let { id ->
+                runCatching { assetRepository.getAsset(id)?.name }.getOrNull()
             }
 
             recordings.finishRecording(sessionId, distanceM = distanceM)
@@ -361,7 +361,7 @@ class RecordingViewModel(
                 else -> null
             }
             sessionName?.let { runCatching { recordings.renameSession(sessionId, it) } }
-            trackId?.let { runCatching { recordings.setSessionTrack(sessionId, it) } }
+            assetId?.let { runCatching { recordings.setSessionTrack(sessionId, it) } }
 
             TrackingService.stop(context)
             TrackingState.clear()
@@ -372,7 +372,7 @@ class RecordingViewModel(
             var message = "Saved $points ${if (points == 1) "point" else "points"}"
             message += when {
                 newTrackName == null -> ""
-                trackId != null -> " as \"$newTrackName\", which is on the Tracks page now"
+                assetId != null -> " as \"$newTrackName\", which is on the Tracks page now"
                 trackError != null -> " - the track could not be saved: $trackError"
                 else -> " - too few points for a track, so it is in Recordings only"
             }
@@ -381,17 +381,17 @@ class RecordingViewModel(
             }
 
             message += when {
-                trackId == null -> ""
+                assetId == null -> ""
                 lines.isEmpty() -> " · no products entered, so no spray was recorded"
 
                 else -> runCatching {
                     sprays.recordSpray(
-                        trackId = trackId,
+                        assetId = assetId,
                         products = lines,
                         distanceM = distanceM,
                         recordedSessionId = sessionId
                     )
-                    if (_rememberDefaults.value) sprays.rememberDefaultsForTrack(trackId, lines)
+                    if (_rememberDefaults.value) sprays.rememberDefaultsForTrack(assetId, lines)
                 }.fold(
                     onSuccess = { " · recorded the spray for ${sprayTrackName ?: "the track"}" },
                     onFailure = { failure ->
@@ -402,7 +402,7 @@ class RecordingViewModel(
             }
 
             _message.value = message
-            _selectedTrackId.value = null
+            _selectedAssetId.value = null
             _rows.value = _rows.value.map { it.copy(quantityText = "") }
         }
     }
@@ -437,7 +437,7 @@ class RecordingViewModel(
                     val database = SprayDayDatabase.get(appContext)
                     RecordingViewModel(
                         recordings = RecordingRepository(database),
-                        tracks = TrackRepository(database),
+                        assetRepository = AssetRepository(database),
                         sprays = SprayRepository(database),
                         settingsRepository = SettingsRepository(appContext),
                         context = appContext

@@ -11,7 +11,7 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -41,7 +41,7 @@ class RecordingViewModelTest {
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
     private lateinit var recordings: RecordingRepository
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
 
     private val line = listOf(
         GeoPoint(-41.5000, 173.9500),
@@ -54,7 +54,7 @@ class RecordingViewModelTest {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
         recordings = RecordingRepository(db)
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         TrackingState.clear()
     }
 
@@ -69,7 +69,7 @@ class RecordingViewModelTest {
 
     private fun viewModel() = RecordingViewModel(
         recordings = recordings,
-        tracks = tracks,
+        assetRepository = assetRepository,
         sprays = SprayRepository(db),
         settingsRepository = SettingsRepository(context),
         context = context
@@ -87,8 +87,8 @@ class RecordingViewModelTest {
         return sessionId
     }
 
-    private suspend fun tracksNamed(name: String) = tracks
-        .observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis()))
+    private suspend fun assetsNamed(name: String) = assetRepository
+        .observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
         .first()
         .filter { it.track.name == name }
 
@@ -119,12 +119,12 @@ class RecordingViewModelTest {
         assertEquals(RecordingStatus.FINISHED.name, session.status)
         assertEquals("the recording should carry the name too", "Paddock 3", session.name)
 
-        val stored = tracksNamed("Paddock 3").single()
-        assertEquals("the recording should point at the track it became", stored.track.id, session.trackId)
+        val stored = assetsNamed("Paddock 3").single()
+        assertEquals("the recording should point at the track it became", stored.track.id, session.assetId)
         assertEquals(
             "the track should carry the recorded line",
             line.size,
-            tracks.getTrackGeometry(stored.track.id).size
+            assetRepository.getAssetGeometry(stored.track.id).size
         )
         assertTrue("its length should have been computed", stored.track.lengthM > 0.0)
         assertEquals("a freshly recorded track has not been sprayed", DueStatus.NEVER_SPRAYED, stored.due.status)
@@ -132,12 +132,12 @@ class RecordingViewModelTest {
 
     @Test
     fun finishingAgainstAnExistingTrackDoesNotAskForAName() = runBlocking {
-        val trackId = tracks.createTrack("Block A", line)
+        val assetId = assetRepository.createAsset("Block A", line)
         val viewModel = viewModel()
         val sessionId = recordingSession()
 
-        viewModel.selectTrack(trackId)
-        withTimeout(5_000) { viewModel.selectedTrackId.first { it == trackId } }
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
 
         viewModel.finish()
 
@@ -151,7 +151,7 @@ class RecordingViewModelTest {
         )
         val session = recordings.getSession(sessionId)!!
         assertEquals(RecordingStatus.FINISHED.name, session.status)
-        assertEquals(trackId, session.trackId)
+        assertEquals(assetId, session.assetId)
         assertTrue(
             "the recording should be named after the track and the date, so the three " +
                 "passes a year are told apart: ${session.name}",
@@ -160,7 +160,7 @@ class RecordingViewModelTest {
         assertEquals(
             "the plan should not have been duplicated",
             1,
-            tracks.observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis())).first().size
+            assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis())).first().size
         )
     }
 
@@ -199,7 +199,7 @@ class RecordingViewModelTest {
         assertEquals(RecordingStatus.FINISHED.name, recordings.getSession(sessionId)!!.status)
         assertTrue(
             "no track should have been created",
-            tracks.observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis())).first().isEmpty()
+            assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis())).first().isEmpty()
         )
     }
 }

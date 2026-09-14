@@ -91,7 +91,7 @@ fun RecordingDetailScreen(
         ) {
             LinzMapView(
                 apiKey = apiKey,
-                trackGeoJson = geoJson,
+                assetGeoJson = geoJson,
                 fitBounds = remember(detail) { boundsOf(detail) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -130,8 +130,8 @@ fun RecordingDetailScreen(
                             }
                             Text(
                                 text = when {
-                                    recording.trackName != null -> "Recorded for ${recording.trackName}"
-                                    recording.trackId != null -> "Its track has since been deleted"
+                                    recording.assetName != null -> "Recorded for ${recording.assetName}"
+                                    recording.assetId != null -> "Its track has since been deleted"
                                     else -> "Not linked to a planned track"
                                 },
                                 style = MaterialTheme.typography.bodySmall
@@ -177,8 +177,8 @@ fun RecordingDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    detail?.trackId?.let { trackId ->
-                        Button(onClick = { onLogSpray(trackId) }) { Text("Log a spray") }
+                    detail?.assetId?.let { assetId ->
+                        Button(onClick = { onLogSpray(assetId) }) { Text("Log a spray") }
                     }
                     OutlinedButton(onClick = { confirmingDelete = true }) { Text("Delete recording") }
                 }

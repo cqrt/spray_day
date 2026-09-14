@@ -35,8 +35,8 @@ import org.maplibre.android.style.sources.GeoJsonSource
 val DEFAULT_CAMERA_TARGET = LatLng(-41.5, 172.8)
 const val DEFAULT_CAMERA_ZOOM = 6.0
 
-internal const val TRACKS_SOURCE = "sprayday-tracks"
-internal const val TRACKS_LAYER = "sprayday-tracks-line"
+internal const val ASSETS_SOURCE = "sprayday-tracks"
+internal const val ASSETS_LAYER = "sprayday-tracks-line"
 
 /** Padding around the track network when the camera frames it. */
 private const val BOUNDS_PADDING_PX = 96
@@ -51,7 +51,7 @@ private const val BOUNDS_PADDING_PX = 96
 @Composable
 fun LinzMapView(
     apiKey: String,
-    trackGeoJson: String,
+    assetGeoJson: String,
     modifier: Modifier = Modifier,
     fitBounds: DomainBounds? = null,
     /**
@@ -99,12 +99,12 @@ fun LinzMapView(
                             handler(
                                 latLng.latitude,
                                 latLng.longitude,
-                                TrackHitTest.toleranceForZoom(map.cameraPosition.zoom, latLng.latitude)
+                                AssetHitTest.toleranceForZoom(map.cameraPosition.zoom, latLng.latitude)
                             )
                             true
                         }
                     }
-                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, trackGeoJson) { style ->
+                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson) { style ->
                         styleState.value = style
                     }
                 }
@@ -118,14 +118,14 @@ fun LinzMapView(
     LaunchedEffect(apiKey, tileUrlTemplate) {
         val map = mapState.value
         if (map != null && (apiKey.isNotBlank() || !tileUrlTemplate.isNullOrBlank())) {
-            map.loadSprayDayStyle(apiKey, tileUrlTemplate, trackGeoJson) { style ->
+            map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson) { style ->
                 styleState.value = style
             }
         }
     }
 
-    LaunchedEffect(trackGeoJson, styleState.value) {
-        styleState.value?.getSourceAs<GeoJsonSource>(TRACKS_SOURCE)?.setGeoJson(trackGeoJson)
+    LaunchedEffect(assetGeoJson, styleState.value) {
+        styleState.value?.getSourceAs<GeoJsonSource>(ASSETS_SOURCE)?.setGeoJson(assetGeoJson)
     }
 
     // Frame the track network the first time we know where it is, so opening the
@@ -169,7 +169,7 @@ fun LinzMapView(
 internal fun MapLibreMap.loadSprayDayStyle(
     apiKey: String,
     tileUrlTemplate: String?,
-    trackGeoJson: String,
+    assetGeoJson: String,
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
@@ -185,12 +185,12 @@ internal fun MapLibreMap.loadSprayDayStyle(
     }
 
     setStyle(Style.Builder().fromJson(json)) { style ->
-        if (style.getSource(TRACKS_SOURCE) == null) {
-            style.addSource(GeoJsonSource(TRACKS_SOURCE, trackGeoJson))
+        if (style.getSource(ASSETS_SOURCE) == null) {
+            style.addSource(GeoJsonSource(ASSETS_SOURCE, assetGeoJson))
         }
-        if (style.getLayer(TRACKS_LAYER) == null) {
+        if (style.getLayer(ASSETS_LAYER) == null) {
             style.addLayer(
-                LineLayer(TRACKS_LAYER, TRACKS_SOURCE).withProperties(
+                LineLayer(ASSETS_LAYER, ASSETS_SOURCE).withProperties(
                     PropertyFactory.lineColor(Expression.get("stroke")),
                     PropertyFactory.lineWidth(Expression.literal(5f)),
                     PropertyFactory.lineCap(Property.LINE_CAP_ROUND),

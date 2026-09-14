@@ -105,7 +105,7 @@ fun OfflineScreen(
                         // cached is visible rather than described.
                         LinzMapView(
                             apiKey = apiKey,
-                            trackGeoJson = previewGeoJson,
+                            assetGeoJson = previewGeoJson,
                             fitBounds = area.bounds,
                             modifier = Modifier
                                 .fillMaxWidth()

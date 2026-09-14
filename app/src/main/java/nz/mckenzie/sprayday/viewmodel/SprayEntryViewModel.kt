@@ -13,10 +13,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.SprayProductQuantity
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.ProductEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.ui.formatQuantityMl
 import nz.mckenzie.sprayday.ui.parsePositiveAmount
 import nz.mckenzie.sprayday.ui.parseQuantityMl
@@ -29,8 +29,8 @@ import nz.mckenzie.sprayday.ui.parseQuantityMl
  * of tracking set tracks three times a year.
  */
 class SprayEntryViewModel(
-    private val trackId: Long,
-    private val tracks: TrackRepository,
+    private val assetId: Long,
+    private val assetRepository: AssetRepository,
     private val sprays: SprayRepository,
     /**
      * The recording this spray is being logged from, when the operator came here from
@@ -47,7 +47,7 @@ class SprayEntryViewModel(
         val quantityText: String
     )
 
-    val track: StateFlow<TrackEntity?> = tracks.observeTrack(trackId)
+    val track: StateFlow<AssetEntity?> = assetRepository.observeAsset(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private val _rows = MutableStateFlow<List<ProductRow>>(emptyList())
@@ -85,7 +85,7 @@ class SprayEntryViewModel(
 
     init {
         viewModelScope.launch {
-            val defaults = sprays.getTrackDefaultLines(trackId)
+            val defaults = sprays.getAssetDefaultLines(assetId)
                 .associate { line -> line.productId to line.defaultQuantityMl }
             val typed = mutableMapOf<Long, String>()
 
@@ -179,14 +179,14 @@ class SprayEntryViewModel(
         viewModelScope.launch {
             try {
                 sprays.recordSpray(
-                    trackId = trackId,
+                    assetId = assetId,
                     products = lines,
                     waterLitres = parsePositiveAmount(_waterLitres.value),
                     notes = _notes.value.trim().ifBlank { null },
                     recordedSessionId = linkedSessionId
                 )
                 if (_rememberDefaults.value) {
-                    sprays.rememberDefaultsForTrack(trackId, lines)
+                    sprays.rememberDefaultsForTrack(assetId, lines)
                 }
                 _saved.value = true
             } catch (failure: Throwable) {
@@ -198,14 +198,14 @@ class SprayEntryViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
-        fun factory(context: Context, trackId: Long, linkedSessionId: Long? = null): ViewModelProvider.Factory {
+        fun factory(context: Context, assetId: Long, linkedSessionId: Long? = null): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
                     val database = SprayDayDatabase.get(appContext)
                     SprayEntryViewModel(
-                        trackId = trackId,
-                        tracks = TrackRepository(database),
+                        assetId = assetId,
+                        assetRepository = AssetRepository(database),
                         sprays = SprayRepository(database),
                         linkedSessionId = linkedSessionId
                     )

@@ -19,10 +19,10 @@ interface BackupDao {
     // --- Reading it all -----------------------------------------------------------
 
     @Query("SELECT * FROM tracks ORDER BY id")
-    suspend fun allTracks(): List<TrackEntity>
+    suspend fun allAssets(): List<AssetEntity>
 
     @Query("SELECT * FROM track_points ORDER BY trackId, sequence")
-    suspend fun allTrackPoints(): List<TrackPointEntity>
+    suspend fun allAssetPoints(): List<AssetPointEntity>
 
     @Query("SELECT * FROM products ORDER BY id")
     suspend fun allProducts(): List<ProductEntity>
@@ -34,7 +34,7 @@ interface BackupDao {
     suspend fun allSprayEventProducts(): List<SprayEventProductEntity>
 
     @Query("SELECT * FROM track_product_defaults ORDER BY trackId, productId")
-    suspend fun allTrackDefaults(): List<TrackProductDefaultEntity>
+    suspend fun allAssetDefaults(): List<AssetProductDefaultEntity>
 
     @Query("SELECT * FROM recorded_sessions ORDER BY id")
     suspend fun allRecordedSessions(): List<RecordedSessionEntity>
@@ -45,7 +45,7 @@ interface BackupDao {
     // --- Counting, for "what is in the app right now" ------------------------------
 
     @Query("SELECT COUNT(*) FROM tracks")
-    suspend fun trackCount(): Int
+    suspend fun assetCount(): Int
 
     @Query("SELECT COUNT(*) FROM spray_events")
     suspend fun sprayCount(): Int
@@ -65,10 +65,10 @@ interface BackupDao {
     suspend fun insertProducts(rows: List<ProductEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTracks(rows: List<TrackEntity>)
+    suspend fun insertAssets(rows: List<AssetEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTrackPoints(rows: List<TrackPointEntity>)
+    suspend fun insertAssetPoints(rows: List<AssetPointEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSprayEvents(rows: List<SprayEventEntity>)
@@ -77,7 +77,7 @@ interface BackupDao {
     suspend fun insertSprayEventProducts(rows: List<SprayEventProductEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTrackDefaults(rows: List<TrackProductDefaultEntity>)
+    suspend fun insertAssetDefaults(rows: List<AssetProductDefaultEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecordedSessions(rows: List<RecordedSessionEntity>)
@@ -88,7 +88,7 @@ interface BackupDao {
     // --- Clearing, children before parents so foreign keys are never left dangling --
 
     @Query("DELETE FROM track_product_defaults")
-    suspend fun clearTrackDefaults()
+    suspend fun clearAssetDefaults()
 
     @Query("DELETE FROM spray_event_products")
     suspend fun clearSprayEventProducts()
@@ -97,10 +97,10 @@ interface BackupDao {
     suspend fun clearSprayEvents()
 
     @Query("DELETE FROM track_points")
-    suspend fun clearTrackPoints()
+    suspend fun clearAssetPoints()
 
     @Query("DELETE FROM tracks")
-    suspend fun clearTracks()
+    suspend fun clearAssets()
 
     @Query("DELETE FROM products")
     suspend fun clearProducts()

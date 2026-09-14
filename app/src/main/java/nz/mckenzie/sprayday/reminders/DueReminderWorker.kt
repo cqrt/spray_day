@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import nz.mckenzie.sprayday.data.ReminderStateStore
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 
 /**
@@ -22,7 +22,7 @@ class DueReminderWorker(
     override suspend fun doWork(): Result = try {
         val appContext = applicationContext
         val check = DueReminderCheck(
-            tracks = TrackRepository(SprayDayDatabase.get(appContext)),
+            assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
             store = ReminderStateStore(appContext),
             notifier = ReminderNotifier(appContext)
         )

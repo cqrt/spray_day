@@ -6,8 +6,8 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /** A track as the reminder logic sees it. */
-data class TrackDueState(
-    val trackId: Long,
+data class AssetDueState(
+    val assetId: Long,
     val name: String,
     val status: DueStatus,
     val daysUntilDue: Long?,
@@ -28,7 +28,7 @@ data class ReminderState(
 
 /** The tracks worth mentioning now, and what to remember afterwards. */
 data class ReminderPlan(
-    val notify: List<TrackDueState>,
+    val notify: List<AssetDueState>,
     val state: ReminderState
 )
 
@@ -50,13 +50,13 @@ object DueReminderPlanner {
     const val REPEAT_AFTER_DAYS = 7L
 
     fun plan(
-        tracks: List<TrackDueState>,
+        assets: List<AssetDueState>,
         previous: ReminderState,
         nowEpochMs: Long,
         leadDays: Int,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): ReminderPlan {
-        val candidates = tracks
+        val candidates = assets
             .filter { worthMentioning(it, nowEpochMs, leadDays, zoneId) }
             // Most overdue first, so the notification opens with the worst of it.
             .sortedBy { it.daysUntilDue ?: Long.MAX_VALUE }
@@ -65,7 +65,7 @@ object DueReminderPlanner {
 
         val neverTold = previous.notifiedAtEpochMs == null
         val somethingWorse = candidates.any { candidate ->
-            val toldAt = previous.notified[candidate.trackId]
+            val toldAt = previous.notified[candidate.assetId]
             toldAt == null || candidate.status.urgency() > toldAt.urgency()
         }
         val weekHasPassed = previous.notifiedAtEpochMs?.let { last ->
@@ -77,7 +77,7 @@ object DueReminderPlanner {
                 notify = candidates,
                 state = ReminderState(
                     notifiedAtEpochMs = nowEpochMs,
-                    notified = candidates.associate { it.trackId to it.status }
+                    notified = candidates.associate { it.assetId to it.status }
                 )
             )
         } else {
@@ -88,7 +88,7 @@ object DueReminderPlanner {
     }
 
     private fun worthMentioning(
-        track: TrackDueState,
+        track: AssetDueState,
         nowEpochMs: Long,
         leadDays: Int,
         zoneId: ZoneId

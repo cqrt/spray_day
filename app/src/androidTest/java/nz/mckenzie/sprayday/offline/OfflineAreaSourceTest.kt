@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
@@ -44,7 +44,7 @@ class OfflineAreaSourceTest {
 
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var store: OfflineTileStore
 
     private val invercargill = GeoPoint(-46.4130, 168.3480)
@@ -59,7 +59,7 @@ class OfflineAreaSourceTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         store = OfflineTileStore(File(temp.root, "tiles"))
     }
 
@@ -74,7 +74,7 @@ class OfflineAreaSourceTest {
 
     private fun viewModel(fix: GeoPoint?) = OfflineViewModel(
         manager = OfflineAreaManager(store = store, dao = db.offlineAreaDao()),
-        tracks = tracks,
+        assetRepository = assetRepository,
         locationSource = FakeLocationSource(fix),
         settings = SettingsRepository(context)
     )
@@ -98,7 +98,7 @@ class OfflineAreaSourceTest {
 
     @Test
     fun withoutAPositionTheOfferedAreaCoversTheTracks() = runBlocking {
-        tracks.createTrack(
+        assetRepository.createAsset(
             name = "Invercargill block",
             geometry = listOf(
                 GeoPoint(invercargill.lat, invercargill.lng),
@@ -137,10 +137,10 @@ class OfflineAreaSourceTest {
     }
 
     @Test
-    fun trackBoundsAreNullUntilThereIsGeometry() = runBlocking {
-        assertNull("nothing to frame before any track exists", tracks.trackBounds())
+    fun assetBoundsAreNullUntilThereIsGeometry() = runBlocking {
+        assertNull("nothing to frame before any track exists", assetRepository.assetBounds())
 
-        tracks.createTrack(
+        assetRepository.createAsset(
             name = "Block",
             geometry = listOf(
                 GeoPoint(-46.40, 168.30),
@@ -148,7 +148,7 @@ class OfflineAreaSourceTest {
             )
         )
 
-        val bounds = tracks.trackBounds()
+        val bounds = assetRepository.assetBounds()
         assertNotNull(bounds)
         assertEquals(-46.45, bounds!!.minLat, 1e-9)
         assertEquals(168.30, bounds.minLng, 1e-9)

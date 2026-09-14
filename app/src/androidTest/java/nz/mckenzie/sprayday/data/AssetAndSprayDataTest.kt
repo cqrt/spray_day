@@ -22,10 +22,10 @@ import org.junit.runner.RunWith
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
 @RunWith(AndroidJUnit4::class)
-class TrackAndSprayDataTest {
+class AssetAndSprayDataTest {
 
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var sprays: SprayRepository
 
     private val now = 1_790_000_000_000L
@@ -37,41 +37,41 @@ class TrackAndSprayDataTest {
     fun setUp() {
         val context: Context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         sprays = SprayRepository(db)
     }
 
     @After
     fun tearDown() = db.close()
 
-    private suspend fun dueFor(trackId: Long) = tracks
-        .observeTracksWithDue(TrackTicker.fixed(now))
+    private suspend fun dueFor(assetId: Long) = assetRepository
+        .observeAssetsWithDue(MinuteTicker.fixed(now))
         .first()
-        .first { it.track.id == trackId }
+        .first { it.track.id == assetId }
 
     @Test
-    fun createTrackStoresGeometryAndLength() = runBlocking {
-        val id = tracks.createTrack(name = "Track 4", geometry = line)
+    fun createAssetStoresGeometryAndLength() = runBlocking {
+        val id = assetRepository.createAsset(name = "Track 4", geometry = line)
 
-        val geometry = tracks.getTrackGeometry(id)
+        val geometry = assetRepository.getAssetGeometry(id)
         assertEquals(2, geometry.size)
         assertEquals(0.001, geometry[1].lng, 1e-9)
-        assertEquals(111.19, tracks.getTrack(id)!!.lengthM, 1.0)
+        assertEquals(111.19, assetRepository.getAsset(id)!!.lengthM, 1.0)
     }
 
     @Test
     fun deletingATrackCascadesItsGeometry() = runBlocking {
-        val id = tracks.createTrack(name = "Track 4", geometry = line)
+        val id = assetRepository.createAsset(name = "Track 4", geometry = line)
 
-        tracks.deleteTrack(id)
+        assetRepository.deleteAsset(id)
 
-        assertNull(tracks.getTrack(id))
-        assertTrue(tracks.getTrackGeometry(id).isEmpty())
+        assertNull(assetRepository.getAsset(id))
+        assertTrue(assetRepository.getAssetGeometry(id).isEmpty())
     }
 
     @Test
     fun neverSprayedTrackIsFlaggedAsSuch() = runBlocking {
-        val id = tracks.createTrack(name = "Track 9", geometry = line)
+        val id = assetRepository.createAsset(name = "Track 9", geometry = line)
 
         val due = dueFor(id)
         assertEquals(DueStatus.NEVER_SPRAYED, due.due.status)
@@ -81,43 +81,43 @@ class TrackAndSprayDataTest {
 
     @Test
     fun sprayingATrackMakesItNotDue() = runBlocking {
-        val id = tracks.createTrack(name = "Track 9", geometry = line)
+        val id = assetRepository.createAsset(name = "Track 9", geometry = line)
 
-        sprays.recordSpray(trackId = id, sprayedAtEpochMs = now)
+        sprays.recordSpray(assetId = id, sprayedAtEpochMs = now)
 
         val due = dueFor(id)
         assertEquals(DueStatus.NOT_DUE, due.due.status)
         assertEquals(120L, due.due.daysUntilDue)
         assertEquals(1, due.sprayCount)
-        assertEquals(now, tracks.getTrack(id)!!.lastSprayedAtEpochMs)
+        assertEquals(now, assetRepository.getAsset(id)!!.lastSprayedAtEpochMs)
     }
 
     @Test
     fun aSprayOlderThanTheIntervalIsOverdue() = runBlocking {
-        val id = tracks.createTrack(name = "Track 9", geometry = line, intervalDays = 120)
+        val id = assetRepository.createAsset(name = "Track 9", geometry = line, intervalDays = 120)
 
-        sprays.recordSpray(trackId = id, sprayedAtEpochMs = now - 130 * DAY_MS)
+        sprays.recordSpray(assetId = id, sprayedAtEpochMs = now - 130 * DAY_MS)
 
         assertEquals(DueStatus.OVERDUE, dueFor(id).due.status)
     }
 
     @Test
     fun aSprayInsideTheLeadWindowIsDueSoon() = runBlocking {
-        val id = tracks.createTrack(name = "Track 9", geometry = line, intervalDays = 120)
+        val id = assetRepository.createAsset(name = "Track 9", geometry = line, intervalDays = 120)
 
-        sprays.recordSpray(trackId = id, sprayedAtEpochMs = now - 110 * DAY_MS)
+        sprays.recordSpray(assetId = id, sprayedAtEpochMs = now - 110 * DAY_MS)
 
         assertEquals(DueStatus.DUE_SOON, dueFor(id).due.status)
     }
 
     @Test
     fun recordingASprayStoresMillilitresOfEachProduct() = runBlocking {
-        val trackId = tracks.createTrack(name = "Track 1", geometry = line)
+        val assetId = assetRepository.createAsset(name = "Track 1", geometry = line)
         val glyphosate = sprays.addProduct(name = "Glyphosate 360", rateText = "10 mL/L")
         val surfactant = sprays.addProduct(name = "Surfactant")
 
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             sprayedAtEpochMs = now,
             products = listOf(
                 SprayProductQuantity(productId = glyphosate, quantityMl = 1450.0),
@@ -136,69 +136,69 @@ class TrackAndSprayDataTest {
 
     @Test
     fun repeatedSpraysAreCountedAndKeepTheLatestDate() = runBlocking {
-        val trackId = tracks.createTrack(name = "Track 2", geometry = line)
+        val assetId = assetRepository.createAsset(name = "Track 2", geometry = line)
 
-        sprays.recordSpray(trackId = trackId, sprayedAtEpochMs = now - 200 * DAY_MS)
-        sprays.recordSpray(trackId = trackId, sprayedAtEpochMs = now - 40 * DAY_MS)
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now - 200 * DAY_MS)
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now - 40 * DAY_MS)
 
-        assertEquals(2, dueFor(trackId).sprayCount)
-        assertEquals(now - 40 * DAY_MS, tracks.getTrack(trackId)!!.lastSprayedAtEpochMs)
+        assertEquals(2, dueFor(assetId).sprayCount)
+        assertEquals(now - 40 * DAY_MS, assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs)
     }
 
     @Test
     fun lastSprayedTimestampNeverMovesBackwards() = runBlocking {
-        val trackId = tracks.createTrack(name = "Track 2", geometry = line)
+        val assetId = assetRepository.createAsset(name = "Track 2", geometry = line)
 
-        sprays.recordSpray(trackId = trackId, sprayedAtEpochMs = now)
-        sprays.recordSpray(trackId = trackId, sprayedAtEpochMs = now - 30 * DAY_MS)
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now)
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now - 30 * DAY_MS)
 
-        assertEquals(now, tracks.getTrack(trackId)!!.lastSprayedAtEpochMs)
+        assertEquals(now, assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs)
     }
 
     @Test
     fun deletingATrackCascadesItsSprayHistory() = runBlocking {
-        val trackId = tracks.createTrack(name = "Track 3", geometry = line)
+        val assetId = assetRepository.createAsset(name = "Track 3", geometry = line)
         val productId = sprays.addProduct(name = "Product X")
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             sprayedAtEpochMs = now,
             products = listOf(SprayProductQuantity(productId, 500.0))
         )
 
-        tracks.deleteTrack(trackId)
+        assetRepository.deleteAsset(assetId)
 
         assertNull(sprays.getSprayEvent(eventId))
         assertTrue(sprays.getSprayEventProducts(eventId).isEmpty())
     }
 
     @Test
-    fun trackProductDefaultsAreStoredAndReplaced() = runBlocking {
-        val trackId = tracks.createTrack(name = "Track 5", geometry = line)
+    fun assetProductDefaultsAreStoredAndReplaced() = runBlocking {
+        val assetId = assetRepository.createAsset(name = "Track 5", geometry = line)
         val productId = sprays.addProduct(name = "Product Y")
 
-        sprays.setTrackProductDefault(trackId, productId, 400.0)
-        sprays.setTrackProductDefault(trackId, productId, 650.0)
+        sprays.setTrackProductDefault(assetId, productId, 400.0)
+        sprays.setTrackProductDefault(assetId, productId, 650.0)
 
-        val defaults = sprays.getTrackProductDefaults(trackId)
+        val defaults = sprays.getAssetProductDefaults(assetId)
         assertEquals(1, defaults.size)
         assertEquals(650.0, defaults.first().defaultQuantityMl!!, 0.001)
     }
 
     @Test
     fun productDefaultsComeBackWithNamesForPreFilling() = runBlocking {
-        val trackId = tracks.createTrack(name = "Pre-fill", geometry = line)
+        val assetId = assetRepository.createAsset(name = "Pre-fill", geometry = line)
         val glyphosate = sprays.addProduct(name = "Glyphosate 360")
         val surfactant = sprays.addProduct(name = "Surfactant")
 
         sprays.rememberDefaultsForTrack(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(
                 SprayProductQuantity(productId = glyphosate, quantityMl = 1450.0),
                 SprayProductQuantity(productId = surfactant, quantityMl = 120.0)
             )
         )
 
-        val lines = sprays.getTrackDefaultLines(trackId)
+        val lines = sprays.getAssetDefaultLines(assetId)
         assertEquals(2, lines.size)
         // Ordered by name, which is how the form shows them.
         assertEquals("Glyphosate 360", lines[0].name)
@@ -208,10 +208,10 @@ class TrackAndSprayDataTest {
 
     @Test
     fun sprayHistoryLinesCarryProductNamesAndAmounts() = runBlocking {
-        val trackId = tracks.createTrack(name = "History", geometry = line)
+        val assetId = assetRepository.createAsset(name = "History", geometry = line)
         val productId = sprays.addProduct(name = "Product Z")
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             sprayedAtEpochMs = now,
             products = listOf(
                 SprayProductQuantity(productId = productId, quantityMl = 875.5)
@@ -226,9 +226,9 @@ class TrackAndSprayDataTest {
 
     @Test
     fun exportedGpxRoundTripsThroughTheParser() = runBlocking {
-        val id = tracks.createTrack(name = "Block 4 & 5", geometry = line)
+        val id = assetRepository.createAsset(name = "Block 4 & 5", geometry = line)
 
-        val gpx = tracks.exportTrackGpx(id)
+        val gpx = assetRepository.exportAssetGpx(id)
         assertNotNull(gpx)
         assertTrue(gpx!!.contains("Block 4 &amp; 5"))
 
@@ -239,13 +239,13 @@ class TrackAndSprayDataTest {
 
     @Test
     fun importingGpxCreatesATrackWithTheSameGeometry() = runBlocking {
-        val source = tracks.createTrack(name = "Planned", geometry = line)
-        val gpx = tracks.exportTrackGpx(source)!!
+        val source = assetRepository.createAsset(name = "Planned", geometry = line)
+        val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val importedId = tracks.importTrackGpx(name = "Imported", gpx = gpx)
+        val importedId = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
 
-        assertEquals(2, tracks.getTrackGeometry(importedId).size)
-        assertEquals(111.19, tracks.getTrack(importedId)!!.lengthM, 1.0)
+        assertEquals(2, assetRepository.getAssetGeometry(importedId).size)
+        assertEquals(111.19, assetRepository.getAsset(importedId)!!.lengthM, 1.0)
     }
 
     @Test
@@ -255,7 +255,7 @@ class TrackAndSprayDataTest {
             <gpx version="1.1"><trk><trkseg><trkpt lat="-41.0" lon="174.0"/></trkseg></trk></gpx>
         """.trimIndent()
 
-        val failure = runCatching { tracks.importTrackGpx(name = "Bad", gpx = gpx) }
+        val failure = runCatching { assetRepository.importAssetGpx(name = "Bad", gpx = gpx) }
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }

@@ -29,7 +29,7 @@ import org.junit.runner.RunWith
 class RecordingsAndProductsTest {
 
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var sprays: SprayRepository
     private lateinit var recordings: RecordingRepository
 
@@ -42,7 +42,7 @@ class RecordingsAndProductsTest {
     fun setUp() {
         val context: Context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         sprays = SprayRepository(db)
         recordings = RecordingRepository(db)
     }
@@ -52,10 +52,10 @@ class RecordingsAndProductsTest {
 
     @Test
     fun renamingAProductKeepsItsSprayHistory() = runBlocking {
-        val trackId = tracks.createTrack("Block", line)
+        val assetId = assetRepository.createAsset("Block", line)
         val productId = sprays.addProduct("Diuron")
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(SprayProductQuantity(productId, 2_500.0))
         )
 
@@ -83,10 +83,10 @@ class RecordingsAndProductsTest {
 
     @Test
     fun archivingHidesAProductFromTheFormButKeepsItsHistory() = runBlocking {
-        val trackId = tracks.createTrack("Block", line)
+        val assetId = assetRepository.createAsset("Block", line)
         val productId = sprays.addProduct("Diuron")
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(SprayProductQuantity(productId, 1_500.0))
         )
 
@@ -113,14 +113,14 @@ class RecordingsAndProductsTest {
 
     @Test
     fun deletingARecordingKeepsTheSprayButDropsTheLink() = runBlocking {
-        val trackId = tracks.createTrack("Block", line)
-        val sessionId = recordings.startRecording("Spray run", trackId = trackId)
+        val assetId = assetRepository.createAsset("Block", line)
+        val sessionId = recordings.startRecording("Spray run", assetId = assetId)
         recordings.appendPoint(sessionId, line[0])
         recordings.finishRecording(sessionId, distanceM = 100.0)
 
         val productId = sprays.addProduct("Diuron")
         val eventId = sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(SprayProductQuantity(productId, 2_000.0)),
             recordedSessionId = sessionId
         )
@@ -137,18 +137,18 @@ class RecordingsAndProductsTest {
 
     @Test
     fun aRecordingKeepsItsDistanceAndPointsUntilItIsDeleted() = runBlocking {
-        val trackId = tracks.createTrack("Block", line)
-        val sessionId = recordings.startRecording("Spray run", trackId = trackId)
+        val assetId = assetRepository.createAsset("Block", line)
+        val sessionId = recordings.startRecording("Spray run", assetId = assetId)
         line.forEach { recordings.appendPoint(sessionId, it) }
         recordings.finishRecording(sessionId, distanceM = 850.0)
 
         val session = recordings.getSession(sessionId)!!
         assertEquals(850.0, session.distanceM, 0.001)
         assertEquals(2, session.pointCount)
-        assertEquals(trackId, session.trackId)
+        assertEquals(assetId, session.assetId)
         assertEquals(2, recordings.getPoints(sessionId).size)
 
-        tracks.deleteTrack(trackId)
+        assetRepository.deleteAsset(assetId)
 
         assertEquals(
             "deleting the plan must not delete the evidence",

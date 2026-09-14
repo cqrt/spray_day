@@ -1,14 +1,14 @@
 package nz.mckenzie.sprayday.data
 
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
 
 /**
  * A track plus everything the map and list need to render it: its traffic-light
  * due state and how many times it has been sprayed.
  */
-data class TrackWithDue(
-    val track: TrackEntity,
+data class AssetWithDue(
+    val track: AssetEntity,
     val due: DueInfo,
     val sprayCount: Int
 )

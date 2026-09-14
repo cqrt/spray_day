@@ -31,11 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.due.DueStatus
-import nz.mckenzie.sprayday.map.TrackColors
+import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
-import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
+import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 
 /**
  * The track library: what tracks exist, how long they are, and when each is next
@@ -43,16 +43,16 @@ import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TrackListScreen(
-    viewModel: TrackListViewModel,
+fun AssetListScreen(
+    viewModel: AssetListViewModel,
     onBack: () -> Unit,
-    onOpenTrack: (Long) -> Unit,
-    onDrawTrack: () -> Unit,
-    onRecordTrack: () -> Unit,
+    onOpenAsset: (Long) -> Unit,
+    onDrawAsset: () -> Unit,
+    onRecordAsset: () -> Unit,
     onOpenRecordings: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
+    val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
 
@@ -85,8 +85,8 @@ fun TrackListScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = onRecordTrack) { Text("Record") }
-                OutlinedButton(onClick = onDrawTrack) { Text("Draw") }
+                Button(onClick = onRecordAsset) { Text("Record") }
+                OutlinedButton(onClick = onDrawAsset) { Text("Draw") }
                 OutlinedButton(
                     onClick = { importLauncher.launch(GPX_MIME_TYPES) },
                     enabled = !busy
@@ -109,9 +109,9 @@ fun TrackListScreen(
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.track.id }) { item ->
-                        TrackRow(
+                        AssetRow(
                             item = item,
-                            onOpen = { onOpenTrack(item.track.id) },
+                            onOpen = { onOpenAsset(item.track.id) },
                             onDelete = { viewModel.delete(item.track.id) }
                         )
                     }
@@ -130,7 +130,7 @@ private val GPX_MIME_TYPES = arrayOf(
 )
 
 @Composable
-private fun TrackRow(item: TrackWithDue, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Unit) {
     Card(onClick = onOpen) {
         Row(
             modifier = Modifier
@@ -141,7 +141,7 @@ private fun TrackRow(item: TrackWithDue, onOpen: () -> Unit, onDelete: () -> Uni
             Box(
                 modifier = Modifier
                     .size(14.dp)
-                    .background(parseHexColor(TrackColors.forStatus(item.due.status)), CircleShape)
+                    .background(parseHexColor(AssetColors.forStatus(item.due.status)), CircleShape)
             )
             Column(
                 modifier = Modifier
@@ -160,7 +160,7 @@ private fun TrackRow(item: TrackWithDue, onOpen: () -> Unit, onDelete: () -> Uni
 }
 
 /** Operator wording for the traffic light, so the colour is never a mystery. */
-internal fun dueLabel(item: TrackWithDue): String = when (item.due.status) {
+internal fun dueLabel(item: AssetWithDue): String = when (item.due.status) {
     DueStatus.NEVER_SPRAYED -> "never sprayed"
     else -> {
         val days = item.due.daysUntilDue ?: 0L

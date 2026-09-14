@@ -18,12 +18,12 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.ProductQuantityLine
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
@@ -39,9 +39,9 @@ data class SprayHistoryEntry(
  * Everything about one track: its line on the map, when it is next due, what it
  * has been given, and GPX export.
  */
-class TrackDetailViewModel(
-    private val trackId: Long,
-    private val tracks: TrackRepository,
+class AssetDetailViewModel(
+    private val assetId: Long,
+    private val assetRepository: AssetRepository,
     private val sprays: SprayRepository,
     private val recordingsRepository: RecordingRepository,
     settingsRepository: SettingsRepository,
@@ -51,10 +51,10 @@ class TrackDetailViewModel(
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    val track: StateFlow<TrackEntity?> = tracks.observeTrack(trackId)
+    val track: StateFlow<AssetEntity?> = assetRepository.observeAsset(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
-    val geometry: StateFlow<List<GeoPoint>> = tracks.observeTrackGeometry(trackId)
+    val geometry: StateFlow<List<GeoPoint>> = assetRepository.observeAssetGeometry(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     val bounds: StateFlow<LatLngBounds?> = geometry
@@ -72,12 +72,12 @@ class TrackDetailViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
-    val due: StateFlow<DueInfo?> = tracks.observeTracksWithDue()
-        .map { list -> list.firstOrNull { it.track.id == trackId }?.due }
+    val due: StateFlow<DueInfo?> = assetRepository.observeAssetsWithDue()
+        .map { list -> list.firstOrNull { it.track.id == assetId }?.due }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val history: StateFlow<List<SprayHistoryEntry>> = sprays.observeSprayEvents(trackId)
+    val history: StateFlow<List<SprayHistoryEntry>> = sprays.observeSprayEvents(assetId)
         .mapLatest { events ->
             events.map { event -> SprayHistoryEntry(event, sprays.getSprayEventProductLines(event.id)) }
         }
@@ -88,7 +88,7 @@ class TrackDetailViewModel(
      * way to check a coverage figure after the fact.
      */
     val recordings: StateFlow<List<RecordedSessionEntity>> =
-        recordingsRepository.observeSessionsForTrack(trackId)
+        recordingsRepository.observeSessionsForTrack(assetId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     private val _message = MutableStateFlow<String?>(null)
@@ -103,7 +103,7 @@ class TrackDetailViewModel(
     fun exportGpx(uri: Uri) {
         viewModelScope.launch {
             try {
-                val gpx = tracks.exportTrackGpx(trackId)
+                val gpx = assetRepository.exportAssetGpx(assetId)
                     ?: error("That track no longer exists")
                 context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                     output.write(gpx.toByteArray(Charsets.UTF_8))
@@ -117,7 +117,7 @@ class TrackDetailViewModel(
 
     fun delete() {
         viewModelScope.launch {
-            runCatching { tracks.deleteTrack(trackId) }
+            runCatching { assetRepository.deleteAsset(assetId) }
                 .onFailure { _message.value = it.message ?: "Could not delete the track" }
         }
     }
@@ -125,13 +125,13 @@ class TrackDetailViewModel(
     /**
      * Stores edits made on this screen.
      *
-     * The fields were checked by [nz.mckenzie.sprayday.ui.TrackEdits] before this is
+     * The fields were checked by [nz.mckenzie.sprayday.ui.AssetEdits] before this is
      * called, so anything arriving here is already fit to store - which also means the
      * interval set here is what the traffic light uses from now on.
      */
-    fun save(track: TrackEntity) {
+    fun save(track: AssetEntity) {
         viewModelScope.launch {
-            runCatching { tracks.updateTrack(track) }
+            runCatching { assetRepository.updateAsset(track) }
                 .onSuccess { _message.value = "Saved" }
                 .onFailure { _message.value = it.message ?: "Could not save the track" }
         }
@@ -140,14 +140,14 @@ class TrackDetailViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
-        fun factory(context: Context, trackId: Long): ViewModelProvider.Factory {
+        fun factory(context: Context, assetId: Long): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
                     val database = SprayDayDatabase.get(appContext)
-                    TrackDetailViewModel(
-                        trackId = trackId,
-                        tracks = TrackRepository(database),
+                    AssetDetailViewModel(
+                        assetId = assetId,
+                        assetRepository = AssetRepository(database),
                         sprays = SprayRepository(database),
                         recordingsRepository = RecordingRepository(database),
                         settingsRepository = SettingsRepository(appContext),

@@ -1,15 +1,15 @@
 package nz.mckenzie.sprayday.ui
 
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 
 /** What the edit form made of what was typed into it. */
-sealed interface TrackEditResult {
+sealed interface AssetEditResult {
 
     /** The track to store. */
-    data class Ok(val track: TrackEntity) : TrackEditResult
+    data class Ok(val track: AssetEntity) : AssetEditResult
 
     /** What to tell the operator, in words that say what to fix. */
-    data class Invalid(val message: String) : TrackEditResult
+    data class Invalid(val message: String) : AssetEditResult
 }
 
 /**
@@ -19,7 +19,7 @@ sealed interface TrackEditResult {
  * comma means. Those decisions are worth testing on their own, which is why this is
  * pure and lives outside the view model: the screen only has to show the message.
  */
-object TrackEdits {
+object AssetEdits {
 
     /** Ten years. Past this the interval is a typo rather than an intention. */
     const val MAX_INTERVAL_DAYS = 3650
@@ -31,22 +31,22 @@ object TrackEdits {
     const val MIN_SWATH_M = 0.1
 
     fun apply(
-        track: TrackEntity,
+        track: AssetEntity,
         name: String,
         areaLabel: String,
         intervalDays: String,
         swathWidthM: String,
         notes: String
-    ): TrackEditResult {
+    ): AssetEditResult {
         val cleanName = name.trim()
         if (cleanName.isEmpty()) {
-            return TrackEditResult.Invalid("Give the track a name so it can be found later")
+            return AssetEditResult.Invalid("Give the track a name so it can be found later")
         }
 
         val days = intervalDays.trim().toIntOrNull()
-            ?: return TrackEditResult.Invalid("Days between sprays must be a whole number")
+            ?: return AssetEditResult.Invalid("Days between sprays must be a whole number")
         if (days !in 1..MAX_INTERVAL_DAYS) {
-            return TrackEditResult.Invalid(
+            return AssetEditResult.Invalid(
                 "Days between sprays must be between 1 and $MAX_INTERVAL_DAYS"
             )
         }
@@ -56,15 +56,15 @@ object TrackEdits {
         val swath = when (val text = swathWidthM.trim()) {
             "" -> null
             else -> parsePositiveAmount(text)
-                ?: return TrackEditResult.Invalid("Swath width must be a number of metres, or empty")
+                ?: return AssetEditResult.Invalid("Swath width must be a number of metres, or empty")
         }
         if (swath != null && swath !in MIN_SWATH_M..MAX_SWATH_M) {
-            return TrackEditResult.Invalid(
+            return AssetEditResult.Invalid(
                 "Swath width must be between $MIN_SWATH_M m and $MAX_SWATH_M m, or empty"
             )
         }
 
-        return TrackEditResult.Ok(
+        return AssetEditResult.Ok(
             track.copy(
                 name = cleanName,
                 areaLabel = areaLabel.trim().ifBlank { null },

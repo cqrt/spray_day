@@ -36,31 +36,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DuePhrase
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.LinzMapView
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackLine
-import nz.mckenzie.sprayday.ui.TrackEditResult
-import nz.mckenzie.sprayday.ui.TrackEdits
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.ui.AssetEditResult
+import nz.mckenzie.sprayday.ui.AssetEdits
 import nz.mckenzie.sprayday.ui.formatArea
 import nz.mckenzie.sprayday.ui.formatDate
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatIntervalDays
 import nz.mckenzie.sprayday.ui.formatPlainNumber
 import nz.mckenzie.sprayday.ui.formatQuantityWithUnit
-import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
+import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 
 /**
  * One track: where it is, when it is next due, and what it has been given.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun TrackDetailScreen(
-    viewModel: TrackDetailViewModel,
+fun AssetDetailScreen(
+    viewModel: AssetDetailViewModel,
     onBack: () -> Unit,
     onRecordSpray: () -> Unit,
     onOpenRecording: (Long) -> Unit = {}
@@ -75,12 +75,12 @@ fun TrackDetailScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val geoJson = remember(geometry, due, track) {
-        TrackGeoJson.build(
+        AssetGeoJson.build(
             listOf(
-                TrackLine(
-                    trackId = track?.id ?: 0L,
+                AssetLine(
+                    assetId = track?.id ?: 0L,
                     name = track?.name.orEmpty(),
-                    colorHex = TrackColors.forStatus(due?.status ?: DueStatus.NEVER_SPRAYED),
+                    colorHex = AssetColors.forStatus(due?.status ?: DueStatus.NEVER_SPRAYED),
                     points = geometry
                 )
             )
@@ -118,7 +118,7 @@ fun TrackDetailScreen(
                 ) {
                     LinzMapView(
                         apiKey = apiKey,
-                        trackGeoJson = geoJson,
+                        assetGeoJson = geoJson,
                         fitBounds = bounds,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -266,7 +266,7 @@ fun TrackDetailScreen(
     // The track is re-read rather than copied once, so a rename while the dialog is
     // open cannot be saved back as a stale name.
     track?.takeIf { editing }?.let { current ->
-        TrackEditDialog(
+        AssetEditDialog(
             track = current,
             onDismiss = { editing = false },
             onSave = { edited ->
@@ -285,10 +285,10 @@ fun TrackDetailScreen(
  * nowhere to change it. It is now this field, and the traffic light follows it.
  */
 @Composable
-private fun TrackEditDialog(
-    track: TrackEntity,
+private fun AssetEditDialog(
+    track: AssetEntity,
     onDismiss: () -> Unit,
-    onSave: (TrackEntity) -> Unit
+    onSave: (AssetEntity) -> Unit
 ) {
     var name by remember { mutableStateOf(track.name) }
     var areaLabel by remember { mutableStateOf(track.areaLabel.orEmpty()) }
@@ -359,9 +359,9 @@ private fun TrackEditDialog(
             TextButton(onClick = {
                 // Refused edits keep the dialog open with the reason showing: closing it
                 // would leave the operator believing the change was stored.
-                when (val result = TrackEdits.apply(track, name, areaLabel, intervalDays, swathWidth, notes)) {
-                    is TrackEditResult.Ok -> onSave(result.track)
-                    is TrackEditResult.Invalid -> problem = result.message
+                when (val result = AssetEdits.apply(track, name, areaLabel, intervalDays, swathWidth, notes)) {
+                    is AssetEditResult.Ok -> onSave(result.track)
+                    is AssetEditResult.Invalid -> problem = result.message
                 }
             }) { Text("Save") }
         },

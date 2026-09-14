@@ -7,12 +7,12 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [
-        TrackEntity::class,
-        TrackPointEntity::class,
+        AssetEntity::class,
+        AssetPointEntity::class,
         ProductEntity::class,
         SprayEventEntity::class,
         SprayEventProductEntity::class,
-        TrackProductDefaultEntity::class,
+        AssetProductDefaultEntity::class,
         RecordedSessionEntity::class,
         RecordedPointEntity::class,
         OfflineAreaEntity::class
@@ -22,7 +22,7 @@ import androidx.room.RoomDatabase
 )
 abstract class SprayDayDatabase : RoomDatabase() {
 
-    abstract fun trackDao(): TrackDao
+    abstract fun assetDao(): AssetDao
     abstract fun productDao(): ProductDao
     abstract fun sprayEventDao(): SprayEventDao
     abstract fun recordingDao(): RecordingDao

@@ -15,7 +15,7 @@ import androidx.room.PrimaryKey
     tableName = "tracks",
     indices = [Index("active"), Index("lastSprayedAtEpochMs")]
 )
-data class TrackEntity(
+data class AssetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String,
     /** Optional grouping, e.g. a block, farm or landowner. */

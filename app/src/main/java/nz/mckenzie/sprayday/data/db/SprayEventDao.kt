@@ -10,8 +10,8 @@ import nz.mckenzie.sprayday.domain.handover.HandoverRow
  * Rolled-up spray history per track, used by the due-status engine to colour
  * the map without loading every event.
  */
-data class TrackSpraySummary(
-    val trackId: Long,
+data class AssetSpraySummary(
+    val assetId: Long,
     val lastSprayedAtEpochMs: Long?,
     val sprayCount: Int
 )
@@ -23,7 +23,7 @@ data class ProductQuantityLine(
 )
 
 /** A track's saved pre-fill for one product. */
-data class TrackDefaultLine(
+data class AssetDefaultLine(
     val productId: Long,
     val name: String,
     val defaultQuantityMl: Double?
@@ -41,8 +41,8 @@ abstract class SprayEventDao {
     @Query("SELECT * FROM spray_events WHERE id = :id")
     abstract suspend fun getEvent(id: Long): SprayEventEntity?
 
-    @Query("SELECT * FROM spray_events WHERE trackId = :trackId ORDER BY sprayedAtEpochMs DESC")
-    abstract fun observeEventsForTrack(trackId: Long): Flow<List<SprayEventEntity>>
+    @Query("SELECT * FROM spray_events WHERE trackId = :assetId ORDER BY sprayedAtEpochMs DESC")
+    abstract fun observeEventsForTrack(assetId: Long): Flow<List<SprayEventEntity>>
 
     @Query("SELECT * FROM spray_event_products WHERE sprayEventId = :sprayEventId")
     abstract suspend fun getEventProducts(sprayEventId: Long): List<SprayEventProductEntity>
@@ -72,25 +72,25 @@ abstract class SprayEventDao {
         SELECT p.id AS productId, p.name AS name, d.defaultQuantityMl AS defaultQuantityMl
         FROM track_product_defaults d
         JOIN products p ON p.id = d.productId
-        WHERE d.trackId = :trackId
+        WHERE d.trackId = :assetId
         ORDER BY p.name COLLATE NOCASE
         """
     )
-    abstract suspend fun trackDefaultLines(trackId: Long): List<TrackDefaultLine>
+    abstract suspend fun assetDefaultLines(assetId: Long): List<AssetDefaultLine>
 
     @Query(
         """
-        SELECT trackId,
+        SELECT trackId AS assetId,
                MAX(sprayedAtEpochMs) AS lastSprayedAtEpochMs,
                COUNT(*) AS sprayCount
         FROM spray_events
         GROUP BY trackId
         """
     )
-    abstract fun observeSpraySummaries(): Flow<List<TrackSpraySummary>>
+    abstract fun observeSpraySummaries(): Flow<List<AssetSpraySummary>>
 
-    @Query("SELECT MAX(sprayedAtEpochMs) FROM spray_events WHERE trackId = :trackId")
-    abstract suspend fun lastSprayedAt(trackId: Long): Long?
+    @Query("SELECT MAX(sprayedAtEpochMs) FROM spray_events WHERE trackId = :assetId")
+    abstract suspend fun lastSprayedAt(assetId: Long): Long?
 
     @Query("DELETE FROM spray_events WHERE id = :id")
     abstract suspend fun deleteEvent(id: Long)
@@ -105,13 +105,13 @@ abstract class SprayEventDao {
     // --- Per-track product defaults -------------------------------------------------
 
     @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
-    abstract suspend fun upsertDefault(item: TrackProductDefaultEntity)
+    abstract suspend fun upsertDefault(item: AssetProductDefaultEntity)
 
-    @Query("SELECT * FROM track_product_defaults WHERE trackId = :trackId")
-    abstract suspend fun getDefaults(trackId: Long): List<TrackProductDefaultEntity>
+    @Query("SELECT * FROM track_product_defaults WHERE trackId = :assetId")
+    abstract suspend fun getDefaults(assetId: Long): List<AssetProductDefaultEntity>
 
-    @Query("DELETE FROM track_product_defaults WHERE trackId = :trackId AND productId = :productId")
-    abstract suspend fun deleteDefault(trackId: Long, productId: Long)
+    @Query("DELETE FROM track_product_defaults WHERE trackId = :assetId AND productId = :productId")
+    abstract suspend fun deleteDefault(assetId: Long, productId: Long)
 
     /**
      * Every spray of every track as one row per product, oldest first - the shape a
@@ -121,7 +121,7 @@ abstract class SprayEventDao {
     @Query(
         """
         SELECT e.sprayedAtEpochMs AS sprayedAtEpochMs,
-               t.name AS trackName,
+               t.name AS assetName,
                t.areaLabel AS areaLabel,
                p.name AS productName,
                ep.quantityMl AS amount,

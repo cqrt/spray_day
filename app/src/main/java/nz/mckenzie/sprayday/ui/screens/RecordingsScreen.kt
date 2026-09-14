@@ -151,8 +151,8 @@ private fun RecordingCard(row: RecordingRow, onOpen: () -> Unit, onDelete: () ->
             )
             Text(
                 text = when {
-                    row.trackName != null -> "For ${row.trackName}"
-                    row.trackWasDeleted -> "Its track has since been deleted"
+                    row.assetName != null -> "For ${row.assetName}"
+                    row.assetWasDeleted -> "Its track has since been deleted"
                     else -> "Not linked to a track"
                 },
                 style = MaterialTheme.typography.bodySmall

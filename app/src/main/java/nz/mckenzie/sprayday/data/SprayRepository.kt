@@ -7,8 +7,8 @@ import nz.mckenzie.sprayday.data.db.ProductQuantityLine
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
-import nz.mckenzie.sprayday.data.db.TrackDefaultLine
-import nz.mckenzie.sprayday.data.db.TrackProductDefaultEntity
+import nz.mckenzie.sprayday.data.db.AssetDefaultLine
+import nz.mckenzie.sprayday.data.db.AssetProductDefaultEntity
 
 /**
  * The product catalogue and the spray records themselves - "what went out, and
@@ -16,7 +16,7 @@ import nz.mckenzie.sprayday.data.db.TrackProductDefaultEntity
  */
 class SprayRepository(private val db: SprayDayDatabase) {
 
-    private val trackDao = db.trackDao()
+    private val assetDao = db.assetDao()
     private val sprayEventDao = db.sprayEventDao()
     private val productDao = db.productDao()
 
@@ -53,25 +53,25 @@ class SprayRepository(private val db: SprayDayDatabase) {
     // --- Per-track product defaults -------------------------------------------------
 
     /** Pre-fills the spray form: "this track always gets 400 mL of Product X". */
-    suspend fun setTrackProductDefault(trackId: Long, productId: Long, defaultQuantityMl: Double?) =
+    suspend fun setTrackProductDefault(assetId: Long, productId: Long, defaultQuantityMl: Double?) =
         sprayEventDao.upsertDefault(
-            TrackProductDefaultEntity(
-                trackId = trackId,
+            AssetProductDefaultEntity(
+                assetId = assetId,
                 productId = productId,
                 defaultQuantityMl = defaultQuantityMl
             )
         )
 
-    suspend fun getTrackProductDefaults(trackId: Long): List<TrackProductDefaultEntity> =
-        sprayEventDao.getDefaults(trackId)
+    suspend fun getAssetProductDefaults(assetId: Long): List<AssetProductDefaultEntity> =
+        sprayEventDao.getDefaults(assetId)
 
-    suspend fun deleteTrackProductDefault(trackId: Long, productId: Long) =
-        sprayEventDao.deleteDefault(trackId, productId)
+    suspend fun deleteAssetProductDefault(assetId: Long, productId: Long) =
+        sprayEventDao.deleteDefault(assetId, productId)
 
     // --- Spray events ---------------------------------------------------------------
 
-    fun observeSprayEvents(trackId: Long): Flow<List<SprayEventEntity>> =
-        sprayEventDao.observeEventsForTrack(trackId)
+    fun observeSprayEvents(assetId: Long): Flow<List<SprayEventEntity>> =
+        sprayEventDao.observeEventsForTrack(assetId)
 
     suspend fun getSprayEvent(eventId: Long): SprayEventEntity? = sprayEventDao.getEvent(eventId)
 
@@ -83,21 +83,21 @@ class SprayRepository(private val db: SprayDayDatabase) {
         sprayEventDao.productQuantityLines(sprayEventId)
 
     /** The amounts a track was last given, used to pre-fill the spray form. */
-    suspend fun getTrackDefaultLines(trackId: Long): List<TrackDefaultLine> =
-        sprayEventDao.trackDefaultLines(trackId)
+    suspend fun getAssetDefaultLines(assetId: Long): List<AssetDefaultLine> =
+        sprayEventDao.assetDefaultLines(assetId)
 
     /**
      * Remembers what a track was given, so the next spray only needs confirming.
      * Called from the spray form when "remember for this track" is ticked.
      */
     suspend fun rememberDefaultsForTrack(
-        trackId: Long,
+        assetId: Long,
         products: List<SprayProductQuantity>
     ) = db.withTransaction {
         products.forEach { line ->
             sprayEventDao.upsertDefault(
-                TrackProductDefaultEntity(
-                    trackId = trackId,
+                AssetProductDefaultEntity(
+                    assetId = assetId,
                     productId = line.productId,
                     defaultQuantityMl = line.quantityMl
                 )
@@ -111,7 +111,7 @@ class SprayRepository(private val db: SprayDayDatabase) {
      * spray history can never disagree.
      */
     suspend fun recordSpray(
-        trackId: Long,
+        assetId: Long,
         sprayedAtEpochMs: Long = System.currentTimeMillis(),
         products: List<SprayProductQuantity> = emptyList(),
         waterLitres: Double? = null,
@@ -123,7 +123,7 @@ class SprayRepository(private val db: SprayDayDatabase) {
     ): Long = db.withTransaction {
         val eventId = sprayEventDao.insertEvent(
             SprayEventEntity(
-                trackId = trackId,
+                assetId = assetId,
                 sprayedAtEpochMs = sprayedAtEpochMs,
                 waterLitres = waterLitres,
                 operatorName = operatorName,
@@ -144,7 +144,7 @@ class SprayRepository(private val db: SprayDayDatabase) {
                 }
             )
         }
-        trackDao.setLastSprayedAt(trackId, sprayedAtEpochMs)
+        assetDao.setLastSprayedAt(assetId, sprayedAtEpochMs)
         eventId
     }
 

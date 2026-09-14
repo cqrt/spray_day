@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
@@ -31,7 +31,7 @@ class MapGeometryRefreshTest {
 
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
 
     /** Ticked by hand, so the test does not wait a real minute. */
     private val dueNow = MutableStateFlow(0L)
@@ -45,7 +45,7 @@ class MapGeometryRefreshTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         geometryReads = 0
     }
 
@@ -56,13 +56,13 @@ class MapGeometryRefreshTest {
     }
 
     private fun viewModel() = MapViewModel(
-        trackRepository = tracks,
+        assetRepository = assetRepository,
         settingsRepository = SettingsRepository(context),
         locationSource = NoLocation,
         dueNow = dueNow,
-        loadGeometry = { trackId ->
+        loadGeometry = { assetId ->
             geometryReads++
-            tracks.getTrackGeometry(trackId)
+            assetRepository.getAssetGeometry(assetId)
         }
     )
 
@@ -86,15 +86,15 @@ class MapGeometryRefreshTest {
         // A track at 41.5S, and a phone that answers from 45S. The tracks must win the
         // first frame: the frame is applied once, so getting it wrong means the operator
         // opens the map a long way from their work and stays there.
-        tracks.createTrack("Home block", homeLine)
+        assetRepository.createAsset("Home block", homeLine)
         val viewModel = MapViewModel(
-            trackRepository = tracks,
+            assetRepository = assetRepository,
             settingsRepository = SettingsRepository(context),
             locationSource = FixedLocation,
             dueNow = dueNow,
-            loadGeometry = { trackId ->
+            loadGeometry = { assetId ->
                 geometryReads++
-                tracks.getTrackGeometry(trackId)
+                assetRepository.getAssetGeometry(assetId)
             }
         )
 
@@ -108,9 +108,9 @@ class MapGeometryRefreshTest {
 
     @Test
     fun aClockTickWithNothingChangedDoesNotReReadEveryLine() = runBlocking {
-        tracks.createTrack("Home block", homeLine)
+        assetRepository.createAsset("Home block", homeLine)
         val viewModel = viewModel()
-        withTimeout(5_000) { viewModel.tracksWithDue.first { it.isNotEmpty() } }
+        withTimeout(5_000) { viewModel.assetsWithDue.first { it.isNotEmpty() } }
         until("the first read") { geometryReads == 1 }
 
         // The clock ticks, which is what happens every minute in the app.
@@ -125,42 +125,42 @@ class MapGeometryRefreshTest {
 
         // And the pipeline is genuinely alive, so the assertion above is not passing by
         // accident: a real change does refresh.
-        tracks.createTrack("River block", listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.61, 173.91)))
+        assetRepository.createAsset("River block", listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.61, 173.91)))
         until("the second track's geometry") { geometryReads >= 3 }
     }
 
     @Test
     fun redrawingALineRefreshesWhatTheMapDraws() = runBlocking {
-        val trackId = tracks.createTrack("Home block", homeLine)
+        val assetId = assetRepository.createAsset("Home block", homeLine)
         val viewModel = viewModel()
         until("the first read") { geometryReads == 1 }
 
         // A redraw: different geometry, so a different length.
-        tracks.replaceGeometry(
-            trackId,
+        assetRepository.replaceGeometry(
+            assetId,
             listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600))
         )
 
         until("the redrawn geometry") { geometryReads == 2 }
         until("the map to hold the redrawn line") {
-            viewModel.trackAt(-41.5000, 173.9550) == trackId
+            viewModel.assetAt(-41.5000, 173.9550) == assetId
         }
     }
 
     @Test
     fun tappingOnATrackFindsItAndEmptyPaddockDoesNot() = runBlocking {
-        val trackId = tracks.createTrack("Home block", homeLine)
+        val assetId = assetRepository.createAsset("Home block", homeLine)
         val viewModel = viewModel()
         until("the map to hold the line") {
-            viewModel.trackAt(-41.5005, 173.9550) == trackId
+            viewModel.assetAt(-41.5005, 173.9550) == assetId
         }
 
         assertEquals(
             "a tap on the line should open that track",
-            trackId,
-            viewModel.trackAt(-41.5005, 173.9550)
+            assetId,
+            viewModel.assetAt(-41.5005, 173.9550)
         )
-        assertNull("a tap on empty paddock should open nothing", viewModel.trackAt(-45.0, 170.0))
+        assertNull("a tap on empty paddock should open nothing", viewModel.assetAt(-45.0, 170.0))
     }
 
     /** The map tests are about tracks, not about the device's position. */

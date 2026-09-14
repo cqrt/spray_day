@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.After
@@ -33,7 +33,7 @@ class SprayEntryViewModelTest {
 
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var sprays: SprayRepository
     private lateinit var recordings: RecordingRepository
 
@@ -43,7 +43,7 @@ class SprayEntryViewModelTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         sprays = SprayRepository(db)
         recordings = RecordingRepository(db)
     }
@@ -69,13 +69,13 @@ class SprayEntryViewModelTest {
 
     @Test
     fun aSprayLoggedFromARecordingPointsAtIt() = runBlocking {
-        val trackId = tracks.createTrack("Home block", line)
+        val assetId = assetRepository.createAsset("Home block", line)
         val productId = seedProduct()
-        val sessionId = recordings.startRecording(name = "Home block \u00b7 14 Sep", trackId = trackId)
+        val sessionId = recordings.startRecording(name = "Home block \u00b7 14 Sep", assetId = assetId)
 
         val viewModel = SprayEntryViewModel(
-            trackId = trackId,
-            tracks = tracks,
+            assetId = assetId,
+            assetRepository = assetRepository,
             sprays = sprays,
             linkedSessionId = sessionId
         )
@@ -85,7 +85,7 @@ class SprayEntryViewModelTest {
         viewModel.save()
         until("the spray to be saved") { viewModel.saved.value }
 
-        val event = sprays.observeSprayEvents(trackId).first().single()
+        val event = sprays.observeSprayEvents(assetId).first().single()
         assertEquals(
             "the spray must point back at the recording it was logged from",
             sessionId,
@@ -95,16 +95,16 @@ class SprayEntryViewModelTest {
 
     @Test
     fun aSprayLoggedFromTheTrackItselfHasNoRecording() = runBlocking {
-        val trackId = tracks.createTrack("Home block", line)
+        val assetId = assetRepository.createAsset("Home block", line)
         val productId = seedProduct()
 
-        val viewModel = SprayEntryViewModel(trackId = trackId, tracks = tracks, sprays = sprays)
+        val viewModel = SprayEntryViewModel(assetId = assetId, assetRepository = assetRepository, sprays = sprays)
         until("the product row") { viewModel.rows.value.any { it.productId == productId } }
         viewModel.updateQuantity(productId, "900")
         viewModel.save()
         until("the spray to be saved") { viewModel.saved.value }
 
-        val event = sprays.observeSprayEvents(trackId).first().single()
+        val event = sprays.observeSprayEvents(assetId).first().single()
         assertNull("nothing to link to", event.recordedSessionId)
         assertTrue("the amount still has to be there", event.id > 0L)
     }

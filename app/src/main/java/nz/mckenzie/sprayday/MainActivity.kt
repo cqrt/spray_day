@@ -12,7 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import nz.mckenzie.sprayday.ui.screens.DrawTrackScreen
+import nz.mckenzie.sprayday.ui.screens.DrawAssetScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineAreaPickerScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
@@ -21,10 +21,10 @@ import nz.mckenzie.sprayday.ui.screens.RecordingDetailScreen
 import nz.mckenzie.sprayday.ui.screens.RecordingsScreen
 import nz.mckenzie.sprayday.ui.screens.SettingsScreen
 import nz.mckenzie.sprayday.ui.screens.SprayEntryScreen
-import nz.mckenzie.sprayday.ui.screens.TrackDetailScreen
-import nz.mckenzie.sprayday.ui.screens.TrackListScreen
+import nz.mckenzie.sprayday.ui.screens.AssetDetailScreen
+import nz.mckenzie.sprayday.ui.screens.AssetListScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
-import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
+import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineAreaPickerViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
@@ -33,11 +33,11 @@ import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
 import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
-import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
-import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
+import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
+import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
+private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SprayDayTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
-                var selectedTrackId by rememberSaveable { mutableStateOf<Long?>(null) }
+                var selectedAssetId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var selectedSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
                 /**
@@ -91,49 +91,49 @@ class MainActivity : ComponentActivity() {
                         )
                         MapScreen(
                             viewModel = mapViewModel,
-                            onOpenTracks = { destination = Destination.TRACKS },
+                            onOpenAssets = { destination = Destination.ASSETS },
                             onOpenOffline = { destination = Destination.OFFLINE },
                             onOpenSettings = { destination = Destination.SETTINGS },
-                            onOpenTrack = { trackId ->
-                                selectedTrackId = trackId
-                                destination = Destination.TRACK_DETAIL
+                            onOpenAsset = { assetId ->
+                                selectedAssetId = assetId
+                                destination = Destination.ASSET_DETAIL
                             }
                         )
                     }
 
-                    Destination.TRACKS -> {
-                        val trackViewModel: TrackListViewModel = viewModel(
-                            factory = TrackListViewModel.factory(applicationContext)
+                    Destination.ASSETS -> {
+                        val assetViewModel: AssetListViewModel = viewModel(
+                            factory = AssetListViewModel.factory(applicationContext)
                         )
-                        TrackListScreen(
-                            viewModel = trackViewModel,
+                        AssetListScreen(
+                            viewModel = assetViewModel,
                             onBack = { destination = Destination.MAP },
-                            onOpenTrack = { trackId ->
-                                selectedTrackId = trackId
-                                destination = Destination.TRACK_DETAIL
+                            onOpenAsset = { assetId ->
+                                selectedAssetId = assetId
+                                destination = Destination.ASSET_DETAIL
                             },
-                            onDrawTrack = {
+                            onDrawAsset = {
                                 drawVisit++
                                 destination = Destination.DRAW
                             },
-                            onRecordTrack = { destination = Destination.RECORD },
+                            onRecordAsset = { destination = Destination.RECORD },
                             onOpenRecordings = { destination = Destination.RECORDINGS },
                             onOpenSettings = { destination = Destination.SETTINGS }
                         )
                     }
 
-                    Destination.TRACK_DETAIL -> {
-                        val trackId = selectedTrackId
-                        if (trackId == null) {
-                            destination = Destination.TRACKS
+                    Destination.ASSET_DETAIL -> {
+                        val assetId = selectedAssetId
+                        if (assetId == null) {
+                            destination = Destination.ASSETS
                         } else {
-                            val detailViewModel: TrackDetailViewModel = viewModel(
-                                key = "detail-$trackId",
-                                factory = TrackDetailViewModel.factory(applicationContext, trackId)
+                            val detailViewModel: AssetDetailViewModel = viewModel(
+                                key = "detail-$assetId",
+                                factory = AssetDetailViewModel.factory(applicationContext, assetId)
                             )
-                            TrackDetailScreen(
+                            AssetDetailScreen(
                                 viewModel = detailViewModel,
-                                onBack = { destination = Destination.TRACKS },
+                                onBack = { destination = Destination.ASSETS },
                                 onRecordSpray = {
                                     spraySessionId = null
                                     destination = Destination.SPRAY_ENTRY
@@ -147,16 +147,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Destination.SPRAY_ENTRY -> {
-                        val trackId = selectedTrackId
+                        val assetId = selectedAssetId
                         val linkedSessionId = spraySessionId
-                        if (trackId == null) {
-                            destination = Destination.TRACKS
+                        if (assetId == null) {
+                            destination = Destination.ASSETS
                         } else {
                             val sprayViewModel: SprayEntryViewModel = viewModel(
-                                key = "spray-$trackId-$linkedSessionId",
+                                key = "spray-$assetId-$linkedSessionId",
                                 factory = SprayEntryViewModel.factory(
                                     applicationContext,
-                                    trackId,
+                                    assetId,
                                     linkedSessionId
                                 )
                             )
@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
                                 destination = if (linkedSessionId != null) {
                                     Destination.RECORDING_DETAIL
                                 } else {
-                                    Destination.TRACK_DETAIL
+                                    Destination.ASSET_DETAIL
                                 }
                             }
                             SprayEntryScreen(
@@ -183,18 +183,18 @@ class MainActivity : ComponentActivity() {
                         )
                         RecordScreen(
                             viewModel = recordingViewModel,
-                            onBack = { destination = Destination.TRACKS }
+                            onBack = { destination = Destination.ASSETS }
                         )
                     }
 
                     Destination.DRAW -> {
-                        val drawViewModel: DrawTrackViewModel = viewModel(
+                        val drawViewModel: DrawAssetViewModel = viewModel(
                             key = "draw-$drawVisit",
-                            factory = DrawTrackViewModel.factory(applicationContext)
+                            factory = DrawAssetViewModel.factory(applicationContext)
                         )
-                        DrawTrackScreen(
+                        DrawAssetScreen(
                             viewModel = drawViewModel,
-                            onBack = { destination = Destination.TRACKS }
+                            onBack = { destination = Destination.ASSETS }
                         )
                     }
 
@@ -204,7 +204,7 @@ class MainActivity : ComponentActivity() {
                         )
                         RecordingsScreen(
                             viewModel = recordingsViewModel,
-                            onBack = { destination = Destination.TRACKS },
+                            onBack = { destination = Destination.ASSETS },
                             onOpenRecording = { sessionId ->
                                 selectedSessionId = sessionId
                                 destination = Destination.RECORDING_DETAIL
@@ -224,8 +224,8 @@ class MainActivity : ComponentActivity() {
                             RecordingDetailScreen(
                                 viewModel = detailViewModel,
                                 onBack = { destination = Destination.RECORDINGS },
-                                onLogSpray = { trackId ->
-                                    selectedTrackId = trackId
+                                onLogSpray = { assetId ->
+                                    selectedAssetId = assetId
                                     // Carried through so the spray that gets saved points
                                     // back at the recording it was logged from.
                                     spraySessionId = selectedSessionId
@@ -281,11 +281,11 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** The screen an intent would like opened, e.g. from a due reminder. */
         const val EXTRA_DESTINATION = "nz.mckenzie.sprayday.extra.DESTINATION"
-        const val DESTINATION_TRACKS = "tracks"
+        const val DESTINATION_ASSETS = "tracks"
 
         private fun destinationFrom(intent: Intent?): Destination? =
             when (intent?.getStringExtra(EXTRA_DESTINATION)) {
-                DESTINATION_TRACKS -> Destination.TRACKS
+                DESTINATION_ASSETS -> Destination.ASSETS
                 else -> null
             }
     }

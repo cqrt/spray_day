@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -15,7 +16,7 @@ import androidx.room.PrimaryKey
     tableName = "track_points",
     foreignKeys = [
         ForeignKey(
-            entity = TrackEntity::class,
+            entity = AssetEntity::class,
             parentColumns = ["id"],
             childColumns = ["trackId"],
             onDelete = ForeignKey.CASCADE
@@ -26,9 +27,11 @@ import androidx.room.PrimaryKey
         Index(value = ["trackId", "sequence"], unique = true)
     ]
 )
-data class TrackPointEntity(
+data class AssetPointEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
-    val trackId: Long,
+    /** Column name kept from before the rename; the v3 migration renames it. */
+    @ColumnInfo(name = "trackId")
+    val assetId: Long,
     val sequence: Int,
     val lat: Double,
     val lng: Double

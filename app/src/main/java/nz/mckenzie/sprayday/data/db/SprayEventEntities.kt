@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -13,7 +14,7 @@ import androidx.room.PrimaryKey
     tableName = "spray_events",
     foreignKeys = [
         ForeignKey(
-            entity = TrackEntity::class,
+            entity = AssetEntity::class,
             parentColumns = ["id"],
             childColumns = ["trackId"],
             onDelete = ForeignKey.CASCADE
@@ -23,7 +24,9 @@ import androidx.room.PrimaryKey
 )
 data class SprayEventEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
-    val trackId: Long,
+    /** Column name kept from before the rename; the v3 migration renames it. */
+    @ColumnInfo(name = "trackId")
+    val assetId: Long,
     val sprayedAtEpochMs: Long,
     /** Tank/water volume used, if recorded. */
     val waterLitres: Double? = null,
@@ -74,7 +77,7 @@ data class SprayEventProductEntity(
     primaryKeys = ["trackId", "productId"],
     foreignKeys = [
         ForeignKey(
-            entity = TrackEntity::class,
+            entity = AssetEntity::class,
             parentColumns = ["id"],
             childColumns = ["trackId"],
             onDelete = ForeignKey.CASCADE
@@ -88,8 +91,10 @@ data class SprayEventProductEntity(
     ],
     indices = [Index("trackId"), Index("productId")]
 )
-data class TrackProductDefaultEntity(
-    val trackId: Long,
+data class AssetProductDefaultEntity(
+    /** Column name kept from before the rename; the v3 migration renames it. */
+    @ColumnInfo(name = "trackId")
+    val assetId: Long,
     val productId: Long,
     val defaultQuantityMl: Double? = null
 )

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -27,7 +27,7 @@ import org.junit.runner.RunWith
  * to be one-shot: raised on save, consumed once acted on.
  */
 @RunWith(AndroidJUnit4::class)
-class DrawTrackViewModelTest {
+class DrawAssetViewModelTest {
 
     private lateinit var db: SprayDayDatabase
     private lateinit var context: Context
@@ -41,8 +41,8 @@ class DrawTrackViewModelTest {
     @After
     fun tearDown() = db.close()
 
-    private fun viewModel() = DrawTrackViewModel(
-        tracks = TrackRepository(db),
+    private fun viewModel() = DrawAssetViewModel(
+        assetRepository = AssetRepository(db),
         settingsRepository = SettingsRepository(context)
     )
 
@@ -53,13 +53,13 @@ class DrawTrackViewModelTest {
         viewModel.addPoint(-41.5150, 173.9700)
 
         viewModel.save("First track")
-        val saved = withTimeout(5_000) { viewModel.savedTrackId.first { it != null } }
+        val saved = withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }
         assertNotNull("saving should raise the signal", saved)
         assertTrue("the signal should carry the new track id", saved!! > 0L)
 
         viewModel.consumeSaveResult()
 
-        assertNull("after consuming, the screen must not navigate again", viewModel.savedTrackId.value)
+        assertNull("after consuming, the screen must not navigate again", viewModel.savedAssetId.value)
     }
 
     @Test
@@ -69,7 +69,7 @@ class DrawTrackViewModelTest {
         viewModel.addPoint(-41.5100, 173.9600)
         viewModel.addPoint(-41.5150, 173.9700)
         viewModel.save("First")
-        withTimeout(5_000) { viewModel.savedTrackId.first { it != null } }
+        withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }
         viewModel.consumeSaveResult()
         viewModel.clear()
 
@@ -79,7 +79,7 @@ class DrawTrackViewModelTest {
 
         assertNotNull(
             "consuming one save must not disable the signal for the next",
-            withTimeout(5_000) { viewModel.savedTrackId.first { it != null } }
+            withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }
         )
     }
 
@@ -107,7 +107,7 @@ class DrawTrackViewModelTest {
 
         viewModel.save("Too short")
 
-        assertNull("a track needs at least two points", viewModel.savedTrackId.value)
+        assertNull("a track needs at least two points", viewModel.savedAssetId.value)
         assertNotNull("the operator should be told why", viewModel.message.value)
     }
 }

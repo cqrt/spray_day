@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
@@ -41,7 +41,7 @@ class OfflineAreaPickerTest {
     private lateinit var db: SprayDayDatabase
     private lateinit var store: OfflineTileStore
     private lateinit var manager: OfflineAreaManager
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
 
     private class FakeLocationSource(private val fix: GeoPoint?) : LocationSource {
         override fun updates(): Flow<GeoPoint> = emptyFlow()
@@ -52,7 +52,7 @@ class OfflineAreaPickerTest {
     fun setUp() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         store = OfflineTileStore(File(temp.root, "tiles"))
         // A fixed fetcher: this test is about what the picker stores and asks for, not
         // about the network.
@@ -74,7 +74,7 @@ class OfflineAreaPickerTest {
 
     private fun viewModel(fix: GeoPoint? = null) = OfflineAreaPickerViewModel(
         manager = manager,
-        tracks = tracks,
+        assetRepository = assetRepository,
         locationSource = FakeLocationSource(fix),
         settings = SettingsRepository(context)
     )

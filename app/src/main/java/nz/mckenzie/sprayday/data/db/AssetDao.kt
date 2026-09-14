@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  * Extremes of every planned track's geometry. Null columns when there is no geometry
  * at all, which is how "no tracks yet" is told apart from "tracks at 0,0".
  */
-data class TrackPointBounds(
+data class AssetPointBounds(
     val minLat: Double?,
     val minLng: Double?,
     val maxLat: Double?,
@@ -23,24 +23,24 @@ data class TrackPointBounds(
  * default methods need extra compiler flags to work reliably with Room.
  */
 @Dao
-abstract class TrackDao {
+abstract class AssetDao {
     @Query("SELECT * FROM tracks WHERE active = 1 ORDER BY name COLLATE NOCASE")
-    abstract fun observeActiveTracks(): Flow<List<TrackEntity>>
+    abstract fun observeActiveAssets(): Flow<List<AssetEntity>>
 
     @Query("SELECT * FROM tracks ORDER BY name COLLATE NOCASE")
-    abstract fun observeAllTracks(): Flow<List<TrackEntity>>
+    abstract fun observeAllAssets(): Flow<List<AssetEntity>>
 
     @Query("SELECT * FROM tracks WHERE id = :id")
-    abstract fun observeTrack(id: Long): Flow<TrackEntity?>
+    abstract fun observeAsset(id: Long): Flow<AssetEntity?>
 
     @Query("SELECT * FROM tracks WHERE id = :id")
-    abstract suspend fun getTrack(id: Long): TrackEntity?
+    abstract suspend fun getAsset(id: Long): AssetEntity?
 
     @Insert
-    abstract suspend fun insert(track: TrackEntity): Long
+    abstract suspend fun insert(track: AssetEntity): Long
 
     @Update
-    abstract suspend fun update(track: TrackEntity)
+    abstract suspend fun update(track: AssetEntity)
 
     @Query("DELETE FROM tracks WHERE id = :id")
     abstract suspend fun delete(id: Long)
@@ -49,16 +49,16 @@ abstract class TrackDao {
         """
         UPDATE tracks
         SET lastSprayedAtEpochMs = MAX(COALESCE(lastSprayedAtEpochMs, 0), :sprayedAtEpochMs)
-        WHERE id = :trackId
+        WHERE id = :assetId
         """
     )
-    abstract suspend fun setLastSprayedAt(trackId: Long, sprayedAtEpochMs: Long)
+    abstract suspend fun setLastSprayedAt(assetId: Long, sprayedAtEpochMs: Long)
 
-    @Query("UPDATE tracks SET lengthM = :lengthM WHERE id = :trackId")
-    abstract suspend fun updateLength(trackId: Long, lengthM: Double)
+    @Query("UPDATE tracks SET lengthM = :lengthM WHERE id = :assetId")
+    abstract suspend fun updateLength(assetId: Long, lengthM: Double)
 
-    @Query("SELECT * FROM track_points WHERE trackId = :trackId ORDER BY sequence")
-    abstract suspend fun getGeometry(trackId: Long): List<TrackPointEntity>
+    @Query("SELECT * FROM track_points WHERE trackId = :assetId ORDER BY sequence")
+    abstract suspend fun getGeometry(assetId: Long): List<AssetPointEntity>
 
     /**
      * The box containing every planned track, for answering "where is the work?" with
@@ -68,22 +68,22 @@ abstract class TrackDao {
         "SELECT MIN(lat) AS minLat, MIN(lng) AS minLng, " +
             "MAX(lat) AS maxLat, MAX(lng) AS maxLng FROM track_points"
     )
-    abstract suspend fun pointBounds(): TrackPointBounds?
+    abstract suspend fun pointBounds(): AssetPointBounds?
 
-    @Query("SELECT * FROM track_points WHERE trackId = :trackId ORDER BY sequence")
-    abstract fun observeGeometry(trackId: Long): Flow<List<TrackPointEntity>>
+    @Query("SELECT * FROM track_points WHERE trackId = :assetId ORDER BY sequence")
+    abstract fun observeGeometry(assetId: Long): Flow<List<AssetPointEntity>>
 
     @Insert
-    abstract suspend fun insertGeometry(points: List<TrackPointEntity>)
+    abstract suspend fun insertGeometry(points: List<AssetPointEntity>)
 
-    @Query("DELETE FROM track_points WHERE trackId = :trackId")
-    abstract suspend fun deleteGeometry(trackId: Long)
+    @Query("DELETE FROM track_points WHERE trackId = :assetId")
+    abstract suspend fun deleteGeometry(assetId: Long)
 
     /** Swaps a track's geometry and refreshes its cached length atomically. */
     @androidx.room.Transaction
-    open suspend fun replaceGeometry(trackId: Long, points: List<TrackPointEntity>, lengthM: Double) {
-        deleteGeometry(trackId)
+    open suspend fun replaceGeometry(assetId: Long, points: List<AssetPointEntity>, lengthM: Double) {
+        deleteGeometry(assetId)
         if (points.isNotEmpty()) insertGeometry(points)
-        updateLength(trackId, lengthM)
+        updateLength(assetId, lengthM)
     }
 }

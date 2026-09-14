@@ -22,12 +22,12 @@ class RecordingRepository(private val db: SprayDayDatabase) {
 
     suspend fun startRecording(
         name: String,
-        trackId: Long? = null,
+        assetId: Long? = null,
         startedAtEpochMs: Long = System.currentTimeMillis()
     ): Long = recordingDao.insertSession(
         RecordedSessionEntity(
             name = name,
-            trackId = trackId,
+            assetId = assetId,
             startedAtEpochMs = startedAtEpochMs,
             status = RecordingStatus.RECORDING.name
         )
@@ -55,8 +55,8 @@ class RecordingRepository(private val db: SprayDayDatabase) {
         recordingDao.setStatus(sessionId, status.name)
 
     /** Records which planned track a session is for, if chosen after starting. */
-    suspend fun setSessionTrack(sessionId: Long, trackId: Long) =
-        recordingDao.setSessionTrack(sessionId, trackId)
+    suspend fun setSessionTrack(sessionId: Long, assetId: Long) =
+        recordingDao.setSessionTrack(sessionId, assetId)
 
     /** Renames a session, so the recordings list matches the track it became. */
     suspend fun renameSession(sessionId: Long, name: String) =
@@ -86,8 +86,8 @@ class RecordingRepository(private val db: SprayDayDatabase) {
      * The link is a soft one (a recording outlives the plan it was made for), so this
      * filters rather than joins.
      */
-    fun observeSessionsForTrack(trackId: Long): Flow<List<RecordedSessionEntity>> =
-        recordingDao.observeSessions().map { sessions -> sessions.filter { it.trackId == trackId } }
+    fun observeSessionsForTrack(assetId: Long): Flow<List<RecordedSessionEntity>> =
+        recordingDao.observeSessions().map { sessions -> sessions.filter { it.assetId == assetId } }
 
     suspend fun getSession(sessionId: Long): RecordedSessionEntity? = recordingDao.getSession(sessionId)
 

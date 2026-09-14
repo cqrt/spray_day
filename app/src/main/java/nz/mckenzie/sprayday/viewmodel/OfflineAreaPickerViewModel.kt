@@ -16,13 +16,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaDraft
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
@@ -41,7 +41,7 @@ import nz.mckenzie.sprayday.ui.formatShortDate
  */
 class OfflineAreaPickerViewModel(
     private val manager: OfflineAreaManager,
-    private val tracks: TrackRepository,
+    private val assetRepository: AssetRepository,
     private val locationSource: LocationSource,
     private val settings: SettingsRepository
 ) : ViewModel() {
@@ -70,12 +70,12 @@ class OfflineAreaPickerViewModel(
                 else -> emptyList()
             }
             if (points.isEmpty()) {
-                TrackGeoJson.build(emptyList())
+                AssetGeoJson.build(emptyList())
             } else {
-                TrackGeoJson.build(
+                AssetGeoJson.build(
                     listOf(
-                        TrackLine(
-                            trackId = OUTLINE_ID,
+                        AssetLine(
+                            assetId = OUTLINE_ID,
                             name = "Area",
                             colorHex = OUTLINE_COLOUR,
                             points = points
@@ -84,7 +84,7 @@ class OfflineAreaPickerViewModel(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TrackGeoJson.build(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AssetGeoJson.build(emptyList()))
 
     /** Progress of the download this screen started, once it is under way. */
     private val _activeId = MutableStateFlow<Long?>(null)
@@ -118,7 +118,7 @@ class OfflineAreaPickerViewModel(
                 runCatching { locationSource.currentLocation() }.getOrNull()
             }
             val centre = fix?.let { GeoPoint(it.lat, it.lng) }
-                ?: tracks.trackBounds()?.let { bounds ->
+                ?: assetRepository.assetBounds()?.let { bounds ->
                     GeoPoint(
                         lat = (bounds.minLat + bounds.maxLat) / 2.0,
                         lng = (bounds.minLng + bounds.maxLng) / 2.0
@@ -238,7 +238,7 @@ class OfflineAreaPickerViewModel(
                             store = TileServerHolder.store(appContext),
                             dao = database.offlineAreaDao()
                         ),
-                        tracks = TrackRepository(database),
+                        assetRepository = AssetRepository(database),
                         locationSource = FusedLocationSource(appContext),
                         settings = SettingsRepository(appContext)
                     )

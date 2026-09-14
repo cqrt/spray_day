@@ -24,7 +24,7 @@ class RecordingDataTest {
     private lateinit var db: SprayDayDatabase
     private lateinit var recordings: RecordingRepository
 
-    private val trackId = 42L
+    private val assetId = 42L
 
     private val fixes = listOf(
         GeoPoint(0.0, 0.0, accuracyM = 5f, timeMs = 1_000L),
@@ -44,11 +44,11 @@ class RecordingDataTest {
 
     @Test
     fun recordingStartsInTheRecordingState() = runBlocking {
-        val sessionId = recordings.startRecording(name = "Spray run", trackId = trackId, startedAtEpochMs = 500L)
+        val sessionId = recordings.startRecording(name = "Spray run", assetId = assetId, startedAtEpochMs = 500L)
 
         val session = recordings.getSession(sessionId)!!
         assertEquals(RecordingStatus.RECORDING.name, session.status)
-        assertEquals(trackId, session.trackId)
+        assertEquals(assetId, session.assetId)
         assertNull(session.endedAtEpochMs)
         assertEquals(0, session.pointCount)
     }

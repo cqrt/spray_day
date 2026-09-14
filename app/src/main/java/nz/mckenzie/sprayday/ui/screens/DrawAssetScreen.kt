@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.ui.formatDistance
-import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
+import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 
 /**
  * Draws a track by tapping the basemap, showing the running length so an
@@ -37,20 +37,20 @@ import nz.mckenzie.sprayday.viewmodel.DrawTrackViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DrawTrackScreen(viewModel: DrawTrackViewModel, onBack: () -> Unit) {
+fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val points by viewModel.points.collectAsStateWithLifecycle()
     val lengthM by viewModel.lengthM.collectAsStateWithLifecycle()
     val geoJson by viewModel.draftGeoJson.collectAsStateWithLifecycle()
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
-    val savedTrackId by viewModel.savedTrackId.collectAsStateWithLifecycle()
+    val savedAssetId by viewModel.savedAssetId.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     var naming by remember { mutableStateOf(false) }
     var draftName by remember { mutableStateOf("") }
 
-    LaunchedEffect(savedTrackId) {
-        if (savedTrackId != null) {
+    LaunchedEffect(savedAssetId) {
+        if (savedAssetId != null) {
             // Consume before navigating: the signal must not survive this screen.
             viewModel.consumeSaveResult()
             onBack()
@@ -72,7 +72,7 @@ fun DrawTrackScreen(viewModel: DrawTrackViewModel, onBack: () -> Unit) {
         ) {
             LinzMapView(
                 apiKey = apiKey,
-                trackGeoJson = geoJson,
+                assetGeoJson = geoJson,
                 onMapClick = { latitude, longitude, _ -> viewModel.addPoint(latitude, longitude) },
                 modifier = Modifier.fillMaxSize()
             )

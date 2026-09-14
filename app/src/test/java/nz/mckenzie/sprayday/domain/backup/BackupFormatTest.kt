@@ -16,7 +16,7 @@ class BackupFormatTest {
     private fun document(
         format: String = BackupDocument.FORMAT,
         version: Int = BackupDocument.VERSION,
-        trackName: String = "Winter block"
+        assetName: String = "Winter block"
     ) = BackupDocument(
         format = format,
         version = version,
@@ -26,10 +26,10 @@ class BackupFormatTest {
             ProductRecord(id = 1, name = "Glyphosate", unit = "mL", rateText = "10 mL/L", archived = false),
             ProductRecord(id = 2, name = "Retired product", archived = true)
         ),
-        tracks = listOf(
-            TrackRecord(
+        assets = listOf(
+            AssetRecord(
                 id = 7,
-                name = trackName,
+                name = assetName,
                 areaLabel = "Home",
                 notes = "spray the fenceline twice",
                 intervalDays = 45,
@@ -43,7 +43,7 @@ class BackupFormatTest {
         sprayEvents = listOf(
             SprayEventRecord(
                 id = 3,
-                trackId = 7,
+                assetId = 7,
                 sprayedAtEpochMs = 1_789_000_000_000L,
                 waterLitres = 400.0,
                 operatorName = "Matt",
@@ -53,12 +53,12 @@ class BackupFormatTest {
                 products = listOf(SprayProductRecord(productId = 1, quantityMl = 1500.0))
             )
         ),
-        trackDefaults = listOf(TrackDefaultRecord(trackId = 7, productId = 1, defaultQuantityMl = 1500.0)),
+        assetDefaults = listOf(AssetDefaultRecord(assetId = 7, productId = 1, defaultQuantityMl = 1500.0)),
         recordings = listOf(
             RecordingRecord(
                 id = 5,
                 name = "Winter block \u00b7 14 Sep",
-                trackId = 7,
+                assetId = 7,
                 startedAtEpochMs = 1_788_000_000_000L,
                 endedAtEpochMs = 1_788_000_600_000L,
                 status = "FINISHED",
@@ -93,9 +93,9 @@ class BackupFormatTest {
     fun `awkward text survives, because names come from paddocks not from keyboards`() {
         val awkward = "Wh\u0101nau \"north\" block \\ backslash\nsecond line \u00b7 \ud83d\ude9c"
 
-        val restored = BackupFormat.decode(BackupFormat.encode(document(trackName = awkward)))
+        val restored = BackupFormat.decode(BackupFormat.encode(document(assetName = awkward)))
 
-        assertEquals(awkward, restored.tracks.single().name)
+        assertEquals(awkward, restored.assets.single().name)
     }
 
     @Test
@@ -155,10 +155,10 @@ class BackupFormatTest {
 
         val restored = BackupFormat.decode(older)
 
-        assertEquals("Home block", restored.tracks.single().name)
-        assertEquals(120, restored.tracks.single().intervalDays)
-        assertEquals(0.0, restored.tracks.single().lengthM, 0.0)
-        assertTrue(restored.tracks.single().points.isEmpty())
+        assertEquals("Home block", restored.assets.single().name)
+        assertEquals(120, restored.assets.single().intervalDays)
+        assertEquals(0.0, restored.assets.single().lengthM, 0.0)
+        assertTrue(restored.assets.single().points.isEmpty())
     }
 
     @Test

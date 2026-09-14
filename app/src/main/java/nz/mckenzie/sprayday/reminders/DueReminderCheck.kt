@@ -3,13 +3,13 @@ package nz.mckenzie.sprayday.reminders
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import nz.mckenzie.sprayday.data.ReminderStateStore
-import nz.mckenzie.sprayday.data.TrackRepository
-import nz.mckenzie.sprayday.data.TrackWithDue
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.AssetRepository
+import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.reminders.DueReminderPlanner
 import nz.mckenzie.sprayday.domain.reminders.ReminderMessage
-import nz.mckenzie.sprayday.domain.reminders.TrackDueState
+import nz.mckenzie.sprayday.domain.reminders.AssetDueState
 import java.time.ZoneId
 
 /** What one reminder check did, in words worth putting on the settings screen. */
@@ -29,7 +29,7 @@ data class ReminderOutcome(
  * button reports exactly what the background job would have done.
  */
 class DueReminderCheck(
-    private val tracks: TrackRepository,
+    private val assetRepository: AssetRepository,
     private val store: ReminderStateStore,
     /** Posts the notification and says whether it actually appeared. */
     private val post: (title: String, body: String) -> Boolean,
@@ -37,22 +37,22 @@ class DueReminderCheck(
 ) {
 
     constructor(
-        tracks: TrackRepository,
+        assetRepository: AssetRepository,
         store: ReminderStateStore,
         notifier: ReminderNotifier,
         zoneId: ZoneId = ZoneId.systemDefault()
-    ) : this(tracks, store, notifier::notify, zoneId)
+    ) : this(assetRepository, store, notifier::notify, zoneId)
 
     suspend fun run(nowEpochMs: Long = System.currentTimeMillis()): ReminderOutcome {
-        val due = tracks.observeTracksWithDue(nowProvider = flowOf(nowEpochMs)).first()
+        val due = assetRepository.observeAssetsWithDue(nowProvider = flowOf(nowEpochMs)).first()
             .map { it.toDueState() }
         val dueCount = due.count { it.status != DueStatus.NOT_DUE }
 
         val plan = DueReminderPlanner.plan(
-            tracks = due,
+            assets = due,
             previous = store.state.first(),
             nowEpochMs = nowEpochMs,
-            leadDays = TrackEntity.DEFAULT_LEAD_DAYS,
+            leadDays = AssetEntity.DEFAULT_LEAD_DAYS,
             zoneId = zoneId
         )
 
@@ -87,8 +87,8 @@ class DueReminderCheck(
     }
 }
 
-private fun TrackWithDue.toDueState() = TrackDueState(
-    trackId = track.id,
+private fun AssetWithDue.toDueState() = AssetDueState(
+    assetId = track.id,
     name = track.name,
     status = due.status,
     daysUntilDue = due.daysUntilDue,

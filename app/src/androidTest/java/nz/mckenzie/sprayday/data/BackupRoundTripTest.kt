@@ -13,7 +13,7 @@ import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
-import nz.mckenzie.sprayday.data.db.TrackProductDefaultEntity
+import nz.mckenzie.sprayday.data.db.AssetProductDefaultEntity
 import nz.mckenzie.sprayday.domain.backup.BackupDocument
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.After
@@ -58,11 +58,11 @@ class BackupRoundTripTest {
 
     /** A small but complete season: two tracks, a spray each on one, and a recording. */
     private suspend fun populate() {
-        val tracks = TrackRepository(db)
+        val assetRepository = AssetRepository(db)
         val glyphosate = db.productDao().insert(ProductEntity(name = "Glyphosate", rateText = "10 mL/L"))
         val marker = db.productDao().insert(ProductEntity(name = "Marker dye", archived = true))
 
-        val first = tracks.createTrack(
+        val first = assetRepository.createAsset(
             name = "Winter block",
             geometry = listOf(GeoPoint(-41.5, 173.95), GeoPoint(-41.51, 173.96), GeoPoint(-41.52, 173.97)),
             areaLabel = "Home",
@@ -71,7 +71,7 @@ class BackupRoundTripTest {
             swathWidthM = 6.0,
             createdAtEpochMs = 1_700_000_000_000L
         )
-        val second = tracks.createTrack(
+        val second = assetRepository.createAsset(
             name = "River block",
             geometry = listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.61, 173.91)),
             intervalDays = 120,
@@ -81,7 +81,7 @@ class BackupRoundTripTest {
         val session = db.recordingDao().insertSession(
             RecordedSessionEntity(
                 name = "Winter block \u00b7 14 Sep",
-                trackId = first,
+                assetId = first,
                 startedAtEpochMs = 1_788_000_000_000L,
                 endedAtEpochMs = 1_788_000_600_000L,
                 status = "FINISHED",
@@ -115,7 +115,7 @@ class BackupRoundTripTest {
 
         val spray = db.sprayEventDao().insertEvent(
             SprayEventEntity(
-                trackId = first,
+                assetId = first,
                 sprayedAtEpochMs = 1_789_000_000_000L,
                 waterLitres = 400.0,
                 operatorName = "Matt",
@@ -132,10 +132,10 @@ class BackupRoundTripTest {
             )
         )
         db.sprayEventDao().upsertDefault(
-            TrackProductDefaultEntity(trackId = first, productId = glyphosate, defaultQuantityMl = 1500.0)
+            AssetProductDefaultEntity(assetId = first, productId = glyphosate, defaultQuantityMl = 1500.0)
         )
         db.sprayEventDao().upsertDefault(
-            TrackProductDefaultEntity(trackId = second, productId = glyphosate)
+            AssetProductDefaultEntity(assetId = second, productId = glyphosate)
         )
     }
 
@@ -174,11 +174,11 @@ class BackupRoundTripTest {
         val sprays = SprayRepository(db)
         val session = db.recordingDao().getSession(exported.recordings.single().id)
         assertNotNull("the recording should be back", session)
-        val trackId = session!!.trackId!!
-        val track = TrackRepository(db).getTrack(trackId)
+        val assetId = session!!.assetId!!
+        val track = AssetRepository(db).getAsset(assetId)
         assertNotNull("and still point at a track that exists", track)
         assertEquals("Winter block", track!!.name)
-        assertEquals(3, TrackRepository(db).getTrackGeometry(trackId).size)
+        assertEquals(3, AssetRepository(db).getAssetGeometry(assetId).size)
 
         val lines = sprays.getSprayEventProductLines(exported.sprayEvents.single().id)
         assertEquals(
@@ -199,7 +199,7 @@ class BackupRoundTripTest {
         val exported = repository().export()
 
         // A track that is not in the backup: an earlier season, or someone else's.
-        TrackRepository(db).createTrack(
+        AssetRepository(db).createAsset(
             name = "Extra block",
             geometry = listOf(GeoPoint(-45.0, 170.0), GeoPoint(-45.01, 170.01)),
             createdAtEpochMs = 1_702_000_000_000L
@@ -211,7 +211,7 @@ class BackupRoundTripTest {
         assertEquals(
             "the track that was not in the file must be gone",
             listOf("River block", "Winter block"),
-            TrackRepository(db).observeTracksWithDue(nowProvider = kotlinx.coroutines.flow.flowOf(clock))
+            AssetRepository(db).observeAssetsWithDue(nowProvider = kotlinx.coroutines.flow.flowOf(clock))
                 .first()
                 .map { it.track.name }
                 .sorted()

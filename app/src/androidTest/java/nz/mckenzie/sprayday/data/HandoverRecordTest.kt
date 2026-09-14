@@ -49,7 +49,7 @@ class HandoverRecordTest {
 
     /** One track, two products, one spray of both, and the recording that goes with it. */
     private suspend fun season(): Long {
-        val trackId = TrackRepository(db).createTrack(
+        val assetId = AssetRepository(db).createAsset(
             name = "Home block",
             geometry = listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5010, 173.9600)),
             areaLabel = "Home, north",
@@ -61,7 +61,7 @@ class HandoverRecordTest {
         val session = db.recordingDao().insertSession(
             RecordedSessionEntity(
                 name = "Home block \u00b7 14 Sep",
-                trackId = trackId,
+                assetId = assetId,
                 startedAtEpochMs = sprayedAt,
                 status = "FINISHED"
             )
@@ -69,7 +69,7 @@ class HandoverRecordTest {
 
         val spray = db.sprayEventDao().insertEvent(
             SprayEventEntity(
-                trackId = trackId,
+                assetId = assetId,
                 sprayedAtEpochMs = sprayedAt,
                 waterLitres = 400.0,
                 operatorName = "Matt",
@@ -99,7 +99,7 @@ class HandoverRecordTest {
 
         assertEquals("one row per product", 2, rows.size)
         val first = rows.first()
-        assertEquals("Home block", first.trackName)
+        assertEquals("Home block", first.assetName)
         assertEquals("Home, north", first.areaLabel)
         assertEquals("Glyphosate", first.productName)
         assertEquals(1500.0, first.amount, 1e-9)
@@ -134,14 +134,14 @@ class HandoverRecordTest {
 
     @Test
     fun aSprayWithNoRecordingLeavesThatColumnEmpty() = runBlocking {
-        val trackId = TrackRepository(db).createTrack(
+        val assetId = AssetRepository(db).createAsset(
             name = "River block",
             geometry = listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.61, 173.91)),
             createdAtEpochMs = 1_700_000_000_000L
         )
         val product = db.productDao().insert(ProductEntity(name = "Glyphosate"))
         val spray = db.sprayEventDao().insertEvent(
-            SprayEventEntity(trackId = trackId, sprayedAtEpochMs = sprayedAt)
+            SprayEventEntity(assetId = assetId, sprayedAtEpochMs = sprayedAt)
         )
         db.sprayEventDao().insertEventProducts(
             listOf(SprayEventProductEntity(sprayEventId = spray, productId = product, quantityMl = 900.0))
@@ -150,7 +150,7 @@ class HandoverRecordTest {
         val row = repository().rows().single()
 
         assertEquals("nothing to point at", null, row.recordingName)
-        assertEquals("River block", row.trackName)
+        assertEquals("River block", row.assetName)
         assertEquals("", repository().renderCsv(listOf(row)).trimEnd().split("\r\n")[1].split(",").last())
     }
 

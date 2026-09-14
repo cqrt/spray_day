@@ -11,13 +11,13 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
-import nz.mckenzie.sprayday.data.db.TrackEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.ui.TrackEditResult
-import nz.mckenzie.sprayday.ui.TrackEdits
+import nz.mckenzie.sprayday.ui.AssetEditResult
+import nz.mckenzie.sprayday.ui.AssetEdits
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -35,19 +35,19 @@ import org.junit.runner.RunWith
  * traffic light uses.
  */
 @RunWith(AndroidJUnit4::class)
-class TrackDetailViewModelTest {
+class AssetDetailViewModelTest {
 
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
-    private var trackId = 0L
+    private lateinit var assetRepository: AssetRepository
+    private var assetId = 0L
 
     @Before
     fun setUp() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
-        trackId = tracks.createTrack(
+        assetRepository = AssetRepository(db)
+        assetId = assetRepository.createAsset(
             name = "Home block",
             geometry = listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5010, 173.9545))
         )
@@ -62,10 +62,10 @@ class TrackDetailViewModelTest {
     }
 
     /** The due status as the map and the lists would compute it right now. */
-    private suspend fun dueStatus(): DueStatus? = tracks
-        .observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis()))
+    private suspend fun dueStatus(): DueStatus? = assetRepository
+        .observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
         .first()
-        .firstOrNull { it.track.id == trackId }
+        .firstOrNull { it.track.id == assetId }
         ?.due
         ?.status
 
@@ -73,7 +73,7 @@ class TrackDetailViewModelTest {
     fun whatTheEditFormSetsIsWhatTheTrackKeeps() = runBlocking {
         val viewModel = viewModel()
         val track = track()
-        val edited = TrackEdits.apply(
+        val edited = AssetEdits.apply(
             track = track,
             name = "Back paddock",
             areaLabel = "Back",
@@ -81,19 +81,19 @@ class TrackDetailViewModelTest {
             swathWidthM = "6",
             notes = "spray the fenceline twice"
         )
-        assertTrue(edited is TrackEditResult.Ok)
+        assertTrue(edited is AssetEditResult.Ok)
 
-        viewModel.save((edited as TrackEditResult.Ok).track)
+        viewModel.save((edited as AssetEditResult.Ok).track)
 
         val stored = withTimeout(5_000) {
-            tracks.observeTrack(trackId).first { it?.name == "Back paddock" }
+            assetRepository.observeAsset(assetId).first { it?.name == "Back paddock" }
         }!!
         assertEquals("Back", stored.areaLabel)
         assertEquals(90, stored.intervalDays)
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)
         // The geometry the map draws from must survive an edit.
-        assertEquals(1, tracks.observeTrackGeometry(trackId).first().size - 1)
+        assertEquals(1, assetRepository.observeAssetGeometry(assetId).first().size - 1)
     }
 
     @Test
@@ -104,12 +104,12 @@ class TrackDetailViewModelTest {
 
         // Spray it now, so the interval becomes the only thing that decides.
         val now = System.currentTimeMillis()
-        tracks.updateTrack(track().copy(lastSprayedAtEpochMs = now))
+        assetRepository.updateAsset(track().copy(lastSprayedAtEpochMs = now))
         assertEquals("120 days after spraying is not due", DueStatus.NOT_DUE, dueStatus())
 
         // The same track, once its owner says it wants it every 10 days - inside the
         // 14-day lead time, so the traffic light must change.
-        val edited = TrackEdits.apply(
+        val edited = AssetEdits.apply(
             track = track().copy(lastSprayedAtEpochMs = now),
             name = "Home block",
             areaLabel = "",
@@ -117,9 +117,9 @@ class TrackDetailViewModelTest {
             swathWidthM = "",
             notes = ""
         )
-        viewModel.save((edited as TrackEditResult.Ok).track)
+        viewModel.save((edited as AssetEditResult.Ok).track)
 
-        withTimeout(5_000) { tracks.observeTrack(trackId).first { it?.intervalDays == 10 } }
+        withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.intervalDays == 10 } }
         assertEquals(
             "a 10-day track sprayed today is inside its lead time",
             DueStatus.DUE_SOON,
@@ -131,14 +131,14 @@ class TrackDetailViewModelTest {
     fun aSwathWidthCanBeAddedAndRemovedAgain() = runBlocking {
         val viewModel = viewModel()
 
-        val withWidth = TrackEdits.apply(track(), "Home block", "", "120", "4.5", "")
-        viewModel.save((withWidth as TrackEditResult.Ok).track)
-        val stored = withTimeout(5_000) { tracks.observeTrack(trackId).first { it?.swathWidthM != null } }!!
+        val withWidth = AssetEdits.apply(track(), "Home block", "", "120", "4.5", "")
+        viewModel.save((withWidth as AssetEditResult.Ok).track)
+        val stored = withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM != null } }!!
         assertEquals(4.5, stored.swathWidthM!!, 1e-9)
 
-        val withoutWidth = TrackEdits.apply(stored, "Home block", "", "120", "", "")
-        viewModel.save((withoutWidth as TrackEditResult.Ok).track)
-        withTimeout(5_000) { tracks.observeTrack(trackId).first { it?.swathWidthM == null } }
+        val withoutWidth = AssetEdits.apply(stored, "Home block", "", "120", "", "")
+        viewModel.save((withoutWidth as AssetEditResult.Ok).track)
+        withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM == null } }
 
         assertNull("removing the width must not leave a zero behind", track().swathWidthM)
         // And with no width there is no treated area to claim.
@@ -146,11 +146,11 @@ class TrackDetailViewModelTest {
         assertNull(finalTrack.swathWidthM)
     }
 
-    private suspend fun track(): TrackEntity = tracks.getTrack(trackId)!!
+    private suspend fun track(): AssetEntity = assetRepository.getAsset(assetId)!!
 
-    private fun viewModel() = TrackDetailViewModel(
-        trackId = trackId,
-        tracks = tracks,
+    private fun viewModel() = AssetDetailViewModel(
+        assetId = assetId,
+        assetRepository = assetRepository,
         sprays = SprayRepository(db),
         recordingsRepository = RecordingRepository(db),
         settingsRepository = SettingsRepository(context),

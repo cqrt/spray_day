@@ -16,7 +16,7 @@ object GpxWriter {
     const val CREATOR = "Spray Day"
 
     fun write(
-        trackName: String,
+        assetName: String,
         points: List<GeoPoint>,
         creator: String = CREATOR
     ): String {
@@ -24,9 +24,9 @@ object GpxWriter {
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         builder.append("<gpx version=\"1.1\" creator=\"").append(escape(creator)).append('"')
         builder.append(" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
-        builder.append("  <metadata><name>").append(escape(trackName)).append("</name></metadata>\n")
+        builder.append("  <metadata><name>").append(escape(assetName)).append("</name></metadata>\n")
         builder.append("  <trk>\n")
-        builder.append("    <name>").append(escape(trackName)).append("</name>\n")
+        builder.append("    <name>").append(escape(assetName)).append("</name>\n")
         builder.append("    <trkseg>\n")
 
         for (point in points) {

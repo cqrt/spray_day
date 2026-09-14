@@ -13,13 +13,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
 
 /**
  * Draws a new track by tapping the map.
@@ -27,8 +27,8 @@ import nz.mckenzie.sprayday.map.TrackLine
  * The draft is held in memory only - nothing is persisted until Save, so an
  * abandoned sketch leaves no trace in the database.
  */
-class DrawTrackViewModel(
-    private val tracks: TrackRepository,
+class DrawAssetViewModel(
+    private val assetRepository: AssetRepository,
     settingsRepository: SettingsRepository
 ) : ViewModel() {
 
@@ -46,13 +46,13 @@ class DrawTrackViewModel(
     /** The in-progress line, drawn yellow so it is distinct from saved tracks. */
     val draftGeoJson: StateFlow<String> = _points
         .map { draft ->
-            TrackGeoJson.build(
-                listOf(TrackLine(trackId = DRAFT_ID, name = "Draft", colorHex = TrackColors.YELLOW, points = draft))
+            AssetGeoJson.build(
+                listOf(AssetLine(assetId = DRAFT_ID, name = "Draft", colorHex = AssetColors.YELLOW, points = draft))
             )
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TrackGeoJson.build(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AssetGeoJson.build(emptyList()))
 
-    private val _savedTrackId = MutableStateFlow<Long?>(null)
+    private val _savedAssetId = MutableStateFlow<Long?>(null)
 
     /**
      * The track just saved, or null when there is nothing to act on.
@@ -63,11 +63,11 @@ class DrawTrackViewModel(
      * the navigation again the next time the screen is opened - which is what
      * made the draw screen flash and close on the second use.
      */
-    val savedTrackId: StateFlow<Long?> = _savedTrackId
+    val savedAssetId: StateFlow<Long?> = _savedAssetId
 
     /** Call once the save has been acted on, so it cannot fire twice. */
     fun consumeSaveResult() {
-        _savedTrackId.value = null
+        _savedAssetId.value = null
     }
 
     private val _message = MutableStateFlow<String?>(null)
@@ -98,12 +98,12 @@ class DrawTrackViewModel(
         }
         viewModelScope.launch {
             runCatching {
-                tracks.createTrack(
+                assetRepository.createAsset(
                     name = name.trim().ifBlank { "New track" },
                     geometry = draft
                 )
-            }.onSuccess { trackId ->
-                _savedTrackId.value = trackId
+            }.onSuccess { assetId ->
+                _savedAssetId.value = assetId
             }.onFailure { failure ->
                 _message.value = failure.message ?: "Could not save the track"
             }
@@ -118,8 +118,8 @@ class DrawTrackViewModel(
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
-                    DrawTrackViewModel(
-                        tracks = TrackRepository(SprayDayDatabase.get(appContext)),
+                    DrawAssetViewModel(
+                        assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
                         settingsRepository = SettingsRepository(appContext)
                     )
                 }

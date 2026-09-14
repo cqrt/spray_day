@@ -21,7 +21,7 @@ class HandoverCsvTest {
     private val sprayedAt = 1_789_356_720_000L
 
     private fun row(
-        trackName: String = "Home block",
+        assetName: String = "Home block",
         areaLabel: String? = "Home",
         productName: String = "Glyphosate",
         amount: Double = 1500.0,
@@ -30,7 +30,7 @@ class HandoverCsvTest {
         recordingName: String? = "Home block \u00b7 14 Sep"
     ) = HandoverRow(
         sprayedAtEpochMs = sprayedAt,
-        trackName = trackName,
+        assetName = assetName,
         areaLabel = areaLabel,
         productName = productName,
         amount = amount,
@@ -83,7 +83,7 @@ class HandoverCsvTest {
 
     @Test
     fun `a comma in a name does not shift every later column`() {
-        val csv = HandoverCsv.render(listOf(row(trackName = "Home, north")), zone)
+        val csv = HandoverCsv.render(listOf(row(assetName = "Home, north")), zone)
 
         val line = lines(csv)[1]
         assertTrue("the name should be quoted: $line", line.contains("\"Home, north\""))
@@ -146,7 +146,7 @@ class HandoverCsvTest {
             listOf(
                 HandoverRow(
                     sprayedAtEpochMs = sprayedAt,
-                    trackName = "Home block",
+                    assetName = "Home block",
                     areaLabel = null,
                     productName = "Glyphosate",
                     amount = 900.0,

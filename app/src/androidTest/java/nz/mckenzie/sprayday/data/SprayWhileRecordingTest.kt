@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 class SprayWhileRecordingTest {
 
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var sprays: SprayRepository
     private lateinit var recordings: RecordingRepository
 
@@ -54,24 +54,24 @@ class SprayWhileRecordingTest {
         return fixes
     }
 
-    private suspend fun dueFor(trackId: Long): DueStatus =
-        tracks.observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis()))
+    private suspend fun dueFor(assetId: Long): DueStatus =
+        assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
             .first()
-            .single { it.track.id == trackId }
+            .single { it.track.id == assetId }
             .due
             .status
 
-    private suspend fun sprayCountFor(trackId: Long): Int =
-        tracks.observeTracksWithDue(nowProvider = flowOf(System.currentTimeMillis()))
+    private suspend fun sprayCountFor(assetId: Long): Int =
+        assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
             .first()
-            .single { it.track.id == trackId }
+            .single { it.track.id == assetId }
             .sprayCount
 
     @Before
     fun setUp() {
         val context: Context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         sprays = SprayRepository(db)
         recordings = RecordingRepository(db)
     }
@@ -81,8 +81,8 @@ class SprayWhileRecordingTest {
 
     @Test
     fun aSprayRecordedFromARecordingPointsBackAtTheSession() = runBlocking {
-        val trackId = tracks.createTrack("Block A", plannedLine)
-        val sessionId = recordings.startRecording("Spray run", trackId = trackId)
+        val assetId = assetRepository.createAsset("Block A", plannedLine)
+        val sessionId = recordings.startRecording("Spray run", assetId = assetId)
 
         val fixes = driveLine(500.0)
         fixes.forEach { recordings.appendPoint(sessionId, it) }
@@ -90,13 +90,13 @@ class SprayWhileRecordingTest {
 
         val productId = sprays.addProduct("Diuron")
         sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(SprayProductQuantity(productId, 2_500.0)),
             distanceM = polylineLengthMeters(fixes),
             recordedSessionId = sessionId
         )
 
-        val event = sprays.observeSprayEvents(trackId).first().single()
+        val event = sprays.observeSprayEvents(assetId).first().single()
         assertEquals("the spray must point at its GPS evidence", sessionId, event.recordedSessionId)
         assertEquals(2_500.0, sprays.getSprayEventProducts(event.id).single().quantityMl, 0.001)
         assertEquals(
@@ -107,40 +107,40 @@ class SprayWhileRecordingTest {
         )
         assertEquals(
             "and the session should know which track it was for",
-            trackId,
-            recordings.getSession(sessionId)!!.trackId
+            assetId,
+            recordings.getSession(sessionId)!!.assetId
         )
     }
 
     @Test
     fun recordingASprayUpdatesTheTrafficLightAndTheHistory() = runBlocking {
-        val trackId = tracks.createTrack("Block B", plannedLine)
-        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(trackId))
-        assertEquals(0, sprayCountFor(trackId))
+        val assetId = assetRepository.createAsset("Block B", plannedLine)
+        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(assetId))
+        assertEquals(0, sprayCountFor(assetId))
 
-        val sessionId = recordings.startRecording("Spray run", trackId = trackId)
+        val sessionId = recordings.startRecording("Spray run", assetId = assetId)
         driveLine(500.0).forEach { recordings.appendPoint(sessionId, it) }
         recordings.finishRecording(sessionId, distanceM = 500.0)
         sprays.recordSpray(
-            trackId = trackId,
+            assetId = assetId,
             products = listOf(SprayProductQuantity(sprays.addProduct("Glyphosate"), 1_800.0)),
             recordedSessionId = sessionId
         )
 
-        assertEquals("sprayed today, so nothing like due yet", DueStatus.NOT_DUE, dueFor(trackId))
-        assertEquals(1, sprayCountFor(trackId))
+        assertEquals("sprayed today, so nothing like due yet", DueStatus.NOT_DUE, dueFor(assetId))
+        assertEquals(1, sprayCountFor(assetId))
     }
 
     @Test
     fun coverageIsMeasuredFromThePlannedGeometryAgainstTheRecording() = runBlocking {
-        val trackId = tracks.createTrack("Block C", plannedLine)
-        val sessionId = recordings.startRecording("Half a block", trackId = trackId)
+        val assetId = assetRepository.createAsset("Block C", plannedLine)
+        val sessionId = recordings.startRecording("Half a block", assetId = assetId)
 
         val drove = driveLine(250.0)
         drove.forEach { recordings.appendPoint(sessionId, it) }
         recordings.finishRecording(sessionId, distanceM = polylineLengthMeters(drove))
 
-        val planned = tracks.getTrackGeometry(trackId)
+        val planned = assetRepository.getAssetGeometry(assetId)
         val recorded = recordings.getPoints(sessionId)
 
         val covered = Coverage.coveredFraction(planned, recorded)
@@ -150,30 +150,30 @@ class SprayWhileRecordingTest {
 
     @Test
     fun aTrackCanBeAttachedToASessionThatIsAlreadyRecording() = runBlocking {
-        val trackId = tracks.createTrack("Block D", plannedLine)
+        val assetId = assetRepository.createAsset("Block D", plannedLine)
         val sessionId = recordings.startRecording("Started before choosing")
-        assertNull("nothing chose a track yet", recordings.getSession(sessionId)!!.trackId)
+        assertNull("nothing chose a track yet", recordings.getSession(sessionId)!!.assetId)
 
-        recordings.setSessionTrack(sessionId, trackId)
+        recordings.setSessionTrack(sessionId, assetId)
 
-        assertEquals(trackId, recordings.getSession(sessionId)!!.trackId)
+        assertEquals(assetId, recordings.getSession(sessionId)!!.assetId)
     }
 
     @Test
     fun amountsRememberedForATrackAreWhatTheNextSprayStartsFrom() = runBlocking {
-        val trackId = tracks.createTrack("Block E", plannedLine)
+        val assetId = assetRepository.createAsset("Block E", plannedLine)
         val diuron = sprays.addProduct("Diuron")
         val surfactant = sprays.addProduct("Surfactant")
 
         sprays.rememberDefaultsForTrack(
-            trackId,
+            assetId,
             listOf(
                 SprayProductQuantity(diuron, 1_800.0),
                 SprayProductQuantity(surfactant, 200.0)
             )
         )
 
-        val lines = sprays.getTrackDefaultLines(trackId).associateBy { it.productId }
+        val lines = sprays.getAssetDefaultLines(assetId).associateBy { it.productId }
 
         assertEquals(1_800.0, lines.getValue(diuron).defaultQuantityMl!!, 0.001)
         assertEquals(200.0, lines.getValue(surfactant).defaultQuantityMl!!, 0.001)
@@ -181,13 +181,13 @@ class SprayWhileRecordingTest {
 
     @Test
     fun aRecordingWithoutASprayStillLeavesNoSprayRecord() = runBlocking {
-        val trackId = tracks.createTrack("Block F", plannedLine)
-        val sessionId = recordings.startRecording("Just the line", trackId = trackId)
+        val assetId = assetRepository.createAsset("Block F", plannedLine)
+        val sessionId = recordings.startRecording("Just the line", assetId = assetId)
         driveLine(200.0).forEach { recordings.appendPoint(sessionId, it) }
         recordings.finishRecording(sessionId, distanceM = 200.0)
 
-        assertTrue("no products means no spray", sprays.observeSprayEvents(trackId).first().isEmpty())
-        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(trackId))
+        assertTrue("no products means no spray", sprays.observeSprayEvents(assetId).first().isEmpty())
+        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(assetId))
         assertEquals("but the recording is kept", 21, recordings.pointCount(sessionId))
     }
 }

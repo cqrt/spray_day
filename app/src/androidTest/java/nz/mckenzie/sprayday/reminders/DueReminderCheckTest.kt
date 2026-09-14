@@ -14,7 +14,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.ReminderStateStore
 import nz.mckenzie.sprayday.data.SprayRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.reminders.ReminderState
@@ -36,7 +36,7 @@ class DueReminderCheckTest {
 
     private lateinit var context: Context
     private lateinit var db: SprayDayDatabase
-    private lateinit var tracks: TrackRepository
+    private lateinit var assetRepository: AssetRepository
     private lateinit var store: ReminderStateStore
 
     /** Tracks how many notifications were asked for, and what they said. */
@@ -46,7 +46,7 @@ class DueReminderCheckTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
-        tracks = TrackRepository(db)
+        assetRepository = AssetRepository(db)
         store = ReminderStateStore(context)
         posted.clear()
         cancelPostedNotifications()
@@ -62,10 +62,10 @@ class DueReminderCheckTest {
     }
 
     private fun check(
-        trackRepository: TrackRepository = tracks,
+        repository: AssetRepository = assetRepository,
         post: (String, String) -> Boolean = { title, body -> posted += title to body; true }
     ) = DueReminderCheck(
-        tracks = trackRepository,
+        assetRepository = repository,
         store = store,
         post = post,
         zoneId = ZoneId.systemDefault()
@@ -79,14 +79,14 @@ class DueReminderCheckTest {
         intervalDays: Int = 120
     ): Long {
         val now = System.currentTimeMillis()
-        val id = tracks.createTrack(
+        val id = assetRepository.createAsset(
             name = name,
             geometry = listOf(GeoPoint(-41.5, 173.95), GeoPoint(-41.51, 173.96)),
             intervalDays = intervalDays,
             createdAtEpochMs = now - spawnedDaysAgo * DAY
         )
         sprayedDaysAgo?.let { days ->
-            SprayRepository(db).recordSpray(trackId = id, sprayedAtEpochMs = now - days * DAY)
+            SprayRepository(db).recordSpray(assetId = id, sprayedAtEpochMs = now - days * DAY)
         }
         return id
     }
@@ -161,7 +161,7 @@ class DueReminderCheckTest {
 
     @Test
     fun aTrackDrawnTodayIsNotNaggedAbout() = runBlocking {
-        tracks.createTrack(
+        assetRepository.createAsset(
             name = "Drawn this morning",
             geometry = listOf(GeoPoint(-41.5, 173.95), GeoPoint(-41.51, 173.96)),
             createdAtEpochMs = System.currentTimeMillis()

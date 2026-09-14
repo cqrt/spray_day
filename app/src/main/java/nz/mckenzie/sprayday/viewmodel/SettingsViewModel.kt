@@ -21,7 +21,7 @@ import nz.mckenzie.sprayday.data.HandoverController
 import nz.mckenzie.sprayday.data.HandoverRepository
 import nz.mckenzie.sprayday.data.ReminderStateStore
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.backup.BackupSummary
 import nz.mckenzie.sprayday.offline.KeyCheck
@@ -320,7 +320,7 @@ class SettingsViewModel(
                         store = TileServerHolder.store(appContext),
                         runReminderCheck = {
                             DueReminderCheck(
-                                tracks = TrackRepository(SprayDayDatabase.get(appContext)),
+                                assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
                                 store = ReminderStateStore(appContext),
                                 notifier = ReminderNotifier(appContext)
                             ).run()

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flow
  * Keeping the clock explicit (rather than calling System.currentTimeMillis
  * inside a query) makes the repository deterministic under test.
  */
-object TrackTicker {
+object MinuteTicker {
 
     /** Emits the current time immediately, then once a minute while subscribed. */
     fun minutes(periodMs: Long = 60_000L): Flow<Long> = flow {

@@ -39,9 +39,9 @@ object ReminderStateCodec {
             .mapNotNull { entry ->
                 val halves = entry.split("=")
                 if (halves.size != 2) return@mapNotNull null
-                val trackId = halves[0].toLongOrNull() ?: return@mapNotNull null
+                val assetId = halves[0].toLongOrNull() ?: return@mapNotNull null
                 val status = runCatching { DueStatus.valueOf(halves[1]) }.getOrNull() ?: return@mapNotNull null
-                trackId to status
+                assetId to status
             }
             .toMap()
 

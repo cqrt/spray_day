@@ -4,8 +4,8 @@ import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 
 /** One planned track ready to be drawn on the map. */
-data class TrackLine(
-    val trackId: Long,
+data class AssetLine(
+    val assetId: Long,
     val name: String,
     val colorHex: String,
     val points: List<GeoPoint>
@@ -16,7 +16,7 @@ data class TrackLine(
  * (ui/theme/Color.kt). Kept here as plain strings so the map layer can be unit
  * tested on the JVM without Compose on the classpath.
  */
-object TrackColors {
+object AssetColors {
     const val GREEN = "#2E7D32"
     const val YELLOW = "#F9A825"
     const val RED = "#C62828"
@@ -39,11 +39,11 @@ object TrackColors {
  * Hand-rolled rather than pulling in a JSON library: the payload is tiny, and
  * keeping it pure Kotlin means it is covered by fast JVM unit tests.
  */
-object TrackGeoJson {
+object AssetGeoJson {
 
     private const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
-    fun build(lines: List<TrackLine>): String {
+    fun build(lines: List<AssetLine>): String {
         val drawable = lines.filter { it.points.size >= 2 }
         if (drawable.isEmpty()) return EMPTY
 
@@ -52,7 +52,7 @@ object TrackGeoJson {
         drawable.forEachIndexed { index, line ->
             if (index > 0) builder.append(',')
             builder.append("{\"type\":\"Feature\",\"properties\":{")
-            builder.append("\"id\":").append(line.trackId).append(',')
+            builder.append("\"id\":").append(line.assetId).append(',')
             builder.append("\"name\":\"").append(escape(line.name)).append("\",")
             builder.append("\"stroke\":\"").append(escape(line.colorHex)).append("\"")
             builder.append("},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[")

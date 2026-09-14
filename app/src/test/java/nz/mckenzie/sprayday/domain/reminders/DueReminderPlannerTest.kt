@@ -26,17 +26,17 @@ class DueReminderPlannerTest {
         daysUntilDue: Long? = null,
         name: String = "Home block",
         createdDaysAgo: Long = 200
-    ) = TrackDueState(
-        trackId = id,
+    ) = AssetDueState(
+        assetId = id,
         name = name,
         status = status,
         daysUntilDue = daysUntilDue,
         createdAtEpochMs = now - createdDaysAgo * day
     )
 
-    private fun plan(vararg tracks: TrackDueState, previous: ReminderState = ReminderState()) =
+    private fun plan(vararg assets: AssetDueState, previous: ReminderState = ReminderState()) =
         DueReminderPlanner.plan(
-            tracks = tracks.toList(),
+            assets = assets.toList(),
             previous = previous,
             nowEpochMs = now,
             leadDays = 14,
@@ -55,7 +55,7 @@ class DueReminderPlannerTest {
     fun `a due track is mentioned once`() {
         val first = plan(track(1, DueStatus.DUE_SOON, daysUntilDue = 5))
 
-        assertEquals(listOf(1L), first.notify.map { it.trackId })
+        assertEquals(listOf(1L), first.notify.map { it.assetId })
         assertEquals(now, first.state.notifiedAtEpochMs)
         assertEquals(mapOf(1L to DueStatus.DUE_SOON), first.state.notified)
 
@@ -68,7 +68,7 @@ class DueReminderPlannerTest {
         val first = plan(track(1, DueStatus.OVERDUE, daysUntilDue = -30))
 
         val sixDaysLater = DueReminderPlanner.plan(
-            tracks = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -36)),
+            assets = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -36)),
             previous = first.state,
             nowEpochMs = now + 6 * day,
             leadDays = 14,
@@ -77,13 +77,13 @@ class DueReminderPlannerTest {
         assertTrue("six days is too soon to say it again", sixDaysLater.notify.isEmpty())
 
         val aWeekLater = DueReminderPlanner.plan(
-            tracks = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -37)),
+            assets = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -37)),
             previous = first.state,
             nowEpochMs = now + 7 * day,
             leadDays = 14,
             zoneId = zone
         )
-        assertEquals("a week of being overdue is worth repeating", listOf(1L), aWeekLater.notify.map { it.trackId })
+        assertEquals("a week of being overdue is worth repeating", listOf(1L), aWeekLater.notify.map { it.assetId })
     }
 
     @Test
@@ -91,7 +91,7 @@ class DueReminderPlannerTest {
         val first = plan(track(1, DueStatus.OVERDUE, daysUntilDue = -2))
 
         val nextDay = DueReminderPlanner.plan(
-            tracks = listOf(
+            assets = listOf(
                 track(1, DueStatus.OVERDUE, daysUntilDue = -3),
                 track(2, DueStatus.DUE_SOON, daysUntilDue = 4, name = "River block")
             ),
@@ -104,7 +104,7 @@ class DueReminderPlannerTest {
         assertEquals(
             "both are mentioned, because the second one has not been heard about",
             listOf(1L, 2L),
-            nextDay.notify.map { it.trackId }
+            nextDay.notify.map { it.assetId }
         )
     }
 
@@ -113,14 +113,14 @@ class DueReminderPlannerTest {
         val first = plan(track(1, DueStatus.DUE_SOON, daysUntilDue = 3))
 
         val later = DueReminderPlanner.plan(
-            tracks = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -4)),
+            assets = listOf(track(1, DueStatus.OVERDUE, daysUntilDue = -4)),
             previous = first.state,
             nowEpochMs = now + 7 * day,
             leadDays = 14,
             zoneId = zone
         )
 
-        assertEquals("the escalation is the news", listOf(1L), later.notify.map { it.trackId })
+        assertEquals("the escalation is the news", listOf(1L), later.notify.map { it.assetId })
     }
 
     @Test
@@ -151,16 +151,16 @@ class DueReminderPlannerTest {
 
         val result = plan(old)
 
-        assertEquals(listOf(1L), result.notify.map { it.trackId })
+        assertEquals(listOf(1L), result.notify.map { it.assetId })
     }
 
     @Test
     fun `spraying a track takes it off the list, and the state stays quiet`() {
         val first = plan(track(1, DueStatus.OVERDUE, daysUntilDue = -1))
-        assertEquals(listOf(1L), first.notify.map { it.trackId })
+        assertEquals(listOf(1L), first.notify.map { it.assetId })
 
         val afterwards = DueReminderPlanner.plan(
-            tracks = listOf(track(1, DueStatus.NOT_DUE, daysUntilDue = 119)),
+            assets = listOf(track(1, DueStatus.NOT_DUE, daysUntilDue = 119)),
             previous = first.state,
             nowEpochMs = now + day,
             leadDays = 14,

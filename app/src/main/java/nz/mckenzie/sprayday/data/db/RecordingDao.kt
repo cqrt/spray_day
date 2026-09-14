@@ -53,8 +53,8 @@ abstract class RecordingDao {
      * Records which planned track a session is for. The operator may pick the track
      * after starting to record, so this is not only set at creation.
      */
-    @Query("UPDATE recorded_sessions SET trackId = :trackId WHERE id = :sessionId")
-    abstract suspend fun setSessionTrack(sessionId: Long, trackId: Long)
+    @Query("UPDATE recorded_sessions SET trackId = :assetId WHERE id = :sessionId")
+    abstract suspend fun setSessionTrack(sessionId: Long, assetId: Long)
 
     /**
      * Renames a session. Used when a recording is saved as a named track, so the

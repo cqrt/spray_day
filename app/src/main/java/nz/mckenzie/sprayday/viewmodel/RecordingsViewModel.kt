@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.RecordingRepository
-import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
@@ -21,7 +21,7 @@ import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 /**
  * One recording, as the browser lists it.
  *
- * [trackName] is null when the session was never tied to a track *or* when the
+ * [assetName] is null when the session was never tied to a track *or* when the
  * track has since been deleted - recordings deliberately outlive the plans they
  * were recorded against, so the browser says "track deleted" rather than
  * pretending the session had no track.
@@ -34,12 +34,12 @@ data class RecordingRow(
     val durationMs: Long,
     val pointCount: Int,
     val status: RecordingStatus,
-    val trackId: Long?,
-    val trackName: String?
+    val assetId: Long?,
+    val assetName: String?
 ) {
     val isFinished: Boolean get() = status == RecordingStatus.FINISHED
 
-    val trackWasDeleted: Boolean get() = trackId != null && trackName == null
+    val assetWasDeleted: Boolean get() = assetId != null && assetName == null
 }
 
 /**
@@ -48,12 +48,12 @@ data class RecordingRow(
  */
 class RecordingsViewModel(
     private val recordings: RecordingRepository,
-    tracks: TrackRepository
+    assetRepository: AssetRepository
 ) : ViewModel() {
 
     val sessions: StateFlow<List<RecordingRow>> =
-        combine(recordings.observeSessions(), tracks.observeTracksWithDue()) { sessions, trackList ->
-            val names = trackList.associate { item -> item.track.id to item.track.name }
+        combine(recordings.observeSessions(), assetRepository.observeAssetsWithDue()) { sessions, assetList ->
+            val names = assetList.associate { item -> item.track.id to item.track.name }
             sessions.map { session -> session.toRow(names) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
@@ -77,7 +77,7 @@ class RecordingsViewModel(
                     val database = SprayDayDatabase.get(appContext)
                     RecordingsViewModel(
                         recordings = RecordingRepository(database),
-                        tracks = TrackRepository(database)
+                        assetRepository = AssetRepository(database)
                     )
                 }
             }
@@ -85,7 +85,7 @@ class RecordingsViewModel(
     }
 }
 
-internal fun RecordedSessionEntity.toRow(trackNames: Map<Long, String>) = RecordingRow(
+internal fun RecordedSessionEntity.toRow(assetNames: Map<Long, String>) = RecordingRow(
     id = id,
     name = name,
     startedAtEpochMs = startedAtEpochMs,
@@ -93,6 +93,6 @@ internal fun RecordedSessionEntity.toRow(trackNames: Map<Long, String>) = Record
     durationMs = endedAtEpochMs?.let { it - startedAtEpochMs }?.coerceAtLeast(0L) ?: 0L,
     pointCount = pointCount,
     status = runCatching { RecordingStatus.valueOf(status) }.getOrDefault(RecordingStatus.FINISHED),
-    trackId = trackId,
-    trackName = trackId?.let { trackNames[it] }
+    assetId = assetId,
+    assetName = assetId?.let { assetNames[it] }
 )

@@ -17,16 +17,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.TrackRepository
-import nz.mckenzie.sprayday.data.TrackTicker
-import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.data.AssetRepository
+import nz.mckenzie.sprayday.data.MinuteTicker
+import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
-import nz.mckenzie.sprayday.map.TrackColors
-import nz.mckenzie.sprayday.map.TrackGeoJson
-import nz.mckenzie.sprayday.map.TrackHitTest
-import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetHitTest
+import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
 
@@ -34,22 +34,22 @@ import nz.mckenzie.sprayday.tracking.LocationSource
  * Feeds the map: the due-status of every track plus the GeoJSON MapLibre draws.
  */
 class MapViewModel(
-    private val trackRepository: TrackRepository,
+    private val assetRepository: AssetRepository,
     settingsRepository: SettingsRepository,
     private val locationSource: LocationSource,
     /**
      * The due-status clock. A parameter so a test can tick it, rather than having to
      * wait a real minute to find out what happens on the next tick.
      */
-    dueNow: Flow<Long> = TrackTicker.minutes(),
+    dueNow: Flow<Long> = MinuteTicker.minutes(),
     /** Injected so a test can count how often a line is re-read from the database. */
-    private val loadGeometry: suspend (Long) -> List<GeoPoint> = trackRepository::getTrackGeometry
+    private val loadGeometry: suspend (Long) -> List<GeoPoint> = assetRepository::getAssetGeometry
 ) : ViewModel() {
 
     val linzApiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), "")
 
-    val tracksWithDue: StateFlow<List<TrackWithDue>> = trackRepository.observeTracksWithDue(dueNow)
+    val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue(dueNow)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     private val geometryByTrack = MutableStateFlow<Map<Long, List<GeoPoint>>>(emptyMap())
@@ -66,13 +66,13 @@ class MapViewModel(
     private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
     val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
 
-    val trackGeoJson: StateFlow<String> = combine(tracksWithDue, geometryByTrack) { tracks, geometry ->
-        TrackGeoJson.build(
+    val assetGeoJson: StateFlow<String> = combine(assetsWithDue, geometryByTrack) { tracks, geometry ->
+        AssetGeoJson.build(
             tracks.map { item ->
-                TrackLine(
-                    trackId = item.track.id,
+                AssetLine(
+                    assetId = item.track.id,
                     name = item.track.name,
-                    colorHex = TrackColors.forStatus(item.due.status),
+                    colorHex = AssetColors.forStatus(item.due.status),
                     points = geometry[item.track.id].orEmpty()
                 )
             }
@@ -80,13 +80,13 @@ class MapViewModel(
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        TrackGeoJson.build(emptyList())
+        AssetGeoJson.build(emptyList())
     )
 
     init {
         viewModelScope.launch {
             // One decision, in order: the work if there is any, otherwise the phone.
-            val fromTracks = runCatching { trackRepository.trackBounds() }.getOrNull()
+            val fromTracks = runCatching { assetRepository.assetBounds() }.getOrNull()
             _initialFrame.value = fromTracks ?: deviceBounds()
         }
 
@@ -96,20 +96,20 @@ class MapViewModel(
             // and how long each line is (which is what a redraw changes). Re-reading
             // every line from the database once a minute was work on a map that had not
             // changed.
-            tracksWithDue
+            assetsWithDue
                 .map { tracks -> tracks.map { it.track.id to it.track.lengthM }.sortedBy { it.first } }
                 .distinctUntilChanged()
                 .collect { keys ->
-                    geometryByTrack.value = keys.associate { (trackId, _) ->
-                        trackId to loadGeometry(trackId)
+                    geometryByTrack.value = keys.associate { (assetId, _) ->
+                        assetId to loadGeometry(assetId)
                     }
                 }
         }
     }
 
     /** The track under a tap on the map, or null when the tap was not on one. */
-    fun trackAt(lat: Double, lng: Double, radiusM: Double = TrackHitTest.DEFAULT_TOLERANCE_M): Long? =
-        TrackHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
+    fun assetAt(lat: Double, lng: Double, radiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M): Long? =
+        AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
 
     /** A small frame around the device, for a first run with nothing drawn yet. */
     private suspend fun deviceBounds(): LatLngBounds? {
@@ -139,7 +139,7 @@ class MapViewModel(
             return viewModelFactory {
                 initializer {
                     MapViewModel(
-                        trackRepository = TrackRepository(SprayDayDatabase.get(appContext)),
+                        assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
                         settingsRepository = SettingsRepository(appContext),
                         locationSource = FusedLocationSource(appContext)
                     )

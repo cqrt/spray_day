@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.domain.backup
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -23,9 +24,16 @@ data class BackupDocument(
     /** Which build wrote it, for a human reading the file later. */
     val appVersion: String,
     val products: List<ProductRecord> = emptyList(),
-    val tracks: List<TrackRecord> = emptyList(),
+    /**
+     * The JSON keys keep their old names: a backup written before assets existed must
+     * still restore. New keys arrive with format version 2, together with a reader for
+     * this shape.
+     */
+    @SerialName("tracks")
+    val assets: List<AssetRecord> = emptyList(),
     val sprayEvents: List<SprayEventRecord> = emptyList(),
-    val trackDefaults: List<TrackDefaultRecord> = emptyList(),
+    @SerialName("trackDefaults")
+    val assetDefaults: List<AssetDefaultRecord> = emptyList(),
     val recordings: List<RecordingRecord> = emptyList()
 ) {
     companion object {
@@ -42,7 +50,7 @@ data class BackupDocument(
 
 /** A planned track, with the geometry that gives it a length. */
 @Serializable
-data class TrackRecord(
+data class AssetRecord(
     val id: Long,
     val name: String,
     val areaLabel: String? = null,
@@ -75,7 +83,9 @@ data class ProductRecord(
 @Serializable
 data class SprayEventRecord(
     val id: Long,
-    val trackId: Long,
+    /** See [BackupDocument.assets] for why the key keeps its old name. */
+    @SerialName("trackId")
+    val assetId: Long,
     val sprayedAtEpochMs: Long,
     val waterLitres: Double? = null,
     val operatorName: String? = null,
@@ -92,8 +102,9 @@ data class SprayProductRecord(val productId: Long, val quantityMl: Double)
 
 /** The amounts a track is pre-filled with next time. */
 @Serializable
-data class TrackDefaultRecord(
-    val trackId: Long,
+data class AssetDefaultRecord(
+    @SerialName("trackId")
+    val assetId: Long,
     val productId: Long,
     val defaultQuantityMl: Double? = null
 )
@@ -103,7 +114,8 @@ data class TrackDefaultRecord(
 data class RecordingRecord(
     val id: Long,
     val name: String,
-    val trackId: Long? = null,
+    @SerialName("trackId")
+    val assetId: Long? = null,
     val startedAtEpochMs: Long,
     val endedAtEpochMs: Long? = null,
     val status: String,

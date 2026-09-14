@@ -7,9 +7,9 @@ import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
-import nz.mckenzie.sprayday.data.db.TrackEntity
-import nz.mckenzie.sprayday.data.db.TrackPointEntity
-import nz.mckenzie.sprayday.data.db.TrackProductDefaultEntity
+import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.data.db.AssetPointEntity
+import nz.mckenzie.sprayday.data.db.AssetProductDefaultEntity
 import nz.mckenzie.sprayday.domain.backup.BackupDocument
 import nz.mckenzie.sprayday.domain.backup.BackupFormat
 import nz.mckenzie.sprayday.domain.backup.BackupSummary
@@ -19,8 +19,8 @@ import nz.mckenzie.sprayday.domain.backup.RecordedPointRecord
 import nz.mckenzie.sprayday.domain.backup.RecordingRecord
 import nz.mckenzie.sprayday.domain.backup.SprayEventRecord
 import nz.mckenzie.sprayday.domain.backup.SprayProductRecord
-import nz.mckenzie.sprayday.domain.backup.TrackDefaultRecord
-import nz.mckenzie.sprayday.domain.backup.TrackRecord
+import nz.mckenzie.sprayday.domain.backup.AssetDefaultRecord
+import nz.mckenzie.sprayday.domain.backup.AssetRecord
 
 /**
  * Turning the database into a backup file, and back again.
@@ -45,7 +45,7 @@ class BackupRepository(
 
     /** Everything the app holds, ready to be written to a file. */
     suspend fun export(): BackupDocument {
-        val pointsByTrack = dao.allTrackPoints().groupBy { it.trackId }
+        val pointsByAsset = dao.allAssetPoints().groupBy { it.assetId }
         val productsByEvent = dao.allSprayEventProducts().groupBy { it.sprayEventId }
         val pointsBySession = dao.allRecordedPoints().groupBy { it.sessionId }
 
@@ -53,9 +53,9 @@ class BackupRepository(
             exportedAtEpochMs = nowEpochMs(),
             appVersion = appVersion,
             products = dao.allProducts().map { it.toRecord() },
-            tracks = dao.allTracks().map { track -> track.toRecord(pointsByTrack[track.id].orEmpty()) },
+            assets = dao.allAssets().map { asset -> asset.toRecord(pointsByAsset[asset.id].orEmpty()) },
             sprayEvents = dao.allSprayEvents().map { event -> event.toRecord(productsByEvent[event.id].orEmpty()) },
-            trackDefaults = dao.allTrackDefaults().map { it.toRecord() },
+            assetDefaults = dao.allAssetDefaults().map { it.toRecord() },
             recordings = dao.allRecordedSessions().map { session ->
                 session.toRecord(pointsBySession[session.id].orEmpty())
             }
@@ -64,7 +64,7 @@ class BackupRepository(
 
     /** What is in the app right now, for showing beside what a file holds. */
     suspend fun currentSummary(): BackupSummary = BackupSummary(
-        tracks = dao.trackCount(),
+        tracks = dao.assetCount(),
         sprays = dao.sprayCount(),
         recordings = dao.recordingCount(),
         products = dao.productCount(),
@@ -81,22 +81,22 @@ class BackupRepository(
         }
 
         // Children before parents, so no foreign key is ever left pointing at nothing.
-        dao.clearTrackDefaults()
+        dao.clearAssetDefaults()
         dao.clearSprayEventProducts()
         dao.clearSprayEvents()
-        dao.clearTrackPoints()
-        dao.clearTracks()
+        dao.clearAssetPoints()
+        dao.clearAssets()
         dao.clearProducts()
         dao.clearRecordedPoints()
         dao.clearRecordedSessions()
 
         // And parents before children on the way back in.
         dao.insertProducts(document.products.map { it.toEntity() })
-        dao.insertTracks(document.tracks.map { it.toEntity() })
-        dao.insertTrackPoints(
-            document.tracks.flatMap { track ->
-                track.points.mapIndexed { index, point ->
-                    TrackPointEntity(trackId = track.id, sequence = index, lat = point.lat, lng = point.lng)
+        dao.insertAssets(document.assets.map { it.toEntity() })
+        dao.insertAssetPoints(
+            document.assets.flatMap { asset ->
+                asset.points.mapIndexed { index, point ->
+                    AssetPointEntity(assetId = asset.id, sequence = index, lat = point.lat, lng = point.lng)
                 }
             }
         )
@@ -112,7 +112,7 @@ class BackupRepository(
                 }
             }
         )
-        dao.insertTrackDefaults(document.trackDefaults.map { it.toEntity() })
+        dao.insertAssetDefaults(document.assetDefaults.map { it.toEntity() })
         dao.insertRecordedSessions(document.recordings.map { it.toEntity() })
         dao.insertRecordedPoints(
             document.recordings.flatMap { session ->
@@ -136,7 +136,7 @@ class BackupRepository(
     }
 }
 
-private fun TrackEntity.toRecord(points: List<TrackPointEntity>) = TrackRecord(
+private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
     id = id,
     name = name,
     areaLabel = areaLabel,
@@ -150,7 +150,7 @@ private fun TrackEntity.toRecord(points: List<TrackPointEntity>) = TrackRecord(
     points = points.sortedBy { it.sequence }.map { LinePointRecord(lat = it.lat, lng = it.lng) }
 )
 
-private fun TrackRecord.toEntity() = TrackEntity(
+private fun AssetRecord.toEntity() = AssetEntity(
     id = id,
     name = name,
     areaLabel = areaLabel,
@@ -183,7 +183,7 @@ private fun ProductRecord.toEntity() = ProductEntity(
 
 private fun SprayEventEntity.toRecord(products: List<SprayEventProductEntity>) = SprayEventRecord(
     id = id,
-    trackId = trackId,
+    assetId = assetId,
     sprayedAtEpochMs = sprayedAtEpochMs,
     waterLitres = waterLitres,
     operatorName = operatorName,
@@ -196,7 +196,7 @@ private fun SprayEventEntity.toRecord(products: List<SprayEventProductEntity>) =
 
 private fun SprayEventRecord.toEntity() = SprayEventEntity(
     id = id,
-    trackId = trackId,
+    assetId = assetId,
     sprayedAtEpochMs = sprayedAtEpochMs,
     waterLitres = waterLitres,
     operatorName = operatorName,
@@ -206,14 +206,14 @@ private fun SprayEventRecord.toEntity() = SprayEventEntity(
     recordedSessionId = recordedSessionId
 )
 
-private fun TrackProductDefaultEntity.toRecord() = TrackDefaultRecord(
-    trackId = trackId,
+private fun AssetProductDefaultEntity.toRecord() = AssetDefaultRecord(
+    assetId = assetId,
     productId = productId,
     defaultQuantityMl = defaultQuantityMl
 )
 
-private fun TrackDefaultRecord.toEntity() = TrackProductDefaultEntity(
-    trackId = trackId,
+private fun AssetDefaultRecord.toEntity() = AssetProductDefaultEntity(
+    assetId = assetId,
     productId = productId,
     defaultQuantityMl = defaultQuantityMl
 )
@@ -221,7 +221,7 @@ private fun TrackDefaultRecord.toEntity() = TrackProductDefaultEntity(
 private fun RecordedSessionEntity.toRecord(points: List<RecordedPointEntity>) = RecordingRecord(
     id = id,
     name = name,
-    trackId = trackId,
+    assetId = assetId,
     startedAtEpochMs = startedAtEpochMs,
     endedAtEpochMs = endedAtEpochMs,
     status = status,
@@ -245,7 +245,7 @@ private fun RecordedSessionEntity.toRecord(points: List<RecordedPointEntity>) = 
 private fun RecordingRecord.toEntity() = RecordedSessionEntity(
     id = id,
     name = name,
-    trackId = trackId,
+    assetId = assetId,
     startedAtEpochMs = startedAtEpochMs,
     endedAtEpochMs = endedAtEpochMs,
     status = status,

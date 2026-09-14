@@ -28,25 +28,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.R
-import nz.mckenzie.sprayday.data.TrackWithDue
+import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.LinzBasemap
 import nz.mckenzie.sprayday.map.LinzMapView
-import nz.mckenzie.sprayday.map.TrackColors
+import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
     viewModel: MapViewModel,
-    onOpenTracks: () -> Unit = {},
+    onOpenAssets: () -> Unit = {},
     onOpenOffline: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    onOpenTrack: (Long) -> Unit = {}
+    onOpenAsset: (Long) -> Unit = {}
 ) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
-    val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
-    val geoJson by viewModel.trackGeoJson.collectAsStateWithLifecycle()
+    val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
+    val geoJson by viewModel.assetGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -54,7 +54,7 @@ fun MapScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
-                    TextButton(onClick = onOpenTracks) { Text("Tracks") }
+                    TextButton(onClick = onOpenAssets) { Text("Tracks") }
                     TextButton(onClick = onOpenOffline) { Text("Offline") }
                 }
             )
@@ -67,14 +67,14 @@ fun MapScreen(
         ) {
             LinzMapView(
                 apiKey = apiKey,
-                trackGeoJson = geoJson,
+                assetGeoJson = geoJson,
                 // The operator's own tracks first; failing that, where the device is;
                 // failing that, the neutral country-wide default.
                 fitBounds = initialFrame,
                 // Tapping a track opens it: the map is where they are looking when they
                 // wonder about a block. The radius comes from the map's zoom, so the tap
                 // works at country scale as well as at spray height.
-                onMapClick = { lat, lng, radiusM -> viewModel.trackAt(lat, lng, radiusM)?.let(onOpenTrack) },
+                onMapClick = { lat, lng, radiusM -> viewModel.assetAt(lat, lng, radiusM)?.let(onOpenAsset) },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -104,7 +104,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun DueLegend(tracks: List<TrackWithDue>, modifier: Modifier = Modifier) {
+private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier) {
     if (tracks.isEmpty()) return
 
     val counts = tracks.groupingBy { it.due.status }.eachCount()
@@ -121,9 +121,9 @@ private fun DueLegend(tracks: List<TrackWithDue>, modifier: Modifier = Modifier)
                 text = "${tracks.size} track${if (tracks.size == 1) "" else "s"}",
                 style = MaterialTheme.typography.titleSmall
             )
-            LegendRow(TrackColors.RED, "Overdue", overdue)
-            LegendRow(TrackColors.YELLOW, "Due soon", dueSoon)
-            LegendRow(TrackColors.GREEN, "Not due", notDue)
+            LegendRow(AssetColors.RED, "Overdue", overdue)
+            LegendRow(AssetColors.YELLOW, "Due soon", dueSoon)
+            LegendRow(AssetColors.GREEN, "Not due", notDue)
         }
     }
 }

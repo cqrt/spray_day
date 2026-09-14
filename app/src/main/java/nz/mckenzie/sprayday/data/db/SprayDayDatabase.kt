@@ -28,6 +28,9 @@ abstract class SprayDayDatabase : RoomDatabase() {
     abstract fun recordingDao(): RecordingDao
     abstract fun offlineAreaDao(): OfflineAreaDao
 
+    /** Reads and writes everything, for backup and restore. */
+    abstract fun backupDao(): BackupDao
+
     companion object {
         const val NAME = "spray_day.db"
 

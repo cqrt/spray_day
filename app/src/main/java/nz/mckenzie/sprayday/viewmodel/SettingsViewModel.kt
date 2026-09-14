@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -14,10 +15,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.BuildConfig
-import nz.mckenzie.sprayday.data.SettingsRepository
+import nz.mckenzie.sprayday.data.BackupController
+import nz.mckenzie.sprayday.data.BackupRepository
 import nz.mckenzie.sprayday.data.ReminderStateStore
+import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.TrackRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.backup.BackupSummary
 import nz.mckenzie.sprayday.offline.KeyCheck
 import nz.mckenzie.sprayday.offline.LinzKeyProbe
 import nz.mckenzie.sprayday.offline.OfflineTileStore
@@ -57,7 +61,9 @@ class SettingsViewModel(
      * Runs one due-reminder check. Built by the factory rather than here, so this view
      * model needs no database and a test can answer without one.
      */
-    private val runReminderCheck: (suspend () -> ReminderOutcome)? = null
+    private val runReminderCheck: (suspend () -> ReminderOutcome)? = null,
+    /** Backup files: chosen by the operator, read and written by the app. */
+    private val backup: BackupController? = null
 ) : ViewModel() {
 
     /** The key as typed, seeded from what is stored rather than from the default. */
@@ -116,6 +122,24 @@ class SettingsViewModel(
 
     private val _checkingReminders = MutableStateFlow(false)
     val checkingReminders: StateFlow<Boolean> = _checkingReminders
+
+    /** What the last backup or restore said. */
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage
+
+    private val _backupBusy = MutableStateFlow(false)
+    val backupBusy: StateFlow<Boolean> = _backupBusy
+
+    /** A chosen file waiting to be restored, with both sides of the trade in numbers. */
+    private val _pendingRestore = MutableStateFlow<PendingRestore?>(null)
+    val pendingRestore: StateFlow<PendingRestore?> = _pendingRestore
+
+    /** A backup file that has been read, and what restoring it would replace. */
+    data class PendingRestore(
+        val uri: Uri,
+        val file: BackupSummary,
+        val current: BackupSummary
+    )
 
     val versionLabel: String = "version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
@@ -203,6 +227,54 @@ class SettingsViewModel(
         }
     }
 
+    /** "spray-day-backup-2026-09-14.json" - offered as the file name in the picker. */
+    fun backupFileName(): String = backup?.suggestedFileName() ?: "spray-day-backup.json"
+
+    /** Writes everything the app holds to the file the operator chose. */
+    fun exportBackupTo(uri: Uri) {
+        val controller = backup ?: return
+        viewModelScope.launch {
+            _backupBusy.value = true
+            _backupMessage.value = runCatching { controller.exportTo(uri) }
+                .map { summary -> "Backed up ${summary.describe()}." }
+                .getOrElse { "Nothing was written: ${it.message}" }
+            _backupBusy.value = false
+        }
+    }
+
+    /**
+     * Reads the chosen file and asks first. Restoring replaces everything, so the
+     * numbers on both sides are shown before anything is touched.
+     */
+    fun chooseBackupToRestore(uri: Uri) {
+        val controller = backup ?: return
+        viewModelScope.launch {
+            _backupBusy.value = true
+            _backupMessage.value = null
+            runCatching { PendingRestore(uri, controller.inspect(uri), controller.currentSummary()) }
+                .onSuccess { _pendingRestore.value = it }
+                .onFailure { _backupMessage.value = it.message }
+            _backupBusy.value = false
+        }
+    }
+
+    fun confirmRestore() {
+        val controller = backup ?: return
+        val pending = _pendingRestore.value ?: return
+        viewModelScope.launch {
+            _backupBusy.value = true
+            _backupMessage.value = runCatching { controller.restoreFrom(pending.uri) }
+                .map { summary -> "Restored ${summary.describe()}." }
+                .getOrElse { "Nothing was restored: ${it.message}" }
+            _pendingRestore.value = null
+            _backupBusy.value = false
+        }
+    }
+
+    fun cancelRestore() {
+        _pendingRestore.value = null
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
@@ -227,7 +299,14 @@ class SettingsViewModel(
                                 store = ReminderStateStore(appContext),
                                 notifier = ReminderNotifier(appContext)
                             ).run()
-                        }
+                        },
+                        backup = BackupController(
+                            repository = BackupRepository(
+                                db = SprayDayDatabase.get(appContext),
+                                appVersion = BuildConfig.VERSION_NAME
+                            ),
+                            context = appContext
+                        )
                     )
                 }
             }

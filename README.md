@@ -27,6 +27,10 @@ sprayed).
 - **Due reminders**: a notification when a track comes due, so a spray window is not
   discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
   is not nagged about.
+- **Backup and restore**: one JSON file holding the whole season — tracks and their
+  lines, every spray with its amounts, the product catalogue, the amounts each track
+  remembers, and every GPS recording. A restore replaces, and says what is on both
+  sides of that before it does anything.
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
 - **Spraying while recording**: pick the track, type the amounts as they go in,
@@ -120,6 +124,30 @@ The rules live in one place, `DueReminderPlanner`, because they are the whole fe
 Android 13 and later need `POST_NOTIFICATIONS`. Settings asks for it and says plainly
 when it is missing, because a reminder system that is silently not permitted is worse
 than no reminder system at all.
+
+## Backup files
+
+**Back up everything** writes one JSON file to wherever the operator chooses —
+Downloads, a USB stick, an email — holding the whole of what the app knows: tracks and
+their geometry, spray events and the amounts that went out, the product catalogue, the
+amounts each track remembers, and every GPS recording with its fixes.
+
+Ids are carried through in both directions, deliberately. A track, its geometry, its
+sprays and the recording that proves them are joined by id, so a restore that
+renumbered them would produce a database that looks right and connects nothing.
+
+**Restore from a backup** reads the file, shows what it holds beside what the app
+holds now, and only then replaces. Replacement rather than merge, because half of one
+season and half of another is not a state to discover in a paddock. It runs in a single
+transaction, so an interrupted restore leaves the previous data untouched.
+
+Two things are deliberately absent. Downloaded offline imagery: it describes tiles on
+one phone, and the tiles can be fetched again. And the LINZ key, which is a setting
+rather than a record.
+
+Files are versioned (`"format": "spray-day-backup"`, `"version": 1`). An older file
+restores into a newer build, since missing fields fall back to defaults; a file from a
+newer build is refused with an explanation rather than half-read.
 
 ## Build
 

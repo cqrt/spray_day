@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // LINZ Basemaps API key.
@@ -185,6 +186,9 @@ dependencies {
 
     // Due reminders run in the background, so they survive a reboot and Doze.
     implementation(libs.work.runtime.ktx)
+
+    // The backup file format.
+    implementation(libs.kotlinx.serialization.json)
 
     // Mapping and location
     implementation(libs.maplibre.android.sdk)

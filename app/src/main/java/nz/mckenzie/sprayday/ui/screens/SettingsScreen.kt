@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,6 +65,19 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val remindersEnabled by viewModel.remindersEnabled.collectAsStateWithLifecycle()
     val reminderOutcome by viewModel.reminderOutcome.collectAsStateWithLifecycle()
     val checkingReminders by viewModel.checkingReminders.collectAsStateWithLifecycle()
+    val backupMessage by viewModel.backupMessage.collectAsStateWithLifecycle()
+    val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
+    val pendingRestore by viewModel.pendingRestore.collectAsStateWithLifecycle()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let(viewModel::exportBackupTo) }
+
+    // Any MIME type: a backup can end up on a stick or in an email, and being unable
+    // to select the file is worse than a lax filter.
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let(viewModel::chooseBackupToRestore) }
 
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -82,6 +96,27 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     LifecycleResumeEffect(Unit) {
         notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
         onPauseOrDispose { }
+    }
+
+    // Restoring replaces everything, so the numbers on both sides are shown first.
+    pendingRestore?.let { pending ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelRestore,
+            title = { Text("Restore this backup?") },
+            text = {
+                Text(
+                    "The file holds ${pending.file.describe()}.\n\n" +
+                        "Restoring replaces what is in the app now " +
+                        "(${pending.current.describe()}). This cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmRestore) { Text("Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelRestore) { Text("Cancel") }
+            }
+        )
     }
 
     Scaffold(
@@ -232,6 +267,43 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     ) {
                         Text(if (checkingReminders) "Checking…" else "Check now")
                     }
+                }
+            }
+
+            Card {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Your data", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Everything the app holds: tracks and their lines, every spray " +
+                            "with its amounts, products, and GPS recordings.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { exportLauncher.launch(viewModel.backupFileName()) },
+                            enabled = !backupBusy
+                        ) {
+                            Text("Back up everything")
+                        }
+                        OutlinedButton(
+                            onClick = { restoreLauncher.launch(arrayOf("*/*")) },
+                            enabled = !backupBusy
+                        ) {
+                            Text("Restore from a backup")
+                        }
+                    }
+                    backupMessage?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+                    Text(
+                        text = "Downloaded offline imagery is not in the backup: it describes " +
+                            "tiles on this phone and can be downloaded again.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
 

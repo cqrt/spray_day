@@ -15,12 +15,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.data.SettingsRepository
+import nz.mckenzie.sprayday.data.ReminderStateStore
+import nz.mckenzie.sprayday.data.TrackRepository
+import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.offline.KeyCheck
 import nz.mckenzie.sprayday.offline.LinzKeyProbe
 import nz.mckenzie.sprayday.offline.OfflineTileStore
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.offline.TileStoreSummary
 import nz.mckenzie.sprayday.offline.maskKey
+import nz.mckenzie.sprayday.reminders.DueReminderCheck
+import nz.mckenzie.sprayday.reminders.ReminderNotifier
+import nz.mckenzie.sprayday.reminders.ReminderOutcome
 
 /** Where the key currently in use came from. */
 enum class KeySource { BUILT_IN, ENTERED, NONE }
@@ -34,18 +40,24 @@ sealed interface KeyCheckState {
 }
 
 /**
- * The app's settings, which today means the LINZ Basemaps key.
+ * The app's settings: the LINZ Basemaps key, and whether to be reminded about tracks
+ * that come due.
  *
- * This exists because a standard-access key expires every 90 days and the failure is
- * silent: the map just stops drawing. Before this screen there was no way to enter a
- * new key at all, so an expired key meant waiting for a new build.
+ * The key matters because a standard-access key expires every 90 days and the failure
+ * is silent: the map just stops drawing. Before this screen there was no way to enter
+ * a new key at all, so an expired key meant waiting for a new build.
  */
 class SettingsViewModel(
     private val settings: SettingsRepository,
     private val store: OfflineTileStore,
     private val probe: LinzKeyProbe = LinzKeyProbe(),
     /** Injected so tests never reach LINZ. */
-    private val checkKey: suspend (String) -> KeyCheck = { probe.check(it) }
+    private val checkKey: suspend (String) -> KeyCheck = { probe.check(it) },
+    /**
+     * Runs one due-reminder check. Built by the factory rather than here, so this view
+     * model needs no database and a test can answer without one.
+     */
+    private val runReminderCheck: (suspend () -> ReminderOutcome)? = null
 ) : ViewModel() {
 
     /** The key as typed, seeded from what is stored rather than from the default. */
@@ -87,6 +99,23 @@ class SettingsViewModel(
 
     private val _storedTiles = MutableStateFlow(TileStoreSummary(0, 0))
     val storedTiles: StateFlow<TileStoreSummary> = _storedTiles
+
+    /**
+     * Whether the app tells the operator when tracks come due.
+     *
+     * Turning it on or off only writes the setting: the application watches it and
+     * enqueues or cancels the background work, so there is one place that keeps the
+     * schedule honest.
+     */
+    val remindersEnabled: StateFlow<Boolean> = settings.remindersEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+
+    /** What the last Check now said, in the operator's words. */
+    private val _reminderOutcome = MutableStateFlow<String?>(null)
+    val reminderOutcome: StateFlow<String?> = _reminderOutcome
+
+    private val _checkingReminders = MutableStateFlow(false)
+    val checkingReminders: StateFlow<Boolean> = _checkingReminders
 
     val versionLabel: String = "version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
@@ -147,6 +176,33 @@ class SettingsViewModel(
         }
     }
 
+    /** Turns the twice-daily check on or off. The application keeps the work in step. */
+    fun setRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settings.setRemindersEnabled(enabled)
+            _reminderOutcome.value = if (enabled) {
+                "Reminders on: tracks are checked twice a day."
+            } else {
+                "Reminders off. Nothing will be posted in the background."
+            }
+        }
+    }
+
+    /**
+     * Runs the check straight away and reports what it did, rather than making the
+     * operator wait half a day to find out whether reminders work.
+     */
+    fun checkRemindersNow() {
+        val check = runReminderCheck ?: return
+        viewModelScope.launch {
+            _checkingReminders.value = true
+            _reminderOutcome.value = runCatching { check() }
+                .map { it.message }
+                .getOrElse { it.message ?: "The reminder check could not run" }
+            _checkingReminders.value = false
+        }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
@@ -164,7 +220,14 @@ class SettingsViewModel(
                 initializer {
                     SettingsViewModel(
                         settings = SettingsRepository(appContext),
-                        store = TileServerHolder.store(appContext)
+                        store = TileServerHolder.store(appContext),
+                        runReminderCheck = {
+                            DueReminderCheck(
+                                tracks = TrackRepository(SprayDayDatabase.get(appContext)),
+                                store = ReminderStateStore(appContext),
+                                notifier = ReminderNotifier(appContext)
+                            ).run()
+                        }
                     )
                 }
             }

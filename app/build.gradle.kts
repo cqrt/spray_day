@@ -183,6 +183,9 @@ dependencies {
     // Settings storage
     implementation(libs.datastore.preferences)
 
+    // Due reminders run in the background, so they survive a reboot and Doze.
+    implementation(libs.work.runtime.ktx)
+
     // Mapping and location
     implementation(libs.maplibre.android.sdk)
     implementation(libs.play.services.location)

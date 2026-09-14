@@ -14,4 +14,7 @@
     <string name="recording_notification_title">Recording spray track</string>
     <string name="recording_notification_text">%1$s \u00b7 %2$d points</string>
     <string name="recording_paused_text">Paused</string>
+    <!-- Due reminders -->
+    <string name="due_channel_name">Spray reminders</string>
+    <string name="due_channel_description">Tells you when planned tracks are due for spraying</string>
 </resources>

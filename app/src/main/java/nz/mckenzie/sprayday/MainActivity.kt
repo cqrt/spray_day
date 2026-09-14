@@ -1,10 +1,12 @@
 package nz.mckenzie.sprayday
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,9 +40,17 @@ import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * A screen asked for by whatever started the activity - today, a tap on a due
+     * reminder. Held outside the composition so `onNewIntent` can set it too.
+     */
+    private val requestedDestination = mutableStateOf<Destination?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestedDestination.value = destinationFrom(intent)
         setContent {
             SprayDayTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
@@ -55,6 +65,15 @@ class MainActivity : ComponentActivity() {
                 // System back always returns to the map rather than leaving the app.
                 BackHandler(enabled = destination != Destination.MAP) {
                     destination = Destination.MAP
+                }
+
+                // A reminder tap asks for the track list. Done here rather than in the
+                // initial value so it also works when the app was already open.
+                LaunchedEffect(requestedDestination.value) {
+                    requestedDestination.value?.let { wanted ->
+                        destination = wanted
+                        requestedDestination.value = null
+                    }
                 }
 
                 when (destination) {
@@ -210,6 +229,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** The app was already open when the reminder was tapped. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        requestedDestination.value = destinationFrom(intent)
+    }
+
+    companion object {
+        /** The screen an intent would like opened, e.g. from a due reminder. */
+        const val EXTRA_DESTINATION = "nz.mckenzie.sprayday.extra.DESTINATION"
+        const val DESTINATION_TRACKS = "tracks"
+
+        private fun destinationFrom(intent: Intent?): Destination? =
+            when (intent?.getStringExtra(EXTRA_DESTINATION)) {
+                DESTINATION_TRACKS -> Destination.TRACKS
+                else -> null
+            }
     }
 }
 

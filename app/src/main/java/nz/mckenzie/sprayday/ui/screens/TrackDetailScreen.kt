@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.db.TrackEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
+import nz.mckenzie.sprayday.domain.due.DuePhrase
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.map.TrackColors
@@ -48,6 +49,7 @@ import nz.mckenzie.sprayday.ui.TrackEdits
 import nz.mckenzie.sprayday.ui.formatArea
 import nz.mckenzie.sprayday.ui.formatDate
 import nz.mckenzie.sprayday.ui.formatDistance
+import nz.mckenzie.sprayday.ui.formatIntervalDays
 import nz.mckenzie.sprayday.ui.formatPlainNumber
 import nz.mckenzie.sprayday.ui.formatQuantityWithUnit
 import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
@@ -142,7 +144,7 @@ fun TrackDetailScreen(
                     )
                     Text(
                         text = "${history.size} spray${if (history.size == 1) "" else "s"} recorded" +
-                            (track?.intervalDays?.let { " \u00b7 every $it days" } ?: ""),
+                            (track?.intervalDays?.let { " \u00b7 ${formatIntervalDays(it)}" } ?: ""),
                         style = MaterialTheme.typography.bodySmall
                     )
                     track?.notes?.takeIf { it.isNotBlank() }?.let {
@@ -343,16 +345,5 @@ private fun TrackEditDialog(
 }
 
 /** Operator wording for the traffic light. */
-internal fun dueText(due: DueInfo?): String = when (due?.status) {
-    null -> "Checking due date"
-    DueStatus.NEVER_SPRAYED -> "Never sprayed"
-    else -> {
-        val days = due.daysUntilDue ?: 0L
-        when {
-            days < 0L -> "${-days} days overdue"
-            days == 0L -> "Due today"
-            days == 1L -> "Due tomorrow"
-            else -> "Due in $days days"
-        }
-    }
-}
+internal fun dueText(due: DueInfo?): String =
+    due?.let { DuePhrase.of(it.status, it.daysUntilDue) } ?: "Checking due date"

@@ -67,4 +67,11 @@ class FormattingTest {
         assertEquals("51.5074\u00b0N, 0.1278\u00b0W", formatCoordinates(51.5074, -0.1278))
         assertEquals("0.0000\u00b0N, 0.0000\u00b0E", formatCoordinates(0.0, 0.0))
     }
+
+    @Test
+    fun `an interval reads as an interval, not as "every 1 days"`() {
+        assertEquals("every 1 day", formatIntervalDays(1))
+        assertEquals("every 45 days", formatIntervalDays(45))
+        assertEquals("every 120 days", formatIntervalDays(120))
+    }
 }

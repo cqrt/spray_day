@@ -24,6 +24,9 @@ sprayed).
 - **Spray records**: pick a track, enter the products and the **mL of each**,
   save. The track turns green and its history starts. Amounts are remembered per
   track, so the next pass is a confirmation rather than a retype.
+- **Due reminders**: a notification when a track comes due, so a spray window is not
+  discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
+  is not nagged about.
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
 - **Spraying while recording**: pick the track, type the amounts as they go in,
@@ -97,6 +100,26 @@ been and is blank somewhere new, rather than as an obviously broken map. That is
 also why **Check** probes LINZ's hosted *style* document instead of a tile: the
 style is enforced per key even on a path everyone requests (`400` bogus, `200`
 real), whereas a tile probe calls a dead key good.
+
+## Reminders
+
+The same check runs twice a day in the background (WorkManager, so it survives a
+reboot and waits for the phone to come out of Doze) and on demand from **Check now**
+in Settings — which is also how you find out what the background job would do.
+
+The rules live in one place, `DueReminderPlanner`, because they are the whole feature:
+
+- a track is mentioned when it first becomes due, again if it goes from *due soon* to
+  *overdue* (that escalation is the news), and after that at most once a week while it
+  stays due;
+- a never-sprayed track is left alone until it is as old as the lead time: a line drawn
+  this morning has not been missed, it has just been drawn;
+- nothing is recorded as "already said" unless the notification actually appeared, so
+  turning notifications on later does not find a week of reminders already spent.
+
+Android 13 and later need `POST_NOTIFICATIONS`. Settings asks for it and says plainly
+when it is missing, because a reminder system that is silently not permitted is worse
+than no reminder system at all.
 
 ## Build
 

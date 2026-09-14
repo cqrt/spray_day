@@ -1,9 +1,16 @@
 package nz.mckenzie.sprayday.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,14 +23,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.viewmodel.KeyCheckState
 import nz.mckenzie.sprayday.viewmodel.KeySource
@@ -46,8 +61,28 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val storedTiles by viewModel.storedTiles.collectAsStateWithLifecycle()
+    val remindersEnabled by viewModel.remindersEnabled.collectAsStateWithLifecycle()
+    val reminderOutcome by viewModel.reminderOutcome.collectAsStateWithLifecycle()
+    val checkingReminders by viewModel.checkingReminders.collectAsStateWithLifecycle()
 
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+
+    var notificationsAllowed by remember {
+        mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsAllowed = granted && NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    // Returning from system settings is the other way this can change, so re-read it
+    // whenever the screen comes back to the front.
+    LifecycleResumeEffect(Unit) {
+        notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         topBar = {
@@ -142,6 +177,67 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Reminders", style = MaterialTheme.typography.titleMedium)
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Switch(
+                            checked = remindersEnabled,
+                            onCheckedChange = viewModel::setRemindersEnabled
+                        )
+                        Text(
+                            text = "Tell me when tracks are due",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Text(
+                        text = "Tracks are checked twice a day. You are told when one first " +
+                            "becomes due, again if it goes from due soon to overdue, and after " +
+                            "that at most once a week while it stays due.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    if (!notificationsAllowed) {
+                        Text(
+                            text = "Android needs permission before any reminder can appear, " +
+                                "so nothing will be posted until this is allowed.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                            ) {
+                                Text("Allow notifications")
+                            }
+                            TextButton(onClick = { openNotificationSettings(context) }) {
+                                Text("Notification settings")
+                            }
+                        }
+                    }
+
+                    reminderOutcome?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+
+                    OutlinedButton(
+                        onClick = viewModel::checkRemindersNow,
+                        enabled = !checkingReminders
+                    ) {
+                        Text(if (checkingReminders) "Checking…" else "Check now")
+                    }
+                }
+            }
+
+            Card {
+                Column(
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("This device", style = MaterialTheme.typography.titleMedium)
@@ -159,6 +255,18 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * Android's own per-app notification settings, which is where a prompt that will not
+ * appear again gets undone.
+ */
+private fun openNotificationSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
 }
 
 private fun sourceLabel(source: KeySource): String = when (source) {

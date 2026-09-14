@@ -1,7 +1,13 @@
 package nz.mckenzie.sprayday
 
 import android.app.Application
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.offline.TileServerHolder
+import nz.mckenzie.sprayday.reminders.DueReminderScheduler
 import org.maplibre.android.MapLibre
 
 class SprayDayApplication : Application() {
@@ -23,5 +29,13 @@ class SprayDayApplication : Application() {
         // or not there is a network, and anything browsed online is kept for
         // offline use.
         TileServerHolder.start(this)
+
+        // Keep the reminder schedule in step with the setting, whatever changes it -
+        // the settings switch, or a restore putting the setting back.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            SettingsRepository(this@SprayDayApplication).remindersEnabled.collect { enabled ->
+                DueReminderScheduler.sync(this@SprayDayApplication, enabled)
+            }
+        }
     }
 }

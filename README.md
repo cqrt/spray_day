@@ -17,6 +17,10 @@ sprayed).
   and reports LINZ's own answer — accepted, expired, or rate limited.
 - **Tracks** as first-class objects: import GPX, draw them by tapping the map, or
   record them by driving the line.
+- **Per-track settings**: each track carries its own spray interval (120 days is
+  only the default), the boom's swath width for a treated-area estimate, a block
+  or area label, and notes. The interval is what the traffic light uses, so a
+  block sprayed on a shorter cycle turns yellow on its own schedule.
 - **Spray records**: pick a track, enter the products and the **mL of each**,
   save. The track turns green and its history starts. Amounts are remembered per
   track, so the next pass is a confirmation rather than a retype.

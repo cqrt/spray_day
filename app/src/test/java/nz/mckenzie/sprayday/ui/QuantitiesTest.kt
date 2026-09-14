@@ -31,6 +31,9 @@ class QuantitiesTest {
     fun `amounts drop a pointless decimal`() {
         assertEquals("1450", formatQuantityMl(1450.0))
         assertEquals("120.5", formatQuantityMl(120.5))
+        // The same rule serves form fields, where "6.0" has to read back as "6".
+        assertEquals("6", formatPlainNumber(6.0))
+        assertEquals("4.5", formatPlainNumber(4.5))
     }
 
     @Test

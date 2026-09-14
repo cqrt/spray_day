@@ -18,13 +18,16 @@ fun parsePositiveAmount(text: String): Double? {
     return cleaned.toDoubleOrNull()?.takeIf { it > 0.0 }
 }
 
-/** "1450" / "120.5" - drops a pointless ".0" so amounts read cleanly. */
-fun formatQuantityMl(ml: Double): String =
-    if (ml == Math.floor(ml) && !ml.isInfinite()) {
-        ml.toLong().toString()
+/** "1450" / "120.5" - drops a pointless ".0" so numbers read cleanly. */
+fun formatPlainNumber(value: Double): String =
+    if (value == Math.floor(value) && !value.isInfinite()) {
+        value.toLong().toString()
     } else {
-        String.format(Locale.US, "%.1f", ml)
+        String.format(Locale.US, "%.1f", value)
     }
+
+/** A number as it should appear in a form field, so it can be edited and read back. */
+fun formatQuantityMl(ml: Double): String = formatPlainNumber(ml)
 
 /** "1450 mL" / "145 L" once the amount is big enough to read better in litres. */
 fun formatQuantityWithUnit(ml: Double): String =

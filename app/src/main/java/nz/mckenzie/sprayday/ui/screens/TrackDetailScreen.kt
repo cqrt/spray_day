@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -20,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,17 +33,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.data.db.TrackEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.map.TrackColors
 import nz.mckenzie.sprayday.map.TrackGeoJson
 import nz.mckenzie.sprayday.map.TrackLine
+import nz.mckenzie.sprayday.ui.TrackEditResult
+import nz.mckenzie.sprayday.ui.TrackEdits
 import nz.mckenzie.sprayday.ui.formatArea
 import nz.mckenzie.sprayday.ui.formatDate
 import nz.mckenzie.sprayday.ui.formatDistance
+import nz.mckenzie.sprayday.ui.formatPlainNumber
 import nz.mckenzie.sprayday.ui.formatQuantityWithUnit
 import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 
@@ -81,6 +88,7 @@ fun TrackDetailScreen(
     ) { uri -> uri?.let(viewModel::exportGpx) }
 
     var confirmingDelete by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -124,6 +132,9 @@ fun TrackDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(dueText(due), style = MaterialTheme.typography.titleMedium)
+                    track?.areaLabel?.takeIf { it.isNotBlank() }?.let { label ->
+                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                    }
                     Text(
                         text = "Length ${formatDistance(track?.lengthM ?: 0.0)}" +
                             (viewModel.areaSqm?.let { " \u00b7 about ${formatArea(it)}" } ?: ""),
@@ -149,6 +160,7 @@ fun TrackDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(onClick = onRecordSpray) { Text("Record spray") }
+                OutlinedButton(onClick = { editing = true }) { Text("Edit") }
                 OutlinedButton(
                     onClick = { exportLauncher.launch("${track?.name ?: "track"}.gpx") }
                 ) {
@@ -221,6 +233,113 @@ fun TrackDetailScreen(
             }
         )
     }
+
+    // The track is re-read rather than copied once, so a rename while the dialog is
+    // open cannot be saved back as a stale name.
+    track?.takeIf { editing }?.let { current ->
+        TrackEditDialog(
+            track = current,
+            onDismiss = { editing = false },
+            onSave = { edited ->
+                viewModel.save(edited)
+                editing = false
+            }
+        )
+    }
+}
+
+/**
+ * The per-track settings: what it is called, how often it is sprayed, how wide the
+ * boom is, and anything worth remembering about it.
+ *
+ * A track's interval used to be the same 120 days for everything, because there was
+ * nowhere to change it. It is now this field, and the traffic light follows it.
+ */
+@Composable
+private fun TrackEditDialog(
+    track: TrackEntity,
+    onDismiss: () -> Unit,
+    onSave: (TrackEntity) -> Unit
+) {
+    var name by remember { mutableStateOf(track.name) }
+    var areaLabel by remember { mutableStateOf(track.areaLabel.orEmpty()) }
+    var intervalDays by remember { mutableStateOf(track.intervalDays.toString()) }
+    var swathWidth by remember {
+        mutableStateOf(track.swathWidthM?.let(::formatPlainNumber).orEmpty())
+    }
+    var notes by remember { mutableStateOf(track.notes.orEmpty()) }
+    var problem by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit track") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; problem = null },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = areaLabel,
+                    onValueChange = { areaLabel = it; problem = null },
+                    label = { Text("Block or area") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = intervalDays,
+                    onValueChange = { intervalDays = it; problem = null },
+                    label = { Text("Days between sprays") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = swathWidth,
+                    onValueChange = { swathWidth = it; problem = null },
+                    label = { Text("Swath width (m)") },
+                    supportingText = { Text("Used for the treated-area estimate; leave empty if unknown") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it; problem = null },
+                    label = { Text("Notes") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                problem?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                // Refused edits keep the dialog open with the reason showing: closing it
+                // would leave the operator believing the change was stored.
+                when (val result = TrackEdits.apply(track, name, areaLabel, intervalDays, swathWidth, notes)) {
+                    is TrackEditResult.Ok -> onSave(result.track)
+                    is TrackEditResult.Invalid -> problem = result.message
+                }
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 /** Operator wording for the traffic light. */

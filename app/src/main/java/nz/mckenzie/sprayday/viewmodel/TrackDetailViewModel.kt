@@ -111,6 +111,21 @@ class TrackDetailViewModel(
         }
     }
 
+    /**
+     * Stores edits made on this screen.
+     *
+     * The fields were checked by [nz.mckenzie.sprayday.ui.TrackEdits] before this is
+     * called, so anything arriving here is already fit to store - which also means the
+     * interval set here is what the traffic light uses from now on.
+     */
+    fun save(track: TrackEntity) {
+        viewModelScope.launch {
+            runCatching { tracks.updateTrack(track) }
+                .onSuccess { _message.value = "Saved" }
+                .onFailure { _message.value = it.message ?: "Could not save the track" }
+        }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 

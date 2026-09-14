@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -55,54 +54,17 @@ class MapViewModel(
 
     private val geometryByTrack = MutableStateFlow<Map<Long, List<GeoPoint>>>(emptyMap())
 
-    /** Bounding box of all planned track geometry, used to frame the camera. */
-    private val trackBounds: StateFlow<LatLngBounds?> = geometryByTrack
-        .map { geometry ->
-            val points = geometry.values.flatten()
-            if (points.isEmpty()) {
-                null
-            } else {
-                LatLngBounds(
-                    minLat = points.minOf { it.lat },
-                    minLng = points.minOf { it.lng },
-                    maxLat = points.maxOf { it.lat },
-                    maxLng = points.maxOf { it.lng }
-                )
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
-
     /**
-     * A frame around the device's own position, for the first run - before there is
-     * any track to show.
-     */
-    private val startBounds = MutableStateFlow<LatLngBounds?>(null)
-
-    /** Set once the tracks have actually been read, as opposed to not read yet. */
-    private val tracksLoaded = MutableStateFlow(false)
-
-    /**
-     * What the camera should frame when the map opens, in order of preference: the
-     * operator's own tracks, then where the device is, then nothing at all (in which
-     * case the map keeps its neutral country-wide view).
+     * The frame for the camera when the map opens: the operator's own tracks, else
+     * where the device is, else nothing (the map keeps its neutral country-wide view).
      *
-     * Tracks that exist but whose geometry is still loading return null rather than
-     * the device position, so the camera does not first fly to a 1 km box around the
-     * phone and then refuse to move to the work.
+     * Decided once, by asking the database for the tracks' bounds and only falling back
+     * to a fix if there are none. It used to be a combination of live flows, which lost
+     * a race: the tracks flow starts empty, so a location fix arriving first won the
+     * one-and-only frame and the map stayed on the phone instead of the work.
      */
-    val initialFrame: StateFlow<LatLngBounds?> =
-        combine(trackBounds, startBounds, tracksWithDue, tracksLoaded) { tracks, location, allTracks, loaded ->
-            when {
-                tracks != null -> tracks
-                // Before the tracks have been read at all, an empty list means "not yet",
-                // not "none". Treating the two the same framed the camera on the phone
-                // whenever a location fix arrived first, and the map then stayed there:
-                // one frame is applied, once.
-                !loaded -> null
-                allTracks.isNotEmpty() -> null
-                else -> location
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+    private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
+    val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
 
     val trackGeoJson: StateFlow<String> = combine(tracksWithDue, geometryByTrack) { tracks, geometry ->
         TrackGeoJson.build(
@@ -123,28 +85,9 @@ class MapViewModel(
 
     init {
         viewModelScope.launch {
-            // Reading the repository directly is what tells us the difference between
-            // "no tracks" and "not asked yet": the state flow above starts with an empty
-            // list either way.
-            trackRepository.observeTracksWithDue(dueNow).first()
-            tracksLoaded.value = true
-        }
-
-        viewModelScope.launch {
-            // Where the device is, for the first run. Null when location is not
-            // permitted, which is fine: the tracks or the country-wide default answer
-            // the same question.
-            val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-                runCatching { locationSource.currentLocation() }.getOrNull()
-            }
-            if (fix != null) {
-                startBounds.value = LatLngBounds(
-                    minLat = fix.lat - START_FRAME_DEGREES,
-                    minLng = fix.lng - START_FRAME_DEGREES,
-                    maxLat = fix.lat + START_FRAME_DEGREES,
-                    maxLng = fix.lng + START_FRAME_DEGREES
-                )
-            }
+            // One decision, in order: the work if there is any, otherwise the phone.
+            val fromTracks = runCatching { trackRepository.trackBounds() }.getOrNull()
+            _initialFrame.value = fromTracks ?: deviceBounds()
         }
 
         viewModelScope.launch {
@@ -167,6 +110,20 @@ class MapViewModel(
     /** The track under a tap on the map, or null when the tap was not on one. */
     fun trackAt(lat: Double, lng: Double, radiusM: Double = TrackHitTest.DEFAULT_TOLERANCE_M): Long? =
         TrackHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
+
+    /** A small frame around the device, for a first run with nothing drawn yet. */
+    private suspend fun deviceBounds(): LatLngBounds? {
+        val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+            runCatching { locationSource.currentLocation() }.getOrNull()
+        } ?: return null
+
+        return LatLngBounds(
+            minLat = fix.lat - START_FRAME_DEGREES,
+            minLng = fix.lng - START_FRAME_DEGREES,
+            maxLat = fix.lat + START_FRAME_DEGREES,
+            maxLng = fix.lng + START_FRAME_DEGREES
+        )
+    }
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L

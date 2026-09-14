@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.data.BackupController
 import nz.mckenzie.sprayday.data.BackupRepository
+import nz.mckenzie.sprayday.data.HandoverController
+import nz.mckenzie.sprayday.data.HandoverRepository
 import nz.mckenzie.sprayday.data.ReminderStateStore
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.TrackRepository
@@ -63,7 +65,9 @@ class SettingsViewModel(
      */
     private val runReminderCheck: (suspend () -> ReminderOutcome)? = null,
     /** Backup files: chosen by the operator, read and written by the app. */
-    private val backup: BackupController? = null
+    private val backup: BackupController? = null,
+    /** The season as a handover record. */
+    private val handover: HandoverController? = null
 ) : ViewModel() {
 
     /** The key as typed, seeded from what is stored rather than from the default. */
@@ -123,12 +127,12 @@ class SettingsViewModel(
     private val _checkingReminders = MutableStateFlow(false)
     val checkingReminders: StateFlow<Boolean> = _checkingReminders
 
-    /** What the last backup or restore said. */
-    private val _backupMessage = MutableStateFlow<String?>(null)
-    val backupMessage: StateFlow<String?> = _backupMessage
+    /** What the last backup, restore or handover said. One line, because it is one card. */
+    private val _dataMessage = MutableStateFlow<String?>(null)
+    val dataMessage: StateFlow<String?> = _dataMessage
 
-    private val _backupBusy = MutableStateFlow(false)
-    val backupBusy: StateFlow<Boolean> = _backupBusy
+    private val _dataBusy = MutableStateFlow(false)
+    val dataBusy: StateFlow<Boolean> = _dataBusy
 
     /** A chosen file waiting to be restored, with both sides of the trade in numbers. */
     private val _pendingRestore = MutableStateFlow<PendingRestore?>(null)
@@ -234,11 +238,32 @@ class SettingsViewModel(
     fun exportBackupTo(uri: Uri) {
         val controller = backup ?: return
         viewModelScope.launch {
-            _backupBusy.value = true
-            _backupMessage.value = runCatching { controller.exportTo(uri) }
+            _dataBusy.value = true
+            _dataMessage.value = runCatching { controller.exportTo(uri) }
                 .map { summary -> "Backed up ${summary.describe()}." }
                 .getOrElse { "Nothing was written: ${it.message}" }
-            _backupBusy.value = false
+            _dataBusy.value = false
+        }
+    }
+
+    /** "spray-day-sprays-2026-09-14.csv" - the season as a spreadsheet for somebody else. */
+    fun handoverFileName(): String = handover?.suggestedFileName() ?: "spray-day-sprays.csv"
+
+    /** Writes every spray of every track as a handover record. */
+    fun exportHandoverTo(uri: Uri) {
+        val controller = handover ?: return
+        viewModelScope.launch {
+            _dataBusy.value = true
+            _dataMessage.value = runCatching { controller.exportTo(uri) }
+                .map { sprays ->
+                    if (sprays == 0) {
+                        "Nothing has been sprayed yet, so the file has only column names."
+                    } else {
+                        "Handed over $sprays spray${if (sprays == 1) "" else "s"}."
+                    }
+                }
+                .getOrElse { "Nothing was written: ${it.message}" }
+            _dataBusy.value = false
         }
     }
 
@@ -249,12 +274,12 @@ class SettingsViewModel(
     fun chooseBackupToRestore(uri: Uri) {
         val controller = backup ?: return
         viewModelScope.launch {
-            _backupBusy.value = true
-            _backupMessage.value = null
+            _dataBusy.value = true
+            _dataMessage.value = null
             runCatching { PendingRestore(uri, controller.inspect(uri), controller.currentSummary()) }
                 .onSuccess { _pendingRestore.value = it }
-                .onFailure { _backupMessage.value = it.message }
-            _backupBusy.value = false
+                .onFailure { _dataMessage.value = it.message }
+            _dataBusy.value = false
         }
     }
 
@@ -262,12 +287,12 @@ class SettingsViewModel(
         val controller = backup ?: return
         val pending = _pendingRestore.value ?: return
         viewModelScope.launch {
-            _backupBusy.value = true
-            _backupMessage.value = runCatching { controller.restoreFrom(pending.uri) }
+            _dataBusy.value = true
+            _dataMessage.value = runCatching { controller.restoreFrom(pending.uri) }
                 .map { summary -> "Restored ${summary.describe()}." }
                 .getOrElse { "Nothing was restored: ${it.message}" }
             _pendingRestore.value = null
-            _backupBusy.value = false
+            _dataBusy.value = false
         }
     }
 
@@ -305,6 +330,10 @@ class SettingsViewModel(
                                 db = SprayDayDatabase.get(appContext),
                                 appVersion = BuildConfig.VERSION_NAME
                             ),
+                            context = appContext
+                        ),
+                        handover = HandoverController(
+                            repository = HandoverRepository(SprayDayDatabase.get(appContext)),
                             context = appContext
                         )
                     )

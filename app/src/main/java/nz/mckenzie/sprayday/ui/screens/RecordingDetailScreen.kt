@@ -2,6 +2,8 @@ package nz.mckenzie.sprayday.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -47,9 +50,13 @@ import kotlin.math.abs
  * Coverage is recomputed from the stored geometry rather than remembered, so this
  * stays truthful even if the planned track has been edited since.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun RecordingDetailScreen(viewModel: RecordingDetailViewModel, onBack: () -> Unit) {
+fun RecordingDetailScreen(
+    viewModel: RecordingDetailViewModel,
+    onBack: () -> Unit,
+    onLogSpray: (Long) -> Unit = {}
+) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val geoJson by viewModel.geoJson.collectAsStateWithLifecycle()
@@ -165,11 +172,14 @@ fun RecordingDetailScreen(viewModel: RecordingDetailViewModel, onBack: () -> Uni
 
                 message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    detail?.trackId?.let { trackId ->
+                        Button(onClick = { onLogSpray(trackId) }) { Text("Log a spray") }
+                    }
                     OutlinedButton(onClick = { confirmingDelete = true }) { Text("Delete recording") }
                 }
             }

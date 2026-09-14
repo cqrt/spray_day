@@ -41,7 +41,8 @@ fun MapScreen(
     viewModel: MapViewModel,
     onOpenTracks: () -> Unit = {},
     onOpenOffline: () -> Unit = {},
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    onOpenTrack: (Long) -> Unit = {}
 ) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
@@ -70,6 +71,10 @@ fun MapScreen(
                 // The operator's own tracks first; failing that, where the device is;
                 // failing that, the neutral country-wide default.
                 fitBounds = initialFrame,
+                // Tapping a track opens it: the map is where they are looking when they
+                // wonder about a block. The radius comes from the map's zoom, so the tap
+                // works at country scale as well as at spray height.
+                onMapClick = { lat, lng, radiusM -> viewModel.trackAt(lat, lng, radiusM)?.let(onOpenTrack) },
                 modifier = Modifier.fillMaxSize()
             )
 

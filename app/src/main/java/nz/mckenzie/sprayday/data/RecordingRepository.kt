@@ -80,6 +80,15 @@ class RecordingRepository(private val db: SprayDayDatabase) {
 
     fun observeSessions(): Flow<List<RecordedSessionEntity>> = recordingDao.observeSessions()
 
+    /**
+     * Recordings made for one planned track.
+     *
+     * The link is a soft one (a recording outlives the plan it was made for), so this
+     * filters rather than joins.
+     */
+    fun observeSessionsForTrack(trackId: Long): Flow<List<RecordedSessionEntity>> =
+        recordingDao.observeSessions().map { sessions -> sessions.filter { it.trackId == trackId } }
+
     suspend fun getSession(sessionId: Long): RecordedSessionEntity? = recordingDao.getSession(sessionId)
 
     /**

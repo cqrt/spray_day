@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.TrackRepository
@@ -151,6 +152,7 @@ class TrackDetailViewModelTest {
         trackId = trackId,
         tracks = tracks,
         sprays = SprayRepository(db),
+        recordingsRepository = RecordingRepository(db),
         settingsRepository = SettingsRepository(context),
         context = context
     )

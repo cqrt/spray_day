@@ -65,8 +65,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val remindersEnabled by viewModel.remindersEnabled.collectAsStateWithLifecycle()
     val reminderOutcome by viewModel.reminderOutcome.collectAsStateWithLifecycle()
     val checkingReminders by viewModel.checkingReminders.collectAsStateWithLifecycle()
-    val backupMessage by viewModel.backupMessage.collectAsStateWithLifecycle()
-    val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
+    val dataMessage by viewModel.dataMessage.collectAsStateWithLifecycle()
+    val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
     val pendingRestore by viewModel.pendingRestore.collectAsStateWithLifecycle()
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -78,6 +78,10 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let(viewModel::chooseBackupToRestore) }
+
+    val handoverLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let(viewModel::exportHandoverTo) }
 
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -287,21 +291,33 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     ) {
                         Button(
                             onClick = { exportLauncher.launch(viewModel.backupFileName()) },
-                            enabled = !backupBusy
+                            enabled = !dataBusy
                         ) {
                             Text("Back up everything")
                         }
                         OutlinedButton(
                             onClick = { restoreLauncher.launch(arrayOf("*/*")) },
-                            enabled = !backupBusy
+                            enabled = !dataBusy
                         ) {
                             Text("Restore from a backup")
                         }
+                        OutlinedButton(
+                            onClick = { handoverLauncher.launch(viewModel.handoverFileName()) },
+                            enabled = !dataBusy
+                        ) {
+                            Text("Handover record (CSV)")
+                        }
                     }
-                    backupMessage?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+                    dataMessage?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
                     Text(
                         text = "Downloaded offline imagery is not in the backup: it describes " +
                             "tiles on this phone and can be downloaded again.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "The handover record is one row per product per spray: what " +
+                            "went where, when, and which recording proves it. It opens in a " +
+                            "spreadsheet \u2014 for a client, an auditor, or whoever takes over.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

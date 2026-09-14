@@ -84,7 +84,7 @@ fun OfflineAreaPickerScreen(
                 apiKey = apiKey,
                 trackGeoJson = previewGeoJson,
                 fitBounds = startBounds,
-                onMapClick = { latitude, longitude -> viewModel.tapAt(latitude, longitude) },
+                onMapClick = { latitude, longitude, _ -> viewModel.tapAt(latitude, longitude) },
                 modifier = Modifier.fillMaxSize()
             )
 

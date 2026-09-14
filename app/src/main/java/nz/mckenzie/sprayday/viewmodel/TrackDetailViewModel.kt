@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.TrackRepository
 import nz.mckenzie.sprayday.data.db.ProductQuantityLine
+import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.TrackEntity
@@ -41,6 +43,7 @@ class TrackDetailViewModel(
     private val trackId: Long,
     private val tracks: TrackRepository,
     private val sprays: SprayRepository,
+    private val recordingsRepository: RecordingRepository,
     settingsRepository: SettingsRepository,
     private val context: Context
 ) : ViewModel() {
@@ -79,6 +82,14 @@ class TrackDetailViewModel(
             events.map { event -> SprayHistoryEntry(event, sprays.getSprayEventProductLines(event.id)) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * Every GPS recording made for this track. The evidence behind the sprays, and the
+     * way to check a coverage figure after the fact.
+     */
+    val recordings: StateFlow<List<RecordedSessionEntity>> =
+        recordingsRepository.observeSessionsForTrack(trackId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -138,6 +149,7 @@ class TrackDetailViewModel(
                         trackId = trackId,
                         tracks = TrackRepository(database),
                         sprays = SprayRepository(database),
+                        recordingsRepository = RecordingRepository(database),
                         settingsRepository = SettingsRepository(appContext),
                         context = appContext
                     )

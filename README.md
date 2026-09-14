@@ -27,6 +27,13 @@ sprayed).
 - **Due reminders**: a notification when a track comes due, so a spray window is not
   discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
   is not nagged about.
+- **Handover record**: the season as a CSV — one row per product per spray, with the
+  track, block, amount, water, distance, and the recording that proves it. Dates are
+  ISO so a spreadsheet sorts them, and the file carries a byte-order mark so Excel
+  opens accented names correctly.
+- **The map is the home screen**: every track drawn in its traffic-light colour, and
+  a tap on a track opens it. The tap radius follows the zoom, so a track is tappable
+  zoomed out over the farm as well as at spray height.
 - **Backup and restore**: one JSON file holding the whole season — tracks and their
   lines, every spray with its amounts, the product catalogue, the amounts each track
   remembers, and every GPS recording. A restore replaces, and says what is on both
@@ -148,6 +155,32 @@ rather than a record.
 Files are versioned (`"format": "spray-day-backup"`, `"version": 1`). An older file
 restores into a newer build, since missing fields fall back to defaults; a file from a
 newer build is refused with an explanation rather than half-read.
+
+## Handover records
+
+**Handover record (CSV)**, in the same Settings card, writes the season as a spreadsheet
+for somebody else: one row per product per spray, oldest first.
+
+| Date | Track | Block or area | Product | Amount | Unit | Water (L) | Distance (km) | Area (ha) | Operator | Notes | Recording |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+Three decisions worth knowing about:
+
+- **One row per product, not per spray.** "1.5 L of Glyphosate on Home block on the
+  14th" is the unit an auditor, a client or the next operator asks about, and it is the
+  only shape that adds up in a spreadsheet.
+- **ISO dates** (`2026-09-14 20:50`), because a spreadsheet sorts ISO and has to be
+  told what "14 Sep 2026" means. And **numbers without units in them**: a cell reading
+  `2.35 km` is text to a spreadsheet and cannot be added up.
+- **Escaping is the part that must be right.** A block called `Home, north` or a note
+  containing a quote must not shift every later column, which is worse than a visibly
+  broken file because it still looks like data. That is what the tests here are about.
+
+A UTF-8 byte-order mark is written at the front, which is what stops Excel turning
+"M\u0101ori" into mojibake on Windows.
+
+The record covers sprays, which is what a handover is checked against. The plans
+themselves are in the backup file, and what is still due is on the map.
 
 ## Build
 

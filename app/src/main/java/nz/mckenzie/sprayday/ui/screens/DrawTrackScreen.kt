@@ -73,7 +73,7 @@ fun DrawTrackScreen(viewModel: DrawTrackViewModel, onBack: () -> Unit) {
             LinzMapView(
                 apiKey = apiKey,
                 trackGeoJson = geoJson,
-                onMapClick = viewModel::addPoint,
+                onMapClick = { latitude, longitude, _ -> viewModel.addPoint(latitude, longitude) },
                 modifier = Modifier.fillMaxSize()
             )
 

@@ -60,7 +60,7 @@ fun LinzMapView(
      * screens talking to LINZ directly and some not.
      */
     tileUrlTemplate: String? = TileServerHolder.templateUrl,
-    onMapClick: ((latitude: Double, longitude: Double) -> Unit)? = null,
+    onMapClick: ((latitude: Double, longitude: Double, radiusM: Double) -> Unit)? = null,
     initialTarget: LatLng = DEFAULT_CAMERA_TARGET,
     initialZoom: Double = DEFAULT_CAMERA_ZOOM
 ) {
@@ -94,7 +94,13 @@ fun LinzMapView(
                         if (handler == null) {
                             false
                         } else {
-                            handler(latLng.latitude, latLng.longitude)
+                            // The radius a fingertip covers at this zoom, so a track is
+                            // tappable whether the map is showing a paddock or an island.
+                            handler(
+                                latLng.latitude,
+                                latLng.longitude,
+                                TrackHitTest.toleranceForZoom(map.cameraPosition.zoom, latLng.latitude)
+                            )
                             true
                         }
                     }

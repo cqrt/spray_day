@@ -62,13 +62,15 @@ import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 fun TrackDetailScreen(
     viewModel: TrackDetailViewModel,
     onBack: () -> Unit,
-    onRecordSpray: () -> Unit
+    onRecordSpray: () -> Unit,
+    onOpenRecording: (Long) -> Unit = {}
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
     val geometry by viewModel.geometry.collectAsStateWithLifecycle()
     val bounds by viewModel.bounds.collectAsStateWithLifecycle()
     val due by viewModel.due.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
@@ -212,6 +214,31 @@ fun TrackDetailScreen(
                         entry.event.notes?.takeIf { it.isNotBlank() }?.let {
                             Text(text = it, style = MaterialTheme.typography.bodySmall)
                         }
+                    }
+                }
+            }
+
+            Text("Recordings", style = MaterialTheme.typography.titleSmall)
+            if (recordings.isEmpty()) {
+                Text(
+                    text = "No GPS recording has been made for this track. Recording while " +
+                        "spraying leaves the evidence of what was actually driven.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            recordings.forEach { session ->
+                Card(onClick = { onOpenRecording(session.id) }) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(session.name, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            text = "${formatDate(session.startedAtEpochMs)} \u00b7 " +
+                                "${formatDistance(session.distanceM)} \u00b7 " +
+                                "${session.pointCount} point${if (session.pointCount == 1) "" else "s"}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }

@@ -1,0 +1,195 @@
+package nz.mckenzie.sprayday.domain.handover
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.ZoneId
+
+/**
+ * The handover record.
+ *
+ * The escaping is the part that must be right: a handover record is read by somebody
+ * else's spreadsheet, and one unescaped comma in a block name silently shifts every
+ * later column - which is worse than a visibly broken file, because it still looks
+ * like data.
+ */
+class HandoverCsvTest {
+
+    private val zone = ZoneId.of("Pacific/Auckland")
+
+    /** 2026-09-14 15:32 NZST (03:32 UTC). */
+    private val sprayedAt = 1_789_356_720_000L
+
+    private fun row(
+        trackName: String = "Home block",
+        areaLabel: String? = "Home",
+        productName: String = "Glyphosate",
+        amount: Double = 1500.0,
+        unit: String = "mL",
+        notes: String? = "wind from the south",
+        recordingName: String? = "Home block \u00b7 14 Sep"
+    ) = HandoverRow(
+        sprayedAtEpochMs = sprayedAt,
+        trackName = trackName,
+        areaLabel = areaLabel,
+        productName = productName,
+        amount = amount,
+        unit = unit,
+        waterLitres = 400.0,
+        distanceM = 2350.0,
+        areaSqm = 14_100.0,
+        operatorName = "Matt",
+        notes = notes,
+        recordingName = recordingName
+    )
+
+    private fun lines(csv: String) = csv.trimEnd().split("\r\n")
+
+    @Test
+    fun `the record starts with column names a person can read`() {
+        val csv = HandoverCsv.render(emptyList(), zone)
+
+        assertEquals(
+            "Date,Track,Block or area,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
+            lines(csv).single()
+        )
+    }
+
+    @Test
+    fun `nothing sprayed still produces a usable file`() {
+        val csv = HandoverCsv.render(emptyList(), zone)
+
+        assertEquals("headers only, no stray blank rows", 1, lines(csv).size)
+    }
+
+    @Test
+    fun `a spray reads across the row in the right order`() {
+        val csv = HandoverCsv.render(listOf(row()), zone)
+
+        val values = lines(csv)[1].split(",")
+        assertEquals("2026-09-14 15:32", values[0])
+        assertEquals("Home block", values[1])
+        assertEquals("Home", values[2])
+        assertEquals("Glyphosate", values[3])
+        assertEquals("1500", values[4])
+        assertEquals("mL", values[5])
+        assertEquals("400", values[6])
+        assertEquals("2.35", values[7])
+        assertEquals("1.41", values[8])
+        assertEquals("Matt", values[9])
+        assertEquals("wind from the south", values[10])
+        assertEquals("Home block \u00b7 14 Sep", values[11])
+    }
+
+    @Test
+    fun `a comma in a name does not shift every later column`() {
+        val csv = HandoverCsv.render(listOf(row(trackName = "Home, north")), zone)
+
+        val line = lines(csv)[1]
+        assertTrue("the name should be quoted: $line", line.contains("\"Home, north\""))
+        // Still twelve fields once parsed the way a spreadsheet would.
+        assertEquals(12, parse(line).size)
+        assertEquals("Glyphosate", parse(line)[3])
+        assertEquals("Recording", HandoverCsv.HEADERS[11])
+    }
+
+    @Test
+    fun `a quote in a note is doubled rather than ending the field`() {
+        val csv = HandoverCsv.render(listOf(row(notes = "sprayed the \"wet\" corner")), zone)
+
+        val line = lines(csv)[1]
+        assertTrue("quotes should be doubled: $line", line.contains("\"sprayed the \"\"wet\"\" corner\""))
+    }
+
+    @Test
+    fun `a newline in a note stays inside its field`() {
+        val csv = HandoverCsv.render(listOf(row(notes = "line one\nline two")), zone)
+
+        assertTrue("the note should be quoted", csv.contains("\"line one\nline two\""))
+        // The record still has exactly one data row: the newline is inside the quotes.
+        assertEquals("quoted newlines are part of the field", 12, parseFieldCount(csv, 1))
+    }
+
+    @Test
+    fun `empty fields are empty rather than the word null`() {
+        val csv = HandoverCsv.render(
+            listOf(row(areaLabel = null, notes = null, recordingName = null)),
+            zone
+        )
+
+        val values = parse(lines(csv)[1])
+        assertEquals("", values[2])
+        assertEquals("", values[10])
+        assertEquals("", values[11])
+    }
+
+    @Test
+    fun `a name that is only whitespace is quoted, because it matters`() {
+        assertEquals("\" Home block\"", HandoverCsv.field(" Home block"))
+        assertEquals("Home block", HandoverCsv.field("Home block"))
+        assertEquals("", HandoverCsv.field(""))
+    }
+
+    @Test
+    fun `amounts and distances are numbers, not text with units in them`() {
+        val csv = HandoverCsv.render(listOf(row(amount = 1450.5)), zone)
+
+        val values = lines(csv)[1].split(",")
+        assertEquals("1450.5", values[4])
+        assertTrue("no unit inside a numeric cell", !values[4].contains("mL"))
+        assertTrue("no unit inside a distance cell", !values[7].contains("km"))
+    }
+
+    @Test
+    fun `a spray with no water or distance leaves those cells blank for the same reason`() {
+        val csv = HandoverCsv.render(
+            listOf(
+                HandoverRow(
+                    sprayedAtEpochMs = sprayedAt,
+                    trackName = "Home block",
+                    areaLabel = null,
+                    productName = "Glyphosate",
+                    amount = 900.0,
+                    unit = "mL"
+                )
+            ),
+            zone
+        )
+
+        val values = lines(csv)[1].split(",")
+        assertEquals("900", values[4])
+        assertEquals("", values[6])
+        assertEquals("", values[7])
+    }
+
+    /** Splits a CSV line the way a spreadsheet would: quotes protect commas. */
+    private fun parse(line: String): List<String> {
+        val fields = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        var index = 0
+        while (index < line.length) {
+            val character = line[index]
+            when {
+                character == '"' && inQuotes && line.getOrNull(index + 1) == '"' -> {
+                    current.append('"')
+                    index++
+                }
+
+                character == '"' -> inQuotes = !inQuotes
+                character == ',' && !inQuotes -> {
+                    fields += current.toString()
+                    current.clear()
+                }
+
+                else -> current.append(character)
+            }
+            index++
+        }
+        fields += current.toString()
+        return fields
+    }
+
+    private fun parseFieldCount(csv: String, lineIndex: Int): Int =
+        parse(lines(csv)[lineIndex]).size
+}

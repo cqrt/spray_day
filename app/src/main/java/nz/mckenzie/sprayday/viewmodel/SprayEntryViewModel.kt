@@ -31,7 +31,13 @@ import nz.mckenzie.sprayday.ui.parseQuantityMl
 class SprayEntryViewModel(
     private val trackId: Long,
     private val tracks: TrackRepository,
-    private val sprays: SprayRepository
+    private val sprays: SprayRepository,
+    /**
+     * The recording this spray is being logged from, when the operator came here from
+     * one. The saved spray then points at it, which is what makes the spray checkable
+     * against the line that was actually driven.
+     */
+    val linkedSessionId: Long? = null
 ) : ViewModel() {
 
     data class ProductRow(
@@ -176,7 +182,8 @@ class SprayEntryViewModel(
                     trackId = trackId,
                     products = lines,
                     waterLitres = parsePositiveAmount(_waterLitres.value),
-                    notes = _notes.value.trim().ifBlank { null }
+                    notes = _notes.value.trim().ifBlank { null },
+                    recordedSessionId = linkedSessionId
                 )
                 if (_rememberDefaults.value) {
                     sprays.rememberDefaultsForTrack(trackId, lines)
@@ -191,7 +198,7 @@ class SprayEntryViewModel(
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 
-        fun factory(context: Context, trackId: Long): ViewModelProvider.Factory {
+        fun factory(context: Context, trackId: Long, linkedSessionId: Long? = null): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
@@ -199,7 +206,8 @@ class SprayEntryViewModel(
                     SprayEntryViewModel(
                         trackId = trackId,
                         tracks = TrackRepository(database),
-                        sprays = SprayRepository(database)
+                        sprays = SprayRepository(database),
+                        linkedSessionId = linkedSessionId
                     )
                 }
             }

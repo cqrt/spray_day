@@ -93,6 +93,12 @@ fun SprayEntryScreen(
                     "last time this track was sprayed.",
                 style = MaterialTheme.typography.bodySmall
             )
+            if (viewModel.linkedSessionId != null) {
+                Text(
+                    text = "This spray will be linked to the recording it came from.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             rows.forEach { row ->
                 OutlinedTextField(

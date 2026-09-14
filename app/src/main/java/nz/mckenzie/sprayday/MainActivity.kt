@@ -57,6 +57,14 @@ class MainActivity : ComponentActivity() {
                 var selectedTrackId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var selectedSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+                /**
+                 * The recording a spray is being logged from, when the operator started
+                 * at a recording rather than at a track. Cleared whenever a spray is
+                 * started from the track screen, so a spray is only ever linked to the
+                 * recording it was actually logged from.
+                 */
+                var spraySessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+
                 // Bumped on every visit to the draw screen so it gets its own view
                 // model: a shared one would carry the previous visit's draft (and
                 // its "just saved" signal) into the next drawing session.
@@ -85,7 +93,11 @@ class MainActivity : ComponentActivity() {
                             viewModel = mapViewModel,
                             onOpenTracks = { destination = Destination.TRACKS },
                             onOpenOffline = { destination = Destination.OFFLINE },
-                            onOpenSettings = { destination = Destination.SETTINGS }
+                            onOpenSettings = { destination = Destination.SETTINGS },
+                            onOpenTrack = { trackId ->
+                                selectedTrackId = trackId
+                                destination = Destination.TRACK_DETAIL
+                            }
                         )
                     }
 
@@ -122,24 +134,45 @@ class MainActivity : ComponentActivity() {
                             TrackDetailScreen(
                                 viewModel = detailViewModel,
                                 onBack = { destination = Destination.TRACKS },
-                                onRecordSpray = { destination = Destination.SPRAY_ENTRY }
+                                onRecordSpray = {
+                                    spraySessionId = null
+                                    destination = Destination.SPRAY_ENTRY
+                                },
+                                onOpenRecording = { sessionId ->
+                                    selectedSessionId = sessionId
+                                    destination = Destination.RECORDING_DETAIL
+                                }
                             )
                         }
                     }
 
                     Destination.SPRAY_ENTRY -> {
                         val trackId = selectedTrackId
+                        val linkedSessionId = spraySessionId
                         if (trackId == null) {
                             destination = Destination.TRACKS
                         } else {
                             val sprayViewModel: SprayEntryViewModel = viewModel(
-                                key = "spray-$trackId",
-                                factory = SprayEntryViewModel.factory(applicationContext, trackId)
+                                key = "spray-$trackId-$linkedSessionId",
+                                factory = SprayEntryViewModel.factory(
+                                    applicationContext,
+                                    trackId,
+                                    linkedSessionId
+                                )
                             )
+                            // Logging a spray from a recording returns to that recording,
+                            // so the operator can see the link they just made.
+                            val onDone = {
+                                destination = if (linkedSessionId != null) {
+                                    Destination.RECORDING_DETAIL
+                                } else {
+                                    Destination.TRACK_DETAIL
+                                }
+                            }
                             SprayEntryScreen(
                                 viewModel = sprayViewModel,
-                                onBack = { destination = Destination.TRACK_DETAIL },
-                                onSaved = { destination = Destination.TRACK_DETAIL }
+                                onBack = onDone,
+                                onSaved = onDone
                             )
                         }
                     }
@@ -190,7 +223,14 @@ class MainActivity : ComponentActivity() {
                             )
                             RecordingDetailScreen(
                                 viewModel = detailViewModel,
-                                onBack = { destination = Destination.RECORDINGS }
+                                onBack = { destination = Destination.RECORDINGS },
+                                onLogSpray = { trackId ->
+                                    selectedTrackId = trackId
+                                    // Carried through so the spray that gets saved points
+                                    // back at the recording it was logged from.
+                                    spraySessionId = selectedSessionId
+                                    destination = Destination.SPRAY_ENTRY
+                                }
                             )
                         }
                     }

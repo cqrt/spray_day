@@ -17,6 +17,7 @@ import nz.mckenzie.sprayday.ui.screens.OfflineScreen
 import nz.mckenzie.sprayday.ui.screens.RecordScreen
 import nz.mckenzie.sprayday.ui.screens.RecordingDetailScreen
 import nz.mckenzie.sprayday.ui.screens.RecordingsScreen
+import nz.mckenzie.sprayday.ui.screens.SettingsScreen
 import nz.mckenzie.sprayday.ui.screens.SprayEntryScreen
 import nz.mckenzie.sprayday.ui.screens.TrackDetailScreen
 import nz.mckenzie.sprayday.ui.screens.TrackListScreen
@@ -28,12 +29,13 @@ import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
+import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
 import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.TrackListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL }
+private enum class Destination { MAP, TRACKS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, TRACK_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +65,8 @@ class MainActivity : ComponentActivity() {
                         MapScreen(
                             viewModel = mapViewModel,
                             onOpenTracks = { destination = Destination.TRACKS },
-                            onOpenOffline = { destination = Destination.OFFLINE }
+                            onOpenOffline = { destination = Destination.OFFLINE },
+                            onOpenSettings = { destination = Destination.SETTINGS }
                         )
                     }
 
@@ -83,7 +86,8 @@ class MainActivity : ComponentActivity() {
                                 destination = Destination.DRAW
                             },
                             onRecordTrack = { destination = Destination.RECORD },
-                            onOpenRecordings = { destination = Destination.RECORDINGS }
+                            onOpenRecordings = { destination = Destination.RECORDINGS },
+                            onOpenSettings = { destination = Destination.SETTINGS }
                         )
                     }
 
@@ -170,6 +174,16 @@ class MainActivity : ComponentActivity() {
                                 onBack = { destination = Destination.RECORDINGS }
                             )
                         }
+                    }
+
+                    Destination.SETTINGS -> {
+                        val settingsViewModel: SettingsViewModel = viewModel(
+                            factory = SettingsViewModel.factory(applicationContext)
+                        )
+                        SettingsScreen(
+                            viewModel = settingsViewModel,
+                            onBack = { destination = Destination.MAP }
+                        )
                     }
 
                     Destination.OFFLINE -> {

@@ -49,7 +49,8 @@ fun TrackListScreen(
     onOpenTrack: (Long) -> Unit,
     onDrawTrack: () -> Unit,
     onRecordTrack: () -> Unit,
-    onOpenRecordings: () -> Unit
+    onOpenRecordings: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -93,6 +94,7 @@ fun TrackListScreen(
                     Text("Import GPX")
                 }
                 OutlinedButton(onClick = onOpenRecordings) { Text("Recordings") }
+                OutlinedButton(onClick = onOpenSettings) { Text("Settings") }
             }
 
             message?.let {

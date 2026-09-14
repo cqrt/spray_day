@@ -12,6 +12,9 @@ sprayed).
 - **LINZ aerial basemap** (New Zealand), with the required attribution shown
   permanently, and **offline areas** you can download so the map still works
   where there is no reception.
+- **Settings** with the LINZ key field, so an expired key is fixed on the phone
+  rather than by shipping a new build. **Check** asks LINZ about the key in force
+  and reports LINZ's own answer — accepted, expired, or rate limited.
 - **Tracks** as first-class objects: import GPX, draw them by tapping the map, or
   record them by driving the line.
 - **Spray records**: pick a track, enter the products and the **mL of each**,
@@ -75,6 +78,22 @@ server, which is precisely where the offline imagery is. The app therefore tells
 MapLibre it is connected (`MapLibre.setConnected(true)`); the server, not the
 radio, decides what is available.
 
+### What a dead key actually looks like
+
+Worth knowing, because it is confusing in the field and it shaped the Settings
+screen. LINZ serves tiles through a CDN that keys its cache on the path alone, so
+a tile anyone has already fetched keeps coming back `HTTP 200` whatever key is
+sent with it. Measured directly: a popular tile answered with **byte-identical**
+imagery for a bogus key, for the real key, and for no key at all, at zoom 12 and
+zoom 16. Cold tiles are enforced — a zoom-19 tile over rural Southland returns
+`400` for a bogus key and `200` for the real one.
+
+So an expired key shows up as imagery that still works where you have already
+been and is blank somewhere new, rather than as an obviously broken map. That is
+also why **Check** probes LINZ's hosted *style* document instead of a tile: the
+style is enforced per key even on a path everyone requests (`400` bogus, `200`
+real), whereas a tile probe calls a dead key good.
+
 ## Build
 
 Requires JDK 17–23 (this project is developed on JDK 23; Gradle 8.13 cannot run
@@ -90,8 +109,10 @@ LINZ_API_KEY=your_key_here
 ```
 
 Get a free standard-access key from <https://basemaps.linz.govt.nz> (no
-registration; note that standard keys **expire every 90 days** — the app also
-accepts a key entered at runtime, so an expired key never bricks an install).
+registration; note that standard keys **expire every 90 days**). The key in
+`local.properties` is only the default: the app takes a key entered at runtime
+under **Settings**, so an expired key is fixed in the paddock, and the same
+screen will tell you whether LINZ accepts it.
 
 ```bash
 ./gradlew assembleDebug testDebugUnitTest lint        # CI runs exactly this

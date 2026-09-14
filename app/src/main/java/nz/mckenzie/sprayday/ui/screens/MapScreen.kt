@@ -40,7 +40,8 @@ import nz.mckenzie.sprayday.viewmodel.MapViewModel
 fun MapScreen(
     viewModel: MapViewModel,
     onOpenTracks: () -> Unit = {},
-    onOpenOffline: () -> Unit = {}
+    onOpenOffline: () -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
     val tracks by viewModel.tracksWithDue.collectAsStateWithLifecycle()
@@ -81,6 +82,7 @@ fun MapScreen(
 
             if (apiKey.isBlank()) {
                 MissingKeyCard(
+                    onOpenSettings = onOpenSettings,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(24.dp)
@@ -137,7 +139,7 @@ private fun LegendRow(colorHex: String, label: String, count: Int) {
 }
 
 @Composable
-private fun MissingKeyCard(modifier: Modifier = Modifier) {
+private fun MissingKeyCard(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -151,6 +153,9 @@ private fun MissingKeyCard(modifier: Modifier = Modifier) {
                 text = stringResource(R.string.linz_key_missing),
                 style = MaterialTheme.typography.bodySmall
             )
+            // The one place where the missing key is the operator's problem, so the fix
+            // is a tap away rather than buried in another screen.
+            TextButton(onClick = onOpenSettings) { Text("Open settings") }
         }
     }
 }

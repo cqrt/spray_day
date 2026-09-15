@@ -3,7 +3,7 @@
 GPS track planning and spray records for set spray tracks — built for the way
 rural tracks actually get sprayed: the same lines, roughly three times a year.
 
-The point of the app is the map: open it and see at a glance **which tracks are
+The point of the app is the map: open it and see at a glance **which assets are
 due**, coloured green (not due), yellow (due soon) or red (overdue / never
 sprayed).
 
@@ -15,36 +15,44 @@ sprayed).
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
-- **Tracks** as first-class objects: import GPX, draw them by tapping the map, or
-  record them by driving the line.
-- **Per-track settings**: each track carries its own spray interval (120 days is
-  only the default), the boom's swath width for a treated-area estimate, a block
-  or area label, and notes. The interval is what the traffic light uses, so a
-  block sprayed on a shorter cycle turns yellow on its own schedule.
-- **Spray records**: pick a track, enter the products and the **mL of each**,
-  save. The track turns green and its history starts. Amounts are remembered per
-  track, so the next pass is a confirmation rather than a retype.
-- **Due reminders**: a notification when a track comes due, so a spray window is not
+- **Assets** — tracks, roads and pieces of infrastructure, in one list: import GPX,
+  draw them by tapping the map, record them by driving the line, or stand at a trough
+  or a shelter and press **Add here**. Each asset says what it is, and the ones that
+  are places rather than paths are drawn as a dot.
+- **Per-asset settings**: each asset carries its own spray interval (120 days is
+  only the default), its **kind** (track, road or infrastructure), whether it is a
+  line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the
+  usual width for that method), the swath width for a treated-area estimate, a
+  **group** to work it with, and notes. The interval is what the traffic light uses,
+  so a block sprayed on a shorter cycle turns yellow on its own schedule.
+- **Spray records**: pick an asset, enter the products and the **mL of each**,
+  save. The asset turns green and its history starts. Amounts are remembered per
+  asset, so the next pass is a confirmation rather than a retype.
+- **Due reminders**: a notification when an asset comes due, so a spray window is not
   discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
   is not nagged about.
 - **Handover record**: the season as a CSV — one row per product per spray, with the
-  track, block, amount, water, distance, and the recording that proves it. Dates are
-  ISO so a spreadsheet sorts them, and the file carries a byte-order mark so Excel
-  opens accented names correctly.
-- **The map is the home screen**: every track drawn in its traffic-light colour, and
-  a tap on a track opens it. The tap radius follows the zoom, so a track is tappable
-  zoomed out over the farm as well as at spray height.
-- **Backup and restore**: one JSON file holding the whole season — tracks and their
-  lines, every spray with its amounts, the product catalogue, the amounts each track
-  remembers, and every GPS recording. A restore replaces, and says what is on both
-  sides of that before it does anything.
+  asset, its group and spray method, the amount, water, distance, and the recording
+  that proves it. Dates are ISO so a spreadsheet sorts them, and the file carries a
+  byte-order mark so Excel opens accented names correctly.
+- **The map is the home screen**: every asset drawn in its traffic-light colour, and
+  each kind drawn differently — solid for tracks, dashed for roads, dotted for
+  infrastructure, and a circle for anything that is a spot rather than a path. A tap
+  on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
+  out over the farm as well as at spray height. The map does not rotate: north is up,
+  which is one less thing to get wrong with gloves on.
+- **Backup and restore**: one JSON file holding the whole season — assets and their
+  lines, every spray with its amounts, the groups and the product catalogue, the
+  amounts each asset remembers, and every GPS recording. A restore replaces, and says
+  what is on both sides of that before it does anything. Files written before groups
+  existed still restore: their "block or area" becomes a group of that name.
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
-- **Spraying while recording**: pick the track, type the amounts as they go in,
+- **Spraying while recording**: pick the asset, type the amounts as they go in,
   and watch a live **coverage percentage** of the planned line. Finishing saves
   the recording and the spray together, linked by session id, so the traffic
   light updates and the spray history carries the distance actually driven.
-- **GPX export** of any track, shareable to QGIS/Google Earth/forestry tools.
+- **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
   covered. Deleting a plan never deletes the recording.
@@ -71,7 +79,7 @@ download picks up where it stopped.
 
 The area offered is centred on the operator, never on a guess: the device's
 current position if the app may know it, otherwise the middle of the operator's
-own tracks, and if neither is known the screen says so rather than quietly
+own assets, and if neither is known the screen says so rather than quietly
 caching somewhere they have never been. The screen names the centre in degrees
 and draws the box on a map, because "Spray area" with no location is not an
 answer to "what am I downloading?".
@@ -120,10 +128,10 @@ in Settings — which is also how you find out what the background job would do.
 
 The rules live in one place, `DueReminderPlanner`, because they are the whole feature:
 
-- a track is mentioned when it first becomes due, again if it goes from *due soon* to
+- an asset is mentioned when it first becomes due, again if it goes from *due soon* to
   *overdue* (that escalation is the news), and after that at most once a week while it
   stays due;
-- a never-sprayed track is left alone until it is as old as the lead time: a line drawn
+- a never-sprayed asset is left alone until it is as old as the lead time: a line drawn
   this morning has not been missed, it has just been drawn;
 - nothing is recorded as "already said" unless the notification actually appeared, so
   turning notifications on later does not find a week of reminders already spent.
@@ -135,11 +143,11 @@ than no reminder system at all.
 ## Backup files
 
 **Back up everything** writes one JSON file to wherever the operator chooses —
-Downloads, a USB stick, an email — holding the whole of what the app knows: tracks and
+Downloads, a USB stick, an email — holding the whole of what the app knows: assets and
 their geometry, spray events and the amounts that went out, the product catalogue, the
-amounts each track remembers, and every GPS recording with its fixes.
+amounts each asset remembers, and every GPS recording with its fixes.
 
-Ids are carried through in both directions, deliberately. A track, its geometry, its
+Ids are carried through in both directions, deliberately. An asset, its geometry, its
 sprays and the recording that proves them are joined by id, so a restore that
 renumbered them would produce a database that looks right and connects nothing.
 
@@ -152,7 +160,7 @@ Two things are deliberately absent. Downloaded offline imagery: it describes til
 one phone, and the tiles can be fetched again. And the LINZ key, which is a setting
 rather than a record.
 
-Files are versioned (`"format": "spray-day-backup"`, `"version": 1`). An older file
+Files are versioned (`"format": "spray-day-backup"`, `"version": 2`). An older file
 restores into a newer build, since missing fields fall back to defaults; a file from a
 newer build is refused with an explanation rather than half-read.
 
@@ -161,8 +169,8 @@ newer build is refused with an explanation rather than half-read.
 **Handover record (CSV)**, in the same Settings card, writes the season as a spreadsheet
 for somebody else: one row per product per spray, oldest first.
 
-| Date | Track | Block or area | Product | Amount | Unit | Water (L) | Distance (km) | Area (ha) | Operator | Notes | Recording |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Date | Asset | Group | Method | Product | Amount | Unit | Water (L) | Distance (km) | Area (ha) | Operator | Notes | Recording |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 Three decisions worth knowing about:
 
@@ -230,7 +238,7 @@ downloads ~15 MB (arm64) rather than ~50 MB of native libraries for four
 architectures it will never use. Take the `arm64-v8a` APK for any phone from the
 last few years; the universal APK runs anywhere.
 
-Pushing a tag like `v0.5.0` stamps `versionName 0.5.0` and `versionCode 500`
+Pushing a tag like `v0.6.0` stamps `versionName 0.6.0` and `versionCode 600`
 (major × 10000 + minor × 100 + patch), so release codes are predictable and
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.

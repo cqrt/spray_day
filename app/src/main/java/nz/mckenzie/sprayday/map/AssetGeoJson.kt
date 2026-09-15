@@ -1,15 +1,25 @@
 package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 
-/** One planned track ready to be drawn on the map. */
+/** One planned asset ready to be drawn on the map. */
 data class AssetLine(
     val assetId: Long,
     val name: String,
     val colorHex: String,
-    val points: List<GeoPoint>
+    val points: List<GeoPoint>,
+    /**
+     * What it is, which decides how it is drawn: solid, dashed, dotted, or a circle.
+     *
+     * Defaulted for the map's previews - a line being drawn, or a planned line shown
+     * over a recording - which are not assets and have no kind to be drawn by.
+     */
+    val kind: AssetKind = AssetKind.TRACK,
+    /** A line to travel along, or a single place to stop at. */
+    val shape: AssetShape = AssetShape.LINE
 )
 
 /**
@@ -55,7 +65,13 @@ object AssetColors {
 }
 
 /**
- * Builds the GeoJSON that MapLibre draws for the track network.
+ * Builds the GeoJSON that MapLibre draws for the asset network.
+ *
+ * Each feature carries what the map needs and nothing more: its id for tapping, its
+ * traffic-light colour, its kind and its shape. The kind and shape are properties
+ * rather than baked into the geometry because the layers read them - the kind picks
+ * which line layer draws a feature, and a point asset is drawn as a circle rather
+ * than a line at all.
  *
  * Hand-rolled rather than pulling in a JSON library: the payload is tiny, and
  * keeping it pure Kotlin means it is covered by fast JVM unit tests.
@@ -65,7 +81,8 @@ object AssetGeoJson {
     private const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
     fun build(lines: List<AssetLine>): String {
-        val drawable = lines.filter { it.points.size >= 2 }
+        // A line needs two points to be a line; a place needs only the one it is at.
+        val drawable = lines.filter { it.points.size >= if (it.shape == AssetShape.POINT) 1 else 2 }
         if (drawable.isEmpty()) return EMPTY
 
         val builder = StringBuilder(128 + drawable.size * 256)
@@ -75,18 +92,31 @@ object AssetGeoJson {
             builder.append("{\"type\":\"Feature\",\"properties\":{")
             builder.append("\"id\":").append(line.assetId).append(',')
             builder.append("\"name\":\"").append(escape(line.name)).append("\",")
-            builder.append("\"stroke\":\"").append(escape(line.colorHex)).append("\"")
-            builder.append("},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[")
-            line.points.forEachIndexed { pointIndex, point ->
-                if (pointIndex > 0) builder.append(',')
-                // GeoJSON is [longitude, latitude] - the opposite of how humans say it.
-                builder.append('[').append(format(point.lng)).append(',')
-                    .append(format(point.lat)).append(']')
+            builder.append("\"stroke\":\"").append(escape(line.colorHex)).append("\",")
+            builder.append("\"kind\":\"").append(line.kind.name).append("\",")
+            builder.append("\"shape\":\"").append(line.shape.name).append("\"")
+            builder.append("},\"geometry\":{")
+            if (line.shape == AssetShape.POINT) {
+                builder.append("\"type\":\"Point\",\"coordinates\":")
+                appendPoint(builder, line.points.first())
+            } else {
+                builder.append("\"type\":\"LineString\",\"coordinates\":[")
+                line.points.forEachIndexed { pointIndex, point ->
+                    if (pointIndex > 0) builder.append(',')
+                    appendPoint(builder, point)
+                }
+                builder.append("]")
             }
-            builder.append("]}}")
+            builder.append("}}")
         }
         builder.append("]}")
         return builder.toString()
+    }
+
+    /** GeoJSON is [longitude, latitude] - the opposite of how humans say it. */
+    private fun appendPoint(builder: StringBuilder, point: GeoPoint) {
+        builder.append('[').append(format(point.lng)).append(',')
+            .append(format(point.lat)).append(']')
     }
 
     private fun format(value: Double): String =

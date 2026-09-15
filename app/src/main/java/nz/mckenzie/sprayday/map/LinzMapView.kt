@@ -18,10 +18,14 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.PropertyValue
 import org.maplibre.android.style.sources.GeoJsonSource
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 
 /**
  * Where the map opens when there is nothing better to show: the whole country, at a
@@ -35,8 +39,11 @@ import org.maplibre.android.style.sources.GeoJsonSource
 val DEFAULT_CAMERA_TARGET = LatLng(-41.5, 172.8)
 const val DEFAULT_CAMERA_ZOOM = 6.0
 
-internal const val ASSETS_SOURCE = "sprayday-tracks"
-internal const val ASSETS_LAYER = "sprayday-tracks-line"
+internal const val ASSETS_SOURCE = "sprayday-assets"
+internal const val ASSETS_LAYER = "sprayday-assets-line-track"
+internal const val ASSETS_ROAD_LAYER = "sprayday-assets-line-road"
+internal const val ASSETS_INFRASTRUCTURE_LAYER = "sprayday-assets-line-infrastructure"
+internal const val ASSETS_POINT_LAYER = "sprayday-assets-point"
 
 /** Padding around the track network when the camera frames it. */
 private const val BOUNDS_PADDING_PX = 96
@@ -85,6 +92,11 @@ fun LinzMapView(
                     // The licence requires attribution to be visible; MapLibre's own
                     // control is backed up by an always-visible overlay in MapScreen.
                     map.uiSettings.isAttributionEnabled = true
+                    // North stays up. A gloved hand rotates this map by accident, and the
+                    // mistake is invisible until a fenceline points the wrong way - while
+                    // nothing on it is easier to read at an angle.
+                    map.uiSettings.isRotateGesturesEnabled = false
+                    map.uiSettings.isTiltGesturesEnabled = false
                     map.cameraPosition = CameraPosition.Builder()
                         .target(initialTarget)
                         .zoom(initialZoom)
@@ -188,17 +200,60 @@ internal fun MapLibreMap.loadSprayDayStyle(
         if (style.getSource(ASSETS_SOURCE) == null) {
             style.addSource(GeoJsonSource(ASSETS_SOURCE, assetGeoJson))
         }
-        if (style.getLayer(ASSETS_LAYER) == null) {
+        // One line layer per kind, because line-dasharray is a constant in MapLibre
+        // rather than something a feature can carry. So a track is solid, a road is
+        // dashed and infrastructure is dotted, and the filter is what keeps them apart.
+        addLineLayer(style, ASSETS_LAYER, AssetKind.TRACK)
+        addLineLayer(style, ASSETS_ROAD_LAYER, AssetKind.ROAD)
+        addLineLayer(style, ASSETS_INFRASTRUCTURE_LAYER, AssetKind.INFRASTRUCTURE)
+        // A place is a circle, not a short line: drawing a picnic table as a line would
+        // claim a shape the record does not have.
+        if (style.getLayer(ASSETS_POINT_LAYER) == null) {
             style.addLayer(
-                LineLayer(ASSETS_LAYER, ASSETS_SOURCE).withProperties(
-                    PropertyFactory.lineColor(Expression.get("stroke")),
-                    PropertyFactory.lineWidth(Expression.literal(5f)),
-                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-                    PropertyFactory.lineOpacity(Expression.literal(0.9f))
-                )
+                CircleLayer(ASSETS_POINT_LAYER, ASSETS_SOURCE)
+                    .withProperties(
+                        PropertyFactory.circleColor(Expression.get("stroke")),
+                        PropertyFactory.circleRadius(Expression.literal(8f)),
+                        // A white ring keeps a red or amber dot readable over dark imagery.
+                        PropertyFactory.circleStrokeColor(Expression.literal("#FFFFFF")),
+                        PropertyFactory.circleStrokeWidth(Expression.literal(2f))
+                    )
+                    .withFilter(shapeIs(AssetShape.POINT))
             )
         }
         onLoaded(style)
     }
 }
+
+/**
+ * Adds one of the kind's line layers if it is not already there.
+ *
+ * The dash pattern comes from [AssetLineStyles], so which kind is drawn dashed is
+ * decided in one testable place rather than here.
+ */
+private fun addLineLayer(style: Style, id: String, kind: AssetKind) {
+    if (style.getLayer(id) != null) return
+
+    val properties = mutableListOf<PropertyValue<*>>(
+        PropertyFactory.lineColor(Expression.get("stroke")),
+        PropertyFactory.lineWidth(Expression.literal(5f)),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+        PropertyFactory.lineOpacity(Expression.literal(0.9f))
+    )
+    AssetLineStyles.forKind(kind)?.let { dash -> properties += PropertyFactory.lineDasharray(dash) }
+
+    style.addLayer(
+        LineLayer(id, ASSETS_SOURCE)
+            .withProperties(*properties.toTypedArray())
+            .withFilter(
+                Expression.all(
+                    Expression.eq(Expression.get("kind"), Expression.literal(kind.name)),
+                    shapeIs(AssetShape.LINE)
+                )
+            )
+    )
+}
+
+private fun shapeIs(shape: AssetShape): Expression =
+    Expression.eq(Expression.get("shape"), Expression.literal(shape.name))

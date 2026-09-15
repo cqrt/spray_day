@@ -1,5 +1,7 @@
 package nz.mckenzie.sprayday.map
 
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
@@ -14,8 +16,19 @@ class AssetGeoJsonTest {
         GeoPoint(-41.2866, 174.7763)
     )
 
-    private fun line(name: String = "Track 4", color: String = AssetColors.GREEN) =
-        AssetLine(assetId = 7L, name = name, colorHex = color, points = wellingtonLine)
+    private fun line(
+        name: String = "Track 4",
+        color: String = AssetColors.GREEN,
+        kind: AssetKind = AssetKind.TRACK,
+        shape: AssetShape = AssetShape.LINE
+    ) = AssetLine(
+        assetId = 7L,
+        name = name,
+        colorHex = color,
+        points = wellingtonLine,
+        kind = kind,
+        shape = shape
+    )
 
     @Test
     fun `no tracks produces an empty feature collection`() {
@@ -73,5 +86,44 @@ class AssetGeoJsonTest {
         assertEquals(AssetColors.YELLOW, AssetColors.forStatus(DueStatus.DUE_SOON))
         assertEquals(AssetColors.RED, AssetColors.forStatus(DueStatus.OVERDUE))
         assertEquals(AssetColors.RED, AssetColors.forStatus(DueStatus.NEVER_SPRAYED))
+    }
+
+    @Test
+    fun `a feature says what it is, so the map can draw each kind differently`() {
+        val json = AssetGeoJson.build(listOf(line(kind = AssetKind.ROAD)))
+
+        assertTrue(json.contains("\"kind\":\"ROAD\""))
+        assertTrue(json.contains("\"shape\":\"LINE\""))
+    }
+
+    @Test
+    fun `a place is a point feature, not a line with one vertex in it`() {
+        val place = AssetLine(
+            assetId = 9L,
+            name = "Picnic table",
+            colorHex = AssetColors.GREEN,
+            points = listOf(GeoPoint(-41.2865, 174.7762)),
+            kind = AssetKind.INFRASTRUCTURE,
+            shape = AssetShape.POINT
+        )
+
+        val json = AssetGeoJson.build(listOf(place))
+
+        assertTrue("a place is drawn where it is: $json", json.contains("\"type\":\"Point\""))
+        assertTrue(json.contains("[174.7762000,-41.2865000]"))
+        assertTrue(json.contains("\"shape\":\"POINT\""))
+    }
+
+    @Test
+    fun `a place needs only one point, but a line still needs two`() {
+        val onePoint = listOf(GeoPoint(-41.0, 174.0))
+        val place = AssetLine(9L, "Shelter", AssetColors.GREEN, onePoint, shape = AssetShape.POINT)
+        val stub = AssetLine(1L, "Stub", AssetColors.GREEN, onePoint, shape = AssetShape.LINE)
+
+        assertTrue(AssetGeoJson.build(listOf(place)).contains("\"type\":\"Point\""))
+        assertFalse(
+            "a one-point line is still not a line",
+            AssetGeoJson.build(listOf(stub)).contains("\"type\":\"Feature\"")
+        )
     }
 }

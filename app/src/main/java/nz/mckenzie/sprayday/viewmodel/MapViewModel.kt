@@ -21,6 +21,8 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.MinuteTicker
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
@@ -73,7 +75,9 @@ class MapViewModel(
                     assetId = item.asset.id,
                     name = item.asset.name,
                     colorHex = AssetColors.forStatus(item.due.status),
-                    points = geometry[item.asset.id].orEmpty()
+                    points = geometry[item.asset.id].orEmpty(),
+                    kind = AssetKind.fromStorage(item.asset.kind),
+                    shape = AssetShape.fromStorage(item.asset.shape)
                 )
             }
         )

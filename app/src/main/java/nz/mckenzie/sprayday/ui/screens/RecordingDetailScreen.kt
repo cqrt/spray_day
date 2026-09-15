@@ -131,8 +131,8 @@ fun RecordingDetailScreen(
                             Text(
                                 text = when {
                                     recording.assetName != null -> "Recorded for ${recording.assetName}"
-                                    recording.assetId != null -> "Its track has since been deleted"
-                                    else -> "Not linked to a planned track"
+                                    recording.assetId != null -> "Its asset has since been deleted"
+                                    else -> "Not linked to a planned asset"
                                 },
                                 style = MaterialTheme.typography.bodySmall
                             )

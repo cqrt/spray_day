@@ -159,7 +159,7 @@ class OfflineViewModel(
         _plan.value = OfflineAreaPlan.aroundCentre(
             name = when (source) {
                 AreaSource.MY_LOCATION -> "Around my location"
-                else -> "Around my tracks"
+                else -> "Around my assets"
             },
             centre = centre,
             radiusKm = DEFAULT_RADIUS_KM

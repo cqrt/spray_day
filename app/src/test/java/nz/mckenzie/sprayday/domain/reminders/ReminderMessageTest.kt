@@ -24,7 +24,7 @@ class ReminderMessageTest {
     fun `one overdue track reads as one track`() {
         val assets = listOf(track("Home block", DueStatus.OVERDUE, daysUntilDue = -12))
 
-        assertEquals("1 track is due for spraying", ReminderMessage.title(assets))
+        assertEquals("1 asset is due for spraying", ReminderMessage.title(assets))
         assertEquals("Home block \u2014 12 days overdue", ReminderMessage.body(assets))
     }
 
@@ -35,7 +35,7 @@ class ReminderMessageTest {
             track("River block", DueStatus.OVERDUE, daysUntilDue = -30)
         )
 
-        assertEquals("2 tracks are due for spraying", ReminderMessage.title(assets))
+        assertEquals("2 assets are due for spraying", ReminderMessage.title(assets))
         assertTrue(ReminderMessage.body(assets).contains("River block \u2014 30 days overdue"))
     }
 
@@ -43,7 +43,7 @@ class ReminderMessageTest {
     fun `due soon alone is not called overdue`() {
         val assets = listOf(track("Home block", DueStatus.DUE_SOON, daysUntilDue = 3))
 
-        assertEquals("1 track is due soon", ReminderMessage.title(assets))
+        assertEquals("1 asset is due soon", ReminderMessage.title(assets))
     }
 
     @Test
@@ -61,7 +61,7 @@ class ReminderMessageTest {
     fun `a never-sprayed track is counted as due for spraying`() {
         val assets = listOf(track("New block", DueStatus.NEVER_SPRAYED, daysUntilDue = null))
 
-        assertEquals("1 track is due for spraying", ReminderMessage.title(assets))
+        assertEquals("1 asset is due for spraying", ReminderMessage.title(assets))
         assertEquals("New block \u2014 Never sprayed", ReminderMessage.body(assets))
     }
 
@@ -78,6 +78,6 @@ class ReminderMessageTest {
 
     @Test
     fun `nothing due says so rather than counting zero tracks`() {
-        assertEquals("No tracks due", ReminderMessage.title(emptyList()))
+        assertEquals("No assets due", ReminderMessage.title(emptyList()))
     }
 }

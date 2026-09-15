@@ -52,7 +52,7 @@ class HandoverCsvTest {
         val csv = HandoverCsv.render(emptyList(), zone)
 
         assertEquals(
-            "Date,Track,Group,Method,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
+            "Date,Asset,Group,Method,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
             lines(csv).single()
         )
     }

@@ -194,7 +194,7 @@ class AssetRepository(
         createdAtEpochMs: Long = System.currentTimeMillis()
     ): Long {
         val geometry = GpxParser.parse(gpx)
-        require(geometry.size >= 2) { "A track needs at least two points" }
+        require(geometry.size >= 2) { "A line needs at least two points" }
         return createAsset(name = name, geometry = geometry, createdAtEpochMs = createdAtEpochMs)
     }
 }

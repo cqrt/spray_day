@@ -229,13 +229,13 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                             onCheckedChange = viewModel::setRemindersEnabled
                         )
                         Text(
-                            text = "Tell me when tracks are due",
+                            text = "Tell me when assets are due",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
 
                     Text(
-                        text = "Tracks are checked twice a day. You are told when one first " +
+                        text = "Assets are checked twice a day. You are told when one first " +
                             "becomes due, again if it goes from due soon to overdue, and after " +
                             "that at most once a week while it stays due.",
                         style = MaterialTheme.typography.bodySmall
@@ -281,7 +281,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 ) {
                     Text("Your data", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Everything the app holds: tracks and their lines, every spray " +
+                        text = "Everything the app holds: assets and their lines, every spray " +
                             "with its amounts, products, and GPS recordings.",
                         style = MaterialTheme.typography.bodySmall
                     )

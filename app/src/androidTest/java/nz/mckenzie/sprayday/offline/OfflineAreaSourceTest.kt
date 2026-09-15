@@ -119,7 +119,7 @@ class OfflineAreaSourceTest {
             "the area should sit around the operator's own work, not elsewhere: $centreLat",
             centreLat < invercargill.lat && centreLat > invercargill.lat - 0.02
         )
-        assertEquals("Around my tracks", plan.name)
+        assertEquals("Around my assets", plan.name)
     }
 
     @Test

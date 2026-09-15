@@ -127,7 +127,7 @@ class HandoverRecordTest {
         val lines = csv.trimEnd().split("\r\n")
 
         assertEquals("headers plus two products", 3, lines.size)
-        assertTrue(lines[0].startsWith("Date,Track,Group,Method,Product,Amount,Unit"))
+        assertTrue(lines[0].startsWith("Date,Asset,Group,Method,Product,Amount,Unit"))
         assertTrue("the group with a comma is quoted", lines[1].contains("\"Home, north\""))
         assertTrue("and how it was sprayed is in the record", lines[1].contains(",Boom,"))
         assertTrue("the note with quotes is escaped", lines[2].contains("\"\"wet\"\""))

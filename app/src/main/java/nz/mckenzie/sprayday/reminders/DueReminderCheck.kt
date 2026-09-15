@@ -62,7 +62,7 @@ class DueReminderCheck(
                 notifiedCount = 0,
                 posted = false,
                 message = when {
-                    due.isEmpty() -> "No tracks to check yet."
+                    due.isEmpty() -> "No assets to check yet."
                     dueCount == 0 -> "Nothing is due."
                     else -> "$dueCount due, and the last reminder already covered them."
                 }
@@ -79,7 +79,7 @@ class DueReminderCheck(
             notifiedCount = plan.notify.size,
             posted = posted,
             message = if (posted) {
-                "Reminded you about ${plan.notify.size} track${if (plan.notify.size == 1) "" else "s"}."
+                "Reminded you about ${plan.notify.size} asset${if (plan.notify.size == 1) "" else "s"}."
             } else {
                 "There is something to say, but notifications are turned off for Spray Day."
             }

@@ -30,7 +30,7 @@ import org.junit.runner.RunWith
  * The record screen's finish flow.
  *
  * A regression lives here: recording a line used to save only a GPS session, so the
- * line never appeared on the Tracks page and there was no way to spray it again.
+ * line never appeared on the Assets page and there was no way to spray it again.
  * On this screen "record" means "make a track", so finishing a new line asks for a
  * name and creates one - while spraying an existing track still just records
  * against it, since that track already has a name.
@@ -147,7 +147,7 @@ class RecordingViewModelTest {
         }
         assertFalse(
             "no new track should have been created: $message",
-            message!!.contains("on the Tracks page")
+            message!!.contains("on the Assets page")
         )
         val session = recordings.getSession(sessionId)!!
         assertEquals(RecordingStatus.FINISHED.name, session.status)

@@ -60,7 +60,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Draw track") },
+                title = { Text("Draw a line") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
             )
         }
@@ -119,12 +119,12 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     if (naming) {
         AlertDialog(
             onDismissRequest = { naming = false },
-            title = { Text("Name this track") },
+            title = { Text("Name this line") },
             text = {
                 OutlinedTextField(
                     value = draftName,
                     onValueChange = { draftName = it },
-                    label = { Text("Track name") },
+                    label = { Text("Name") },
                     singleLine = true
                 )
             },

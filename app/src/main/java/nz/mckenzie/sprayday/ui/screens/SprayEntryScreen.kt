@@ -74,7 +74,7 @@ fun SprayEntryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Spray ${track?.name ?: "track"}") },
+                title = { Text("Spray ${track?.name ?: "asset"}") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
             )
         }
@@ -90,7 +90,7 @@ fun SprayEntryScreen(
             Text("Products and amounts", style = MaterialTheme.typography.titleMedium)
             Text(
                 text = "What is going out on this pass. Amounts are pre-filled from the " +
-                    "last time this track was sprayed.",
+                    "last time this asset was sprayed.",
                 style = MaterialTheme.typography.bodySmall
             )
             if (viewModel.linkedSessionId != null) {
@@ -140,7 +140,7 @@ fun SprayEntryScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = remember, onCheckedChange = viewModel::setRememberDefaults)
                 Text(
-                    text = "Remember these amounts for this track",
+                    text = "Remember these amounts for this asset",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

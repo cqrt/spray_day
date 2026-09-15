@@ -54,7 +54,7 @@ fun RecordingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Recordings") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Tracks") } }
+                navigationIcon = { TextButton(onClick = onBack) { Text("Assets") } }
             )
         }
     ) { innerPadding ->
@@ -152,8 +152,8 @@ private fun RecordingCard(row: RecordingRow, onOpen: () -> Unit, onDelete: () ->
             Text(
                 text = when {
                     row.assetName != null -> "For ${row.assetName}"
-                    row.assetWasDeleted -> "Its track has since been deleted"
-                    else -> "Not linked to a track"
+                    row.assetWasDeleted -> "Its asset has since been deleted"
+                    else -> "Not linked to an asset"
                 },
                 style = MaterialTheme.typography.bodySmall
             )

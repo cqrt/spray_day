@@ -105,7 +105,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Record track") },
+                title = { Text("Record") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
             )
         }
@@ -176,7 +176,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                     message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
                     TextButton(onClick = { pickingTrack = true }) {
-                        Text(assetName?.let { "Spraying: $it" } ?: "Choose the track being sprayed")
+                        Text(assetName?.let { "Spraying: $it" } ?: "Choose the asset being sprayed")
                     }
 
                     if (assetName != null && rows.isNotEmpty()) {
@@ -191,7 +191,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = remember, onCheckedChange = viewModel::setRememberDefaults)
                             Text(
-                                text = "Remember these amounts for this track",
+                                text = "Remember these amounts for this asset",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -254,18 +254,18 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     if (pendingTrackName != null) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelFinish() },
-            title = { Text("Name this track") },
+            title = { Text("Name this line") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "The line you recorded is saved as a track, so it appears on " +
-                            "the Tracks page and can be sprayed again.",
+                        text = "The line you recorded is saved as an asset, so it appears on " +
+                            "the Assets page and can be sprayed again.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedTextField(
                         value = assetNameDraft,
                         onValueChange = { assetNameDraft = it },
-                        label = { Text("Track name") },
+                        label = { Text("Name") },
                         singleLine = true
                     )
                 }
@@ -314,7 +314,7 @@ private fun AssetPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Which track are you spraying?") },
+        title = { Text("Which asset are you spraying?") },
         text = {
             Column(
                 modifier = Modifier
@@ -324,7 +324,7 @@ private fun AssetPickerDialog(
             ) {
                 if (tracks.isEmpty()) {
                     Text(
-                        text = "No planned tracks yet. You can still record a line.",
+                        text = "Nothing planned yet. You can still record a line.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -346,7 +346,7 @@ private fun AssetPickerDialog(
                         }
                     }
                 }
-                TextButton(onClick = onClear) { Text("Just record, no track") }
+                TextButton(onClick = onClear) { Text("Just record, no asset") }
             }
         },
         confirmButton = {

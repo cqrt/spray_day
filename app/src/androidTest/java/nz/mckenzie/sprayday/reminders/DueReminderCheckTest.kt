@@ -124,7 +124,7 @@ class DueReminderCheckTest {
             shown.size
         )
         assertEquals(
-            "1 track is due for spraying",
+            "1 asset is due for spraying",
             shown.single().notification.extras.getString(Notification.EXTRA_TITLE)
         )
 

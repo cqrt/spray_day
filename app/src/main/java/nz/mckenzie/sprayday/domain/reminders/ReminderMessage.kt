@@ -19,11 +19,11 @@ object ReminderMessage {
         val soon = assets.count { it.status == DueStatus.DUE_SOON }
 
         return when {
-            assets.isEmpty() -> "No tracks due"
+            assets.isEmpty() -> "No assets due"
             soon == 0 ->
-                if (late == 1) "1 track is due for spraying" else "$late tracks are due for spraying"
+                if (late == 1) "1 asset is due for spraying" else "$late assets are due for spraying"
             late == 0 ->
-                if (soon == 1) "1 track is due soon" else "$soon tracks are due soon"
+                if (soon == 1) "1 asset is due soon" else "$soon assets are due soon"
             else -> "$late due for spraying, $soon due soon"
         }
     }

@@ -64,7 +64,7 @@ fun AssetListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tracks") },
+                title = { Text("Assets") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Map") } }
             )
         }
@@ -104,7 +104,7 @@ fun AssetListScreen(
 
             if (tracks.isEmpty()) {
                 Text(
-                    text = "No tracks yet. Import a GPX file, or draw one on the map.",
+                    text = "No assets yet. Import a GPX file, or draw one on the map.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             } else {

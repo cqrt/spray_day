@@ -280,7 +280,7 @@ private fun centreOf(area: OfflineAreaPlan): String = formatCoordinates(
 
 private fun sourceLabel(source: AreaSource): String = when (source) {
     AreaSource.MY_LOCATION -> "your current location"
-    AreaSource.MY_TRACKS -> "the middle of your tracks"
+    AreaSource.MY_TRACKS -> "the middle of your assets"
     AreaSource.UNKNOWN -> "an unknown area"
 }
 

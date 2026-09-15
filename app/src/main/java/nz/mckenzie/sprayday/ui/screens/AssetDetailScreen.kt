@@ -108,7 +108,7 @@ fun AssetDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(track?.name ?: "Track") },
+                title = { Text(track?.name ?: "Asset") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
             )
         }
@@ -190,13 +190,13 @@ fun AssetDetailScreen(
                 Button(onClick = onRecordSpray) { Text("Record spray") }
                 OutlinedButton(onClick = { editing = true }) { Text("Edit") }
                 OutlinedButton(
-                    onClick = { exportLauncher.launch("${track?.name ?: "track"}.gpx") }
+                    onClick = { exportLauncher.launch("${track?.name ?: "asset"}.gpx") }
                 ) {
                     Text("Export GPX")
                 }
             }
 
-            TextButton(onClick = { confirmingDelete = true }) { Text("Delete this track") }
+            TextButton(onClick = { confirmingDelete = true }) { Text("Delete this asset") }
 
             message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
@@ -245,7 +245,7 @@ fun AssetDetailScreen(
             Text("Recordings", style = MaterialTheme.typography.titleSmall)
             if (recordings.isEmpty()) {
                 Text(
-                    text = "No GPS recording has been made for this track. Recording while " +
+                    text = "No GPS recording has been made for this asset. Recording while " +
                         "spraying leaves the evidence of what was actually driven.",
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -272,7 +272,7 @@ fun AssetDetailScreen(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("Delete this track?") },
+            title = { Text("Delete this asset?") },
             text = { Text("Its spray history will be deleted with it. This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -334,7 +334,7 @@ private fun AssetEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit track") },
+        title = { Text("Edit asset") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),

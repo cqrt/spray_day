@@ -372,7 +372,7 @@ class RecordingViewModel(
             var message = "Saved $points ${if (points == 1) "point" else "points"}"
             message += when {
                 newTrackName == null -> ""
-                assetId != null -> " as \"$newTrackName\", which is on the Tracks page now"
+                assetId != null -> " as \"$newTrackName\", which is on the Assets page now"
                 trackError != null -> " - the track could not be saved: $trackError"
                 else -> " - too few points for a track, so it is in Recordings only"
             }

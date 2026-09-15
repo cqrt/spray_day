@@ -19,5 +19,17 @@ enum class SprayMethod {
     BOOM,
 
     /** A knapsack sprayer, carried. */
-    KNAPSACK
+    KNAPSACK;
+
+    companion object {
+        /**
+         * The method a stored value means.
+         *
+         * Anything unrecognised reads as [UNSET] rather than throwing: a value from a
+         * later build, or a database edited by hand, must not stop the app opening its
+         * own records - and "not recorded" is the only claim that is certainly safe.
+         */
+        fun fromStorage(value: String?): SprayMethod =
+            entries.firstOrNull { it.name == value } ?: UNSET
+    }
 }

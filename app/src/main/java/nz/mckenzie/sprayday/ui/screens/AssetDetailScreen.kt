@@ -19,6 +19,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +38,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.MethodPhrase
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DuePhrase
 import nz.mckenzie.sprayday.domain.due.DueStatus
@@ -141,6 +144,13 @@ fun AssetDetailScreen(
                     editDraft?.groupName?.takeIf { it.isNotBlank() }?.let { group ->
                         Text(text = group, style = MaterialTheme.typography.bodyMedium)
                     }
+                    // How this one is done is worth showing, and worth showing as nothing
+                    // at all when nobody has said - an empty line claims less than a guess.
+                    MethodPhrase.of(SprayMethod.fromStorage(track?.method))
+                        .takeIf { it.isNotBlank() }
+                        ?.let { method ->
+                            Text(text = method, style = MaterialTheme.typography.bodyMedium)
+                        }
                     Text(
                         text = "Length ${formatDistance(track?.lengthM ?: 0.0)}" +
                             (viewModel.areaSqm?.let { " \u00b7 about ${formatArea(it)}" } ?: ""),
@@ -290,6 +300,7 @@ fun AssetDetailScreen(
  * The group is edited as a name, because that is what the operator has in their head;
  * naming one that does not exist yet starts it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AssetEditDialog(
     draft: AssetEditDraft,
@@ -299,6 +310,7 @@ private fun AssetEditDialog(
     val asset = draft.asset
     var name by remember { mutableStateOf(asset.name) }
     var groupName by remember { mutableStateOf(draft.groupName) }
+    var method by remember { mutableStateOf(SprayMethod.fromStorage(asset.method)) }
     var intervalDays by remember { mutableStateOf(asset.intervalDays.toString()) }
     var swathWidth by remember {
         mutableStateOf(asset.swathWidthM?.let(::formatPlainNumber).orEmpty())
@@ -337,6 +349,23 @@ private fun AssetEditDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
+                // How it gets done is a choice between named states rather than something
+                // typed, and it is what a handover record has to stand behind later.
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Spray method", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        MethodPhrase.choices.forEach { choice ->
+                            FilterChip(
+                                selected = method == choice,
+                                onClick = { method = choice; problem = null },
+                                label = { Text(MethodPhrase.choice(choice)) }
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = swathWidth,
                     onValueChange = { swathWidth = it; problem = null },
@@ -367,7 +396,7 @@ private fun AssetEditDialog(
             TextButton(onClick = {
                 // Refused edits keep the dialog open with the reason showing: closing it
                 // would leave the operator believing the change was stored.
-                when (val result = AssetEdits.apply(asset, name, groupName, intervalDays, swathWidth, notes)) {
+                when (val result = AssetEdits.apply(asset, name, groupName, method, intervalDays, swathWidth, notes)) {
                     is AssetEditResult.Ok -> onSave(result.asset, result.groupName)
                     is AssetEditResult.Invalid -> problem = result.message
                 }

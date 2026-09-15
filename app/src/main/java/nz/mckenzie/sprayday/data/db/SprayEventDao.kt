@@ -123,6 +123,7 @@ abstract class SprayEventDao {
         SELECT e.sprayedAtEpochMs AS sprayedAtEpochMs,
                a.name AS assetName,
                g.name AS groupName,
+               a.method AS method,
                p.name AS productName,
                ep.quantityMl AS amount,
                p.unit AS unit,

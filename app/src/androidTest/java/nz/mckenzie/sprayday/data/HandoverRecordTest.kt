@@ -10,6 +10,7 @@ import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -53,6 +54,7 @@ class HandoverRecordTest {
             name = "Home block",
             geometry = listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5010, 173.9600)),
             groupName = "Home, north",
+            method = SprayMethod.BOOM,
             createdAtEpochMs = 1_700_000_000_000L
         )
         val glyphosate = db.productDao().insert(ProductEntity(name = "Glyphosate"))
@@ -125,8 +127,9 @@ class HandoverRecordTest {
         val lines = csv.trimEnd().split("\r\n")
 
         assertEquals("headers plus two products", 3, lines.size)
-        assertTrue(lines[0].startsWith("Date,Track,Group,Product,Amount,Unit"))
+        assertTrue(lines[0].startsWith("Date,Track,Group,Method,Product,Amount,Unit"))
         assertTrue("the group with a comma is quoted", lines[1].contains("\"Home, north\""))
+        assertTrue("and how it was sprayed is in the record", lines[1].contains(",Boom,"))
         assertTrue("the note with quotes is escaped", lines[2].contains("\"\"wet\"\""))
         assertTrue("the amount keeps its half millilitre", lines[2].contains(",1450.5,"))
         assertTrue("dates are sortable", lines[1].startsWith("2026-09-14 15:32"))

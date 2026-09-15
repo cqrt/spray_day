@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -31,10 +32,11 @@ class AssetEditsTest {
     private fun apply(
         name: String = asset.name,
         groupName: String = "Home",
+        method: SprayMethod = SprayMethod.UNSET,
         intervalDays: String = asset.intervalDays.toString(),
         swathWidthM: String = asset.swathWidthM.toString(),
         notes: String = asset.notes.orEmpty()
-    ) = AssetEdits.apply(asset, name, groupName, intervalDays, swathWidthM, notes)
+    ) = AssetEdits.apply(asset, name, groupName, method, intervalDays, swathWidthM, notes)
 
     private fun ok(result: AssetEditResult): AssetEditResult.Ok {
         assertTrue("expected a valid edit, got $result", result is AssetEditResult.Ok)
@@ -120,6 +122,28 @@ class AssetEditsTest {
     @Test
     fun `a blank group name means no group rather than a group called nothing`() {
         assertNull(ok(apply(groupName = "   ")).groupName)
+    }
+
+    @Test
+    fun `the spray method is kept as chosen, and not recorded stays not recorded`() {
+        assertEquals(
+            "nothing may be assumed about an asset nobody has described",
+            SprayMethod.UNSET,
+            SprayMethod.fromStorage(ok(apply()).asset.method)
+        )
+        assertEquals(
+            SprayMethod.KNAPSACK,
+            SprayMethod.fromStorage(ok(apply(method = SprayMethod.KNAPSACK)).asset.method)
+        )
+    }
+
+    @Test
+    fun `choosing a method does not disturb the numbers beside it`() {
+        val edited = ok(apply(method = SprayMethod.BOOM, intervalDays = "60", swathWidthM = "6"))
+
+        assertEquals(SprayMethod.BOOM, SprayMethod.fromStorage(edited.asset.method))
+        assertEquals(60, edited.asset.intervalDays)
+        assertEquals(6.0, edited.asset.swathWidthM!!, 1e-9)
     }
 
     @Test

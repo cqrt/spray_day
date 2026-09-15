@@ -4,6 +4,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import nz.mckenzie.sprayday.domain.asset.MethodPhrase
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /**
  * One spray, as a row of a handover record.
@@ -16,6 +18,12 @@ data class HandoverRow(
     val sprayedAtEpochMs: Long,
     val assetName: String,
     val groupName: String?,
+    /**
+     * [nz.mckenzie.sprayday.domain.asset.SprayMethod] name as stored, blank when nobody
+     * has said how this was done. Read through [nz.mckenzie.sprayday.domain.asset.MethodPhrase]
+     * so the file and the app use the same words.
+     */
+    val method: String? = null,
     val productName: String,
     val amount: Double,
     val unit: String,
@@ -39,6 +47,9 @@ data class HandoverRow(
  * Dates are ISO 8601 (`2026-09-14 15:32`) rather than the app's friendlier `14 Sep
  * 2026`, because a spreadsheet sorts ISO dates and has to be told what the other
  * kind mean.
+ *
+ * The method column says how the work was applied - boom or knapsack - and is blank
+ * where nobody has recorded one, rather than claiming it was something.
  */
 object HandoverCsv {
 
@@ -46,6 +57,7 @@ object HandoverCsv {
         "Date",
         "Track",
         "Group",
+        "Method",
         "Product",
         "Amount",
         "Unit",
@@ -71,6 +83,7 @@ object HandoverCsv {
                     field(date(row.sprayedAtEpochMs, zoneId)),
                     field(row.assetName),
                     field(row.groupName.orEmpty()),
+                    field(MethodPhrase.of(SprayMethod.fromStorage(row.method))),
                     field(row.productName),
                     field(formatNumber(row.amount)),
                     field(row.unit),

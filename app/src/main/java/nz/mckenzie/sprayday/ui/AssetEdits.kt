@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /** What the edit form made of what was typed into it. */
 sealed interface AssetEditResult {
@@ -25,6 +26,9 @@ sealed interface AssetEditResult {
  * The form is text, so every field needs a decision about what a blank, a typo or a
  * comma means. Those decisions are worth testing on their own, which is why this is
  * pure and lives outside the view model: the screen only has to show the message.
+ *
+ * The spray method is the exception: it is a choice between named states rather than
+ * something typed, so it arrives as a [SprayMethod] and is stored as one.
  */
 object AssetEdits {
 
@@ -41,6 +45,7 @@ object AssetEdits {
         asset: AssetEntity,
         name: String,
         groupName: String,
+        method: SprayMethod,
         intervalDays: String,
         swathWidthM: String,
         notes: String
@@ -74,6 +79,7 @@ object AssetEdits {
         return AssetEditResult.Ok(
             asset = asset.copy(
                 name = cleanName,
+                method = method.name,
                 notes = notes.trim().ifBlank { null },
                 intervalDays = days,
                 swathWidthM = swath

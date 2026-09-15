@@ -14,6 +14,7 @@ import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.ui.AssetEditResult
@@ -77,6 +78,7 @@ class AssetDetailViewModelTest {
             asset = track,
             name = "Back paddock",
             groupName = "Back",
+            method = SprayMethod.KNAPSACK,
             intervalDays = "90",
             swathWidthM = "6",
             notes = "spray the fenceline twice"
@@ -90,6 +92,7 @@ class AssetDetailViewModelTest {
             assetRepository.observeAsset(assetId).first { it?.name == "Back paddock" }
         }!!
         assertEquals("Back", assetRepository.observeGroupName(assetId).first())
+        assertEquals(SprayMethod.KNAPSACK, SprayMethod.fromStorage(stored.method))
         assertEquals(90, stored.intervalDays)
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)
@@ -114,6 +117,7 @@ class AssetDetailViewModelTest {
             asset = track().copy(lastSprayedAtEpochMs = now),
             name = "Home block",
             groupName = "",
+            method = SprayMethod.UNSET,
             intervalDays = "10",
             swathWidthM = "",
             notes = ""
@@ -132,13 +136,13 @@ class AssetDetailViewModelTest {
     fun aSwathWidthCanBeAddedAndRemovedAgain() = runBlocking {
         val viewModel = viewModel()
 
-        val withWidth = AssetEdits.apply(track(), "Home block", "", "120", "4.5", "")
+        val withWidth = AssetEdits.apply(track(), "Home block", "", SprayMethod.UNSET, "120", "4.5", "")
             as AssetEditResult.Ok
         viewModel.save(withWidth.asset, withWidth.groupName)
         val stored = withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM != null } }!!
         assertEquals(4.5, stored.swathWidthM!!, 1e-9)
 
-        val withoutWidth = AssetEdits.apply(stored, "Home block", "", "120", "", "")
+        val withoutWidth = AssetEdits.apply(stored, "Home block", "", SprayMethod.UNSET, "120", "", "")
             as AssetEditResult.Ok
         viewModel.save(withoutWidth.asset, withoutWidth.groupName)
         withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM == null } }

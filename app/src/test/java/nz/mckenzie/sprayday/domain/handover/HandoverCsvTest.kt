@@ -23,6 +23,7 @@ class HandoverCsvTest {
     private fun row(
         assetName: String = "Home block",
         groupName: String? = "Home",
+        method: String? = "BOOM",
         productName: String = "Glyphosate",
         amount: Double = 1500.0,
         unit: String = "mL",
@@ -32,6 +33,7 @@ class HandoverCsvTest {
         sprayedAtEpochMs = sprayedAt,
         assetName = assetName,
         groupName = groupName,
+        method = method,
         productName = productName,
         amount = amount,
         unit = unit,
@@ -50,7 +52,7 @@ class HandoverCsvTest {
         val csv = HandoverCsv.render(emptyList(), zone)
 
         assertEquals(
-            "Date,Track,Group,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
+            "Date,Track,Group,Method,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
             lines(csv).single()
         )
     }
@@ -70,15 +72,23 @@ class HandoverCsvTest {
         assertEquals("2026-09-14 15:32", values[0])
         assertEquals("Home block", values[1])
         assertEquals("Home", values[2])
-        assertEquals("Glyphosate", values[3])
-        assertEquals("1500", values[4])
-        assertEquals("mL", values[5])
-        assertEquals("400", values[6])
-        assertEquals("2.35", values[7])
-        assertEquals("1.41", values[8])
-        assertEquals("Matt", values[9])
-        assertEquals("wind from the south", values[10])
-        assertEquals("Home block \u00b7 14 Sep", values[11])
+        assertEquals("Boom", values[3])
+        assertEquals("Glyphosate", values[4])
+        assertEquals("1500", values[5])
+        assertEquals("mL", values[6])
+        assertEquals("400", values[7])
+        assertEquals("2.35", values[8])
+        assertEquals("1.41", values[9])
+        assertEquals("Matt", values[10])
+        assertEquals("wind from the south", values[11])
+        assertEquals("Home block \u00b7 14 Sep", values[12])
+    }
+
+    @Test
+    fun `an asset nobody has said how to spray says nothing rather than guessing`() {
+        val csv = HandoverCsv.render(listOf(row(method = null)), zone)
+
+        assertEquals("", lines(csv)[1].split(",")[3])
     }
 
     @Test
@@ -87,10 +97,10 @@ class HandoverCsvTest {
 
         val line = lines(csv)[1]
         assertTrue("the name should be quoted: $line", line.contains("\"Home, north\""))
-        // Still twelve fields once parsed the way a spreadsheet would.
-        assertEquals(12, parse(line).size)
-        assertEquals("Glyphosate", parse(line)[3])
-        assertEquals("Recording", HandoverCsv.HEADERS[11])
+        // Still thirteen fields once parsed the way a spreadsheet would.
+        assertEquals(13, parse(line).size)
+        assertEquals("Glyphosate", parse(line)[4])
+        assertEquals("Recording", HandoverCsv.HEADERS[12])
     }
 
     @Test
@@ -107,20 +117,21 @@ class HandoverCsvTest {
 
         assertTrue("the note should be quoted", csv.contains("\"line one\nline two\""))
         // The record still has exactly one data row: the newline is inside the quotes.
-        assertEquals("quoted newlines are part of the field", 12, parseFieldCount(csv, 1))
+        assertEquals("quoted newlines are part of the field", 13, parseFieldCount(csv, 1))
     }
 
     @Test
     fun `empty fields are empty rather than the word null`() {
         val csv = HandoverCsv.render(
-            listOf(row(groupName = null, notes = null, recordingName = null)),
+            listOf(row(groupName = null, method = null, notes = null, recordingName = null)),
             zone
         )
 
         val values = parse(lines(csv)[1])
         assertEquals("", values[2])
-        assertEquals("", values[10])
+        assertEquals("", values[3])
         assertEquals("", values[11])
+        assertEquals("", values[12])
     }
 
     @Test
@@ -135,9 +146,9 @@ class HandoverCsvTest {
         val csv = HandoverCsv.render(listOf(row(amount = 1450.5)), zone)
 
         val values = lines(csv)[1].split(",")
-        assertEquals("1450.5", values[4])
-        assertTrue("no unit inside a numeric cell", !values[4].contains("mL"))
-        assertTrue("no unit inside a distance cell", !values[7].contains("km"))
+        assertEquals("1450.5", values[5])
+        assertTrue("no unit inside a numeric cell", !values[5].contains("mL"))
+        assertTrue("no unit inside a distance cell", !values[8].contains("km"))
     }
 
     @Test
@@ -157,9 +168,9 @@ class HandoverCsvTest {
         )
 
         val values = lines(csv)[1].split(",")
-        assertEquals("900", values[4])
-        assertEquals("", values[6])
+        assertEquals("900", values[5])
         assertEquals("", values[7])
+        assertEquals("", values[8])
     }
 
     /** Splits a CSV line the way a spreadsheet would: quotes protect commas. */

@@ -16,5 +16,17 @@ enum class AssetKind {
     ROAD,
 
     /** Fencelines and structures: short runs, and things that are a place not a path. */
-    INFRASTRUCTURE
+    INFRASTRUCTURE;
+
+    companion object {
+        /**
+         * The kind a stored value means.
+         *
+         * Anything unrecognised reads as [TRACK]: a value from a later build, or a
+         * database edited by hand, must not stop the app opening its own records - and
+         * every asset that came from the old track list is one.
+         */
+        fun fromStorage(value: String?): AssetKind =
+            entries.firstOrNull { it.name == value } ?: TRACK
+    }
 }

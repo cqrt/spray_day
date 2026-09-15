@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
@@ -138,8 +139,12 @@ private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Uni
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // What it is, then when it is due: the icon is read first, the colour of the
+            // dot second, which is the order the operator asked the questions in.
+            AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind))
             Box(
                 modifier = Modifier
+                    .padding(start = 10.dp)
                     .size(14.dp)
                     .background(parseHexColor(AssetColors.forStatus(item.due.status)), CircleShape)
             )

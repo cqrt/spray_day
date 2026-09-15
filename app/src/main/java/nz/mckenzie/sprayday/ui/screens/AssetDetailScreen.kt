@@ -38,6 +38,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueInfo
@@ -47,6 +50,7 @@ import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
 import nz.mckenzie.sprayday.ui.AssetEdits
 import nz.mckenzie.sprayday.ui.formatArea
@@ -144,13 +148,19 @@ fun AssetDetailScreen(
                     editDraft?.groupName?.takeIf { it.isNotBlank() }?.let { group ->
                         Text(text = group, style = MaterialTheme.typography.bodyMedium)
                     }
-                    // How this one is done is worth showing, and worth showing as nothing
-                    // at all when nobody has said - an empty line claims less than a guess.
-                    MethodPhrase.of(SprayMethod.fromStorage(track?.method))
-                        .takeIf { it.isNotBlank() }
-                        ?.let { method ->
-                            Text(text = method, style = MaterialTheme.typography.bodyMedium)
-                        }
+                    // What it is, and how it is done. The kind is always known, so this
+                    // line always says something; the method is left out when nobody has
+                    // said, because an empty claim is worse than a gap.
+                    track?.let { asset ->
+                        val kind = AssetKind.fromStorage(asset.kind)
+                        val method = MethodPhrase.of(SprayMethod.fromStorage(asset.method))
+                        Text(
+                            text = listOf(AssetPhrase.kind(kind), method)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" \u00b7 "),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     Text(
                         text = "Length ${formatDistance(track?.lengthM ?: 0.0)}" +
                             (viewModel.areaSqm?.let { " \u00b7 about ${formatArea(it)}" } ?: ""),
@@ -310,6 +320,8 @@ private fun AssetEditDialog(
     val asset = draft.asset
     var name by remember { mutableStateOf(asset.name) }
     var groupName by remember { mutableStateOf(draft.groupName) }
+    var kind by remember { mutableStateOf(AssetKind.fromStorage(asset.kind)) }
+    var shape by remember { mutableStateOf(AssetShape.fromStorage(asset.shape)) }
     var method by remember { mutableStateOf(SprayMethod.fromStorage(asset.method)) }
     var intervalDays by remember { mutableStateOf(asset.intervalDays.toString()) }
     var swathWidth by remember {
@@ -341,6 +353,29 @@ private fun AssetEditDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                ChoiceRow(
+                    label = "What it is",
+                    choices = AssetPhrase.kinds,
+                    selected = kind,
+                    onChoose = { choice ->
+                        // A single point is only worth offering for infrastructure, so
+                        // moving to another kind puts the shape back to a line rather than
+                        // leaving a picnic table's shape sitting on a road.
+                        kind = choice
+                        if (choice != AssetKind.INFRASTRUCTURE) shape = AssetShape.LINE
+                        problem = null
+                    },
+                    text = AssetPhrase::kind
+                )
+                if (kind == AssetKind.INFRASTRUCTURE) {
+                    ChoiceRow(
+                        label = "Shape",
+                        choices = AssetPhrase.shapes,
+                        selected = shape,
+                        onChoose = { shape = it; problem = null },
+                        text = AssetPhrase::shapeChoice
+                    )
+                }
                 OutlinedTextField(
                     value = intervalDays,
                     onValueChange = { intervalDays = it; problem = null },
@@ -349,23 +384,19 @@ private fun AssetEditDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
-                // How it gets done is a choice between named states rather than something
-                // typed, and it is what a handover record has to stand behind later.
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Spray method", style = MaterialTheme.typography.labelLarge)
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        MethodPhrase.choices.forEach { choice ->
-                            FilterChip(
-                                selected = method == choice,
-                                onClick = { method = choice; problem = null },
-                                label = { Text(MethodPhrase.choice(choice)) }
-                            )
-                        }
-                    }
-                }
+                ChoiceRow(
+                    label = "Spray method",
+                    choices = MethodPhrase.choices,
+                    selected = method,
+                    onChoose = { choice ->
+                        // The boom is adjustable, so a width the operator typed is kept;
+                        // only a blank field, or the previous method's own default, moves.
+                        swathWidth = AssetEdits.swathAfterMethodChange(method, choice, swathWidth)
+                        method = choice
+                        problem = null
+                    },
+                    text = MethodPhrase::choice
+                )
                 OutlinedTextField(
                     value = swathWidth,
                     onValueChange = { swathWidth = it; problem = null },
@@ -396,7 +427,21 @@ private fun AssetEditDialog(
             TextButton(onClick = {
                 // Refused edits keep the dialog open with the reason showing: closing it
                 // would leave the operator believing the change was stored.
-                when (val result = AssetEdits.apply(asset, name, groupName, method, intervalDays, swathWidth, notes)) {
+                when (
+                    val result = AssetEdits.apply(
+                        asset,
+                        AssetEditFields(
+                            name = name,
+                            groupName = groupName,
+                            kind = kind,
+                            shape = shape,
+                            method = method,
+                            intervalDays = intervalDays,
+                            swathWidthM = swathWidth,
+                            notes = notes
+                        )
+                    )
+                ) {
                     is AssetEditResult.Ok -> onSave(result.asset, result.groupName)
                     is AssetEditResult.Invalid -> problem = result.message
                 }
@@ -411,3 +456,36 @@ private fun AssetEditDialog(
 /** Operator wording for the traffic light. */
 internal fun dueText(due: DueInfo?): String =
     due?.let { DuePhrase.of(it.status, it.daysUntilDue) } ?: "Checking due date"
+
+/**
+ * One labelled row of single-choice chips.
+ *
+ * The form has three of these - what an asset is, what shape it is, and how it gets
+ * sprayed - and they differ only in their words, so they share one layout rather than
+ * three copies of the same FlowRow that could drift apart.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChoiceRow(
+    label: String,
+    choices: List<T>,
+    selected: T,
+    onChoose: (T) -> Unit,
+    text: (T) -> String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            choices.forEach { choice ->
+                FilterChip(
+                    selected = choice == selected,
+                    onClick = { onChoose(choice) },
+                    label = { Text(text(choice)) }
+                )
+            }
+        }
+    }
+}

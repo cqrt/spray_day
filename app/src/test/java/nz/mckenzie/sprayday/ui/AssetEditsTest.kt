@@ -1,6 +1,8 @@
 package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -32,11 +34,25 @@ class AssetEditsTest {
     private fun apply(
         name: String = asset.name,
         groupName: String = "Home",
+        kind: AssetKind = AssetKind.TRACK,
+        shape: AssetShape = AssetShape.LINE,
         method: SprayMethod = SprayMethod.UNSET,
         intervalDays: String = asset.intervalDays.toString(),
         swathWidthM: String = asset.swathWidthM.toString(),
         notes: String = asset.notes.orEmpty()
-    ) = AssetEdits.apply(asset, name, groupName, method, intervalDays, swathWidthM, notes)
+    ) = AssetEdits.apply(
+        asset,
+        AssetEditFields(
+            name = name,
+            groupName = groupName,
+            kind = kind,
+            shape = shape,
+            method = method,
+            intervalDays = intervalDays,
+            swathWidthM = swathWidthM,
+            notes = notes
+        )
+    )
 
     private fun ok(result: AssetEditResult): AssetEditResult.Ok {
         assertTrue("expected a valid edit, got $result", result is AssetEditResult.Ok)
@@ -144,6 +160,47 @@ class AssetEditsTest {
         assertEquals(SprayMethod.BOOM, SprayMethod.fromStorage(edited.asset.method))
         assertEquals(60, edited.asset.intervalDays)
         assertEquals(6.0, edited.asset.swathWidthM!!, 1e-9)
+    }
+
+    @Test
+    fun `what an asset is, and what shape it is, are kept as chosen`() {
+        val edited = ok(apply(kind = AssetKind.INFRASTRUCTURE, shape = AssetShape.POINT))
+
+        assertEquals(AssetKind.INFRASTRUCTURE, AssetKind.fromStorage(edited.asset.kind))
+        assertEquals(AssetShape.POINT, AssetShape.fromStorage(edited.asset.shape))
+    }
+
+    @Test
+    fun `picking a spray method suggests its usual width`() {
+        assertEquals("3", AssetEdits.swathAfterMethodChange(SprayMethod.UNSET, SprayMethod.BOOM, ""))
+        assertEquals("1", AssetEdits.swathAfterMethodChange(SprayMethod.UNSET, SprayMethod.KNAPSACK, ""))
+    }
+
+    @Test
+    fun `a swath width the operator typed is never overwritten`() {
+        // The boom is theirs to widen or narrow, so changing method leaves it alone.
+        assertEquals(
+            "4.5",
+            AssetEdits.swathAfterMethodChange(SprayMethod.BOOM, SprayMethod.KNAPSACK, "4.5")
+        )
+    }
+
+    @Test
+    fun `a width that is still the last method's default is not really theirs either`() {
+        // Three metres came from "boom", so moving to a knapsack must not keep it.
+        assertEquals(
+            "1",
+            AssetEdits.swathAfterMethodChange(SprayMethod.BOOM, SprayMethod.KNAPSACK, "3")
+        )
+    }
+
+    @Test
+    fun `saying the method is not recorded leaves a typed width alone`() {
+        assertEquals(
+            "4.5",
+            AssetEdits.swathAfterMethodChange(SprayMethod.BOOM, SprayMethod.UNSET, "4.5")
+        )
+        assertEquals("", AssetEdits.swathAfterMethodChange(SprayMethod.BOOM, SprayMethod.UNSET, "3"))
     }
 
     @Test

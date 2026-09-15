@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.map
 
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 
@@ -22,6 +23,15 @@ object AssetColors {
     const val RED = "#C62828"
     const val UNKNOWN = "#757575"
 
+    /** How a track is drawn on a map and marked in a list. */
+    const val TRACK_KIND = "#1565C0"
+
+    /** Roads. */
+    const val ROAD_KIND = "#6A1B9A"
+
+    /** Fencelines and structures. */
+    const val INFRASTRUCTURE_KIND = "#4E342E"
+
     /**
      * Never-sprayed tracks are drawn red: they still need spraying, but the
      * distinct [DueStatus] lets the UI add its own "no history" wording.
@@ -30,6 +40,17 @@ object AssetColors {
         DueStatus.NOT_DUE -> GREEN
         DueStatus.DUE_SOON -> YELLOW
         DueStatus.OVERDUE, DueStatus.NEVER_SPRAYED -> RED
+    }
+
+    /**
+     * The colour of the icon that says what an asset *is*, as opposed to when it is
+     * due. None of these is the traffic-light green, amber or red on purpose: an icon
+     * that could be mistaken for a due date would be worse than no icon.
+     */
+    fun forKind(kind: AssetKind): String = when (kind) {
+        AssetKind.TRACK -> TRACK_KIND
+        AssetKind.ROAD -> ROAD_KIND
+        AssetKind.INFRASTRUCTURE -> INFRASTRUCTURE_KIND
     }
 }
 

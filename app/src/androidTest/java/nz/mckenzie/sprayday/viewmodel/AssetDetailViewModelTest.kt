@@ -14,9 +14,12 @@ import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
 import nz.mckenzie.sprayday.ui.AssetEdits
 import org.junit.After
@@ -70,14 +73,43 @@ class AssetDetailViewModelTest {
         ?.due
         ?.status
 
+    /**
+     * The edit form, filled in the way the screen fills it, so these tests exercise the
+     * same path the operator does rather than a shortcut only the test knows.
+     */
+    private fun edit(
+        asset: AssetEntity,
+        name: String = asset.name,
+        groupName: String = "",
+        kind: AssetKind = AssetKind.fromStorage(asset.kind),
+        shape: AssetShape = AssetShape.fromStorage(asset.shape),
+        method: SprayMethod = SprayMethod.fromStorage(asset.method),
+        intervalDays: String = asset.intervalDays.toString(),
+        swathWidthM: String = "",
+        notes: String = asset.notes.orEmpty()
+    ) = AssetEdits.apply(
+        asset,
+        AssetEditFields(
+            name = name,
+            groupName = groupName,
+            kind = kind,
+            shape = shape,
+            method = method,
+            intervalDays = intervalDays,
+            swathWidthM = swathWidthM,
+            notes = notes
+        )
+    )
+
     @Test
     fun whatTheEditFormSetsIsWhatTheTrackKeeps() = runBlocking {
         val viewModel = viewModel()
         val track = track()
-        val edited = AssetEdits.apply(
-            asset = track,
+        val edited = edit(
+            track,
             name = "Back paddock",
             groupName = "Back",
+            kind = AssetKind.ROAD,
             method = SprayMethod.KNAPSACK,
             intervalDays = "90",
             swathWidthM = "6",
@@ -93,6 +125,7 @@ class AssetDetailViewModelTest {
         }!!
         assertEquals("Back", assetRepository.observeGroupName(assetId).first())
         assertEquals(SprayMethod.KNAPSACK, SprayMethod.fromStorage(stored.method))
+        assertEquals("a road is still a road after a rename", AssetKind.ROAD, AssetKind.fromStorage(stored.kind))
         assertEquals(90, stored.intervalDays)
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)
@@ -113,14 +146,10 @@ class AssetDetailViewModelTest {
 
         // The same track, once its owner says it wants it every 10 days - inside the
         // 14-day lead time, so the traffic light must change.
-        val edited = AssetEdits.apply(
-            asset = track().copy(lastSprayedAtEpochMs = now),
+        val edited = edit(
+            track().copy(lastSprayedAtEpochMs = now),
             name = "Home block",
-            groupName = "",
-            method = SprayMethod.UNSET,
-            intervalDays = "10",
-            swathWidthM = "",
-            notes = ""
+            intervalDays = "10"
         )
         viewModel.save((edited as AssetEditResult.Ok).asset, (edited as AssetEditResult.Ok).groupName)
 
@@ -136,13 +165,13 @@ class AssetDetailViewModelTest {
     fun aSwathWidthCanBeAddedAndRemovedAgain() = runBlocking {
         val viewModel = viewModel()
 
-        val withWidth = AssetEdits.apply(track(), "Home block", "", SprayMethod.UNSET, "120", "4.5", "")
+        val withWidth = edit(track(), intervalDays = "120", swathWidthM = "4.5")
             as AssetEditResult.Ok
         viewModel.save(withWidth.asset, withWidth.groupName)
         val stored = withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM != null } }!!
         assertEquals(4.5, stored.swathWidthM!!, 1e-9)
 
-        val withoutWidth = AssetEdits.apply(stored, "Home block", "", SprayMethod.UNSET, "120", "", "")
+        val withoutWidth = edit(stored, intervalDays = "120", swathWidthM = "")
             as AssetEditResult.Ok
         viewModel.save(withoutWidth.asset, withoutWidth.groupName)
         withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM == null } }

@@ -13,5 +13,11 @@ enum class AssetShape {
     LINE,
 
     /** Exactly one point: somewhere you stop and spray. */
-    POINT
+    POINT;
+
+    companion object {
+        /** The shape a stored value means; anything unrecognised is a line. */
+        fun fromStorage(value: String?): AssetShape =
+            entries.firstOrNull { it.name == value } ?: LINE
+    }
 }

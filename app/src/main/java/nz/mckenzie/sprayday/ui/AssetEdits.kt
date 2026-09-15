@@ -1,6 +1,8 @@
 package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /** What the edit form made of what was typed into it. */
@@ -21,14 +23,32 @@ sealed interface AssetEditResult {
 }
 
 /**
- * The editable fields of an asset, as typed.
+ * Everything the edit form was holding, as typed or as chosen.
+ *
+ * Gathered into one value rather than passed as nine arguments: with this many fields,
+ * two neighbouring names can be swapped without the compiler noticing, and a form is
+ * exactly where such a swap would go unnoticed until a spray round was wrong.
+ */
+data class AssetEditFields(
+    val name: String,
+    val groupName: String,
+    val kind: AssetKind,
+    val shape: AssetShape,
+    val method: SprayMethod,
+    val intervalDays: String,
+    val swathWidthM: String,
+    val notes: String
+)
+
+/**
+ * The editable fields of an asset.
  *
  * The form is text, so every field needs a decision about what a blank, a typo or a
  * comma means. Those decisions are worth testing on their own, which is why this is
  * pure and lives outside the view model: the screen only has to show the message.
  *
- * The spray method is the exception: it is a choice between named states rather than
- * something typed, so it arrives as a [SprayMethod] and is stored as one.
+ * The kind, the shape and the spray method are the exceptions: they are choices
+ * between named states rather than something typed, so they arrive already decided.
  */
 object AssetEdits {
 
@@ -41,21 +61,34 @@ object AssetEdits {
     /** Narrower than this and it is not a boom, it is a stray keystroke. */
     const val MIN_SWATH_M = 0.1
 
-    fun apply(
-        asset: AssetEntity,
-        name: String,
-        groupName: String,
-        method: SprayMethod,
-        intervalDays: String,
-        swathWidthM: String,
-        notes: String
-    ): AssetEditResult {
-        val cleanName = name.trim()
+    /**
+     * The swath width the field should hold after the operator picks a method.
+     *
+     * Two things make this more than "fill in the default". The operator's boom is
+     * adjustable, so a width they typed is never overwritten. And a width that is
+     * still the *previous* method's default is not really theirs either: switching
+     * from boom to knapsack should not leave a three-metre boom's width on a backpack,
+     * so that one is replaced.
+     */
+    fun swathAfterMethodChange(
+        previous: SprayMethod,
+        chosen: SprayMethod,
+        typed: String
+    ): String {
+        val current = typed.trim()
+        val wasDefault = previous.defaultSwathM?.let(::formatPlainNumber)
+        val untouched = current.isEmpty() || current == wasDefault
+        if (!untouched) return typed
+        return chosen.defaultSwathM?.let(::formatPlainNumber).orEmpty()
+    }
+
+    fun apply(asset: AssetEntity, fields: AssetEditFields): AssetEditResult {
+        val cleanName = fields.name.trim()
         if (cleanName.isEmpty()) {
-            return AssetEditResult.Invalid("Give the track a name so it can be found later")
+            return AssetEditResult.Invalid("Give it a name so it can be found later")
         }
 
-        val days = intervalDays.trim().toIntOrNull()
+        val days = fields.intervalDays.trim().toIntOrNull()
             ?: return AssetEditResult.Invalid("Days between sprays must be a whole number")
         if (days !in 1..MAX_INTERVAL_DAYS) {
             return AssetEditResult.Invalid(
@@ -65,7 +98,7 @@ object AssetEdits {
 
         // Blank means "not known", which is different from zero: an asset with no
         // swath width simply cannot have its treated area estimated.
-        val swath = when (val text = swathWidthM.trim()) {
+        val swath = when (val text = fields.swathWidthM.trim()) {
             "" -> null
             else -> parsePositiveAmount(text)
                 ?: return AssetEditResult.Invalid("Swath width must be a number of metres, or empty")
@@ -79,12 +112,14 @@ object AssetEdits {
         return AssetEditResult.Ok(
             asset = asset.copy(
                 name = cleanName,
-                method = method.name,
-                notes = notes.trim().ifBlank { null },
+                kind = fields.kind.name,
+                shape = fields.shape.name,
+                method = fields.method.name,
+                notes = fields.notes.trim().ifBlank { null },
                 intervalDays = days,
                 swathWidthM = swath
             ),
-            groupName = groupName.trim().ifBlank { null }
+            groupName = fields.groupName.trim().ifBlank { null }
         )
     }
 }

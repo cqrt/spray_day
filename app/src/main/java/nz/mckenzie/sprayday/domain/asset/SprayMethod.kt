@@ -21,6 +21,20 @@ enum class SprayMethod {
     /** A knapsack sprayer, carried. */
     KNAPSACK;
 
+    /**
+     * A swath width to start from, in metres, for this way of spraying.
+     *
+     * Only a starting point: the operator's boom is theirs to widen or narrow, so the
+     * field stays theirs to edit and nothing ever overwrites a width they typed. Null
+     * for [UNSET], because a method nobody has recorded has no width to assume.
+     */
+    val defaultSwathM: Double?
+        get() = when (this) {
+            UNSET -> null
+            BOOM -> 3.0
+            KNAPSACK -> 1.0
+        }
+
     companion object {
         /**
          * The method a stored value means.

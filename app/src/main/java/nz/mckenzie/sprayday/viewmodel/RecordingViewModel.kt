@@ -80,7 +80,7 @@ class RecordingViewModel(
 
     val selectedTrackName: StateFlow<String?> =
         combine(_selectedAssetId, assetsToSpray) { id, list ->
-            list.firstOrNull { it.track.id == id }?.track?.name
+            list.firstOrNull { it.asset.id == id }?.asset?.name
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private val _rows = MutableStateFlow<List<SprayRow>>(emptyList())
@@ -244,7 +244,7 @@ class RecordingViewModel(
 
             // Record which track this session is for, even if it was started first.
             TrackingState.current.sessionId?.let { sessionId ->
-                runCatching { recordings.setSessionTrack(sessionId, assetId) }
+                runCatching { recordings.setSessionAsset(sessionId, assetId) }
             }
         }
     }
@@ -361,7 +361,7 @@ class RecordingViewModel(
                 else -> null
             }
             sessionName?.let { runCatching { recordings.renameSession(sessionId, it) } }
-            assetId?.let { runCatching { recordings.setSessionTrack(sessionId, it) } }
+            assetId?.let { runCatching { recordings.setSessionAsset(sessionId, it) } }
 
             TrackingService.stop(context)
             TrackingState.clear()

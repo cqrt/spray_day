@@ -1,6 +1,5 @@
 package nz.mckenzie.sprayday.data.db
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -9,19 +8,17 @@ import androidx.room.PrimaryKey
 /**
  * A raw GPS recording.
  *
- * Deliberately not foreign-keyed to [AssetEntity]: deleting a planned track must
+ * Deliberately not foreign-keyed to [AssetEntity]: deleting a planned asset must
  * never destroy the evidence of what was actually sprayed. [assetId] is a soft
  * link, and spray events hold the same id as a plain column.
  */
 @Entity(
     tableName = "recorded_sessions",
-    indices = [Index("trackId"), Index("startedAtEpochMs")]
+    indices = [Index("assetId"), Index("startedAtEpochMs")]
 )
 data class RecordedSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String,
-    /** Column name kept from before the rename; the v3 migration renames it. */
-    @ColumnInfo(name = "trackId")
     val assetId: Long? = null,
     val startedAtEpochMs: Long,
     val endedAtEpochMs: Long? = null,
@@ -34,7 +31,7 @@ data class RecordedSessionEntity(
 
 /**
  * One accepted GPS fix. Written as it arrives so a crash, kill or flat battery
- * cannot lose a track.
+ * cannot lose a recording.
  */
 @Entity(
     tableName = "recorded_points",

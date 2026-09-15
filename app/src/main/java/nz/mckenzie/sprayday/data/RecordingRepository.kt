@@ -55,8 +55,8 @@ class RecordingRepository(private val db: SprayDayDatabase) {
         recordingDao.setStatus(sessionId, status.name)
 
     /** Records which planned track a session is for, if chosen after starting. */
-    suspend fun setSessionTrack(sessionId: Long, assetId: Long) =
-        recordingDao.setSessionTrack(sessionId, assetId)
+    suspend fun setSessionAsset(sessionId: Long, assetId: Long) =
+        recordingDao.setSessionAsset(sessionId, assetId)
 
     /** Renames a session, so the recordings list matches the track it became. */
     suspend fun renameSession(sessionId: Long, name: String) =

@@ -47,7 +47,7 @@ class AssetAndSprayDataTest {
     private suspend fun dueFor(assetId: Long) = assetRepository
         .observeAssetsWithDue(MinuteTicker.fixed(now))
         .first()
-        .first { it.track.id == assetId }
+        .first { it.asset.id == assetId }
 
     @Test
     fun createAssetStoresGeometryAndLength() = runBlocking {

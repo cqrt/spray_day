@@ -15,7 +15,7 @@ import java.util.Locale
 data class HandoverRow(
     val sprayedAtEpochMs: Long,
     val assetName: String,
-    val areaLabel: String?,
+    val groupName: String?,
     val productName: String,
     val amount: Double,
     val unit: String,
@@ -45,7 +45,7 @@ object HandoverCsv {
     val HEADERS = listOf(
         "Date",
         "Track",
-        "Block or area",
+        "Group",
         "Product",
         "Amount",
         "Unit",
@@ -70,7 +70,7 @@ object HandoverCsv {
                 listOf(
                     field(date(row.sprayedAtEpochMs, zoneId)),
                     field(row.assetName),
-                    field(row.areaLabel.orEmpty()),
+                    field(row.groupName.orEmpty()),
                     field(row.productName),
                     field(formatNumber(row.amount)),
                     field(row.unit),
@@ -122,7 +122,7 @@ object HandoverCsv {
      * point, what every spreadsheet expects.
      */
     fun field(value: String): String {
-        val needsQuotes = value.any { it == ',' || it == '"' || it == '\n' || it == '\r' } ||
+        val needsQuotes = value.any { it == ',' || it == '\"' || it == '\n' || it == '\r' } ||
             value != value.trim()
         if (!needsQuotes) return value
         return "\"" + value.replace("\"", "\"\"") + "\""

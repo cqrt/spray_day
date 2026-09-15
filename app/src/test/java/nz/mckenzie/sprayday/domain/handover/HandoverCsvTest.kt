@@ -22,7 +22,7 @@ class HandoverCsvTest {
 
     private fun row(
         assetName: String = "Home block",
-        areaLabel: String? = "Home",
+        groupName: String? = "Home",
         productName: String = "Glyphosate",
         amount: Double = 1500.0,
         unit: String = "mL",
@@ -31,7 +31,7 @@ class HandoverCsvTest {
     ) = HandoverRow(
         sprayedAtEpochMs = sprayedAt,
         assetName = assetName,
-        areaLabel = areaLabel,
+        groupName = groupName,
         productName = productName,
         amount = amount,
         unit = unit,
@@ -50,7 +50,7 @@ class HandoverCsvTest {
         val csv = HandoverCsv.render(emptyList(), zone)
 
         assertEquals(
-            "Date,Track,Block or area,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
+            "Date,Track,Group,Product,Amount,Unit,Water (L),Distance (km),Area (ha),Operator,Notes,Recording",
             lines(csv).single()
         )
     }
@@ -113,7 +113,7 @@ class HandoverCsvTest {
     @Test
     fun `empty fields are empty rather than the word null`() {
         val csv = HandoverCsv.render(
-            listOf(row(areaLabel = null, notes = null, recordingName = null)),
+            listOf(row(groupName = null, notes = null, recordingName = null)),
             zone
         )
 
@@ -147,7 +147,7 @@ class HandoverCsvTest {
                 HandoverRow(
                     sprayedAtEpochMs = sprayedAt,
                     assetName = "Home block",
-                    areaLabel = null,
+                    groupName = null,
                     productName = "Glyphosate",
                     amount = 900.0,
                     unit = "mL"

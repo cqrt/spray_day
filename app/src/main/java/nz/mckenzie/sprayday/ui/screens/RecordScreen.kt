@@ -341,8 +341,8 @@ private fun AssetPickerDialog(
                                     CircleShape
                                 )
                         )
-                        TextButton(onClick = { onPick(item.track.id) }) {
-                            Text(item.track.name)
+                        TextButton(onClick = { onPick(item.asset.id) }) {
+                            Text(item.asset.name)
                         }
                     }
                 }

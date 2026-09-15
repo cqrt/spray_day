@@ -11,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -29,14 +30,26 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
-/** One spray in a track's history, with the amounts that went out. */
+/** One spray in an asset's history, with the amounts that went out. */
 data class SprayHistoryEntry(
     val event: SprayEventEntity,
     val lines: List<ProductQuantityLine>
 )
 
 /**
- * Everything about one track: its line on the map, when it is next due, what it
+ * What the edit form starts from: the asset, and the group it is in.
+ *
+ * The two arrive together rather than as separate states on purpose. A form that
+ * opened with the group still loading would save a blank name over a real one, and
+ * silently take the asset out of its block.
+ */
+data class AssetEditDraft(
+    val asset: AssetEntity,
+    val groupName: String
+)
+
+/**
+ * Everything about one asset: its line on the map, when it is next due, what it
  * has been given, and GPX export.
  */
 class AssetDetailViewModel(
@@ -53,6 +66,14 @@ class AssetDetailViewModel(
 
     val track: StateFlow<AssetEntity?> = assetRepository.observeAsset(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    /** The asset and its group, ready for the edit form. Null until both are known. */
+    val editDraft: StateFlow<AssetEditDraft?> = combine(
+        assetRepository.observeAsset(assetId),
+        assetRepository.observeGroupName(assetId)
+    ) { asset, groupName ->
+        asset?.let { AssetEditDraft(asset = it, groupName = groupName.orEmpty()) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     val geometry: StateFlow<List<GeoPoint>> = assetRepository.observeAssetGeometry(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
@@ -73,7 +94,7 @@ class AssetDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     val due: StateFlow<DueInfo?> = assetRepository.observeAssetsWithDue()
-        .map { list -> list.firstOrNull { it.track.id == assetId }?.due }
+        .map { list -> list.firstOrNull { it.asset.id == assetId }?.due }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,7 +105,7 @@ class AssetDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     /**
-     * Every GPS recording made for this track. The evidence behind the sprays, and the
+     * Every GPS recording made for this asset. The evidence behind the sprays, and the
      * way to check a coverage figure after the fact.
      */
     val recordings: StateFlow<List<RecordedSessionEntity>> =
@@ -94,7 +115,7 @@ class AssetDetailViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    /** Estimated treated area, if the track records a swath width. */
+    /** Estimated treated area, if the asset records a swath width. */
     val areaSqm: Double?
         get() = track.value?.let { entity ->
             entity.swathWidthM?.let { width -> estimatedAreaSqm(entity.lengthM, width) }
@@ -127,11 +148,12 @@ class AssetDetailViewModel(
      *
      * The fields were checked by [nz.mckenzie.sprayday.ui.AssetEdits] before this is
      * called, so anything arriving here is already fit to store - which also means the
-     * interval set here is what the traffic light uses from now on.
+     * interval set here is what the traffic light uses from now on. The group name
+     * turns into a group row if it is new, and clears the group when it is blank.
      */
-    fun save(track: AssetEntity) {
+    fun save(asset: AssetEntity, groupName: String?) {
         viewModelScope.launch {
-            runCatching { assetRepository.updateAsset(track) }
+            runCatching { assetRepository.saveAssetEdits(asset, groupName) }
                 .onSuccess { _message.value = "Saved" }
                 .onFailure { _message.value = it.message ?: "Could not save the track" }
         }

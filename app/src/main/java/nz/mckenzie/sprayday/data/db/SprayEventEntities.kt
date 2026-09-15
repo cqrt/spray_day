@@ -1,13 +1,12 @@
 package nz.mckenzie.sprayday.data.db
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * A recorded spray of one track: when it happened, how much of each product went
+ * A recorded spray of one asset: when it happened, how much of each product went
  * out, and optionally the GPS session that proves the coverage.
  */
 @Entity(
@@ -16,16 +15,14 @@ import androidx.room.PrimaryKey
         ForeignKey(
             entity = AssetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["trackId"],
+            childColumns = ["assetId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("trackId"), Index("sprayedAtEpochMs")]
+    indices = [Index("assetId"), Index("sprayedAtEpochMs")]
 )
 data class SprayEventEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
-    /** Column name kept from before the rename; the v3 migration renames it. */
-    @ColumnInfo(name = "trackId")
     val assetId: Long,
     val sprayedAtEpochMs: Long,
     /** Tank/water volume used, if recorded. */
@@ -69,17 +66,17 @@ data class SprayEventProductEntity(
 )
 
 /**
- * Pre-fills the spray entry form for a track: "this track always gets 400 mL of
+ * Pre-fills the spray entry form for an asset: "this one always gets 400 mL of
  * Product X". Null quantity means "show the product with an empty amount".
  */
 @Entity(
-    tableName = "track_product_defaults",
-    primaryKeys = ["trackId", "productId"],
+    tableName = "asset_product_defaults",
+    primaryKeys = ["assetId", "productId"],
     foreignKeys = [
         ForeignKey(
             entity = AssetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["trackId"],
+            childColumns = ["assetId"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
@@ -89,11 +86,9 @@ data class SprayEventProductEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("trackId"), Index("productId")]
+    indices = [Index("assetId"), Index("productId")]
 )
 data class AssetProductDefaultEntity(
-    /** Column name kept from before the rename; the v3 migration renames it. */
-    @ColumnInfo(name = "trackId")
     val assetId: Long,
     val productId: Long,
     val defaultQuantityMl: Double? = null

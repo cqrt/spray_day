@@ -88,9 +88,9 @@ class DueReminderCheck(
 }
 
 private fun AssetWithDue.toDueState() = AssetDueState(
-    assetId = track.id,
-    name = track.name,
+    assetId = asset.id,
+    name = asset.name,
     status = due.status,
     daysUntilDue = due.daysUntilDue,
-    createdAtEpochMs = track.createdAtEpochMs
+    createdAtEpochMs = asset.createdAtEpochMs
 )

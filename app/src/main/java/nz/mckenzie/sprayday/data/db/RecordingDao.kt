@@ -50,15 +50,15 @@ abstract class RecordingDao {
     abstract suspend fun setStatus(sessionId: Long, status: String)
 
     /**
-     * Records which planned track a session is for. The operator may pick the track
+     * Records which planned asset a session is for. The operator may pick the asset
      * after starting to record, so this is not only set at creation.
      */
-    @Query("UPDATE recorded_sessions SET trackId = :assetId WHERE id = :sessionId")
-    abstract suspend fun setSessionTrack(sessionId: Long, assetId: Long)
+    @Query("UPDATE recorded_sessions SET assetId = :assetId WHERE id = :sessionId")
+    abstract suspend fun setSessionAsset(sessionId: Long, assetId: Long)
 
     /**
-     * Renames a session. Used when a recording is saved as a named track, so the
-     * recordings list and the track list agree on what the line is called.
+     * Renames a session. Used when a recording is saved as a named asset, so the
+     * recordings list and the asset list agree on what the line is called.
      */
     @Query("UPDATE recorded_sessions SET name = :name WHERE id = :sessionId")
     abstract suspend fun renameSession(sessionId: Long, name: String)

@@ -18,10 +18,13 @@ interface BackupDao {
 
     // --- Reading it all -----------------------------------------------------------
 
-    @Query("SELECT * FROM tracks ORDER BY id")
+    @Query("SELECT * FROM groups ORDER BY id")
+    suspend fun allGroups(): List<GroupEntity>
+
+    @Query("SELECT * FROM assets ORDER BY id")
     suspend fun allAssets(): List<AssetEntity>
 
-    @Query("SELECT * FROM track_points ORDER BY trackId, sequence")
+    @Query("SELECT * FROM asset_points ORDER BY assetId, sequence")
     suspend fun allAssetPoints(): List<AssetPointEntity>
 
     @Query("SELECT * FROM products ORDER BY id")
@@ -33,7 +36,7 @@ interface BackupDao {
     @Query("SELECT * FROM spray_event_products ORDER BY id")
     suspend fun allSprayEventProducts(): List<SprayEventProductEntity>
 
-    @Query("SELECT * FROM track_product_defaults ORDER BY trackId, productId")
+    @Query("SELECT * FROM asset_product_defaults ORDER BY assetId, productId")
     suspend fun allAssetDefaults(): List<AssetProductDefaultEntity>
 
     @Query("SELECT * FROM recorded_sessions ORDER BY id")
@@ -44,8 +47,11 @@ interface BackupDao {
 
     // --- Counting, for "what is in the app right now" ------------------------------
 
-    @Query("SELECT COUNT(*) FROM tracks")
+    @Query("SELECT COUNT(*) FROM assets")
     suspend fun assetCount(): Int
+
+    @Query("SELECT COUNT(*) FROM groups")
+    suspend fun groupCount(): Int
 
     @Query("SELECT COUNT(*) FROM spray_events")
     suspend fun sprayCount(): Int
@@ -56,10 +62,13 @@ interface BackupDao {
     @Query("SELECT COUNT(*) FROM products")
     suspend fun productCount(): Int
 
-    @Query("SELECT (SELECT COUNT(*) FROM track_points) + (SELECT COUNT(*) FROM recorded_points)")
+    @Query("SELECT (SELECT COUNT(*) FROM asset_points) + (SELECT COUNT(*) FROM recorded_points)")
     suspend fun pointCount(): Int
 
     // --- Writing it back ----------------------------------------------------------
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroups(rows: List<GroupEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProducts(rows: List<ProductEntity>)
@@ -87,7 +96,7 @@ interface BackupDao {
 
     // --- Clearing, children before parents so foreign keys are never left dangling --
 
-    @Query("DELETE FROM track_product_defaults")
+    @Query("DELETE FROM asset_product_defaults")
     suspend fun clearAssetDefaults()
 
     @Query("DELETE FROM spray_event_products")
@@ -96,11 +105,14 @@ interface BackupDao {
     @Query("DELETE FROM spray_events")
     suspend fun clearSprayEvents()
 
-    @Query("DELETE FROM track_points")
+    @Query("DELETE FROM asset_points")
     suspend fun clearAssetPoints()
 
-    @Query("DELETE FROM tracks")
+    @Query("DELETE FROM assets")
     suspend fun clearAssets()
+
+    @Query("DELETE FROM groups")
+    suspend fun clearGroups()
 
     @Query("DELETE FROM products")
     suspend fun clearProducts()

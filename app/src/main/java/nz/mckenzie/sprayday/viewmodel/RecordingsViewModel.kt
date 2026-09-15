@@ -53,7 +53,7 @@ class RecordingsViewModel(
 
     val sessions: StateFlow<List<RecordingRow>> =
         combine(recordings.observeSessions(), assetRepository.observeAssetsWithDue()) { sessions, assetList ->
-            val names = assetList.associate { item -> item.track.id to item.track.name }
+            val names = assetList.associate { item -> item.asset.id to item.asset.name }
             sessions.map { session -> session.toRow(names) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 

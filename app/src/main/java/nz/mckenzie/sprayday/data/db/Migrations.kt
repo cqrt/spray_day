@@ -2,6 +2,9 @@ package nz.mckenzie.sprayday.data.db
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /**
  * Adds the offline imagery areas table.
@@ -36,5 +39,295 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
             "CREATE INDEX IF NOT EXISTS `index_offline_areas_createdAtEpochMs` " +
                 "ON `offline_areas` (`createdAtEpochMs`)"
         )
+    }
+}
+
+/**
+ * Turns planned tracks into assets: renames the tables, gives every asset a kind, a
+ * shape and a spray method, and lifts the old free-text "block or area" label into a
+ * real group row.
+ *
+ * Two things make this more than a set of renames.
+ *
+ * SQLite only learnt `ALTER TABLE ... RENAME COLUMN` in 3.25, which is Android 11 and
+ * later, so every touched table is rebuilt rather than relabelled.
+ *
+ * And foreign keys are enforced, so a table cannot simply be dropped while children
+ * point at it - the cascades would delete the very history this migration exists to
+ * protect. The order below is therefore deliberate: build the new tables and copy into
+ * them, stage the tables whose rows other tables point at, then drop the old tables
+ * children first, recreate the real ones, copy back, and clean up.
+ *
+ * The SQL is written out in the shape Room exports (see app/schemas/.../3.json), and
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a
+ * populated v2 database.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // --- Groups, out of the old free-text labels --------------------------------
+        // A label that named three tracks becomes one group holding all three. The
+        // name column is COLLATE NOCASE, so the GROUP BY collapses labels differing
+        // only in case and the unique index then refuses the near-duplicate outright.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `groups` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL COLLATE NOCASE, " +
+                "`notes` TEXT)"
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_groups_name` ON `groups` (`name`)")
+        db.execSQL(
+            "INSERT OR IGNORE INTO `groups` (`name`) " +
+                "SELECT TRIM(`areaLabel`) FROM `tracks` " +
+                "WHERE `areaLabel` IS NOT NULL AND TRIM(`areaLabel`) <> '' " +
+                "GROUP BY TRIM(`areaLabel`) COLLATE NOCASE"
+        )
+
+        // --- Assets, from tracks ----------------------------------------------------
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `assets` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL, " +
+                "`kind` TEXT NOT NULL, " +
+                "`shape` TEXT NOT NULL, " +
+                "`method` TEXT NOT NULL, " +
+                "`groupId` INTEGER, " +
+                "`notes` TEXT, " +
+                "`intervalDays` INTEGER NOT NULL, " +
+                "`swathWidthM` REAL, " +
+                "`active` INTEGER NOT NULL, " +
+                "`createdAtEpochMs` INTEGER NOT NULL, " +
+                "`lastSprayedAtEpochMs` INTEGER, " +
+                "`lengthM` REAL NOT NULL, " +
+                "FOREIGN KEY(`groupId`) REFERENCES `groups`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE SET NULL )"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_assets_active` ON `assets` (`active`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_assets_lastSprayedAtEpochMs` " +
+                "ON `assets` (`lastSprayedAtEpochMs`)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_assets_groupId` ON `assets` (`groupId`)")
+
+        // Everything that existed is a track drawn as a line, with its method unrecorded:
+        // inventing BOOM here would put a claim in the record that nobody made.
+        db.execSQL(
+            "INSERT INTO `assets` (`id`, `name`, `kind`, `shape`, `method`, `groupId`, `notes`, " +
+                "`intervalDays`, `swathWidthM`, `active`, `createdAtEpochMs`, " +
+                "`lastSprayedAtEpochMs`, `lengthM`) " +
+                "SELECT t.`id`, t.`name`, '${AssetKind.TRACK.name}', '${AssetShape.LINE.name}', " +
+                "'${SprayMethod.UNSET.name}', " +
+                "(SELECT g.`id` FROM `groups` g WHERE g.`name` = TRIM(t.`areaLabel`)), " +
+                "t.`notes`, t.`intervalDays`, t.`swathWidthM`, t.`active`, " +
+                "t.`createdAtEpochMs`, t.`lastSprayedAtEpochMs`, t.`lengthM` " +
+                "FROM `tracks` t"
+        )
+
+        // --- Geometry and product pre-fills -----------------------------------------
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `asset_points` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`assetId` INTEGER NOT NULL, " +
+                "`sequence` INTEGER NOT NULL, " +
+                "`lat` REAL NOT NULL, " +
+                "`lng` REAL NOT NULL, " +
+                "FOREIGN KEY(`assetId`) REFERENCES `assets`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_asset_points_assetId` ON `asset_points` (`assetId`)"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_asset_points_assetId_sequence` " +
+                "ON `asset_points` (`assetId`, `sequence`)"
+        )
+        db.execSQL(
+            "INSERT INTO `asset_points` (`id`, `assetId`, `sequence`, `lat`, `lng`) " +
+                "SELECT `id`, `trackId`, `sequence`, `lat`, `lng` FROM `track_points`"
+        )
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `asset_product_defaults` (" +
+                "`assetId` INTEGER NOT NULL, " +
+                "`productId` INTEGER NOT NULL, " +
+                "`defaultQuantityMl` REAL, " +
+                "PRIMARY KEY(`assetId`, `productId`), " +
+                "FOREIGN KEY(`assetId`) REFERENCES `assets`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                "FOREIGN KEY(`productId`) REFERENCES `products`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_asset_product_defaults_assetId` " +
+                "ON `asset_product_defaults` (`assetId`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_asset_product_defaults_productId` " +
+                "ON `asset_product_defaults` (`productId`)"
+        )
+        db.execSQL(
+            "INSERT INTO `asset_product_defaults` (`assetId`, `productId`, `defaultQuantityMl`) " +
+                "SELECT `trackId`, `productId`, `defaultQuantityMl` FROM `track_product_defaults`"
+        )
+
+        // --- Stage the tables that other rows point at ------------------------------
+        // spray_events, its product lines and the recording tables are rebuilt too,
+        // because their trackId column is renamed. Dropping a parent while children
+        // still reference it fires ON DELETE CASCADE - which would quietly delete every
+        // spray and every GPS fix - so the rows wait in staging tables that declare no
+        // foreign keys at all while the real tables are recreated underneath them.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tmp_spray_events` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `assetId` INTEGER NOT NULL, " +
+                "`sprayedAtEpochMs` INTEGER NOT NULL, `waterLitres` REAL, `operatorName` TEXT, " +
+                "`notes` TEXT, `distanceM` REAL, `areaSqm` REAL, `recordedSessionId` INTEGER)"
+        )
+        db.execSQL(
+            "INSERT INTO `tmp_spray_events` (`id`, `assetId`, `sprayedAtEpochMs`, `waterLitres`, " +
+                "`operatorName`, `notes`, `distanceM`, `areaSqm`, `recordedSessionId`) " +
+                "SELECT `id`, `trackId`, `sprayedAtEpochMs`, `waterLitres`, `operatorName`, " +
+                "`notes`, `distanceM`, `areaSqm`, `recordedSessionId` FROM `spray_events`"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tmp_spray_event_products` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sprayEventId` INTEGER NOT NULL, " +
+                "`productId` INTEGER NOT NULL, `quantityMl` REAL NOT NULL)"
+        )
+        db.execSQL(
+            "INSERT INTO `tmp_spray_event_products` (`id`, `sprayEventId`, `productId`, `quantityMl`) " +
+                "SELECT `id`, `sprayEventId`, `productId`, `quantityMl` FROM `spray_event_products`"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tmp_recorded_sessions` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                "`assetId` INTEGER, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, " +
+                "`status` TEXT NOT NULL, `distanceM` REAL NOT NULL, `durationMs` INTEGER NOT NULL, " +
+                "`pointCount` INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "INSERT INTO `tmp_recorded_sessions` (`id`, `name`, `assetId`, `startedAtEpochMs`, " +
+                "`endedAtEpochMs`, `status`, `distanceM`, `durationMs`, `pointCount`) " +
+                "SELECT `id`, `name`, `trackId`, `startedAtEpochMs`, `endedAtEpochMs`, " +
+                "`status`, `distanceM`, `durationMs`, `pointCount` FROM `recorded_sessions`"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tmp_recorded_points` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, " +
+                "`sequence` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, " +
+                "`altitudeM` REAL, `accuracyM` REAL, `speedMps` REAL, `bearingDeg` REAL, " +
+                "`recordedAtEpochMs` INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "INSERT INTO `tmp_recorded_points` (`id`, `sessionId`, `sequence`, `lat`, `lng`, " +
+                "`altitudeM`, `accuracyM`, `speedMps`, `bearingDeg`, `recordedAtEpochMs`) " +
+                "SELECT `id`, `sessionId`, `sequence`, `lat`, `lng`, `altitudeM`, `accuracyM`, " +
+                "`speedMps`, `bearingDeg`, `recordedAtEpochMs` FROM `recorded_points`"
+        )
+
+        // --- Drop the old tables, children before parents ---------------------------
+        db.execSQL("DROP TABLE IF EXISTS `recorded_points`")
+        db.execSQL("DROP TABLE IF EXISTS `recorded_sessions`")
+        db.execSQL("DROP TABLE IF EXISTS `spray_event_products`")
+        db.execSQL("DROP TABLE IF EXISTS `spray_events`")
+        db.execSQL("DROP TABLE IF EXISTS `track_product_defaults`")
+        db.execSQL("DROP TABLE IF EXISTS `track_points`")
+        db.execSQL("DROP TABLE IF EXISTS `tracks`")
+
+        // --- Recreate them under their new names, and copy the rows back ------------
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `spray_events` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `assetId` INTEGER NOT NULL, " +
+                "`sprayedAtEpochMs` INTEGER NOT NULL, `waterLitres` REAL, `operatorName` TEXT, " +
+                "`notes` TEXT, `distanceM` REAL, `areaSqm` REAL, `recordedSessionId` INTEGER, " +
+                "FOREIGN KEY(`assetId`) REFERENCES `assets`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_spray_events_assetId` ON `spray_events` (`assetId`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_spray_events_sprayedAtEpochMs` " +
+                "ON `spray_events` (`sprayedAtEpochMs`)"
+        )
+        db.execSQL(
+            "INSERT INTO `spray_events` (`id`, `assetId`, `sprayedAtEpochMs`, `waterLitres`, " +
+                "`operatorName`, `notes`, `distanceM`, `areaSqm`, `recordedSessionId`) " +
+                "SELECT `id`, `assetId`, `sprayedAtEpochMs`, `waterLitres`, `operatorName`, " +
+                "`notes`, `distanceM`, `areaSqm`, `recordedSessionId` FROM `tmp_spray_events`"
+        )
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `spray_event_products` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sprayEventId` INTEGER NOT NULL, " +
+                "`productId` INTEGER NOT NULL, `quantityMl` REAL NOT NULL, " +
+                "FOREIGN KEY(`sprayEventId`) REFERENCES `spray_events`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                "FOREIGN KEY(`productId`) REFERENCES `products`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_spray_event_products_sprayEventId` " +
+                "ON `spray_event_products` (`sprayEventId`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_spray_event_products_productId` " +
+                "ON `spray_event_products` (`productId`)"
+        )
+        db.execSQL(
+            "INSERT INTO `spray_event_products` (`id`, `sprayEventId`, `productId`, `quantityMl`) " +
+                "SELECT `id`, `sprayEventId`, `productId`, `quantityMl` " +
+                "FROM `tmp_spray_event_products`"
+        )
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `recorded_sessions` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                "`assetId` INTEGER, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, " +
+                "`status` TEXT NOT NULL, `distanceM` REAL NOT NULL, `durationMs` INTEGER NOT NULL, " +
+                "`pointCount` INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recorded_sessions_assetId` " +
+                "ON `recorded_sessions` (`assetId`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recorded_sessions_startedAtEpochMs` " +
+                "ON `recorded_sessions` (`startedAtEpochMs`)"
+        )
+        db.execSQL(
+            "INSERT INTO `recorded_sessions` (`id`, `name`, `assetId`, `startedAtEpochMs`, " +
+                "`endedAtEpochMs`, `status`, `distanceM`, `durationMs`, `pointCount`) " +
+                "SELECT `id`, `name`, `assetId`, `startedAtEpochMs`, `endedAtEpochMs`, " +
+                "`status`, `distanceM`, `durationMs`, `pointCount` FROM `tmp_recorded_sessions`"
+        )
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `recorded_points` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, " +
+                "`sequence` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, " +
+                "`altitudeM` REAL, `accuracyM` REAL, `speedMps` REAL, `bearingDeg` REAL, " +
+                "`recordedAtEpochMs` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`sessionId`) REFERENCES `recorded_sessions`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recorded_points_sessionId` " +
+                "ON `recorded_points` (`sessionId`)"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_recorded_points_sessionId_sequence` " +
+                "ON `recorded_points` (`sessionId`, `sequence`)"
+        )
+        db.execSQL(
+            "INSERT INTO `recorded_points` (`id`, `sessionId`, `sequence`, `lat`, `lng`, " +
+                "`altitudeM`, `accuracyM`, `speedMps`, `bearingDeg`, `recordedAtEpochMs`) " +
+                "SELECT `id`, `sessionId`, `sequence`, `lat`, `lng`, `altitudeM`, `accuracyM`, " +
+                "`speedMps`, `bearingDeg`, `recordedAtEpochMs` FROM `tmp_recorded_points`"
+        )
+
+        // --- And the staging tables have done their job -----------------------------
+        db.execSQL("DROP TABLE IF EXISTS `tmp_spray_event_products`")
+        db.execSQL("DROP TABLE IF EXISTS `tmp_spray_events`")
+        db.execSQL("DROP TABLE IF EXISTS `tmp_recorded_points`")
+        db.execSQL("DROP TABLE IF EXISTS `tmp_recorded_sessions`")
     }
 }

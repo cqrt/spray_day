@@ -1,8 +1,12 @@
 package nz.mckenzie.sprayday.domain.backup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /**
  * The backup file itself: what goes in, what comes out, and what is refused.
@@ -26,11 +30,15 @@ class BackupFormatTest {
             ProductRecord(id = 1, name = "Glyphosate", unit = "mL", rateText = "10 mL/L", archived = false),
             ProductRecord(id = 2, name = "Retired product", archived = true)
         ),
+        groups = listOf(GroupRecord(id = 1, name = "Home", notes = "the estuary block")),
         assets = listOf(
             AssetRecord(
                 id = 7,
                 name = assetName,
-                areaLabel = "Home",
+                groupId = 1,
+                kind = AssetKind.ROAD.name,
+                shape = AssetShape.LINE.name,
+                method = SprayMethod.BOOM.name,
                 notes = "spray the fenceline twice",
                 intervalDays = 45,
                 swathWidthM = 6.0,
@@ -159,6 +167,49 @@ class BackupFormatTest {
         assertEquals(120, restored.assets.single().intervalDays)
         assertEquals(0.0, restored.assets.single().lengthM, 0.0)
         assertTrue(restored.assets.single().points.isEmpty())
+        // Nothing is invented for a file that predates the fields: it is a track, drawn
+        // as a line, with no spray method recorded and no group of its own.
+        assertEquals(AssetKind.TRACK.name, restored.assets.single().kind)
+        assertEquals(AssetShape.LINE.name, restored.assets.single().shape)
+        assertEquals(SprayMethod.UNSET.name, restored.assets.single().method)
+        assertNull(restored.assets.single().groupId)
+    }
+
+    @Test
+    fun `a file written before assets existed keeps its ids and its block label`() {
+        // Verbatim what 0.5.0 wrote: tracks, trackId, trackDefaults, and the free-text
+        // "block or area" that has no group row behind it yet.
+        val v1 = """
+            {
+              "format": "spray-day-backup",
+              "version": 1,
+              "exportedAtEpochMs": 1789344000000,
+              "appVersion": "0.5.0",
+              "tracks": [ { "id": 7, "name": "Home block", "areaLabel": "Home", "intervalDays": 120, "createdAtEpochMs": 1 } ],
+              "sprayEvents": [ { "id": 3, "trackId": 7, "sprayedAtEpochMs": 1789000000000 } ],
+              "trackDefaults": [ { "trackId": 7, "productId": 1, "defaultQuantityMl": 1500.0 } ]
+            }
+        """.trimIndent()
+
+        val restored = BackupFormat.decode(v1)
+
+        assertEquals(1, restored.version)
+        assertEquals("Home", restored.assets.single().areaLabel)
+        assertEquals(7L, restored.assets.single().id)
+        assertEquals("the spray must still point at its asset", 7L, restored.sprayEvents.single().assetId)
+        assertEquals(7L, restored.assetDefaults.single().assetId)
+        assertTrue("there are no group rows to read, only labels", restored.groups.isEmpty())
+    }
+
+    @Test
+    fun `the file this build writes uses the asset vocabulary`() {
+        val text = BackupFormat.encode(document())
+
+        assertTrue("groups travel with the file", text.contains("\"groups\""))
+        assertTrue(text.contains("\"assets\""))
+        assertTrue("the old key is not written back out", !text.contains("\"tracks\""))
+        assertTrue(!text.contains("\"trackId\""))
+        assertTrue(!text.contains("\"trackDefaults\""))
     }
 
     @Test

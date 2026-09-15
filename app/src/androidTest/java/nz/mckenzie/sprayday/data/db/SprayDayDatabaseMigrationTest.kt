@@ -69,6 +69,132 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v2 -> v3 model change, against a populated database.
+     *
+     * This is the migration that matters: it renames tables and columns, and the tables
+     * it drops are ones other rows point at with ON DELETE CASCADE. If the order is
+     * wrong the sprays and the GPS fixes disappear, so the assertions below count them
+     * rather than merely checking that the schema validates.
+     */
+    @Test
+    fun migrationFrom2To3KeepsTheHistoryAndTurnsLabelsIntoGroups() {
+        helper.createDatabase(TEST_DB, 2).apply {
+            execSQL(
+                "INSERT INTO tracks (id, name, areaLabel, notes, intervalDays, swathWidthM, " +
+                    "active, createdAtEpochMs, lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (1, 'Estuary road', 'Estuary', NULL, 120, 3.0, 1, 1000, NULL, 2002.3)"
+            )
+            // Same block, typed differently: the group must not split in two over case.
+            execSQL(
+                "INSERT INTO tracks (id, name, areaLabel, notes, intervalDays, swathWidthM, " +
+                    "active, createdAtEpochMs, lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (2, 'Estuary lagoon', 'estuary', NULL, 120, NULL, 1, 1000, NULL, 100.0)"
+            )
+            execSQL(
+                "INSERT INTO tracks (id, name, areaLabel, notes, intervalDays, swathWidthM, " +
+                    "active, createdAtEpochMs, lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (3, 'Lone block', NULL, NULL, 90, NULL, 1, 1000, NULL, 0.0)"
+            )
+            execSQL(
+                "INSERT INTO track_points (trackId, sequence, lat, lng) " +
+                    "VALUES (1, 0, -41.5, 173.95), (1, 1, -41.51, 173.96), " +
+                    "(2, 0, -41.6, 173.9), (2, 1, -41.61, 173.91)"
+            )
+            execSQL(
+                "INSERT INTO products (id, name, unit, rateText, notes, archived) " +
+                    "VALUES (1, 'Glyphosate 360', 'mL', '10 mL/L', NULL, 0)"
+            )
+            execSQL(
+                "INSERT INTO track_product_defaults (trackId, productId, defaultQuantityMl) " +
+                    "VALUES (1, 1, 1500.0)"
+            )
+            execSQL(
+                "INSERT INTO recorded_sessions (id, name, trackId, startedAtEpochMs, " +
+                    "endedAtEpochMs, status, distanceM, durationMs, pointCount) " +
+                    "VALUES (5, 'Estuary road', 1, 2000, 3000, 'FINISHED', 1234.5, 600000, 2)"
+            )
+            execSQL(
+                "INSERT INTO recorded_points (sessionId, sequence, lat, lng, altitudeM, " +
+                    "accuracyM, speedMps, bearingDeg, recordedAtEpochMs) " +
+                    "VALUES (5, 0, -41.5, 173.95, 12.0, 4.5, 2.2, 180.0, 2000), " +
+                    "(5, 1, -41.51, 173.96, 13.0, 4.0, 2.4, 181.0, 2010)"
+            )
+            execSQL(
+                "INSERT INTO spray_events (id, trackId, sprayedAtEpochMs, waterLitres, " +
+                    "operatorName, notes, distanceM, areaSqm, recordedSessionId) " +
+                    "VALUES (7, 1, 2500, 400.0, 'Matt', NULL, 2350.0, 14100.0, 5)"
+            )
+            execSQL(
+                "INSERT INTO spray_event_products (sprayEventId, productId, quantityMl) " +
+                    "VALUES (7, 1, 1500.0)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_2_3)
+
+        // One group, holding both spellings of the same block.
+        migrated.query("SELECT id, name FROM groups").use { cursor ->
+            assertEquals("estuary and Estuary are one group", 1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("Estuary", cursor.getString(1))
+        }
+        migrated.query("SELECT COUNT(*) FROM assets WHERE groupId IS NOT NULL").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("both estuary assets should be in the group", 2, cursor.getInt(0))
+        }
+
+        // Nothing is invented about how the work was done.
+        migrated.query(
+            "SELECT kind, shape, method, lengthM, groupId FROM assets WHERE id = 1"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("TRACK", cursor.getString(0))
+            assertEquals("LINE", cursor.getString(1))
+            assertEquals("UNSET", cursor.getString(2))
+            assertEquals(2002.3, cursor.getDouble(3), 0.01)
+            assertTrue("groupId should have been resolved", !cursor.isNull(4))
+        }
+        migrated.query("SELECT groupId FROM assets WHERE id = 3").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("an asset that was never labelled belongs to no group", cursor.isNull(0))
+        }
+
+        // The geometry, the pre-fill and the spray history all survived the rebuild. The
+        // spray and its product line are the ones a wrong drop order would eat, because
+        // they point at the table that had to be dropped and recreated.
+        migrated.query("SELECT COUNT(*) FROM asset_points").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(4, cursor.getInt(0))
+        }
+        migrated.query("SELECT assetId, defaultQuantityMl FROM asset_product_defaults").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1L, cursor.getLong(0))
+            assertEquals(1500.0, cursor.getDouble(1), 0.01)
+        }
+        migrated.query("SELECT id, assetId, waterLitres FROM spray_events").use { cursor ->
+            assertTrue("the spray must still be there", cursor.moveToFirst())
+            assertEquals(7L, cursor.getLong(0))
+            assertEquals(1L, cursor.getLong(1))
+            assertEquals(400.0, cursor.getDouble(2), 0.01)
+        }
+        migrated.query("SELECT COUNT(*) FROM spray_event_products").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("and so must the product it used", 1, cursor.getInt(0))
+        }
+        migrated.query("SELECT assetId FROM recorded_sessions WHERE id = 5").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1L, cursor.getLong(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM recorded_points").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("every accepted fix must survive", 2, cursor.getInt(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

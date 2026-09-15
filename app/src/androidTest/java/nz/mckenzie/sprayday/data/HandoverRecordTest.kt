@@ -52,7 +52,7 @@ class HandoverRecordTest {
         val assetId = AssetRepository(db).createAsset(
             name = "Home block",
             geometry = listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5010, 173.9600)),
-            areaLabel = "Home, north",
+            groupName = "Home, north",
             createdAtEpochMs = 1_700_000_000_000L
         )
         val glyphosate = db.productDao().insert(ProductEntity(name = "Glyphosate"))
@@ -100,7 +100,7 @@ class HandoverRecordTest {
         assertEquals("one row per product", 2, rows.size)
         val first = rows.first()
         assertEquals("Home block", first.assetName)
-        assertEquals("Home, north", first.areaLabel)
+        assertEquals("Home, north", first.groupName)
         assertEquals("Glyphosate", first.productName)
         assertEquals(1500.0, first.amount, 1e-9)
         assertEquals("mL", first.unit)
@@ -125,8 +125,8 @@ class HandoverRecordTest {
         val lines = csv.trimEnd().split("\r\n")
 
         assertEquals("headers plus two products", 3, lines.size)
-        assertTrue(lines[0].startsWith("Date,Track,Block or area,Product,Amount,Unit"))
-        assertTrue("the block with a comma is quoted", lines[1].contains("\"Home, north\""))
+        assertTrue(lines[0].startsWith("Date,Track,Group,Product,Amount,Unit"))
+        assertTrue("the group with a comma is quoted", lines[1].contains("\"Home, north\""))
         assertTrue("the note with quotes is escaped", lines[2].contains("\"\"wet\"\""))
         assertTrue("the amount keeps its half millilitre", lines[2].contains(",1450.5,"))
         assertTrue("dates are sortable", lines[1].startsWith("2026-09-14 15:32"))

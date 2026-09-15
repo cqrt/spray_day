@@ -57,14 +57,14 @@ class SprayWhileRecordingTest {
     private suspend fun dueFor(assetId: Long): DueStatus =
         assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
             .first()
-            .single { it.track.id == assetId }
+            .single { it.asset.id == assetId }
             .due
             .status
 
     private suspend fun sprayCountFor(assetId: Long): Int =
         assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
             .first()
-            .single { it.track.id == assetId }
+            .single { it.asset.id == assetId }
             .sprayCount
 
     @Before
@@ -154,7 +154,7 @@ class SprayWhileRecordingTest {
         val sessionId = recordings.startRecording("Started before choosing")
         assertNull("nothing chose a track yet", recordings.getSession(sessionId)!!.assetId)
 
-        recordings.setSessionTrack(sessionId, assetId)
+        recordings.setSessionAsset(sessionId, assetId)
 
         assertEquals(assetId, recordings.getSession(sessionId)!!.assetId)
     }

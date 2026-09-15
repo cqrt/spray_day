@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [
+        GroupEntity::class,
         AssetEntity::class,
         AssetPointEntity::class,
         ProductEntity::class,
@@ -17,12 +18,13 @@ import androidx.room.RoomDatabase
         RecordedPointEntity::class,
         OfflineAreaEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class SprayDayDatabase : RoomDatabase() {
 
     abstract fun assetDao(): AssetDao
+    abstract fun groupDao(): GroupDao
     abstract fun productDao(): ProductDao
     abstract fun sprayEventDao(): SprayEventDao
     abstract fun recordingDao(): RecordingDao
@@ -44,7 +46,7 @@ abstract class SprayDayDatabase : RoomDatabase() {
                     context.applicationContext,
                     SprayDayDatabase::class.java,
                     NAME
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { instance = it }
             }
     }

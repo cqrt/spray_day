@@ -90,7 +90,7 @@ class RecordingViewModelTest {
     private suspend fun assetsNamed(name: String) = assetRepository
         .observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
         .first()
-        .filter { it.track.name == name }
+        .filter { it.asset.name == name }
 
     @Test
     fun finishingANewLineAsksForANameAndCreatesATrack() = runBlocking {
@@ -120,13 +120,13 @@ class RecordingViewModelTest {
         assertEquals("the recording should carry the name too", "Paddock 3", session.name)
 
         val stored = assetsNamed("Paddock 3").single()
-        assertEquals("the recording should point at the track it became", stored.track.id, session.assetId)
+        assertEquals("the recording should point at the track it became", stored.asset.id, session.assetId)
         assertEquals(
             "the track should carry the recorded line",
             line.size,
-            assetRepository.getAssetGeometry(stored.track.id).size
+            assetRepository.getAssetGeometry(stored.asset.id).size
         )
-        assertTrue("its length should have been computed", stored.track.lengthM > 0.0)
+        assertTrue("its length should have been computed", stored.asset.lengthM > 0.0)
         assertEquals("a freshly recorded track has not been sprayed", DueStatus.NEVER_SPRAYED, stored.due.status)
     }
 

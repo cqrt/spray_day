@@ -108,11 +108,11 @@ fun AssetListScreen(
                 )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tracks, key = { it.track.id }) { item ->
+                    items(tracks, key = { it.asset.id }) { item ->
                         AssetRow(
                             item = item,
-                            onOpen = { onOpenAsset(item.track.id) },
-                            onDelete = { viewModel.delete(item.track.id) }
+                            onOpen = { onOpenAsset(item.asset.id) },
+                            onDelete = { viewModel.delete(item.asset.id) }
                         )
                     }
                 }
@@ -148,9 +148,9 @@ private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Uni
                     .weight(1f)
                     .padding(start = 12.dp)
             ) {
-                Text(item.track.name, style = MaterialTheme.typography.titleSmall)
+                Text(item.asset.name, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = "${formatDistance(item.track.lengthM)} \u00b7 ${dueLabel(item)}",
+                    text = "${formatDistance(item.asset.lengthM)} \u00b7 ${dueLabel(item)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

@@ -65,7 +65,7 @@ class AssetDetailViewModelTest {
     private suspend fun dueStatus(): DueStatus? = assetRepository
         .observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis()))
         .first()
-        .firstOrNull { it.track.id == assetId }
+        .firstOrNull { it.asset.id == assetId }
         ?.due
         ?.status
 
@@ -74,21 +74,22 @@ class AssetDetailViewModelTest {
         val viewModel = viewModel()
         val track = track()
         val edited = AssetEdits.apply(
-            track = track,
+            asset = track,
             name = "Back paddock",
-            areaLabel = "Back",
+            groupName = "Back",
             intervalDays = "90",
             swathWidthM = "6",
             notes = "spray the fenceline twice"
         )
         assertTrue(edited is AssetEditResult.Ok)
 
-        viewModel.save((edited as AssetEditResult.Ok).track)
+        val ok = edited as AssetEditResult.Ok
+        viewModel.save(ok.asset, ok.groupName)
 
         val stored = withTimeout(5_000) {
             assetRepository.observeAsset(assetId).first { it?.name == "Back paddock" }
         }!!
-        assertEquals("Back", stored.areaLabel)
+        assertEquals("Back", assetRepository.observeGroupName(assetId).first())
         assertEquals(90, stored.intervalDays)
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)
@@ -110,14 +111,14 @@ class AssetDetailViewModelTest {
         // The same track, once its owner says it wants it every 10 days - inside the
         // 14-day lead time, so the traffic light must change.
         val edited = AssetEdits.apply(
-            track = track().copy(lastSprayedAtEpochMs = now),
+            asset = track().copy(lastSprayedAtEpochMs = now),
             name = "Home block",
-            areaLabel = "",
+            groupName = "",
             intervalDays = "10",
             swathWidthM = "",
             notes = ""
         )
-        viewModel.save((edited as AssetEditResult.Ok).track)
+        viewModel.save((edited as AssetEditResult.Ok).asset, (edited as AssetEditResult.Ok).groupName)
 
         withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.intervalDays == 10 } }
         assertEquals(
@@ -132,12 +133,14 @@ class AssetDetailViewModelTest {
         val viewModel = viewModel()
 
         val withWidth = AssetEdits.apply(track(), "Home block", "", "120", "4.5", "")
-        viewModel.save((withWidth as AssetEditResult.Ok).track)
+            as AssetEditResult.Ok
+        viewModel.save(withWidth.asset, withWidth.groupName)
         val stored = withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM != null } }!!
         assertEquals(4.5, stored.swathWidthM!!, 1e-9)
 
         val withoutWidth = AssetEdits.apply(stored, "Home block", "", "120", "", "")
-        viewModel.save((withoutWidth as AssetEditResult.Ok).track)
+            as AssetEditResult.Ok
+        viewModel.save(withoutWidth.asset, withoutWidth.groupName)
         withTimeout(5_000) { assetRepository.observeAsset(assetId).first { it?.swathWidthM == null } }
 
         assertNull("removing the width must not leave a zero behind", track().swathWidthM)

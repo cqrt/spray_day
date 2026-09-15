@@ -5,15 +5,22 @@ import nz.mckenzie.sprayday.data.db.AssetEntity
 /** What the edit form made of what was typed into it. */
 sealed interface AssetEditResult {
 
-    /** The track to store. */
-    data class Ok(val track: AssetEntity) : AssetEditResult
+    /**
+     * The asset to store, with the group it should sit in.
+     *
+     * The group travels as a name rather than an id because that is what the operator
+     * typed, and because a name that matches nothing yet has to mean "start that
+     * group" - resolving it is the repository's job, inside the same transaction as
+     * the write. Blank means "no group", which is how an asset is taken out of one.
+     */
+    data class Ok(val asset: AssetEntity, val groupName: String?) : AssetEditResult
 
     /** What to tell the operator, in words that say what to fix. */
     data class Invalid(val message: String) : AssetEditResult
 }
 
 /**
- * The editable fields of a track, as typed.
+ * The editable fields of an asset, as typed.
  *
  * The form is text, so every field needs a decision about what a blank, a typo or a
  * comma means. Those decisions are worth testing on their own, which is why this is
@@ -31,9 +38,9 @@ object AssetEdits {
     const val MIN_SWATH_M = 0.1
 
     fun apply(
-        track: AssetEntity,
+        asset: AssetEntity,
         name: String,
-        areaLabel: String,
+        groupName: String,
         intervalDays: String,
         swathWidthM: String,
         notes: String
@@ -51,7 +58,7 @@ object AssetEdits {
             )
         }
 
-        // Blank means "not known", which is different from zero: a track with no
+        // Blank means "not known", which is different from zero: an asset with no
         // swath width simply cannot have its treated area estimated.
         val swath = when (val text = swathWidthM.trim()) {
             "" -> null
@@ -65,13 +72,13 @@ object AssetEdits {
         }
 
         return AssetEditResult.Ok(
-            track.copy(
+            asset = asset.copy(
                 name = cleanName,
-                areaLabel = areaLabel.trim().ifBlank { null },
                 notes = notes.trim().ifBlank { null },
                 intervalDays = days,
                 swathWidthM = swath
-            )
+            ),
+            groupName = groupName.trim().ifBlank { null }
         )
     }
 }

@@ -70,10 +70,10 @@ class MapViewModel(
         AssetGeoJson.build(
             tracks.map { item ->
                 AssetLine(
-                    assetId = item.track.id,
-                    name = item.track.name,
+                    assetId = item.asset.id,
+                    name = item.asset.name,
                     colorHex = AssetColors.forStatus(item.due.status),
-                    points = geometry[item.track.id].orEmpty()
+                    points = geometry[item.asset.id].orEmpty()
                 )
             }
         )
@@ -97,7 +97,7 @@ class MapViewModel(
             // every line from the database once a minute was work on a map that had not
             // changed.
             assetsWithDue
-                .map { tracks -> tracks.map { it.track.id to it.track.lengthM }.sortedBy { it.first } }
+                .map { tracks -> tracks.map { it.asset.id to it.asset.lengthM }.sortedBy { it.first } }
                 .distinctUntilChanged()
                 .collect { keys ->
                     geometryByTrack.value = keys.associate { (assetId, _) ->

@@ -53,6 +53,7 @@ import nz.mckenzie.sprayday.ui.formatIntervalDays
 import nz.mckenzie.sprayday.ui.formatPlainNumber
 import nz.mckenzie.sprayday.ui.formatQuantityWithUnit
 import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
+import nz.mckenzie.sprayday.viewmodel.AssetEditDraft
 
 /**
  * One track: where it is, when it is next due, and what it has been given.
@@ -66,6 +67,7 @@ fun AssetDetailScreen(
     onOpenRecording: (Long) -> Unit = {}
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
+    val editDraft by viewModel.editDraft.collectAsStateWithLifecycle()
     val geometry by viewModel.geometry.collectAsStateWithLifecycle()
     val bounds by viewModel.bounds.collectAsStateWithLifecycle()
     val due by viewModel.due.collectAsStateWithLifecycle()
@@ -136,8 +138,8 @@ fun AssetDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(dueText(due), style = MaterialTheme.typography.titleMedium)
-                    track?.areaLabel?.takeIf { it.isNotBlank() }?.let { label ->
-                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                    editDraft?.groupName?.takeIf { it.isNotBlank() }?.let { group ->
+                        Text(text = group, style = MaterialTheme.typography.bodyMedium)
                     }
                     Text(
                         text = "Length ${formatDistance(track?.lengthM ?: 0.0)}" +
@@ -263,14 +265,15 @@ fun AssetDetailScreen(
         )
     }
 
-    // The track is re-read rather than copied once, so a rename while the dialog is
-    // open cannot be saved back as a stale name.
-    track?.takeIf { editing }?.let { current ->
+    // The asset and its group are re-read rather than copied once, so a rename while
+    // the dialog is open cannot be saved back as a stale name - and the dialog does not
+    // open until the group name is known, because a blank field would clear the group.
+    editDraft?.takeIf { editing }?.let { current ->
         AssetEditDialog(
-            track = current,
+            draft = current,
             onDismiss = { editing = false },
-            onSave = { edited ->
-                viewModel.save(edited)
+            onSave = { asset, groupName ->
+                viewModel.save(asset, groupName)
                 editing = false
             }
         )
@@ -278,25 +281,29 @@ fun AssetDetailScreen(
 }
 
 /**
- * The per-track settings: what it is called, how often it is sprayed, how wide the
- * boom is, and anything worth remembering about it.
+ * The per-asset settings: what it is called, the group it is worked with, how often it
+ * is sprayed, how wide the boom is, and anything worth remembering about it.
  *
- * A track's interval used to be the same 120 days for everything, because there was
- * nowhere to change it. It is now this field, and the traffic light follows it.
+ * The interval used to be the same 120 days for everything, because there was nowhere
+ * to change it. It is now this field, and the traffic light follows it.
+ *
+ * The group is edited as a name, because that is what the operator has in their head;
+ * naming one that does not exist yet starts it.
  */
 @Composable
 private fun AssetEditDialog(
-    track: AssetEntity,
+    draft: AssetEditDraft,
     onDismiss: () -> Unit,
-    onSave: (AssetEntity) -> Unit
+    onSave: (AssetEntity, String?) -> Unit
 ) {
-    var name by remember { mutableStateOf(track.name) }
-    var areaLabel by remember { mutableStateOf(track.areaLabel.orEmpty()) }
-    var intervalDays by remember { mutableStateOf(track.intervalDays.toString()) }
+    val asset = draft.asset
+    var name by remember { mutableStateOf(asset.name) }
+    var groupName by remember { mutableStateOf(draft.groupName) }
+    var intervalDays by remember { mutableStateOf(asset.intervalDays.toString()) }
     var swathWidth by remember {
-        mutableStateOf(track.swathWidthM?.let(::formatPlainNumber).orEmpty())
+        mutableStateOf(asset.swathWidthM?.let(::formatPlainNumber).orEmpty())
     }
-    var notes by remember { mutableStateOf(track.notes.orEmpty()) }
+    var notes by remember { mutableStateOf(asset.notes.orEmpty()) }
     var problem by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -315,9 +322,10 @@ private fun AssetEditDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = areaLabel,
-                    onValueChange = { areaLabel = it; problem = null },
+                    value = groupName,
+                    onValueChange = { groupName = it; problem = null },
                     label = { Text("Block or area") },
+                    supportingText = { Text("Assets sharing one are worked together") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -359,8 +367,8 @@ private fun AssetEditDialog(
             TextButton(onClick = {
                 // Refused edits keep the dialog open with the reason showing: closing it
                 // would leave the operator believing the change was stored.
-                when (val result = AssetEdits.apply(track, name, areaLabel, intervalDays, swathWidth, notes)) {
-                    is AssetEditResult.Ok -> onSave(result.track)
+                when (val result = AssetEdits.apply(asset, name, groupName, intervalDays, swathWidth, notes)) {
+                    is AssetEditResult.Ok -> onSave(result.asset, result.groupName)
                     is AssetEditResult.Invalid -> problem = result.message
                 }
             }) { Text("Save") }

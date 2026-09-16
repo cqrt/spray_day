@@ -68,6 +68,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     val state by viewModel.tracking.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val geoJson by viewModel.recordedGeoJson.collectAsStateWithLifecycle()
+    val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val coverage by viewModel.coverage.collectAsStateWithLifecycle()
     val rows by viewModel.rows.collectAsStateWithLifecycle()
@@ -118,6 +119,8 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
             LinzMapView(
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
+                // Recording starts where the operator is, not on a view of the country.
+                fitBounds = initialFrame,
                 modifier = Modifier.fillMaxSize()
             )
 

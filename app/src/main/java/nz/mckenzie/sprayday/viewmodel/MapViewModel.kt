@@ -31,6 +31,7 @@ import nz.mckenzie.sprayday.map.AssetHitTest
 import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
+import nz.mckenzie.sprayday.tracking.frameOnDevice
 
 /**
  * Feeds the map: the due-status of every track plus the GeoJSON MapLibre draws.
@@ -91,7 +92,7 @@ class MapViewModel(
         viewModelScope.launch {
             // One decision, in order: the work if there is any, otherwise the phone.
             val fromTracks = runCatching { assetRepository.assetBounds() }.getOrNull()
-            _initialFrame.value = fromTracks ?: deviceBounds()
+            _initialFrame.value = fromTracks ?: locationSource.frameOnDevice()
         }
 
         viewModelScope.launch {
@@ -115,28 +116,8 @@ class MapViewModel(
     fun assetAt(lat: Double, lng: Double, radiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M): Long? =
         AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
 
-    /** A small frame around the device, for a first run with nothing drawn yet. */
-    private suspend fun deviceBounds(): LatLngBounds? {
-        val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-            runCatching { locationSource.currentLocation() }.getOrNull()
-        } ?: return null
-
-        return LatLngBounds(
-            minLat = fix.lat - START_FRAME_DEGREES,
-            minLng = fix.lng - START_FRAME_DEGREES,
-            maxLat = fix.lat + START_FRAME_DEGREES,
-            maxLng = fix.lng + START_FRAME_DEGREES
-        )
-    }
-
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
-
-        /** Long enough for a balanced-power fix, short enough not to hold the map up. */
-        private const val LOCATION_TIMEOUT_MS = 5_000L
-
-        /** Half-width of the frame put around the device's position: about 1 km. */
-        private const val START_FRAME_DEGREES = 0.01
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

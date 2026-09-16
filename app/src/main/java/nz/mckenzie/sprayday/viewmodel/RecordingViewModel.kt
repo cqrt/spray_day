@@ -30,11 +30,15 @@ import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.tracking.FusedLocationSource
+import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.tracking.TrackingService
 import nz.mckenzie.sprayday.tracking.TrackingState
+import nz.mckenzie.sprayday.tracking.frameOnDevice
 import nz.mckenzie.sprayday.ui.formatQuantityMl
 import nz.mckenzie.sprayday.ui.formatShortDate
 import nz.mckenzie.sprayday.ui.parseQuantityMl
@@ -56,7 +60,12 @@ class RecordingViewModel(
     private val assetRepository: AssetRepository,
     private val sprays: SprayRepository,
     settingsRepository: SettingsRepository,
-    private val context: Context
+    private val context: Context,
+    /**
+     * Where the phone is, for the first frame. Recording is driving a thing you are
+     * standing next to, so opening on a neutral view of the country is no use.
+     */
+    private val locationSource: LocationSource
 ) : ViewModel() {
 
     /** One product line as the operator enters it. */
@@ -74,6 +83,17 @@ class RecordingViewModel(
     /** Planned tracks to choose from, with their due colours. */
     val assetsToSpray: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
+
+    /** The frame for the camera when the map opens: around the phone, if it knows. */
+    val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
+
+    init {
+        viewModelScope.launch {
+            _initialFrame.value = locationSource.frameOnDevice()
+        }
+    }
 
     private val _selectedAssetId = MutableStateFlow<Long?>(null)
     val selectedAssetId: StateFlow<Long?> = _selectedAssetId
@@ -440,7 +460,8 @@ class RecordingViewModel(
                         assetRepository = AssetRepository(database),
                         sprays = SprayRepository(database),
                         settingsRepository = SettingsRepository(appContext),
-                        context = appContext
+                        context = appContext,
+                        locationSource = FusedLocationSource(appContext)
                     )
                 }
             }

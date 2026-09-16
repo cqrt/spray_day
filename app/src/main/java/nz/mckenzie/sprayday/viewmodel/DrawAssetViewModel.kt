@@ -21,9 +21,13 @@ import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.tracking.FusedLocationSource
+import nz.mckenzie.sprayday.tracking.LocationSource
+import nz.mckenzie.sprayday.tracking.frameOnDevice
 
 /**
  * Draws a new asset by tapping the map.
@@ -39,12 +43,28 @@ import nz.mckenzie.sprayday.map.AssetLine
  */
 class DrawAssetViewModel(
     private val assetRepository: AssetRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    /**
+     * Where the phone is, for the first frame: drawing happens where you are standing,
+     * so opening on a neutral view of the country would be twenty minutes of panning.
+     */
+    private val locationSource: LocationSource
 ) : ViewModel() {
 
     /** Needed to render the basemap behind the drawing. */
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
+
+    /** The frame for the camera when the map opens: around the phone, if it knows. */
+    val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
+
+    init {
+        viewModelScope.launch {
+            _initialFrame.value = locationSource.frameOnDevice()
+        }
+    }
 
     private val _points = MutableStateFlow<List<GeoPoint>>(emptyList())
     val points: StateFlow<List<GeoPoint>> = _points
@@ -188,7 +208,8 @@ class DrawAssetViewModel(
                 initializer {
                     DrawAssetViewModel(
                         assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
-                        settingsRepository = SettingsRepository(appContext)
+                        settingsRepository = SettingsRepository(appContext),
+                        locationSource = FusedLocationSource(appContext)
                     )
                 }
             }

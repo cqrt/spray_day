@@ -45,6 +45,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val points by viewModel.points.collectAsStateWithLifecycle()
     val lengthM by viewModel.lengthM.collectAsStateWithLifecycle()
     val geoJson by viewModel.draftGeoJson.collectAsStateWithLifecycle()
+    val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
     val savedAssetId by viewModel.savedAssetId.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -80,6 +81,8 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
             LinzMapView(
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
+                // Drawing happens where the operator is standing, so that is the frame.
+                fitBounds = initialFrame,
                 onMapClick = { latitude, longitude, _ -> viewModel.addPoint(latitude, longitude) },
                 modifier = Modifier.fillMaxSize()
             )

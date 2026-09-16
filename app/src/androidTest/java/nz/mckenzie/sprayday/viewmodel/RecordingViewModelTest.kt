@@ -1,5 +1,9 @@
 package nz.mckenzie.sprayday.viewmodel
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import nz.mckenzie.sprayday.tracking.LocationSource
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -72,8 +76,16 @@ class RecordingViewModelTest {
         assetRepository = assetRepository,
         sprays = SprayRepository(db),
         settingsRepository = SettingsRepository(context),
-        context = context
+        context = context,
+        locationSource = NoFixLocation
     )
+
+    /** A phone that offers no fix: this suite is about recording, not about framing. */
+    private object NoFixLocation : LocationSource {
+        override fun updates(): Flow<GeoPoint> = emptyFlow()
+
+        override suspend fun currentLocation(): GeoPoint? = null
+    }
 
     /**
      * A session already recording, with points, as the service would have left it.

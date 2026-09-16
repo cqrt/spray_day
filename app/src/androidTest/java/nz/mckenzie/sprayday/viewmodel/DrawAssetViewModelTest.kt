@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -12,6 +14,8 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.tracking.LocationSource
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,10 +49,37 @@ class DrawAssetViewModelTest {
     @After
     fun tearDown() = db.close()
 
-    private fun viewModel() = DrawAssetViewModel(
+    private fun viewModel(at: GeoPoint? = null) = DrawAssetViewModel(
         assetRepository = AssetRepository(db),
-        settingsRepository = SettingsRepository(context)
+        settingsRepository = SettingsRepository(context),
+        locationSource = FixedLocation(at)
     )
+
+    /** A phone that knows where it is, or one that cannot say. */
+    private class FixedLocation(private val fix: GeoPoint?) : LocationSource {
+        override fun updates(): Flow<GeoPoint> = emptyFlow()
+
+        override suspend fun currentLocation(): GeoPoint? = fix
+    }
+
+    @Test
+    fun theMapOpensAroundThePhoneRatherThanOnTheCountry(): Unit = runBlocking {
+        val viewModel = viewModel(at = GeoPoint(lat = -46.4132, lng = 168.3538))
+
+        val frame = withTimeout(5_000) { viewModel.initialFrame.first { it != null } }!!
+
+        assertEquals("the frame should be around the phone", -46.4132, frame.minLat, 0.02)
+        assertEquals(168.3538, frame.minLng, 0.02)
+    }
+
+    @Test
+    fun aPhoneThatCannotSayWhereItIsLeavesTheMapOnItsNeutralView(): Unit = runBlocking {
+        val viewModel = viewModel(at = null)
+
+        // Nothing to frame on, so the map keeps its country-wide default rather than
+        // the screen waiting for a fix that may never come.
+        assertNull(withTimeout(5_000) { viewModel.initialFrame.first() })
+    }
 
     @Test
     fun savingRaisesTheNavigationSignalAndConsumingClearsIt() = runBlocking {

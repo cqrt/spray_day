@@ -16,9 +16,9 @@ sprayed).
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
 - **Assets** — tracks, roads and pieces of infrastructure, in one list: import GPX,
-  draw them by tapping the map, record them by driving the line, or stand at a trough
-  or a shelter and press **Add here**. Each asset says what it is, and the ones that
-  are places rather than paths are drawn as a dot.
+  draw them by tapping the map, or record them by driving the line. The drawing screen
+  asks what you are making as you make it, so a fenceline is drawn as an infrastructure
+  line and a trough is placed with a single tap.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
   only the default), its **kind** (track, road or infrastructure), whether it is a
   line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the

@@ -27,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
@@ -45,6 +48,10 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
     val savedAssetId by viewModel.savedAssetId.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val kind by viewModel.kind.collectAsStateWithLifecycle()
+    val shape by viewModel.shape.collectAsStateWithLifecycle()
+
+    val isSpot = shape == AssetShape.POINT
 
     var naming by remember { mutableStateOf(false) }
     var draftName by remember { mutableStateOf("") }
@@ -60,7 +67,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Draw a line") },
+                title = { Text(if (isSpot) "Add a spot" else "Draw a line") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
             )
         }
@@ -92,12 +99,36 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    ChoiceRow(
+                        label = "What it is",
+                        choices = AssetPhrase.kinds,
+                        selected = kind,
+                        onChoose = viewModel::chooseKind,
+                        text = AssetPhrase::kind
+                    )
+                    if (kind == AssetKind.INFRASTRUCTURE) {
+                        ChoiceRow(
+                            label = "Shape",
+                            choices = AssetPhrase.shapes,
+                            selected = shape,
+                            onChoose = viewModel::chooseShape,
+                            text = AssetPhrase::shapeChoice
+                        )
+                    }
                     Text(
-                        text = "${points.size} points \u00b7 ${formatDistance(lengthM)}",
+                        text = if (isSpot) {
+                            if (points.isEmpty()) "No spot yet" else "Spot placed"
+                        } else {
+                            "${points.size} points \u00b7 ${formatDistance(lengthM)}"
+                        },
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        text = message ?: "Tap the map to add points.",
+                        text = message ?: when {
+                            isSpot -> "Tap the map where it is."
+                            points.isEmpty() -> "Tap the map to add points."
+                            else -> "Keep tapping to extend the line."
+                        },
                         style = MaterialTheme.typography.bodySmall
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,7 +150,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     if (naming) {
         AlertDialog(
             onDismissRequest = { naming = false },
-            title = { Text("Name this line") },
+            title = { Text(if (isSpot) "Name this spot" else "Name this line") },
             text = {
                 OutlinedTextField(
                     value = draftName,
@@ -129,10 +160,13 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    naming = false
-                    viewModel.save(draftName)
-                }) { Text("Save") }
+                TextButton(
+                    onClick = {
+                        naming = false
+                        viewModel.save(draftName)
+                    },
+                    enabled = draftName.isNotBlank()
+                ) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { naming = false }) { Text("Cancel") }

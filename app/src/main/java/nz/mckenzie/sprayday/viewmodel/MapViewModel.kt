@@ -115,46 +115,6 @@ class MapViewModel(
     fun assetAt(lat: Double, lng: Double, radiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M): Long? =
         AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
 
-    private val _message = MutableStateFlow<String?>(null)
-
-    /** Something to tell the operator, e.g. that the phone has no fix yet. */
-    val message: StateFlow<String?> = _message
-
-    /**
-     * Adds a piece of infrastructure where the phone is standing.
-     *
-     * The shortcut exists because most infrastructure is a place rather than a path: a
-     * trough, a shelter, a table at the end of the block. Drawing a line to it and then
-     * saying "actually, just that spot" is the long way round, so this asks the phone
-     * where it is and puts the asset there.
-     *
-     * It trusts the phone's fix, and says so by what it does: the new asset appears on
-     * the map as a circle, so a fix that was wrong is visible rather than silent, and
-     * the operator can move it or delete it from there.
-     */
-    fun addInfrastructureHere(name: String) {
-        viewModelScope.launch {
-            val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-                runCatching { locationSource.currentLocation() }.getOrNull()
-            }
-            if (fix == null) {
-                _message.value = "No location yet. Try Add here again in a moment."
-                return@launch
-            }
-
-            runCatching {
-                assetRepository.createAsset(
-                    name = name.trim(),
-                    geometry = listOf(fix),
-                    kind = AssetKind.INFRASTRUCTURE,
-                    shape = AssetShape.POINT
-                )
-            }
-                .onSuccess { _message.value = "Added ${name.trim()} where you are standing" }
-                .onFailure { _message.value = it.message ?: "Could not add that" }
-        }
-    }
-
     /** A small frame around the device, for a first run with nothing drawn yet. */
     private suspend fun deviceBounds(): LatLngBounds? {
         val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {

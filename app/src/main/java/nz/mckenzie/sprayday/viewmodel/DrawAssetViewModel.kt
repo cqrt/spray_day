@@ -9,12 +9,16 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.map.AssetColors
@@ -22,7 +26,13 @@ import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
 
 /**
- * Draws a new track by tapping the map.
+ * Draws a new asset by tapping the map.
+ *
+ * Two shapes, because two things get created here. A line - a track, a road, the
+ * fencelines along them - is tapped point by point, and its running length is shown so
+ * the operator can sanity-check it before saving. A spot, which is what most
+ * infrastructure is, is one tap: a trough or a table is somewhere you stop, not
+ * something you travel along.
  *
  * The draft is held in memory only - nothing is persisted until Save, so an
  * abandoned sketch leaves no trace in the database.
@@ -39,18 +49,34 @@ class DrawAssetViewModel(
     private val _points = MutableStateFlow<List<GeoPoint>>(emptyList())
     val points: StateFlow<List<GeoPoint>> = _points
 
+    private val _kind = MutableStateFlow(AssetKind.TRACK)
+    val kind: StateFlow<AssetKind> = _kind
+
+    private val _shape = MutableStateFlow(AssetShape.LINE)
+    val shape: StateFlow<AssetShape> = _shape
+
     val lengthM: StateFlow<Double> = _points
         .map { polylineLengthMeters(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0.0)
 
-    /** The in-progress line, drawn yellow so it is distinct from saved tracks. */
-    val draftGeoJson: StateFlow<String> = _points
-        .map { draft ->
-            AssetGeoJson.build(
-                listOf(AssetLine(assetId = DRAFT_ID, name = "Draft", colorHex = AssetColors.YELLOW, points = draft))
+    /** The in-progress line, drawn yellow so it is distinct from saved assets. */
+    val draftGeoJson: StateFlow<String> = combine(_points, _shape) { draft, shape ->
+        AssetGeoJson.build(
+            listOf(
+                AssetLine(
+                    assetId = DRAFT_ID,
+                    name = "Draft",
+                    colorHex = AssetColors.YELLOW,
+                    points = draft,
+                    shape = shape
+                )
             )
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AssetGeoJson.build(emptyList()))
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+        AssetGeoJson.build(emptyList())
+    )
 
     private val _savedAssetId = MutableStateFlow<Long?>(null)
 
@@ -73,12 +99,47 @@ class DrawAssetViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    val canSave: StateFlow<Boolean> = _points
-        .map { it.size >= 2 }
+    val canSave: StateFlow<Boolean> = combine(_points, _shape) { draft, shape -> canSave(draft, shape) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
+    /**
+     * What is being drawn, which decides how many taps it takes: a line needs two
+     * points to be a line at all, while a spot is complete with the one it is at.
+     */
+    private fun canSave(points: List<GeoPoint>, shape: AssetShape): Boolean =
+        points.size >= if (shape == AssetShape.POINT) 1 else 2
+
+    /**
+     * Picks what is being drawn.
+     *
+     * Only infrastructure is offered a spot, so choosing any other kind puts the shape
+     * back to a line rather than leaving a table's shape on a road.
+     */
+    fun chooseKind(chosen: AssetKind) {
+        _kind.value = chosen
+        if (chosen != AssetKind.INFRASTRUCTURE) _shape.value = AssetShape.LINE
+        _message.value = null
+    }
+
+    /**
+     * Picks the shape. Switching to a spot keeps the last tap and drops the rest: a
+     * place is one coordinate, and the most recent tap is the one that was meant.
+     */
+    fun chooseShape(chosen: AssetShape) {
+        _shape.value = chosen
+        if (chosen == AssetShape.POINT && _points.value.size > 1) {
+            _points.value = listOf(_points.value.last())
+        }
+        _message.value = null
+    }
+
     fun addPoint(latitude: Double, longitude: Double) {
-        _points.value = _points.value + GeoPoint(lat = latitude, lng = longitude)
+        val point = GeoPoint(lat = latitude, lng = longitude)
+        // A spot moves to wherever it was last tapped; a line grows.
+        _points.value = when (_shape.value) {
+            AssetShape.POINT -> listOf(point)
+            AssetShape.LINE -> _points.value + point
+        }
         _message.value = null
     }
 
@@ -92,20 +153,27 @@ class DrawAssetViewModel(
 
     fun save(name: String) {
         val draft = _points.value
-        if (draft.size < 2) {
-            _message.value = "Tap the map at least twice to draw a track"
+        val shape = _shape.value
+        val kind = _kind.value
+        if (!canSave(draft, shape)) {
+            _message.value = when (shape) {
+                AssetShape.POINT -> "Tap the map where it is, then save"
+                AssetShape.LINE -> "Tap the map at least twice to draw a line"
+            }
             return
         }
         viewModelScope.launch {
             runCatching {
                 assetRepository.createAsset(
-                    name = name.trim().ifBlank { "New track" },
-                    geometry = draft
+                    name = name.trim().ifBlank { "New ${AssetPhrase.kind(kind)}" },
+                    geometry = draft,
+                    kind = kind,
+                    shape = shape
                 )
             }.onSuccess { assetId ->
                 _savedAssetId.value = assetId
             }.onFailure { failure ->
-                _message.value = failure.message ?: "Could not save the track"
+                _message.value = failure.message ?: "Could not save it"
             }
         }
     }

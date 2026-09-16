@@ -7,26 +7,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,9 +48,6 @@ fun MapScreen(
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.assetGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
-
-    var addingHere by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -109,85 +99,8 @@ fun MapScreen(
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)
             )
-
-            // Infrastructure is usually a place rather than a path, so the shortcut is
-            // here rather than on the list: "here" only means something on the map.
-            FloatingActionButton(
-                onClick = { addingHere = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Text("Add here")
-            }
-
-            message?.let {
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
-            }
         }
     }
-
-    if (addingHere) {
-        AddHereDialog(
-            onDismiss = { addingHere = false },
-            onAdd = { name ->
-                viewModel.addInfrastructureHere(name)
-                addingHere = false
-            }
-        )
-    }
-}
-
-/**
- * What to call the thing being added where the operator is standing.
- *
- * A name is asked for rather than invented: an asset called "Infrastructure 3" is one
- * the operator has to hunt for later, and naming it is five seconds now.
- */
-@Composable
-private fun AddHereDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add here") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "A new piece of infrastructure at where you are standing. " +
-                        "It appears on the map as a dot, so you can see it landed in the " +
-                        "right place.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onAdd(name) },
-                enabled = name.isNotBlank()
-            ) { Text("Add") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 @Composable

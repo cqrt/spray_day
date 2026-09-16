@@ -19,7 +19,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -458,36 +457,3 @@ private fun AssetEditDialog(
 /** Operator wording for the traffic light. */
 internal fun dueText(due: DueInfo?): String =
     due?.let { DuePhrase.of(it.status, it.daysUntilDue) } ?: "Checking due date"
-
-/**
- * One labelled row of single-choice chips.
- *
- * The form has three of these - what an asset is, what shape it is, and how it gets
- * sprayed - and they differ only in their words, so they share one layout rather than
- * three copies of the same FlowRow that could drift apart.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun <T> ChoiceRow(
-    label: String,
-    choices: List<T>,
-    selected: T,
-    onChoose: (T) -> Unit,
-    text: (T) -> String
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            choices.forEach { choice ->
-                FilterChip(
-                    selected = choice == selected,
-                    onClick = { onChoose(choice) },
-                    label = { Text(text(choice)) }
-                )
-            }
-        }
-    }
-}

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
@@ -132,6 +133,7 @@ private val GPX_MIME_TYPES = arrayOf(
 
 @Composable
 private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val shape = AssetShape.fromStorage(item.asset.shape)
     Card(onClick = onOpen) {
         Row(
             modifier = Modifier
@@ -141,7 +143,7 @@ private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Uni
         ) {
             // What it is, then when it is due: the icon is read first, the colour of the
             // dot second, which is the order the operator asked the questions in.
-            AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind))
+            AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind), shape = shape)
             Box(
                 modifier = Modifier
                     .padding(start = 10.dp)
@@ -155,13 +157,26 @@ private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Uni
             ) {
                 Text(item.asset.name, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = "${formatDistance(item.asset.lengthM)} \u00b7 ${dueLabel(item)}",
+                    text = assetRowDetail(item),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             TextButton(onClick = onDelete) { Text("Delete") }
         }
     }
+}
+
+/**
+ * What the row says under an asset's name.
+ *
+ * A spot has no length, and a line that has not been drawn on yet has none either, so
+ * in both cases the length is left out rather than printed as "0 m": the row then says
+ * the thing the operator is actually looking for, which is when it is due.
+ */
+internal fun assetRowDetail(item: AssetWithDue): String {
+    val length = item.asset.lengthM
+    val drawnLine = AssetShape.fromStorage(item.asset.shape) == AssetShape.LINE && length > 0.0
+    return if (drawnLine) "${formatDistance(length)} \u00b7 ${dueLabel(item)}" else dueLabel(item)
 }
 
 /** Operator wording for the traffic light, so the colour is never a mystery. */

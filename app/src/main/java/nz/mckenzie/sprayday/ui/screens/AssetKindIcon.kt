@@ -15,16 +15,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.map.AssetColors
 
 /**
  * A small coloured glyph saying what an asset is: a walking track, a road, or a piece
- * of infrastructure.
+ * of infrastructure - and for infrastructure, which of the two things it is, a
+ * fenceline to follow or a place to stop at.
  *
  * Drawn rather than shipped as an icon font or a set of images: the app has no icon
- * dependency and does not need one for three shapes, and these three only mean
- * anything as a set - a curve, a pair of edges, a roofline - which is easier to keep
- * honest in one place than across three PNGs at three densities.
+ * dependency and does not need one for four shapes, and these only mean anything as a
+ * set - a curve, a pair of edges, a fence, a roofline - which is easier to keep honest
+ * in one place than across four PNGs at three densities.
  *
  * The colour is the kind's, never the traffic light's. This says what something is;
  * the dot beside it says when it is due, and the two must not be confusable.
@@ -32,10 +34,17 @@ import nz.mckenzie.sprayday.map.AssetColors
 @Composable
 fun AssetKindIcon(
     kind: AssetKind,
+    shape: AssetShape = AssetShape.LINE,
     modifier: Modifier = Modifier,
     dimension: Dp = 20.dp
 ) {
-    val description = AssetPhrase.kind(kind)
+    // Infrastructure is spelled out with its shape, because the shape is what the icon
+    // is showing: a fence to follow, or a place to stop at.
+    val description = if (kind == AssetKind.INFRASTRUCTURE) {
+        "${AssetPhrase.kind(kind)}, ${AssetPhrase.shapeChoice(shape).lowercase()}"
+    } else {
+        AssetPhrase.kind(kind)
+    }
     val color = parseHexColor(AssetColors.forKind(kind))
     Canvas(
         modifier = modifier
@@ -77,20 +86,44 @@ fun AssetKindIcon(
                 )
             }
 
-            // Infrastructure is a place: a roof over a wall, the way a shelter sits.
+            // Infrastructure is whichever of the two it is: a fenceline you travel along,
+            // or a place you stop at. The shape decides, because the operator chose it -
+            // which is why a fenceline is infrastructure that follows a path.
             AssetKind.INFRASTRUCTURE -> {
-                val roof = Path().apply {
-                    moveTo(width * 0.10f, height * 0.46f)
-                    lineTo(width * 0.50f, height * 0.12f)
-                    lineTo(width * 0.90f, height * 0.46f)
+                if (shape == AssetShape.POINT) {
+                    val roof = Path().apply {
+                        moveTo(width * 0.10f, height * 0.46f)
+                        lineTo(width * 0.50f, height * 0.12f)
+                        lineTo(width * 0.90f, height * 0.46f)
+                    }
+                    drawPath(roof, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(width * 0.26f, height * 0.50f),
+                        size = Size(width * 0.48f, height * 0.38f),
+                        style = Stroke(width = stroke)
+                    )
+                } else {
+                    // A fence: posts with rails between them.
+                    listOf(0.20f, 0.50f, 0.80f).forEach { x ->
+                        drawLine(
+                            color = color,
+                            start = Offset(width * x, height * 0.16f),
+                            end = Offset(width * x, height * 0.90f),
+                            strokeWidth = stroke,
+                            cap = StrokeCap.Round
+                        )
+                    }
+                    listOf(0.38f, 0.66f).forEach { y ->
+                        drawLine(
+                            color = color,
+                            start = Offset(width * 0.14f, height * y),
+                            end = Offset(width * 0.86f, height * y),
+                            strokeWidth = stroke * 0.8f,
+                            cap = StrokeCap.Round
+                        )
+                    }
                 }
-                drawPath(roof, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
-                drawRect(
-                    color = color,
-                    topLeft = Offset(width * 0.26f, height * 0.50f),
-                    size = Size(width * 0.48f, height * 0.38f),
-                    style = Stroke(width = stroke)
-                )
             }
         }
     }

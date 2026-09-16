@@ -33,14 +33,24 @@ object AssetColors {
     const val RED = "#C62828"
     const val UNKNOWN = "#757575"
 
-    /** How a track is drawn on a map and marked in a list. */
-    const val TRACK_KIND = "#1565C0"
+    /**
+     * One colour per kind, for the icon beside an asset in the list.
+     *
+     * Two things decide these. None of them may be the traffic-light green, amber or
+     * red, because the icon says what something is while the dot beside it says when it
+     * is due. And they all have to be readable as a thin outline on the card the theme
+     * puts behind them - which the app follows from the system, so that card is
+     * near-white in light mode and near-black in dark mode. Brown and deep purple were
+     * fine on the first and all but invisible on the second, which is what
+     * [nz.mckenzie.sprayday.map.AssetColorsTest] now tests for.
+     */
+    const val TRACK_KIND = "#1E88E5"
 
     /** Roads. */
-    const val ROAD_KIND = "#6A1B9A"
+    const val ROAD_KIND = "#AB47BC"
 
-    /** Fencelines and structures. */
-    const val INFRASTRUCTURE_KIND = "#4E342E"
+    /** Fencelines and structures: teal, the one hue left that is nobody else's. */
+    const val INFRASTRUCTURE_KIND = "#00897B"
 
     /**
      * Never-sprayed tracks are drawn red: they still need spraying, but the
@@ -61,8 +71,7 @@ object AssetColors {
         AssetKind.TRACK -> TRACK_KIND
         AssetKind.ROAD -> ROAD_KIND
         AssetKind.INFRASTRUCTURE -> INFRASTRUCTURE_KIND
-    }
-}
+    }}
 
 /**
  * Builds the GeoJSON that MapLibre draws for the asset network.

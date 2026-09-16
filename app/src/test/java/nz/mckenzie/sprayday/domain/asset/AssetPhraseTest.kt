@@ -15,7 +15,6 @@ class AssetPhraseTest {
     fun `every kind has a name, and none of them is blank`() {
         assertEquals("Track", AssetPhrase.kind(AssetKind.TRACK))
         assertEquals("Road", AssetPhrase.kind(AssetKind.ROAD))
-        assertEquals("Fenceline", AssetPhrase.kind(AssetKind.FENCELINE))
         assertEquals("Infrastructure", AssetPhrase.kind(AssetKind.INFRASTRUCTURE))
     }
 

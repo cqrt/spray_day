@@ -22,9 +22,9 @@ import nz.mckenzie.sprayday.map.AssetColors
  * of infrastructure.
  *
  * Drawn rather than shipped as an icon font or a set of images: the app has no icon
- * dependency and does not need one for four shapes, and these only mean anything as a
- * set - a curve, a fence, a pair of edges, a roofline - which is easier to keep honest
- * in one place than across four PNGs at three densities.
+ * dependency and does not need one for three shapes, and these three only mean
+ * anything as a set - a curve, a pair of edges, a roofline - which is easier to keep
+ * honest in one place than across three PNGs at three densities.
  *
  * The colour is the kind's, never the traffic light's. This says what something is;
  * the dot beside it says when it is due, and the two must not be confusable.
@@ -75,28 +75,6 @@ fun AssetKindIcon(
                     strokeWidth = stroke,
                     cap = StrokeCap.Round
                 )
-            }
-
-            // A fenceline is posts with rails between them.
-            AssetKind.FENCELINE -> {
-                listOf(0.20f, 0.50f, 0.80f).forEach { x ->
-                    drawLine(
-                        color = color,
-                        start = Offset(width * x, height * 0.16f),
-                        end = Offset(width * x, height * 0.90f),
-                        strokeWidth = stroke,
-                        cap = StrokeCap.Round
-                    )
-                }
-                listOf(0.38f, 0.66f).forEach { y ->
-                    drawLine(
-                        color = color,
-                        start = Offset(width * 0.14f, height * y),
-                        end = Offset(width * 0.86f, height * y),
-                        strokeWidth = stroke * 0.8f,
-                        cap = StrokeCap.Round
-                    )
-                }
             }
 
             // Infrastructure is a place: a roof over a wall, the way a shelter sits.

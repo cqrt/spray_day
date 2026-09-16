@@ -39,9 +39,6 @@ object AssetColors {
     /** Roads. */
     const val ROAD_KIND = "#6A1B9A"
 
-    /** Fencelines: teal, far enough from the traffic-light green to be read as a shape. */
-    const val FENCELINE_KIND = "#00695C"
-
     /** Fencelines and structures. */
     const val INFRASTRUCTURE_KIND = "#4E342E"
 
@@ -63,7 +60,6 @@ object AssetColors {
     fun forKind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> TRACK_KIND
         AssetKind.ROAD -> ROAD_KIND
-        AssetKind.FENCELINE -> FENCELINE_KIND
         AssetKind.INFRASTRUCTURE -> INFRASTRUCTURE_KIND
     }
 }

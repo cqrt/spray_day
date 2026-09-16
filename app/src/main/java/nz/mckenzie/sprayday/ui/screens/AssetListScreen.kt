@@ -3,6 +3,7 @@ package nz.mckenzie.sprayday.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +15,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,11 +49,9 @@ import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 @Composable
 fun AssetListScreen(
     viewModel: AssetListViewModel,
-    onBack: () -> Unit,
+    onOpenTab: (Tab) -> Unit = {},
     onOpenAsset: (Long) -> Unit,
     onDrawAsset: () -> Unit,
-    onRecordAsset: () -> Unit,
-    onOpenRecordings: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
@@ -66,9 +66,14 @@ fun AssetListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Assets") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Map") } }
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        AppIcon(IconGlyph.SETTINGS, contentDescription = "Settings")
+                    }
+                }
             )
-        }
+        },
+        bottomBar = { SprayDayNavBar(current = Tab.ASSETS, onSelect = onOpenTab) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -77,26 +82,22 @@ fun AssetListScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // These four actions do not fit across a phone as one row: the last one
-            // was squeezed to a blank sliver against the right edge, which is how the
-            // recordings page went missing. A wrapping row keeps every label readable
-            // at any width, and the primary action - recording a track - is the one
-            // that gets the filled treatment, not the rarest.
+            // Two ways to make an asset, and only two: recording, the recordings list and
+            // settings used to be buttons here, and are now the tabs in the bar below and
+            // the icon in the bar above. Drawing gets the filled treatment because it is
+            // what happens standing in the paddock, which is the commoner case.
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = onRecordAsset) { Text("Record") }
-                OutlinedButton(onClick = onDrawAsset) { Text("Draw") }
+                Button(onClick = onDrawAsset) { Text("Draw") }
                 OutlinedButton(
                     onClick = { importLauncher.launch(GPX_MIME_TYPES) },
                     enabled = !busy
                 ) {
                     Text("Import GPX")
                 }
-                OutlinedButton(onClick = onOpenRecordings) { Text("Recordings") }
-                OutlinedButton(onClick = onOpenSettings) { Text("Settings") }
             }
 
             message?.let {
@@ -104,13 +105,20 @@ fun AssetListScreen(
             }
 
             if (tracks.isEmpty()) {
-                Text(
-                    text = "No assets yet. Import a GPX file, or draw one on the map.",
-                    style = MaterialTheme.typography.bodyMedium
+                EmptyState(
+                    glyph = IconGlyph.ASSETS,
+                    title = "No assets yet",
+                    body = "Import a GPX file, or draw one on the map. Every asset then keeps " +
+                        "its own spray history.",
+                    actionLabel = "Draw one",
+                    onAction = onDrawAsset
                 )
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tracks, key = { it.asset.id }) { item ->
+                // Rows rather than a card each: a list of assets is a list, and a card per
+                // row made five paddocks look like five unrelated things.
+                LazyColumn {
+                    itemsIndexed(tracks, key = { _, item -> item.asset.id }) { index, item ->
+                        if (index > 0) HorizontalDivider()
                         AssetRow(
                             item = item,
                             onOpen = { onOpenAsset(item.asset.id) },
@@ -134,36 +142,30 @@ private val GPX_MIME_TYPES = arrayOf(
 @Composable
 private fun AssetRow(item: AssetWithDue, onOpen: () -> Unit, onDelete: () -> Unit) {
     val shape = AssetShape.fromStorage(item.asset.shape)
-    Card(onClick = onOpen) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // What it is, then when it is due: the icon is read first, the colour of the
-            // dot second, which is the order the operator asked the questions in.
-            AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind), shape = shape)
-            Box(
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .size(14.dp)
-                    .background(parseHexColor(AssetColors.forStatus(item.due.status)), CircleShape)
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
-            ) {
-                Text(item.asset.name, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    text = assetRowDetail(item),
-                    style = MaterialTheme.typography.bodySmall
+    ListItem(
+        modifier = Modifier.clickable(onClick = onOpen),
+        headlineContent = {
+            Text(item.asset.name, style = MaterialTheme.typography.titleSmall)
+        },
+        supportingContent = { Text(assetRowDetail(item)) },
+        // What it is, then when it is due: the icon is read first, the colour of the dot
+        // second, which is the order the operator asked the questions in.
+        leadingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind), shape = shape)
+                Box(
+                    modifier = Modifier
+                        .padding(start = 10.dp)
+                        .size(14.dp)
+                        .background(
+                            parseHexColor(AssetColors.forStatus(item.due.status)),
+                            CircleShape
+                        )
                 )
             }
-            TextButton(onClick = onDelete) { Text("Delete") }
-        }
-    }
+        },
+        trailingContent = { DestructiveTextButton(text = "Delete", onClick = onDelete) }
+    )
 }
 
 /**

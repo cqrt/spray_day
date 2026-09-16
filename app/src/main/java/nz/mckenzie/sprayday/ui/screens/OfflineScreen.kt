@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,7 +48,7 @@ import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 @Composable
 fun OfflineScreen(
     viewModel: OfflineViewModel,
-    onBack: () -> Unit,
+    onOpenTab: (Tab) -> Unit = {},
     onChooseArea: () -> Unit
 ) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
@@ -66,12 +67,8 @@ fun OfflineScreen(
     var confirmingClear by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Offline areas") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Map") } }
-            )
-        }
+        topBar = { TopAppBar(title = { Text("Offline areas") }) },
+        bottomBar = { SprayDayNavBar(current = Tab.OFFLINE, onSelect = onOpenTab) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -90,7 +87,7 @@ fun OfflineScreen(
             }
 
             plan?.let { area ->
-                Card {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -103,14 +100,24 @@ fun OfflineScreen(
 
                         // The outline is drawn as a closed line, so what is about to be
                         // cached is visible rather than described.
-                        LinzMapView(
-                            apiKey = apiKey,
-                            assetGeoJson = previewGeoJson,
-                            fitBounds = area.bounds,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                        )
+                        Box {
+                            LinzMapView(
+                                apiKey = apiKey,
+                                assetGeoJson = previewGeoJson,
+                                fitBounds = area.bounds,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                            )
+                            // The licence wants the credit where the imagery is, and this
+                            // thumbnail is a place imagery is shown: the same strip the map
+                            // and the asset screens carry, for the same reason.
+                            AttributionStrip(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(bottom = 4.dp)
+                            )
+                        }
 
                         Text(
                             text = "About %.1f km across, zoom %d to %d".format(
@@ -153,7 +160,7 @@ fun OfflineScreen(
             }
 
             active?.let { area ->
-                Card {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -211,14 +218,18 @@ fun OfflineScreen(
             }
 
             if (stored.isEmpty()) {
-                Text(
-                    text = "Nothing stored yet. The map also keeps the imagery you browse.",
-                    style = MaterialTheme.typography.bodySmall
+                EmptyState(
+                    glyph = IconGlyph.OFFLINE,
+                    title = "Nothing downloaded yet",
+                    body = "Choose an area and it is stored on the phone, so the map keeps " +
+                        "working where there is no reception.",
+                    actionLabel = "Choose an area",
+                    onAction = onChooseArea
                 )
             }
 
             stored.forEach { area ->
-                Card {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -234,16 +245,17 @@ fun OfflineScreen(
                                     enabled = apiKey.isNotBlank() && !working
                                 ) { Text("Resume") }
                             }
-                            TextButton(onClick = { viewModel.delete(area.id) }) { Text("Delete") }
+                            DestructiveTextButton(text = "Delete", onClick = { viewModel.delete(area.id) })
                         }
                     }
                 }
             }
 
             if (summary.tiles > 0L) {
-                TextButton(onClick = { confirmingClear = true }) {
-                    Text("Clear downloaded imagery")
-                }
+                DestructiveTextButton(
+                    text = "Clear downloaded imagery",
+                    onClick = { confirmingClear = true }
+                )
             }
         }
     }
@@ -260,10 +272,13 @@ fun OfflineScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmingClear = false
-                    viewModel.clearTiles()
-                }) { Text("Delete") }
+                DestructiveTextButton(
+                    text = "Delete",
+                    onClick = {
+                        confirmingClear = false
+                        viewModel.clearTiles()
+                    }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmingClear = false }) { Text("Cancel") }

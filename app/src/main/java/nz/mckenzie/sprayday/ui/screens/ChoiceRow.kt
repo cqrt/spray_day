@@ -37,6 +37,14 @@ internal fun <T> ChoiceRow(
                 FilterChip(
                     selected = choice == selected,
                     onClick = { onChoose(choice) },
+                    // Material marks the chosen chip with a tick as well as the tint. Out in
+                    // the sun, a tint is not enough to read, and this is a screen the
+                    // operator uses in exactly that light.
+                    leadingIcon = if (choice == selected) {
+                        { AppIcon(glyph = IconGlyph.CHECK, dimension = 18.dp) }
+                    } else {
+                        null
+                    },
                     label = { Text(text(choice)) }
                 )
             }

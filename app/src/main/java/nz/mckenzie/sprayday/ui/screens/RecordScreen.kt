@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -64,7 +67,7 @@ import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
+fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val state by viewModel.tracking.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val geoJson by viewModel.recordedGeoJson.collectAsStateWithLifecycle()
@@ -104,12 +107,11 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     val elapsedMs = state.startedAtEpochMs?.let { (nowMs - it).coerceAtLeast(0L) } ?: 0L
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Record") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
-            )
-        }
+        topBar = { TopAppBar(title = { Text("Record") }) },
+        // No back arrow: recording is a tab, and the bar below is how you leave it. The
+        // arrow that used to be here sent the operator to the asset list, which is not
+        // where they came from.
+        bottomBar = { SprayDayNavBar(current = Tab.RECORD, onSelect = onOpenTab) }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -134,6 +136,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 12.dp, end = 12.dp, bottom = 40.dp)
+                    .fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
@@ -239,18 +242,54 @@ fun RecordScreen(viewModel: RecordingViewModel, onBack: () -> Unit) {
     }
 
     if (pickingTrack) {
-        AssetPickerDialog(
-            tracks = tracks,
-            onPick = { assetId ->
-                viewModel.selectTrack(assetId)
-                pickingTrack = false
-            },
-            onClear = {
-                viewModel.selectTrack(null)
-                pickingTrack = false
-            },
-            onDismiss = { pickingTrack = false }
-        )
+        ModalBottomSheet(onDismissRequest = { pickingTrack = false }) {
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                Text(
+                    text = "Which asset are you spraying?",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp)
+                )
+                if (tracks.isEmpty()) {
+                    Text(
+                        text = "Nothing planned yet. You can still record a line.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+                tracks.forEach { item ->
+                    ListItem(
+                        modifier = Modifier.clickable {
+                            viewModel.selectTrack(item.asset.id)
+                            pickingTrack = false
+                        },
+                        headlineContent = { Text(item.asset.name) },
+                        // The due colour travels with the name, because which block to spray
+                        // next is the question this sheet is answering.
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(
+                                        parseHexColor(AssetColors.forStatus(item.due.status)),
+                                        CircleShape
+                                    )
+                            )
+                        }
+                    )
+                }
+                // Recording without choosing an asset stays possible: the line that was
+                // driven is the evidence, and which asset it belongs to can be settled later.
+                ListItem(
+                    modifier = Modifier.clickable {
+                        viewModel.selectTrack(null)
+                        pickingTrack = false
+                    },
+                    headlineContent = { Text("Just record, no asset") },
+                    leadingContent = { AppIcon(IconGlyph.RECORD) }
+                )
+            }
+        }
     }
 
     // Finishing a line that is not already a track makes one, so it needs a name.
@@ -305,55 +344,4 @@ private fun QuantityRow(name: String, value: String, onChange: (String) -> Unit)
             modifier = Modifier.width(120.dp)
         )
     }
-}
-
-/** Picks the planned track being sprayed, with its due colour for context. */
-@Composable
-private fun AssetPickerDialog(
-    tracks: List<AssetWithDue>,
-    onPick: (Long) -> Unit,
-    onClear: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Which asset are you spraying?") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 320.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                if (tracks.isEmpty()) {
-                    Text(
-                        text = "Nothing planned yet. You can still record a line.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                tracks.forEach { item ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(
-                                    parseHexColor(AssetColors.forStatus(item.due.status)),
-                                    CircleShape
-                                )
-                        )
-                        TextButton(onClick = { onPick(item.asset.id) }) {
-                            Text(item.asset.name)
-                        }
-                    }
-                }
-                TextButton(onClick = onClear) { Text("Just record, no asset") }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }

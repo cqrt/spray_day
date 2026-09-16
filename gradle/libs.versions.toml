@@ -11,6 +11,19 @@ coreKtx = "1.17.0"
 appcompat = "1.7.1"
 material = "1.12.0"
 composeBom = "2025.08.00"
+# Material 3 Expressive is split in two, and this project can only have half of it:
+#
+# - the expressive *components* (ShortNavigationBar, ButtonGroup, LoadingIndicator,
+#   FloatingActionButtonMenu) are public behind @OptIn(ExperimentalMaterial3ExpressiveApi)
+#   and work on this toolchain, so they are used.
+# - the expressive *theme and motion* (MaterialExpressiveTheme, MotionScheme) are declared
+#   `internal` in the stable artifact - MaterialThemeKt ships them, but app code cannot
+#   reference them - and are only public from material3 1.5.0-alpha, which requires
+#   compileSdk 37 and AGP 9.1.0 (this project is compileSdk 36 on AGP 8.12.0).
+#
+# So this stays on the newest stable, and the expressive theme and motion arrive with the
+# toolchain upgrade rather than ahead of it.
+material3 = "1.4.0"
 activityCompose = "1.10.1"
 navigation = "2.9.3"
 lifecycle = "2.9.2"
@@ -45,7 +58,7 @@ compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 compose-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 compose-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 compose-activity = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 compose-navigation = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

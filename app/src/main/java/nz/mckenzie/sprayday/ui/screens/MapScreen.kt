@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -39,8 +41,7 @@ import nz.mckenzie.sprayday.viewmodel.MapViewModel
 @Composable
 fun MapScreen(
     viewModel: MapViewModel,
-    onOpenAssets: () -> Unit = {},
-    onOpenOffline: () -> Unit = {},
+    onOpenTab: (Tab) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenAsset: (Long) -> Unit = {}
 ) {
@@ -53,12 +54,17 @@ fun MapScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
+                // Settings is all the map's own bar still holds. What used to be words up
+                // here - Assets, Offline - are tabs in the bar below now, which is where a
+                // place belongs; and the key is set once, so the icon is enough.
                 actions = {
-                    TextButton(onClick = onOpenAssets) { Text("Assets") }
-                    TextButton(onClick = onOpenOffline) { Text("Offline") }
+                    IconButton(onClick = onOpenSettings) {
+                        AppIcon(IconGlyph.SETTINGS, contentDescription = "Settings")
+                    }
                 }
             )
-        }
+        },
+        bottomBar = { SprayDayNavBar(current = Tab.MAP, onSelect = onOpenTab) }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -145,7 +151,7 @@ private fun LegendRow(colorHex: String, label: String, count: Int) {
 
 @Composable
 private fun MissingKeyCard(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)

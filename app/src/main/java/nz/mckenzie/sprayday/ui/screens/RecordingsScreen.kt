@@ -1,16 +1,17 @@
 package nz.mckenzie.sprayday.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -21,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,7 +43,7 @@ import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
 @Composable
 fun RecordingsScreen(
     viewModel: RecordingsViewModel,
-    onBack: () -> Unit,
+    onOpenTab: (Tab) -> Unit = {},
     onOpenRecording: (Long) -> Unit
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
@@ -51,12 +51,8 @@ fun RecordingsScreen(
     var confirmingDelete by remember { mutableStateOf<RecordingRow?>(null) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Recordings") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Assets") } }
-            )
-        }
+        topBar = { TopAppBar(title = { Text("Recordings") }) },
+        bottomBar = { SprayDayNavBar(current = Tab.RECORDINGS, onSelect = onOpenTab) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -74,14 +70,19 @@ fun RecordingsScreen(
             message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
             if (sessions.isEmpty()) {
-                Text(
-                    text = "No recordings yet. Record one when you spray a block.",
-                    style = MaterialTheme.typography.bodyMedium
+                EmptyState(
+                    glyph = IconGlyph.RECORDINGS,
+                    title = "No recordings yet",
+                    body = "A recording is the evidence behind a spray: the line that was " +
+                        "actually driven. Start one from the Record tab and it appears here.",
+                    actionLabel = "Record a line",
+                    onAction = { onOpenTab(Tab.RECORD) }
                 )
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(sessions, key = { it.id }) { row ->
-                        RecordingCard(
+                LazyColumn {
+                    itemsIndexed(sessions, key = { _, row -> row.id }) { index, row ->
+                        if (index > 0) HorizontalDivider()
+                        RecordingListRow(
                             row = row,
                             onOpen = { onOpenRecording(row.id) },
                             onDelete = { confirmingDelete = row }
@@ -105,10 +106,13 @@ fun RecordingsScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.delete(row.id)
-                    confirmingDelete = null
-                }) { Text("Delete") }
+                DestructiveTextButton(
+                    text = "Delete",
+                    onClick = {
+                        viewModel.delete(row.id)
+                        confirmingDelete = null
+                    }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmingDelete = null }) { Text("Cancel") }
@@ -118,49 +122,44 @@ fun RecordingsScreen(
 }
 
 @Composable
-private fun RecordingCard(row: RecordingRow, onOpen: () -> Unit, onDelete: () -> Unit) {
-    Card(onClick = onOpen) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = row.name,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleSmall
-                )
-                if (!row.isFinished) {
-                    Text(
-                        text = when (row.status) {
-                            RecordingStatus.RECORDING -> "still recording"
-                            RecordingStatus.PAUSED -> "paused"
-                            RecordingStatus.FINISHED -> ""
-                        },
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+private fun RecordingListRow(row: RecordingRow, onOpen: () -> Unit, onDelete: () -> Unit) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onOpen),
+        headlineContent = {
+            Text(row.name, style = MaterialTheme.typography.titleSmall)
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                // A recording still running says so, because that is what the operator is
+                // looking for when they scroll back to find it.
+                recordingStatus(row)?.let { Text(it) }
+                Text(recordingDetail(row))
+                Text(recordingAsset(row))
             }
-            Text(
-                text = "${formatDate(row.startedAtEpochMs)} \u00b7 " +
-                    "${formatDistance(row.distanceM)} \u00b7 " +
-                    "${formatDuration(row.durationMs)} \u00b7 ${row.pointCount} points",
-                style = MaterialTheme.typography.bodySmall
-            )
-            Text(
-                text = when {
-                    row.assetName != null -> "For ${row.assetName}"
-                    row.assetWasDeleted -> "Its asset has since been deleted"
-                    else -> "Not linked to an asset"
-                },
-                style = MaterialTheme.typography.bodySmall
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onOpen) { Text("Open") }
-                TextButton(onClick = onDelete) { Text("Delete") }
-            }
-        }
+        },
+        trailingContent = { DestructiveTextButton(text = "Delete", onClick = onDelete) }
+    )
+}
+
+/** What a recording is doing, or null once there is nothing left to say about it. */
+internal fun recordingStatus(row: RecordingRow): String? = if (row.isFinished) {
+    null
+} else {
+    when (row.status) {
+        RecordingStatus.RECORDING -> "still recording"
+        RecordingStatus.PAUSED -> "paused"
+        RecordingStatus.FINISHED -> null
     }
+}
+
+/** When it was, how far it went, and how much of it was kept. */
+internal fun recordingDetail(row: RecordingRow): String =
+    "${formatDate(row.startedAtEpochMs)} \u00b7 ${formatDistance(row.distanceM)} \u00b7 " +
+        "${formatDuration(row.durationMs)} \u00b7 ${row.pointCount} points"
+
+/** Which asset a recording was made for, or that the link to it is gone. */
+internal fun recordingAsset(row: RecordingRow): String = when {
+    row.assetName != null -> "For ${row.assetName}"
+    row.assetWasDeleted -> "Its asset has since been deleted"
+    else -> "Not linked to an asset"
 }

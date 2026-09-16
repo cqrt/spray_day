@@ -2,26 +2,25 @@ package nz.mckenzie.sprayday.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,10 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
@@ -49,27 +46,24 @@ import nz.mckenzie.sprayday.map.LinzMapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
-import nz.mckenzie.sprayday.ui.AssetEditFields
-import nz.mckenzie.sprayday.ui.AssetEditResult
-import nz.mckenzie.sprayday.ui.AssetEdits
 import nz.mckenzie.sprayday.ui.formatArea
 import nz.mckenzie.sprayday.ui.formatDate
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatIntervalDays
-import nz.mckenzie.sprayday.ui.formatPlainNumber
 import nz.mckenzie.sprayday.ui.formatQuantityWithUnit
 import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
-import nz.mckenzie.sprayday.viewmodel.AssetEditDraft
 
 /**
  * One track: where it is, when it is next due, and what it has been given.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetDetailScreen(
     viewModel: AssetDetailViewModel,
     onBack: () -> Unit,
     onRecordSpray: () -> Unit,
+    // Editing happens on a screen of its own, so this screen only has to say where to go.
+    onEdit: () -> Unit,
     onOpenRecording: (Long) -> Unit = {}
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
@@ -102,13 +96,21 @@ fun AssetDetailScreen(
     ) { uri -> uri?.let(viewModel::exportGpx) }
 
     var confirmingDelete by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf(false) }
+    var actionsOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(track?.name ?: "Asset") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { AppIcon(IconGlyph.BACK, contentDescription = "Back") } },
+                actions = {
+                    // Everything that is not "record a spray" lives behind this: editing the
+                    // asset, exporting it, deleting it. Material puts those in a sheet rather
+                    // than as three buttons competing with the one action that matters.
+                    IconButton(onClick = { actionsOpen = true }) {
+                        AppIcon(IconGlyph.MORE, contentDescription = "More actions")
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -120,7 +122,7 @@ fun AssetDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card {
+            Card(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -140,7 +142,7 @@ fun AssetDetailScreen(
                 }
             }
 
-            Card {
+            Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -178,36 +180,29 @@ fun AssetDetailScreen(
                 }
             }
 
-            // Wrapping rather than a fixed row: "Record spray" and "Export GPX" are
-            // long labels, and on a narrow screen a single row squeezed one of them
-            // to nothing.
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // The one action this screen is for, given the whole width.
+            Button(
+                onClick = onRecordSpray,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Button(onClick = onRecordSpray) { Text("Record spray") }
-                OutlinedButton(onClick = { editing = true }) { Text("Edit") }
-                OutlinedButton(
-                    onClick = { exportLauncher.launch("${track?.name ?: "asset"}.gpx") }
-                ) {
-                    Text("Export GPX")
-                }
+                Text("Record spray")
             }
-
-            TextButton(onClick = { confirmingDelete = true }) { Text("Delete this asset") }
 
             message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
             Text("Spray history", style = MaterialTheme.typography.titleSmall)
             if (history.isEmpty()) {
-                Text(
-                    text = "Nothing sprayed yet. Record a spray to start the history.",
-                    style = MaterialTheme.typography.bodySmall
+                EmptyState(
+                    glyph = IconGlyph.SPRAY,
+                    title = "Nothing sprayed yet",
+                    body = "Recording a spray is what starts this history: the products, the " +
+                        "amounts and the date the traffic light is worked out from.",
+                    actionLabel = "Record spray",
+                    onAction = onRecordSpray
                 )
             }
             history.forEach { entry ->
-                Card {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -243,14 +238,15 @@ fun AssetDetailScreen(
 
             Text("Recordings", style = MaterialTheme.typography.titleSmall)
             if (recordings.isEmpty()) {
-                Text(
-                    text = "No GPS recording has been made for this asset. Recording while " +
-                        "spraying leaves the evidence of what was actually driven.",
-                    style = MaterialTheme.typography.bodySmall
+                EmptyState(
+                    glyph = IconGlyph.RECORDINGS,
+                    title = "No recording for this asset",
+                    body = "Recording while spraying leaves the evidence of what was actually " +
+                        "driven, and the coverage that goes with it."
                 )
             }
             recordings.forEach { session ->
-                Card(onClick = { onOpenRecording(session.id) }) {
+                Card(modifier = Modifier.fillMaxWidth(), onClick = { onOpenRecording(session.id) }) {
                     Column(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -278,7 +274,7 @@ fun AssetDetailScreen(
                     confirmingDelete = false
                     viewModel.delete()
                     onBack()
-                }) { Text("Delete") }
+                }, colors = destructiveTextButtonColors()) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") }
@@ -286,172 +282,50 @@ fun AssetDetailScreen(
         )
     }
 
-    // The asset and its group are re-read rather than copied once, so a rename while
-    // the dialog is open cannot be saved back as a stale name - and the dialog does not
-    // open until the group name is known, because a blank field would clear the group.
-    editDraft?.takeIf { editing }?.let { current ->
-        AssetEditDialog(
-            draft = current,
-            onDismiss = { editing = false },
-            onSave = { asset, groupName ->
-                viewModel.save(asset, groupName)
-                editing = false
-            }
-        )
-    }
-}
-
-/**
- * The per-asset settings: what it is called, the group it is worked with, how often it
- * is sprayed, how wide the boom is, and anything worth remembering about it.
- *
- * The interval used to be the same 120 days for everything, because there was nowhere
- * to change it. It is now this field, and the traffic light follows it.
- *
- * The group is edited as a name, because that is what the operator has in their head;
- * naming one that does not exist yet starts it.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AssetEditDialog(
-    draft: AssetEditDraft,
-    onDismiss: () -> Unit,
-    onSave: (AssetEntity, String?) -> Unit
-) {
-    val asset = draft.asset
-    var name by remember { mutableStateOf(asset.name) }
-    var groupName by remember { mutableStateOf(draft.groupName) }
-    var kind by remember { mutableStateOf(AssetKind.fromStorage(asset.kind)) }
-    var shape by remember { mutableStateOf(AssetShape.fromStorage(asset.shape)) }
-    var method by remember { mutableStateOf(SprayMethod.fromStorage(asset.method)) }
-    var intervalDays by remember { mutableStateOf(asset.intervalDays.toString()) }
-    var swathWidth by remember {
-        mutableStateOf(asset.swathWidthM?.let(::formatPlainNumber).orEmpty())
-    }
-    var notes by remember { mutableStateOf(asset.notes.orEmpty()) }
-    var problem by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit asset") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; problem = null },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = groupName,
-                    onValueChange = { groupName = it; problem = null },
-                    label = { Text("Block or area") },
-                    supportingText = { Text("Assets sharing one are worked together") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ChoiceRow(
-                    label = "What it is",
-                    choices = AssetPhrase.kinds,
-                    selected = kind,
-                    onChoose = { choice ->
-                        // A single point is only worth offering for infrastructure, so
-                        // moving to another kind puts the shape back to a line rather than
-                        // leaving a picnic table's shape sitting on a road.
-                        kind = choice
-                        if (choice != AssetKind.INFRASTRUCTURE) shape = AssetShape.LINE
-                        problem = null
+    // The secondary actions, in a sheet. The asset is re-read from the database when it is
+    // opened rather than copied once, so a rename made from the edit screen cannot be saved
+    // back here as a stale name.
+    if (actionsOpen) {
+        ModalBottomSheet(onDismissRequest = { actionsOpen = false }) {
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                ListItem(
+                    modifier = Modifier.clickable {
+                        actionsOpen = false
+                        onEdit()
                     },
-                    text = AssetPhrase::kind
-                )
-                if (kind == AssetKind.INFRASTRUCTURE) {
-                    ChoiceRow(
-                        label = "Shape",
-                        choices = AssetPhrase.shapes,
-                        selected = shape,
-                        onChoose = { shape = it; problem = null },
-                        text = AssetPhrase::shapeChoice
-                    )
-                }
-                OutlinedTextField(
-                    value = intervalDays,
-                    onValueChange = { intervalDays = it; problem = null },
-                    label = { Text("Days between sprays") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ChoiceRow(
-                    label = "Spray method",
-                    choices = MethodPhrase.choices,
-                    selected = method,
-                    onChoose = { choice ->
-                        // The boom is adjustable, so a width the operator typed is kept;
-                        // only a blank field, or the previous method's own default, moves.
-                        swathWidth = AssetEdits.swathAfterMethodChange(method, choice, swathWidth)
-                        method = choice
-                        problem = null
+                    headlineContent = { Text("Edit details") },
+                    supportingContent = {
+                        Text("Name, block, kind, interval, boom width and notes")
                     },
-                    text = MethodPhrase::choice
+                    leadingContent = { AppIcon(IconGlyph.EDIT) }
                 )
-                OutlinedTextField(
-                    value = swathWidth,
-                    onValueChange = { swathWidth = it; problem = null },
-                    label = { Text("Swath width (m)") },
-                    supportingText = { Text("Used for the treated-area estimate; leave empty if unknown") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                ListItem(
+                    modifier = Modifier.clickable {
+                        actionsOpen = false
+                        exportLauncher.launch("${track?.name ?: "asset"}.gpx")
+                    },
+                    headlineContent = { Text("Export GPX") },
+                    supportingContent = { Text("The line on its own, for another device") },
+                    leadingContent = { AppIcon(IconGlyph.EXPORT) }
                 )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it; problem = null },
-                    label = { Text("Notes") },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
+                ListItem(
+                    modifier = Modifier.clickable {
+                        actionsOpen = false
+                        confirmingDelete = true
+                    },
+                    headlineContent = {
+                        // The irreversible one, in the colour that says so rather than in the
+                        // same green as Save.
+                        Text("Delete this asset", color = MaterialTheme.colorScheme.error)
+                    },
+                    supportingContent = { Text("Its spray history goes with it") },
+                    leadingContent = {
+                        AppIcon(glyph = IconGlyph.TRASH, tint = MaterialTheme.colorScheme.error)
+                    }
                 )
-
-                problem?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                // Refused edits keep the dialog open with the reason showing: closing it
-                // would leave the operator believing the change was stored.
-                when (
-                    val result = AssetEdits.apply(
-                        asset,
-                        AssetEditFields(
-                            name = name,
-                            groupName = groupName,
-                            kind = kind,
-                            shape = shape,
-                            method = method,
-                            intervalDays = intervalDays,
-                            swathWidthM = swathWidth,
-                            notes = notes
-                        )
-                    )
-                ) {
-                    is AssetEditResult.Ok -> onSave(result.asset, result.groupName)
-                    is AssetEditResult.Invalid -> problem = result.message
-                }
-            }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }
 
 /** Operator wording for the traffic light. */

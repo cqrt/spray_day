@@ -15,8 +15,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,7 +78,7 @@ fun RecordingDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(detail?.name ?: "Recording") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { AppIcon(IconGlyph.BACK, contentDescription = "Back") } }
             )
         }
     ) { innerPadding ->
@@ -103,7 +103,7 @@ fun RecordingDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 detail?.let { recording ->
-                    Card {
+                    Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -139,7 +139,7 @@ fun RecordingDetailScreen(
                         }
                     }
 
-                    Card {
+                    Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -180,7 +180,7 @@ fun RecordingDetailScreen(
                     detail?.assetId?.let { assetId ->
                         Button(onClick = { onLogSpray(assetId) }) { Text("Log a spray") }
                     }
-                    OutlinedButton(onClick = { confirmingDelete = true }) { Text("Delete recording") }
+                    DestructiveOutlinedButton(text = "Delete recording", onClick = { confirmingDelete = true })
                 }
             }
         }
@@ -197,10 +197,13 @@ fun RecordingDetailScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmingDelete = false
-                    viewModel.delete()
-                }) { Text("Delete") }
+                DestructiveTextButton(
+                    text = "Delete",
+                    onClick = {
+                        confirmingDelete = false
+                        viewModel.delete()
+                    }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") }

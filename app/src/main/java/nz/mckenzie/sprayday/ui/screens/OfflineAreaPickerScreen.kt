@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -71,7 +72,7 @@ fun OfflineAreaPickerScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Choose an area") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Offline areas") } }
+                navigationIcon = { IconButton(onClick = onBack) { AppIcon(IconGlyph.BACK, contentDescription = "Back") } }
             )
         }
     ) { innerPadding ->
@@ -98,6 +99,7 @@ fun OfflineAreaPickerScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 12.dp, end = 12.dp, bottom = 40.dp)
+                    .fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier

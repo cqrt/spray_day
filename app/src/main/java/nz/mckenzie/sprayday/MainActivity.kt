@@ -21,7 +21,9 @@ import nz.mckenzie.sprayday.ui.screens.RecordingDetailScreen
 import nz.mckenzie.sprayday.ui.screens.RecordingsScreen
 import nz.mckenzie.sprayday.ui.screens.SettingsScreen
 import nz.mckenzie.sprayday.ui.screens.SprayEntryScreen
+import nz.mckenzie.sprayday.ui.screens.Tab
 import nz.mckenzie.sprayday.ui.screens.AssetDetailScreen
+import nz.mckenzie.sprayday.ui.screens.AssetEditScreen
 import nz.mckenzie.sprayday.ui.screens.AssetListScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
@@ -37,7 +39,7 @@ import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
+private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -91,8 +93,7 @@ class MainActivity : ComponentActivity() {
                         )
                         MapScreen(
                             viewModel = mapViewModel,
-                            onOpenAssets = { destination = Destination.ASSETS },
-                            onOpenOffline = { destination = Destination.OFFLINE },
+                            onOpenTab = { destination = destinationOf(it) },
                             onOpenSettings = { destination = Destination.SETTINGS },
                             onOpenAsset = { assetId ->
                                 selectedAssetId = assetId
@@ -107,7 +108,7 @@ class MainActivity : ComponentActivity() {
                         )
                         AssetListScreen(
                             viewModel = assetViewModel,
-                            onBack = { destination = Destination.MAP },
+                            onOpenTab = { destination = destinationOf(it) },
                             onOpenAsset = { assetId ->
                                 selectedAssetId = assetId
                                 destination = Destination.ASSET_DETAIL
@@ -116,8 +117,6 @@ class MainActivity : ComponentActivity() {
                                 drawVisit++
                                 destination = Destination.DRAW
                             },
-                            onRecordAsset = { destination = Destination.RECORD },
-                            onOpenRecordings = { destination = Destination.RECORDINGS },
                             onOpenSettings = { destination = Destination.SETTINGS }
                         )
                     }
@@ -138,10 +137,30 @@ class MainActivity : ComponentActivity() {
                                     spraySessionId = null
                                     destination = Destination.SPRAY_ENTRY
                                 },
+                                onEdit = { destination = Destination.ASSET_EDIT },
                                 onOpenRecording = { sessionId ->
                                     selectedSessionId = sessionId
                                     destination = Destination.RECORDING_DETAIL
                                 }
+                            )
+                        }
+                    }
+
+                    // Editing is a screen rather than a dialog, and it asks for the same view
+                    // model the screen behind it uses: that one is keyed by asset id, so the
+                    // form opens on the asset that was just on screen, and saving updates it.
+                    Destination.ASSET_EDIT -> {
+                        val assetId = selectedAssetId
+                        if (assetId == null) {
+                            destination = Destination.ASSETS
+                        } else {
+                            val editViewModel: AssetDetailViewModel = viewModel(
+                                key = "detail-$assetId",
+                                factory = AssetDetailViewModel.factory(applicationContext, assetId)
+                            )
+                            AssetEditScreen(
+                                viewModel = editViewModel,
+                                onDone = { destination = Destination.ASSET_DETAIL }
                             )
                         }
                     }
@@ -183,7 +202,7 @@ class MainActivity : ComponentActivity() {
                         )
                         RecordScreen(
                             viewModel = recordingViewModel,
-                            onBack = { destination = Destination.ASSETS }
+                            onOpenTab = { destination = destinationOf(it) }
                         )
                     }
 
@@ -204,7 +223,7 @@ class MainActivity : ComponentActivity() {
                         )
                         RecordingsScreen(
                             viewModel = recordingsViewModel,
-                            onBack = { destination = Destination.ASSETS },
+                            onOpenTab = { destination = destinationOf(it) },
                             onOpenRecording = { sessionId ->
                                 selectedSessionId = sessionId
                                 destination = Destination.RECORDING_DETAIL
@@ -251,7 +270,7 @@ class MainActivity : ComponentActivity() {
                         )
                         OfflineScreen(
                             viewModel = offlineViewModel,
-                            onBack = { destination = Destination.MAP },
+                            onOpenTab = { destination = destinationOf(it) },
                             onChooseArea = { destination = Destination.OFFLINE_PICKER }
                         )
                     }
@@ -288,6 +307,9 @@ class MainActivity : ComponentActivity() {
                 DESTINATION_ASSETS -> Destination.ASSETS
                 else -> null
             }
+
+        /** A tab is named after the destination it opens, so a tap maps across by name. */
+        private fun destinationOf(tab: Tab): Destination = Destination.valueOf(tab.name)
     }
 }
 

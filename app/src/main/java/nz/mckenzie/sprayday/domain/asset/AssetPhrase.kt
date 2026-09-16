@@ -9,10 +9,11 @@ package nz.mckenzie.sprayday.domain.asset
  */
 object AssetPhrase {
 
-    /** "Track", "Road", "Infrastructure". */
+    /** "Track", "Road", "Fenceline", "Infrastructure". */
     fun kind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> "Track"
         AssetKind.ROAD -> "Road"
+        AssetKind.FENCELINE -> "Fenceline"
         AssetKind.INFRASTRUCTURE -> "Infrastructure"
     }
 

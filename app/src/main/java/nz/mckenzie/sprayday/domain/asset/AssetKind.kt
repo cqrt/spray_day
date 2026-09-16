@@ -15,7 +15,10 @@ enum class AssetKind {
     /** A formed road. Sprayed like a track, but reported as its own kind of work. */
     ROAD,
 
-    /** Fencelines and structures: short runs, and things that are a place not a path. */
+    /** Fencelines: a long, thin run sprayed to keep the boundary clear. */
+    FENCELINE,
+
+    /** Structures and short runs: a shelter, a trough, a table, a gate. */
     INFRASTRUCTURE;
 
     companion object {

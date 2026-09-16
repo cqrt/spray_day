@@ -15,16 +15,16 @@ sprayed).
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
-- **Assets** — tracks, roads and pieces of infrastructure, in one list: import GPX,
-  draw them by tapping the map, record them by driving the line, or stand at a trough
-  or a shelter and press **Add here**. Each asset says what it is, and the ones that
-  are places rather than paths are drawn as a dot.
+- **Assets** — tracks, roads, fencelines and pieces of infrastructure, in one list:
+  import GPX, draw them by tapping the map, record them by driving the line, or stand
+  at a trough or a shelter and press **Add here**. Each asset says what it is, and the
+  ones that are places rather than paths are drawn as a dot.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
-  only the default), its **kind** (track, road or infrastructure), whether it is a
-  line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the
-  usual width for that method), the swath width for a treated-area estimate, a
-  **group** to work it with, and notes. The interval is what the traffic light uses,
-  so a block sprayed on a shorter cycle turns yellow on its own schedule.
+  only the default), its **kind** (track, road, fenceline or infrastructure), whether
+  it is a line or a single spot, how it is sprayed (**boom** or **knapsack**, which
+  offers the usual width for that method), the swath width for a treated-area
+  estimate, a **group** to work it with, and notes. The interval is what the traffic
+  light uses, so a block sprayed on a shorter cycle turns yellow on its own schedule.
 - **Spray records**: pick an asset, enter the products and the **mL of each**,
   save. The asset turns green and its history starts. Amounts are remembered per
   asset, so the next pass is a confirmation rather than a retype.
@@ -36,11 +36,11 @@ sprayed).
   that proves it. Dates are ISO so a spreadsheet sorts them, and the file carries a
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
-  each kind drawn differently — solid for tracks, dashed for roads, dotted for
-  infrastructure, and a circle for anything that is a spot rather than a path. A tap
-  on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
-  out over the farm as well as at spray height. The map does not rotate: north is up,
-  which is one less thing to get wrong with gloves on.
+  each kind drawn differently — solid for tracks, dash-and-dot for fencelines, dashed
+  for roads, dotted for infrastructure, and a circle for anything that is a spot
+  rather than a path. A tap on an asset opens it, and the tap radius follows the zoom,
+  so it is tappable zoomed out over the farm as well as at spray height. The map does
+  not rotate: north is up, which is one less thing to get wrong with gloves on.
 - **Backup and restore**: one JSON file holding the whole season — assets and their
   lines, every spray with its amounts, the groups and the product catalogue, the
   amounts each asset remembers, and every GPS recording. A restore replaces, and says

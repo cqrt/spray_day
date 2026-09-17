@@ -12,6 +12,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds as DomainBounds
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdate
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
@@ -19,6 +20,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -45,6 +47,20 @@ internal const val ASSETS_ROAD_LAYER = "sprayday-assets-line-road"
 internal const val ASSETS_INFRASTRUCTURE_LAYER = "sprayday-assets-line-infrastructure"
 internal const val ASSETS_POINT_LAYER = "sprayday-assets-point"
 
+internal const val POSITION_SOURCE = "sprayday-position"
+internal const val POSITION_ACCURACY_LAYER = "sprayday-position-accuracy"
+internal const val POSITION_DOT_LAYER = "sprayday-position-dot"
+
+/**
+ * The uncertainty around the dot, faint enough to read the imagery through and to sit under
+ * the work rather than over it.
+ *
+ * Alpha in `rgba()` rather than an eight-digit hex: every style version this app loads
+ * understands the first, and the second is a newer thing to rely on.
+ */
+private const val POSITION_ACCURACY_FILL = "rgba(33, 33, 33, 0.16)"
+private const val POSITION_ACCURACY_OUTLINE = "rgba(33, 33, 33, 0.38)"
+
 /** Padding around the track network when the camera frames it. */
 private const val BOUNDS_PADDING_PX = 96
 
@@ -60,7 +76,19 @@ fun LinzMapView(
     apiKey: String,
     assetGeoJson: String,
     modifier: Modifier = Modifier,
+    /**
+     * The marker for where the phone is, as GeoJSON: a dot, and a ring the size of the fix's
+     * accuracy. Empty when the app may not know where it is, which draws nothing.
+     */
+    positionGeoJson: String = PositionGeoJson.build(null),
     fitBounds: DomainBounds? = null,
+    /**
+     * A camera move the operator asked for. The bounds say where; [recentreCount] is what says
+     * it is a new request rather than the same one arriving twice, so the second tap on
+     * "where am I" moves the map again.
+     */
+    recentreBounds: DomainBounds? = null,
+    recentreCount: Int = 0,
     /**
      * Tile template to render. Defaults to the app's own tile server so every map
      * shares one tile path - and therefore one offline store - rather than some
@@ -116,7 +144,7 @@ fun LinzMapView(
                             true
                         }
                     }
-                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson) { style ->
+                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson, positionGeoJson) { style ->
                         styleState.value = style
                     }
                 }
@@ -126,11 +154,12 @@ fun LinzMapView(
     )
 
     // The key itself is not used here: the style URL already embeds it, or the
-    // tile server holds it.
+    // tile server holds it. Note what is *not* a key: the position, which changes every few
+    // seconds and must never send the map back to reload its style.
     LaunchedEffect(apiKey, tileUrlTemplate) {
         val map = mapState.value
         if (map != null && (apiKey.isNotBlank() || !tileUrlTemplate.isNullOrBlank())) {
-            map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson) { style ->
+            map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson, positionGeoJson) { style ->
                 styleState.value = style
             }
         }
@@ -140,6 +169,27 @@ fun LinzMapView(
         styleState.value?.getSourceAs<GeoJsonSource>(ASSETS_SOURCE)?.setGeoJson(assetGeoJson)
     }
 
+    // The marker follows the fixes. Setting the GeoJSON on one source rather than rebuilding
+    // the layer is what keeps a moving dot cheap: the style is written once, and a fix only
+    // replaces two features.
+    LaunchedEffect(positionGeoJson, styleState.value) {
+        styleState.value?.getSourceAs<GeoJsonSource>(POSITION_SOURCE)?.setGeoJson(positionGeoJson)
+    }
+
+    // A recentre asked for by the operator, which is the only thing that moves the camera after
+    // the first frame - the map does not follow the phone, because it is also for reading work.
+    LaunchedEffect(recentreBounds, recentreCount, mapState.value) {
+        val map = mapState.value ?: return@LaunchedEffect
+        val bounds = recentreBounds ?: return@LaunchedEffect
+
+        map.animateCamera(cameraFor(bounds))
+        // An asked-for camera move settles the question of the first frame. Without this, an
+        // operator quick enough to tap "where am I" before the tracks' bounds come back off the
+        // database is dragged from their own paddock to the work a few seconds later, having
+        // done nothing wrong.
+        boundsApplied = true
+    }
+
     // Frame the track network the first time we know where it is, so opening the
     // app shows "my tracks", not an arbitrary patch of countryside.
     LaunchedEffect(fitBounds, mapState.value) {
@@ -147,15 +197,7 @@ fun LinzMapView(
         val bounds = fitBounds ?: return@LaunchedEffect
         if (boundsApplied) return@LaunchedEffect
 
-        map.animateCamera(
-            CameraUpdateFactory.newLatLngBounds(
-                org.maplibre.android.geometry.LatLngBounds.Builder()
-                    .include(LatLng(bounds.minLat, bounds.minLng))
-                    .include(LatLng(bounds.maxLat, bounds.maxLng))
-                    .build(),
-                BOUNDS_PADDING_PX
-            )
-        )
+        map.animateCamera(cameraFor(bounds))
         boundsApplied = true
     }
 
@@ -182,6 +224,7 @@ internal fun MapLibreMap.loadSprayDayStyle(
     apiKey: String,
     tileUrlTemplate: String?,
     assetGeoJson: String,
+    positionGeoJson: String,
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
@@ -221,6 +264,38 @@ internal fun MapLibreMap.loadSprayDayStyle(
                     .withFilter(shapeIs(AssetShape.POINT))
             )
         }
+
+        // Where the phone is. Added after the assets so it draws over them: the work is what
+        // the map is for, and where you are standing is read on top of it rather than under it.
+        if (style.getSource(POSITION_SOURCE) == null) {
+            style.addSource(GeoJsonSource(POSITION_SOURCE, positionGeoJson))
+        }
+        if (style.getLayer(POSITION_ACCURACY_LAYER) == null) {
+            style.addLayer(
+                FillLayer(POSITION_ACCURACY_LAYER, POSITION_SOURCE)
+                    .withProperties(
+                        PropertyFactory.fillColor(POSITION_ACCURACY_FILL),
+                        // Faint, but the edge is what the eye measures against the lines
+                        // around it, so the edge is the less faint of the two.
+                        PropertyFactory.fillOutlineColor(POSITION_ACCURACY_OUTLINE)
+                    )
+                    .withFilter(partIs(PositionGeoJson.PART_ACCURACY))
+            )
+        }
+        if (style.getLayer(POSITION_DOT_LAYER) == null) {
+            style.addLayer(
+                CircleLayer(POSITION_DOT_LAYER, POSITION_SOURCE)
+                    .withProperties(
+                        PropertyFactory.circleColor(Expression.literal(AssetColors.POSITION)),
+                        PropertyFactory.circleRadius(Expression.literal(7f)),
+                        // The white ring the asset dots wear, for the same reason: a dark dot
+                        // over dark imagery needs one, and this is the darkest thing on the map.
+                        PropertyFactory.circleStrokeColor(Expression.literal("#FFFFFF")),
+                        PropertyFactory.circleStrokeWidth(Expression.literal(2.5f))
+                    )
+                    .withFilter(partIs(PositionGeoJson.PART_DOT))
+            )
+        }
         onLoaded(style)
     }
 }
@@ -257,3 +332,23 @@ private fun addLineLayer(style: Style, id: String, kind: AssetKind) {
 
 private fun shapeIs(shape: AssetShape): Expression =
     Expression.eq(Expression.get("shape"), Expression.literal(shape.name))
+
+/** Which of the marker's two features a layer draws: the dot, or the ring of uncertainty. */
+private fun partIs(part: String): Expression =
+    Expression.eq(Expression.get(PositionGeoJson.PART_PROPERTY), Expression.literal(part))
+
+/**
+ * The camera that fits a set of bounds, with the app's padding.
+ *
+ * One place rather than three, because three things now ask for exactly this: the first frame
+ * on the work, the first frame on the phone when there is no work, and the recentre the
+ * operator asks for by tapping.
+ */
+private fun cameraFor(bounds: DomainBounds): CameraUpdate =
+    CameraUpdateFactory.newLatLngBounds(
+        org.maplibre.android.geometry.LatLngBounds.Builder()
+            .include(LatLng(bounds.minLat, bounds.minLng))
+            .include(LatLng(bounds.maxLat, bounds.maxLng))
+            .build(),
+        BOUNDS_PADDING_PX
+    )

@@ -53,6 +53,17 @@ object AssetColors {
     const val INFRASTRUCTURE_KIND = "#00897B"
 
     /**
+     * Where the phone is.
+     *
+     * Charcoal with a white ring, which is what a device marker looks like everywhere else -
+     * and here that convention is also the requirement. It must not be readable as a due
+     * colour or as a kind colour, and the obvious choice for "you are here" is the one thing
+     * it cannot be: a blue dot would sit beside [TRACK_KIND] and be taken for one. Nothing
+     * else on this map is this dark, so a dot this dark is the phone.
+     */
+    const val POSITION = "#212121"
+
+    /**
      * Never-sprayed tracks are drawn red: they still need spraying, but the
      * distinct [DueStatus] lets the UI add its own "no history" wording.
      */

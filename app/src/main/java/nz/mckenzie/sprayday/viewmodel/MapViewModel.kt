@@ -29,9 +29,20 @@ import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetHitTest
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.map.PositionGeoJson
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
+import nz.mckenzie.sprayday.tracking.LocationUnavailable
 import nz.mckenzie.sprayday.tracking.frameOnDevice
+
+/**
+ * A camera move the operator asked for, carrying a counter.
+ *
+ * The counter is what makes a second tap do anything at all: two requests to put the camera
+ * in the same place are an equal value, and a state flow whose value has not changed does not
+ * emit - so tapping "where am I" twice in a row would otherwise move the map once.
+ */
+data class RecentreRequest(val bounds: LatLngBounds, val count: Int)
 
 /**
  * Feeds the map: the due-status of every track plus the GeoJSON MapLibre draws.
@@ -68,6 +79,67 @@ class MapViewModel(
      */
     private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
     val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
+
+    /**
+     * Where the phone is, while somebody is looking at the map.
+     *
+     * Live fixes, and only while the map is on screen: this is a GPS stream, and a tab that is
+     * not being looked at has no business keeping the receiver awake. Collection starts when
+     * the map subscribes and stops when it goes away - which is also what makes the marker an
+     * honest thing to add to a screen that opens and closes all day. Null until the first fix,
+     * and for ever if the app is not allowed to know where it is.
+     */
+    val position: StateFlow<GeoPoint?> = locationSource.updates()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    /** The marker the map draws: a dot at the fix, ringed by however accurate that fix is. */
+    val positionGeoJson: StateFlow<String> = position
+        .map { fix -> PositionGeoJson.build(fix) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+            PositionGeoJson.build(null)
+        )
+
+    private val _recentre = MutableStateFlow<RecentreRequest?>(null)
+    val recentre: StateFlow<RecentreRequest?> = _recentre
+
+    private val _locationNotice = MutableStateFlow<String?>(null)
+
+    /**
+     * Why there is no dot, for the case where the operator asks and the phone cannot say.
+     *
+     * The alternative is a button that does nothing visible, which reads as a broken button
+     * rather than as an app that is not allowed to know where it is.
+     */
+    val locationNotice: StateFlow<String?> = _locationNotice
+
+    fun clearLocationNotice() {
+        _locationNotice.value = null
+    }
+
+    /** The permission was refused, so there will be no marker: the screen says why, once. */
+    fun onLocationRefused() {
+        _locationNotice.value = LocationUnavailable.MESSAGE
+    }
+
+    /**
+     * Puts the camera back on the operator.
+     *
+     * Asked for rather than followed, because this map is also for reading the work: a camera
+     * that keeps swinging back to the phone is a camera you cannot pan across a block.
+     */
+    fun recentreOnDevice() {
+        viewModelScope.launch {
+            val frame = locationSource.frameOnDevice()
+            if (frame == null) {
+                _locationNotice.value = LocationUnavailable.MESSAGE
+                return@launch
+            }
+            _locationNotice.value = null
+            _recentre.value = RecentreRequest(frame, (_recentre.value?.count ?: 0) + 1)
+        }
+    }
 
     val assetGeoJson: StateFlow<String> = combine(assetsWithDue, geometryByTrack) { tracks, geometry ->
         AssetGeoJson.build(

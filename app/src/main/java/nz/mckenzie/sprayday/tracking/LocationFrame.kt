@@ -4,6 +4,20 @@ import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
 /**
+ * What to say when the phone cannot say where it is.
+ *
+ * Shared rather than worded per screen, because the two screens that put a map in front of
+ * somebody say the same thing when there is no fix: the offline picker falls back to the
+ * middle of the assets, and the map falls back to a country-wide view, and in both cases the
+ * operator is owed the same sentence about why.
+ */
+object LocationUnavailable {
+    const val MESSAGE =
+        "Location is not available to the app, so there is nothing to centre on. " +
+            "Allow location for Spray Day, or check that location is switched on."
+}
+
+/**
  * A small frame around where the phone is, for centring a map on the operator.
  *
  * Every screen that puts a map in front of someone about to drive or walk something -

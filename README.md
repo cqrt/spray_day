@@ -11,7 +11,12 @@ sprayed).
 
 - **LINZ aerial basemap** (New Zealand), with the required attribution shown
   permanently, and **offline areas** you can download so the map still works
-  where there is no reception.
+  where there is no reception. **Where you are** is a dot on it, ringed by the accuracy the
+  fix was actually good to — a fix under trees is drawn as the uncertainty it is, and a fix
+  with no accuracy is drawn as a dot with no ring, because unknown is not the same as small.
+  A **locate** button puts the camera back on you, and is where the map asks for location
+  permission — on a tap, not on the way in. The dot follows you while the map is open and
+  stops when you leave the tab, so it costs nothing to keep on.
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.

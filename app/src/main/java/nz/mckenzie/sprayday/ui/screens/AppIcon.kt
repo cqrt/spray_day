@@ -40,7 +40,8 @@ enum class IconGlyph {
     TRASH,
     SPRAY,
     CHEVRON,
-    BLOCKS
+    BLOCKS,
+    LOCATE
 }
 
 /**
@@ -178,6 +179,17 @@ internal fun AppIcon(
                     close()
                 }
                 drawPath(behind, tint, style = Stroke(width = stroke))
+            }
+
+            // Where you are: a ring with a dot in it, and the four ticks that stop it reading
+            // as one more small circle on a map that is made of them.
+            IconGlyph.LOCATE -> {
+                ring(0.50f, 0.50f, 0.20f)
+                bobble(0.50f, 0.50f, radius = dot * 1.7f)
+                line(0.50f, 0.06f, 0.50f, 0.20f)
+                line(0.50f, 0.80f, 0.50f, 0.94f)
+                line(0.06f, 0.50f, 0.20f, 0.50f)
+                line(0.80f, 0.50f, 0.94f, 0.50f)
             }
 
             IconGlyph.MORE -> {

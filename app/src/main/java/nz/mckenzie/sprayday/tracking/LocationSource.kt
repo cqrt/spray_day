@@ -90,6 +90,16 @@ class FusedLocationSource(
 
     @SuppressLint("MissingPermission") // Callers gate on the permission before recording.
     override fun updates(): Flow<GeoPoint> = callbackFlow {
+        // Asked again here rather than trusted to the caller. The recorder gates the
+        // permission before it starts, but the map wants a position marker the moment the app
+        // is allowed one, and a screen that simply never collects this must not be able to
+        // throw out of Play services: without the permission this is a stream that ends
+        // without emitting, which is exactly what "no marker" needs.
+        if (!hasPermission()) {
+            close()
+            return@callbackFlow
+        }
+
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
             .setMinUpdateDistanceMeters(minDistanceM)
             .setWaitForAccurateLocation(false)

@@ -53,6 +53,28 @@ class AssetColorsTest {
         }
     }
 
+    @Test
+    fun `the phone's own position is not a due colour`() {
+        // The marker must not be readable as "overdue": it says where you are standing, not
+        // what needs doing, and it is drawn on the same map as both.
+        val dueColours = DueStatus.entries.map { AssetColors.forStatus(it) }.toSet()
+
+        assertTrue(
+            "the position marker shares a colour with the traffic light",
+            AssetColors.POSITION !in dueColours
+        )
+    }
+
+    @Test
+    fun `and not a kind colour either, which is why it is not blue`() {
+        AssetKind.entries.forEach { kind ->
+            assertTrue(
+                "$kind and the position marker are the same colour",
+                AssetColors.forKind(kind) != AssetColors.POSITION
+            )
+        }
+    }
+
     /** WCAG contrast: 1.0 is the same colour, 21.0 is black on white. */
     private fun contrastRatio(first: String, second: String): Double {
         val a = luminance(first)

@@ -1,5 +1,9 @@
 package nz.mckenzie.sprayday.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -25,9 +30,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.AssetWithDue
@@ -49,6 +56,31 @@ fun MapScreen(
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.assetGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
+    val positionGeoJson by viewModel.positionGeoJson.collectAsStateWithLifecycle()
+    val recentre by viewModel.recentre.collectAsStateWithLifecycle()
+    val locationNotice by viewModel.locationNotice.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+
+    // Where the app asks for the permission the marker needs, and asked on a tap rather than on
+    // the way in: a prompt that arrives with the map is a prompt for nothing, and one that
+    // arrived from the record screen already has an answer.
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.recentreOnDevice() else viewModel.onLocationRefused()
+    }
+
+    val locate = {
+        val allowed =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        if (allowed) {
+            viewModel.recentreOnDevice()
+        } else {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -74,9 +106,16 @@ fun MapScreen(
             LinzMapView(
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
+                // Where the phone is: a dot, ringed by the accuracy it was fixed to. An empty
+                // collection - nothing drawn - when the app is not allowed to know.
+                positionGeoJson = positionGeoJson,
                 // The operator's own tracks first; failing that, where the device is;
                 // failing that, the neutral country-wide default.
                 fitBounds = initialFrame,
+                // Where "show me" last asked the camera to be. Null until they ask: the map
+                // does not follow the phone, because it is also for reading the work.
+                recentreBounds = recentre?.bounds,
+                recentreCount = recentre?.count ?: 0,
                 // Tapping a track opens it: the map is where they are looking when they
                 // wonder about a block. The radius comes from the map's zoom, so the tap
                 // works at country scale as well as at spray height.
@@ -84,12 +123,32 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            DueLegend(
-                tracks = tracks,
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(12.dp)
-            )
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DueLegend(tracks = tracks)
+                locationNotice?.let { notice ->
+                    LocationNoticeCard(
+                        message = notice,
+                        onDismiss = viewModel::clearLocationNotice
+                    )
+                }
+            }
+
+            // Where the app asks for the permission the marker needs, and asked on a tap: a
+            // prompt that arrives with the map is a prompt for nothing, and one that arrived
+            // from the record screen has an answer already.
+            FilledTonalIconButton(
+                onClick = locate,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp)
+            ) {
+                AppIcon(IconGlyph.LOCATE, contentDescription = "Show where I am")
+            }
 
             if (apiKey.isBlank()) {
                 MissingKeyCard(
@@ -146,6 +205,25 @@ private fun LegendRow(colorHex: String, label: String, count: Int) {
                 .background(parseHexColor(colorHex), CircleShape)
         )
         Text(text = "$label  $count", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/**
+ * What to say when the operator has asked where they are and the app cannot answer.
+ *
+ * A card rather than a toast, because the reason is worth reading and acting on - location is
+ * switched off for the app, or off altogether - and it stays until it has been read.
+ */
+@Composable
+private fun LocationNoticeCard(message: String, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(text = message, style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
+        }
     }
 }
 

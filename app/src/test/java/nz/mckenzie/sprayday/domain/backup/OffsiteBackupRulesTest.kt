@@ -20,11 +20,11 @@ class OffsiteBackupRulesTest {
     private val zone = ZoneId.of("Pacific/Auckland")
 
     private fun summary(
-        tracks: Int = 0,
+        assets: Int = 0,
         sprays: Int = 0,
         recordings: Int = 0,
         products: Int = 0
-    ) = BackupSummary(tracks = tracks, sprays = sprays, recordings = recordings, products = products, points = 0)
+    ) = BackupSummary(assets = assets, sprays = sprays, recordings = recordings, products = products, points = 0)
 
     private fun at(text: String) = Instant.parse(text).toEpochMilli()
 
@@ -34,8 +34,8 @@ class OffsiteBackupRulesTest {
     }
 
     @Test
-    fun `tracks on their own are worth copying`() {
-        assertTrue(OffsiteBackupRules.isSafeToWrite(summary(tracks = 1)))
+    fun `assets on their own are worth copying`() {
+        assertTrue(OffsiteBackupRules.isSafeToWrite(summary(assets = 1)))
     }
 
     @Test
@@ -105,9 +105,9 @@ class OffsiteBackupRulesTest {
 
     @Test
     fun `the comparison names both sides with numbers`() {
-        val line = OffsiteBackupRules.comparison(summary(tracks = 4, sprays = 9), summary(tracks = 1))
+        val line = OffsiteBackupRules.comparison(summary(assets = 4, sprays = 9), summary(assets = 1))
 
-        assertTrue(line, line.contains("4 tracks, 9 sprays"))
-        assertTrue(line, line.contains("This phone: 1 track,"))
+        assertTrue(line, line.contains("4 assets, 9 sprays"))
+        assertTrue(line, line.contains("This phone: 1 asset,"))
     }
 }

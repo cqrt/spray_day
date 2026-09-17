@@ -127,8 +127,10 @@ fun AssetEditScreen(
             OutlinedTextField(
                 value = groupName,
                 onValueChange = { groupName = it; problem = null },
-                label = { Text("Block or area") },
-                supportingText = { Text("Assets sharing one are worked together") },
+                label = { Text("Block or group") },
+                supportingText = {
+                    Text("Assets sharing one are worked together, and fold into a block in the list")
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

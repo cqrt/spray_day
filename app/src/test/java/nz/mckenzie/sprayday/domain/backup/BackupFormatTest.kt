@@ -112,7 +112,7 @@ class BackupFormatTest {
 
         val restored = BackupFormat.decode(BackupFormat.encode(empty))
 
-        assertEquals(0, BackupFormat.summarise(restored).tracks)
+        assertEquals(0, BackupFormat.summarise(restored).assets)
         assertTrue(BackupFormat.summarise(restored).isEmpty)
     }
 
@@ -216,11 +216,11 @@ class BackupFormatTest {
     fun `the summary describes what a person would check`() {
         val summary = BackupFormat.summarise(document())
 
-        assertEquals(1, summary.tracks)
+        assertEquals(1, summary.assets)
         assertEquals(1, summary.sprays)
         assertEquals(1, summary.recordings)
         assertEquals(2, summary.products)
-        assertEquals("1 track, 1 spray, 1 recording, 2 products", summary.describe())
+        assertEquals("1 asset, 1 spray, 1 recording, 2 products", summary.describe())
     }
 
     @Test

@@ -65,7 +65,7 @@ class BackupWorker(
                         tellTheOperator(
                             settings = settings,
                             title = "Nothing on this phone to back up",
-                            body = "This phone holds no tracks, sprays or recordings, so the " +
+                            body = "This phone holds no assets, sprays or recordings, so the " +
                                 "copy in ${target.label} was left untouched. If that is not " +
                                 "what you expected, restore from it in Settings."
                         )

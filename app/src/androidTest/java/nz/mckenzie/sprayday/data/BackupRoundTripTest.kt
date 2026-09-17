@@ -145,7 +145,7 @@ class BackupRoundTripTest {
         val exported = repository().export()
         val summary = repository().currentSummary()
 
-        assertEquals(2, summary.tracks)
+        assertEquals(2, summary.assets)
         assertEquals(1, summary.sprays)
         assertEquals(1, summary.recordings)
         assertEquals(2, summary.products)
@@ -153,7 +153,7 @@ class BackupRoundTripTest {
 
         // Empty the app the way a new phone would be empty.
         repository().restore(BackupDocument(exportedAtEpochMs = clock, appVersion = "test-build"))
-        assertEquals(0, repository().currentSummary().tracks)
+        assertEquals(0, repository().currentSummary().assets)
         assertEquals(0, repository().currentSummary().points)
 
         val restored = repository().restore(exported)
@@ -209,7 +209,7 @@ class BackupRoundTripTest {
             geometry = listOf(GeoPoint(-45.0, 170.0), GeoPoint(-45.01, 170.01)),
             createdAtEpochMs = 1_702_000_000_000L
         )
-        assertEquals(3, repository().currentSummary().tracks)
+        assertEquals(3, repository().currentSummary().assets)
 
         repository().restore(exported)
 
@@ -243,7 +243,7 @@ class BackupRoundTripTest {
 
         // The moment the feature exists for: the app is empty and the file is all that is left.
         repository().restore(BackupDocument(exportedAtEpochMs = clock, appVersion = "test-build"))
-        assertEquals(0, controller.currentSummary().tracks)
+        assertEquals(0, controller.currentSummary().assets)
 
         val restored = controller.restoreFrom(uri)
 

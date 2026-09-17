@@ -18,6 +18,17 @@ data class AssetPointBounds(
 )
 
 /**
+ * The name of the block an asset is in, for the list to fold assets into blocks with.
+ *
+ * An asset with no group simply has no row here, which is how "on its own" is told apart
+ * from "in a block" without a null column to interpret.
+ */
+data class AssetGroupName(
+    val assetId: Long,
+    val name: String
+)
+
+/**
  * Declared as an abstract class rather than an interface so that
  * [replaceGeometry] can be a real transactional method - Kotlin interface
  * default methods need extra compiler flags to work reliably with Room.
@@ -44,6 +55,16 @@ abstract class AssetDao {
      */
     @Query("SELECT g.name FROM groups g JOIN assets a ON a.groupId = g.id WHERE a.id = :assetId")
     abstract fun observeGroupName(assetId: Long): Flow<String?>
+
+    /**
+     * Every asset's block name, for folding the list into blocks.
+     *
+     * One query for the whole list rather than a lookup per row: the list already loads every
+     * asset to colour it, and asking the database once per row to say which block it is in
+     * would be a query per asset for a name that is a join away.
+     */
+    @Query("SELECT a.id AS assetId, g.name AS name FROM assets a JOIN groups g ON a.groupId = g.id")
+    abstract fun observeAssetGroupNames(): Flow<List<AssetGroupName>>
 
     @Insert
     abstract suspend fun insert(asset: AssetEntity): Long

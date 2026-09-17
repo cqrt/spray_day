@@ -259,4 +259,39 @@ class AssetAndSprayDataTest {
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }
+
+    @Test
+    fun anAssetCarriesTheBlockItIsWorkedWith() = runBlocking {
+        assetRepository.createAsset(
+            name = "Estuary road",
+            geometry = line,
+            groupName = "Estuary"
+        )
+        assetRepository.createAsset(name = "Estuary lagoon", geometry = line, groupName = "estuary")
+        assetRepository.createAsset(name = "Lone track", geometry = line)
+
+        val blocks = assetRepository.observeAssetsWithDue(MinuteTicker.fixed(now))
+            .first()
+            .associate { it.asset.name to it.groupName }
+
+        assertEquals("Estuary", blocks["Estuary road"])
+        assertEquals(
+            "the same block however it was spelled, because the name is the block's",
+            "Estuary",
+            blocks["Estuary lagoon"]
+        )
+        assertNull("an asset in no block has no name to show", blocks["Lone track"])
+    }
+
+    @Test
+    fun takingAnAssetOutOfItsBlockIsCarriedThrough() = runBlocking {
+        val id = assetRepository.createAsset(name = "Estuary road", geometry = line, groupName = "Estuary")
+
+        assetRepository.saveAssetEdits(assetRepository.getAsset(id)!!, groupName = null)
+
+        assertNull(
+            "a blank block name means it stands on its own",
+            assetRepository.observeGroupName(id).first()
+        )
+    }
 }

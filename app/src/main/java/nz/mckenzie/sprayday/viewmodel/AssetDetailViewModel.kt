@@ -75,6 +75,16 @@ class AssetDetailViewModel(
         asset?.let { AssetEditDraft(asset = it, groupName = groupName.orEmpty()) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
+    /**
+     * The block this asset is in, for the line on the detail screen.
+     *
+     * Its own flow rather than a read of [editDraft], which is the edit form's state: the
+     * screen showing it should not depend on a form having been prepared, and a field that
+     * exists to be typed into is a poor place to keep something that is only being read.
+     */
+    val groupName: StateFlow<String?> = assetRepository.observeGroupName(assetId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
     val geometry: StateFlow<List<GeoPoint>> = assetRepository.observeAssetGeometry(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 

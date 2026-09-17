@@ -68,6 +68,7 @@ fun AssetDetailScreen(
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
     val editDraft by viewModel.editDraft.collectAsStateWithLifecycle()
+    val groupName by viewModel.groupName.collectAsStateWithLifecycle()
     val geometry by viewModel.geometry.collectAsStateWithLifecycle()
     val bounds by viewModel.bounds.collectAsStateWithLifecycle()
     val due by viewModel.due.collectAsStateWithLifecycle()
@@ -148,7 +149,7 @@ fun AssetDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(dueText(due), style = MaterialTheme.typography.titleMedium)
-                    editDraft?.groupName?.takeIf { it.isNotBlank() }?.let { group ->
+                    groupName?.takeIf { it.isNotBlank() }?.let { group ->
                         Text(text = group, style = MaterialTheme.typography.bodyMedium)
                     }
                     // What it is, and how it is done. The kind is always known, so this

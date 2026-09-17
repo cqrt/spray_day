@@ -12,13 +12,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 
 /**
- * The track library: every planned track with its due status, plus GPX import.
+ * The asset library: every planned asset with its due status, folded into the blocks it is
+ * worked with, plus GPX import.
  */
 class AssetListViewModel(
     private val assetRepository: AssetRepository,
@@ -27,6 +29,21 @@ class AssetListViewModel(
 
     val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * Which blocks are open, by name.
+     *
+     * Held here rather than in the screen so it survives the list being rebuilt - and closed
+     * to begin with, because a block's tile is meant to answer the question on its own; the
+     * rows are what you open it for.
+     */
+    private val _expandedBlocks = MutableStateFlow<Set<String>>(emptySet())
+    val expandedBlocks: StateFlow<Set<String>> = _expandedBlocks
+
+    /** Opens a closed block, or closes an open one. */
+    fun toggleBlock(name: String) {
+        _expandedBlocks.update { open -> if (name in open) open - name else open + name }
+    }
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message

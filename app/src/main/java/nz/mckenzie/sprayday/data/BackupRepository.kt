@@ -73,7 +73,7 @@ class BackupRepository(
 
     /** What is in the app right now, for showing beside what a file holds. */
     suspend fun currentSummary(): BackupSummary = BackupSummary(
-        tracks = dao.assetCount(),
+        assets = dao.assetCount(),
         sprays = dao.sprayCount(),
         recordings = dao.recordingCount(),
         products = dao.productCount(),

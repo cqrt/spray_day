@@ -24,7 +24,8 @@ sprayed).
   only the default), its **kind** (track, road or infrastructure), whether it is a
   line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the
   usual width for that method), the swath width for a treated-area estimate, a
-  **group** to work it with, and notes. The interval is what the traffic light uses,
+  **block or group** to work it with (assets sharing one fold into a single tile in the
+  list), and notes. The interval is what the traffic light uses,
   so a block sprayed on a shorter cycle turns yellow on its own schedule.
 - **Spray records**: pick an asset, enter the products and the **mL of each**,
   save. The asset turns green and its history starts. Amounts are remembered per
@@ -147,6 +148,39 @@ The rules live in one place, `DueReminderPlanner`, because they are the whole fe
 Android 13 and later need `POST_NOTIFICATIONS`. Settings asks for it and says plainly
 when it is missing, because a reminder system that is silently not permitted is worse
 than no reminder system at all.
+
+## Blocks
+
+A **block** is the named collection of assets worked together: the estuary road, the lagoon and
+the lower track, sprayed and reported on as one thing. The code calls them groups — `groups`,
+`groupId`, `GroupEntity` — and the field on an asset says "Block or group" so that the word in
+the table and the word on the screen are recognisably the same thing.
+
+The asset list folds by block. A block's assets are drawn as one tile until it is opened, and
+the tile answers what would otherwise need the rows:
+
+```
+● Estuary                                            ⌄
+  5 assets · 3.40 km · about 1.5 ha
+  2 of 5 left to spray (40%) · 1.80 km
+```
+
+- The **dot** is the most urgent asset in the block, never an average: one overdue line is not
+  made up for by four that are not due.
+- The **length and the area** are totals of the block, and each is left out when it is not
+  known rather than shown as a zero — a block of troughs has no length, and saying "0 m" about
+  it would read like a measurement. The area is called an estimate, and when only some lines
+  record a swath width the tile says how many it came from.
+- The **share left** is counted in assets, with the distance left beside it. Counting metres
+  would let a block whose only due asset is a trough report "0% left" directly above a line
+  saying something is left; the bar shows the work done in the dot's colour, so the two agree.
+- Blocks are **closed to begin with**, ordered most urgent first and then by name. Assets in no
+  block follow, in name order.
+
+Blocks are made by typing a name into **Block or group** on an asset, and taken apart by
+blanking it. Names are unique regardless of case, so "estuary" and "Estuary" are one block.
+There is no screen yet for renaming or deleting a block: the name lives on the assets that use
+it, and a block with no assets left in it stops being drawn.
 
 ## Backup files
 

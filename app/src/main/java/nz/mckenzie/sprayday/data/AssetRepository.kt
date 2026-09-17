@@ -54,9 +54,11 @@ class AssetRepository(
     ): Flow<List<AssetWithDue>> = combine(
         assetDao.observeActiveAssets(),
         sprayEventDao.observeSpraySummaries(),
+        assetDao.observeAssetGroupNames(),
         nowProvider
-    ) { assets, summaries, now ->
+    ) { assets, summaries, groupNames, now ->
         val byAsset = summaries.associateBy { it.assetId }
+        val blocks = groupNames.associate { it.assetId to it.name }
         assets.map { asset ->
             val summary = byAsset[asset.id]
             // The event table wins over the denormalised column if they disagree.
@@ -70,7 +72,10 @@ class AssetRepository(
                     nowEpochMs = now,
                     zoneId = zoneId
                 ),
-                sprayCount = summary?.sprayCount ?: 0
+                sprayCount = summary?.sprayCount ?: 0,
+                // The name rather than the id, because the name is what the list shows and
+                // what a rename would change without touching a single asset row.
+                groupName = blocks[asset.id]
             )
         }
     }

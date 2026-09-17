@@ -38,7 +38,8 @@ enum class IconGlyph {
     EDIT,
     EXPORT,
     TRASH,
-    SPRAY
+    SPRAY,
+    CHEVRON
 }
 
 /**
@@ -148,6 +149,13 @@ internal fun AppIcon(
             IconGlyph.CHECK -> {
                 line(0.24f, 0.52f, 0.44f, 0.72f)
                 line(0.44f, 0.72f, 0.78f, 0.28f)
+            }
+
+            // A chevron pointing right, which the list turns to point down when a block is
+            // open. One glyph rather than two, so there is no way for the pair to disagree.
+            IconGlyph.CHEVRON -> {
+                line(0.40f, 0.24f, 0.64f, 0.50f)
+                line(0.64f, 0.50f, 0.40f, 0.76f)
             }
 
             IconGlyph.MORE -> {

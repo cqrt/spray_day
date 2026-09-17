@@ -182,6 +182,22 @@ class AssetDetailViewModelTest {
         assertNull(finalTrack.swathWidthM)
     }
 
+    /**
+     * The line the detail screen shows is the asset's block, read on its own.
+     *
+     * It used to be read out of the edit form's state, which is the wrong place for something
+     * only ever displayed: the screen would show nothing until a form had been prepared, and
+     * a field that exists to be typed into is a poor place to keep something being read.
+     */
+    @Test
+    fun theBlockOnTheDetailScreenComesFromItsOwnFlow() = runBlocking {
+        val viewModel = viewModel()
+
+        viewModel.save(track(), groupName = "Estuary")
+
+        assertEquals("Estuary", withTimeout(5_000) { viewModel.groupName.first { it != null } })
+    }
+
     private suspend fun track(): AssetEntity = assetRepository.getAsset(assetId)!!
 
     private fun viewModel() = AssetDetailViewModel(

@@ -85,6 +85,15 @@ class AssetDetailViewModel(
     val groupName: StateFlow<String?> = assetRepository.observeGroupName(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
+    /**
+     * The blocks that already exist, for the field on the edit form to offer.
+     *
+     * Held here rather than looked up when the form opens so the list is live: a block started
+     * on another asset while this form is open is offered here too.
+     */
+    val existingBlocks: StateFlow<List<String>> = assetRepository.observeBlockNames()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
     val geometry: StateFlow<List<GeoPoint>> = assetRepository.observeAssetGeometry(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 

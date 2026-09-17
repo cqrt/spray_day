@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -57,6 +61,9 @@ fun AssetEditScreen(
 ) {
     val draft by viewModel.editDraft.collectAsStateWithLifecycle()
 
+    // The blocks that already exist, to offer under the field rather than to be remembered.
+    val blocks by viewModel.existingBlocks.collectAsStateWithLifecycle()
+
     // The asset and its group arrive together, because a form that opened with the group
     // still loading would save a blank name over a real one, and quietly take the asset out
     // of its block. Until both are here there is nothing to edit.
@@ -65,6 +72,7 @@ fun AssetEditScreen(
 
     var name by remember { mutableStateOf(asset.name) }
     var groupName by remember { mutableStateOf(current.groupName) }
+    var blocksOpen by remember { mutableStateOf(false) }
     var kind by remember { mutableStateOf(AssetKind.fromStorage(asset.kind)) }
     var shape by remember { mutableStateOf(AssetShape.fromStorage(asset.shape)) }
     var method by remember { mutableStateOf(SprayMethod.fromStorage(asset.method)) }
@@ -124,16 +132,44 @@ fun AssetEditScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
-                value = groupName,
-                onValueChange = { groupName = it; problem = null },
-                label = { Text("Block or group") },
-                supportingText = {
-                    Text("Assets sharing one are worked together, and fold into a block in the list")
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            // The block field offers the blocks that exist, and says what a typed name will do.
+            // This is the only place a block is started, and a misspelling used to be a new
+            // block with one asset in it, with nothing anywhere saying so.
+            val suggestions = AssetEdits.blockSuggestions(groupName, blocks)
+            val showSuggestions = blocksOpen && suggestions.isNotEmpty()
+            ExposedDropdownMenuBox(
+                expanded = showSuggestions,
+                onExpandedChange = { blocksOpen = it }
+            ) {
+                OutlinedTextField(
+                    value = groupName,
+                    onValueChange = { groupName = it; problem = null; blocksOpen = true },
+                    label = { Text("Block or group") },
+                    supportingText = { Text(AssetEdits.blockHint(groupName, blocks)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showSuggestions)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryEditable, true)
+                )
+                ExposedDropdownMenu(
+                    expanded = showSuggestions,
+                    onDismissRequest = { blocksOpen = false }
+                ) {
+                    suggestions.forEach { block ->
+                        DropdownMenuItem(
+                            text = { Text(block) },
+                            onClick = {
+                                groupName = block
+                                problem = null
+                                blocksOpen = false
+                            }
+                        )
+                    }
+                }
+            }
             ChoiceRow(
                 label = "What it is",
                 choices = AssetPhrase.kinds,

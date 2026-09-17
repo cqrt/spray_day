@@ -294,4 +294,36 @@ class AssetAndSprayDataTest {
             assetRepository.observeGroupName(id).first()
         )
     }
+
+    @Test
+    fun renamingABlockTakesItsAssetsWithIt() = runBlocking {
+        val id = assetRepository.createAsset(name = "Estuary road", geometry = line, groupName = "Estuary")
+        val block = assetRepository.observeGroups().first().single()
+
+        assetRepository.saveBlockEdits(block.id, name = "Estuary flats", notes = "Road and lagoon")
+
+        val stored = assetRepository.observeGroups().first().single()
+        assertEquals("Estuary flats", stored.name)
+        assertEquals("Road and lagoon", stored.notes)
+        assertEquals(
+            "the asset is in the block it was in, under the new name",
+            "Estuary flats",
+            assetRepository.observeGroupName(id).first()
+        )
+    }
+
+    @Test
+    fun deletingABlockLeavesItsAssetsWhereTheyAre() = runBlocking {
+        val first = assetRepository.createAsset(name = "Estuary road", geometry = line, groupName = "Estuary")
+        val second = assetRepository.createAsset(name = "Estuary lagoon", geometry = line, groupName = "Estuary")
+        val block = assetRepository.observeGroups().first().single()
+
+        assetRepository.deleteBlock(block.id)
+
+        assertTrue("the block is gone", assetRepository.observeGroups().first().isEmpty())
+        assertNull(assetRepository.observeGroupName(first).first())
+        assertNull(assetRepository.observeGroupName(second).first())
+        assertNotNull("and the assets are still here", assetRepository.getAsset(first))
+        assertNotNull(assetRepository.getAsset(second))
+    }
 }

@@ -184,6 +184,39 @@ class AssetRepository(
         assetDao.replaceGeometry(assetId, rows, polylineLengthMeters(geometry))
     }
 
+    // --- Blocks -----------------------------------------------------------------------
+
+    /** Every block, including one whose assets have all been taken back out of it. */
+    fun observeGroups(): Flow<List<GroupEntity>> = groupDao.observeGroups()
+
+    /** The names of the blocks, for suggesting one rather than starting a second by typo. */
+    fun observeBlockNames(): Flow<List<String>> = groupDao.observeNames()
+
+    fun observeGroup(id: Long): Flow<GroupEntity?> = groupDao.observeGroup(id)
+
+    /**
+     * Renames a block and writes its notes, in one transaction.
+     *
+     * The name has already been checked against the other blocks by
+     * [nz.mckenzie.sprayday.ui.BlockEdits]; what is left here is the write, so a rename cannot
+     * land half-done.
+     */
+    suspend fun saveBlockEdits(id: Long, name: String, notes: String?) = db.withTransaction {
+        groupDao.rename(id, name)
+        groupDao.setNotes(id, notes)
+    }
+
+    /**
+     * Deletes a block, leaving its assets exactly where they are.
+     *
+     * Which is the whole promise of the button: a block is a way of working, not a container
+     * that things live inside.
+     */
+    suspend fun deleteBlock(id: Long) = db.withTransaction {
+        groupDao.detachAssets(id)
+        groupDao.delete(id)
+    }
+
     // --- GPX interchange ------------------------------------------------------------
 
     /** Exports an asset's planned geometry as GPX 1.1, or null if the asset is gone. */

@@ -209,4 +209,46 @@ class AssetEditsTest {
 
         assertNull(edited.asset.notes)
     }
+
+    @Test
+    fun `the block field says which of the two things a typed name is about to do`() {
+        val blocks = listOf("Estuary", "Braemar")
+
+        assertEquals(
+            "In the block \"Estuary\", whatever case it is typed in",
+            "In the block \"Estuary\"",
+            AssetEdits.blockHint("estuary", blocks)
+        )
+        assertEquals(
+            "a name that is not there yet starts one, and says so",
+            "Starts a new block called \"Estuary flatts\"",
+            AssetEdits.blockHint("Estuary flatts", blocks)
+        )
+        assertEquals(
+            "and an empty field explains the empty case",
+            "Type a block, or leave it empty for an asset on its own",
+            AssetEdits.blockHint("  ", blocks)
+        )
+    }
+
+    @Test
+    fun `the block field offers the blocks that match what has been typed`() {
+        val blocks = listOf("Estuary", "Estuary flats", "Braemar")
+
+        assertEquals(
+            "a prefix offers the longer names, and not the one already typed",
+            listOf("Estuary flats"),
+            AssetEdits.blockSuggestions("estuary", blocks)
+        )
+        assertEquals(
+            "nothing typed means nothing offered, so the field is not in the way",
+            emptyList<String>(),
+            AssetEdits.blockSuggestions("", blocks)
+        )
+        assertEquals(
+            "a name nobody has is nothing to offer",
+            emptyList<String>(),
+            AssetEdits.blockSuggestions("Wairau", blocks)
+        )
+    }
 }

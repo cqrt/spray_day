@@ -122,4 +122,34 @@ object AssetEdits {
             groupName = fields.groupName.trim().ifBlank { null }
         )
     }
+
+    /**
+     * What the block field should say under itself.
+     *
+     * This is the only place a block can be started - by naming one that does not exist yet -
+     * so the field says which of the two things the typed name is about to do. A misspelling
+     * used to be a new block with one asset in it, and nothing anywhere said so.
+     */
+    fun blockHint(typed: String, existing: List<String>): String {
+        val name = typed.trim()
+        if (name.isEmpty()) return "Type a block, or leave it empty for an asset on its own"
+        val match = existing.firstOrNull { it.equals(name, ignoreCase = true) }
+        return if (match != null) "In the block \"$match\"" else "Starts a new block called \"$name\""
+    }
+
+    /**
+     * The blocks worth offering while the operator types.
+     *
+     * Nothing while the field is empty: this is a suggestion, not a menu, and a list that
+     * drops open the moment the field is touched is in the way of the typing that would have
+     * narrowed it. A name that is already there exactly is left out too, since picking it
+     * would change nothing.
+     */
+    fun blockSuggestions(typed: String, existing: List<String>): List<String> {
+        val name = typed.trim()
+        if (name.isEmpty()) return emptyList()
+        return existing.filter { block ->
+            block.contains(name, ignoreCase = true) && !block.equals(name, ignoreCase = true)
+        }
+    }
 }

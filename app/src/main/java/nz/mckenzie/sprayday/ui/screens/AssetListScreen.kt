@@ -57,6 +57,7 @@ fun AssetListScreen(
     onOpenTab: (Tab) -> Unit = {},
     onOpenAsset: (Long) -> Unit,
     onDrawAsset: () -> Unit,
+    onOpenBlocks: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
@@ -77,6 +78,11 @@ fun AssetListScreen(
             TopAppBar(
                 title = { Text("Assets") },
                 actions = {
+                    // Blocks first, then Settings: the blocks are about these assets, and
+                    // Settings is the way out to the app's own arrangements.
+                    IconButton(onClick = onOpenBlocks) {
+                        AppIcon(IconGlyph.BLOCKS, contentDescription = "Blocks")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         AppIcon(IconGlyph.SETTINGS, contentDescription = "Settings")
                     }

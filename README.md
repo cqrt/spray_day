@@ -178,9 +178,16 @@ the tile answers what would otherwise need the rows:
   block follow, in name order.
 
 Blocks are made by typing a name into **Block or group** on an asset, and taken apart by
-blanking it. Names are unique regardless of case, so "estuary" and "Estuary" are one block.
-There is no screen yet for renaming or deleting a block: the name lives on the assets that use
-it, and a block with no assets left in it stops being drawn.
+blanking it. Names are unique regardless of case, so "estuary" and "Estuary" are one block. The
+field offers the blocks that already exist as you type, and says which of the two things the name
+is about to do — *In the block "Estuary"*, or *Starts a new block called "Estuary flats"* —
+because a misspelling used to be a new block with one asset in it and nothing anywhere saying so.
+
+**Blocks**, from the asset list's top bar, is where they are kept tidy: rename one, write down
+what it is for, or delete it. Deleting a block never touches the assets in it — they simply come
+out of it, and the confirmation says how many, by name — and a block that nobody is in any more
+is listed as holding nothing rather than quietly disappearing, because clearing it up is the
+reason to open the screen at all.
 
 ## Backup files
 

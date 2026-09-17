@@ -39,7 +39,8 @@ enum class IconGlyph {
     EXPORT,
     TRASH,
     SPRAY,
-    CHEVRON
+    CHEVRON,
+    BLOCKS
 }
 
 /**
@@ -156,6 +157,27 @@ internal fun AppIcon(
             IconGlyph.CHEVRON -> {
                 line(0.40f, 0.24f, 0.64f, 0.50f)
                 line(0.64f, 0.50f, 0.40f, 0.76f)
+            }
+
+            // Blocks: one rectangle of assets gathered behind another, which is what a block
+            // is - assets worked as one thing rather than a container with sides.
+            IconGlyph.BLOCKS -> {
+                val front = Path().apply {
+                    moveTo(width * 0.14f, height * 0.56f)
+                    lineTo(width * 0.14f, height * 0.86f)
+                    lineTo(width * 0.62f, height * 0.86f)
+                    lineTo(width * 0.62f, height * 0.56f)
+                    close()
+                }
+                drawPath(front, tint, style = Stroke(width = stroke))
+                val behind = Path().apply {
+                    moveTo(width * 0.38f, height * 0.42f)
+                    lineTo(width * 0.38f, height * 0.14f)
+                    lineTo(width * 0.86f, height * 0.14f)
+                    lineTo(width * 0.86f, height * 0.42f)
+                    close()
+                }
+                drawPath(behind, tint, style = Stroke(width = stroke))
             }
 
             IconGlyph.MORE -> {

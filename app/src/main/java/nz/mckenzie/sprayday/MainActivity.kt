@@ -25,6 +25,8 @@ import nz.mckenzie.sprayday.ui.screens.Tab
 import nz.mckenzie.sprayday.ui.screens.AssetDetailScreen
 import nz.mckenzie.sprayday.ui.screens.AssetEditScreen
 import nz.mckenzie.sprayday.ui.screens.AssetListScreen
+import nz.mckenzie.sprayday.ui.screens.BlockEditScreen
+import nz.mckenzie.sprayday.ui.screens.BlocksScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
@@ -38,9 +40,11 @@ import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
 import nz.mckenzie.sprayday.viewmodel.UpdateViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
+import nz.mckenzie.sprayday.viewmodel.BlockEditViewModel
+import nz.mckenzie.sprayday.viewmodel.BlocksViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
+private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -58,6 +62,7 @@ class MainActivity : ComponentActivity() {
             SprayDayTheme {
                 var destination by rememberSaveable { mutableStateOf(Destination.MAP) }
                 var selectedAssetId by rememberSaveable { mutableStateOf<Long?>(null) }
+                var selectedBlockId by rememberSaveable { mutableStateOf<Long?>(null) }
                 var selectedSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
                 /**
@@ -118,6 +123,7 @@ class MainActivity : ComponentActivity() {
                                 drawVisit++
                                 destination = Destination.DRAW
                             },
+                            onOpenBlocks = { destination = Destination.BLOCKS },
                             onOpenSettings = { destination = Destination.SETTINGS }
                         )
                     }
@@ -162,6 +168,39 @@ class MainActivity : ComponentActivity() {
                             AssetEditScreen(
                                 viewModel = editViewModel,
                                 onDone = { destination = Destination.ASSET_DETAIL }
+                            )
+                        }
+                    }
+
+                    Destination.BLOCKS -> {
+                        val blocksViewModel: BlocksViewModel = viewModel(
+                            factory = BlocksViewModel.factory(applicationContext)
+                        )
+                        BlocksScreen(
+                            viewModel = blocksViewModel,
+                            onBack = { destination = Destination.ASSETS },
+                            onOpenBlock = { blockId ->
+                                selectedBlockId = blockId
+                                destination = Destination.BLOCK_EDIT
+                            }
+                        )
+                    }
+
+                    // The block form asks for the same view model the list behind it uses,
+                    // keyed by block id, so saving or deleting lands back on the list that
+                    // has already been watching the row.
+                    Destination.BLOCK_EDIT -> {
+                        val blockId = selectedBlockId
+                        if (blockId == null) {
+                            destination = Destination.BLOCKS
+                        } else {
+                            val blockViewModel: BlockEditViewModel = viewModel(
+                                key = "block-$blockId",
+                                factory = BlockEditViewModel.factory(applicationContext, blockId)
+                            )
+                            BlockEditScreen(
+                                viewModel = blockViewModel,
+                                onDone = { destination = Destination.BLOCKS }
                             )
                         }
                     }

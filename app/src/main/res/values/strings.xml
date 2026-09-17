@@ -17,4 +17,7 @@
     <!-- Due reminders -->
     <string name="due_channel_name">Spray reminders</string>
     <string name="due_channel_description">Tells you when planned tracks are due for spraying</string>
+    <!-- App updates -->
+    <string name="update_channel_name">App updates</string>
+    <string name="update_channel_description">Tells you when a newer version of Spray Day has been released</string>
 </resources>

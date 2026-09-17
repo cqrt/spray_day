@@ -35,6 +35,7 @@ import nz.mckenzie.sprayday.viewmodel.RecordingsViewModel
 import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
 import nz.mckenzie.sprayday.viewmodel.SprayEntryViewModel
+import nz.mckenzie.sprayday.viewmodel.UpdateViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 
@@ -258,8 +259,12 @@ class MainActivity : ComponentActivity() {
                         val settingsViewModel: SettingsViewModel = viewModel(
                             factory = SettingsViewModel.factory(applicationContext)
                         )
+                        val updateViewModel: UpdateViewModel = viewModel(
+                            factory = UpdateViewModel.factory(applicationContext)
+                        )
                         SettingsScreen(
                             viewModel = settingsViewModel,
+                            updateViewModel = updateViewModel,
                             onBack = { destination = Destination.MAP }
                         )
                     }
@@ -301,10 +306,12 @@ class MainActivity : ComponentActivity() {
         /** The screen an intent would like opened, e.g. from a due reminder. */
         const val EXTRA_DESTINATION = "nz.mckenzie.sprayday.extra.DESTINATION"
         const val DESTINATION_ASSETS = "tracks"
+        const val DESTINATION_SETTINGS = "settings"
 
         private fun destinationFrom(intent: Intent?): Destination? =
             when (intent?.getStringExtra(EXTRA_DESTINATION)) {
                 DESTINATION_ASSETS -> Destination.ASSETS
+                DESTINATION_SETTINGS -> Destination.SETTINGS
                 else -> null
             }
 

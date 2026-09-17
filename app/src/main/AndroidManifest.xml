@@ -10,6 +10,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Installing a downloaded update over this copy of the app. This only lets the
+        request be made: Android still asks the operator to confirm every time, and an APK
+        signed with a different key is refused by the installer whatever this says.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- The app is fully usable without a GPS chip (tracks can be drawn/imported) -->
     <uses-feature
         android:name="android.hardware.location.gps"
@@ -43,6 +50,15 @@
             android:name=".tracking.TrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!--
+            Receives the installer's answer to a committed update session. Declared here
+            rather than registered by the screen that started it, because the answer can
+            arrive after this app's process has been replaced.
+        -->
+        <receiver
+            android:name=".update.UpdateInstallReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

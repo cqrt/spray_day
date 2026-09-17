@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.reminders.DueReminderScheduler
+import nz.mckenzie.sprayday.update.UpdateCheckScheduler
 import org.maplibre.android.MapLibre
 
 class SprayDayApplication : Application() {
@@ -32,9 +33,18 @@ class SprayDayApplication : Application() {
 
         // Keep the reminder schedule in step with the setting, whatever changes it -
         // the settings switch, or a restore putting the setting back.
+        val settings = SettingsRepository(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            SettingsRepository(this@SprayDayApplication).remindersEnabled.collect { enabled ->
+            settings.remindersEnabled.collect { enabled ->
                 DueReminderScheduler.sync(this@SprayDayApplication, enabled)
+            }
+        }
+
+        // The same for the update check: the switch that turns it off has to actually
+        // stop the job that does it, or the setting is a lie.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            settings.updateChecksEnabled.collect { enabled ->
+                UpdateCheckScheduler.sync(this@SprayDayApplication, enabled)
             }
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,7 +45,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.viewmodel.KeyCheckState
 import nz.mckenzie.sprayday.viewmodel.KeySource
+import nz.mckenzie.sprayday.viewmodel.InstallState
 import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
+import nz.mckenzie.sprayday.viewmodel.UpdateState
+import nz.mckenzie.sprayday.viewmodel.UpdateViewModel
 
 /**
  * App settings, which today means the LINZ Basemaps key.
@@ -56,9 +60,24 @@ import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    updateViewModel: UpdateViewModel,
+    onBack: () -> Unit
+) {
     val keyText by viewModel.keyText.collectAsStateWithLifecycle()
     val keySource by viewModel.keySource.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.state.collectAsStateWithLifecycle()
+    val installState by updateViewModel.install.collectAsStateWithLifecycle()
+    val autoUpdateChecks by updateViewModel.autoCheckEnabled.collectAsStateWithLifecycle()
+    // Android's permission to install this is granted on a system screen this app sends
+    // the operator to, so it is state rather than a value read once: a plain read leaves
+    // the warning on screen after they have already granted it.
+    var canInstallUpdates by remember { mutableStateOf(updateViewModel.canInstall()) }
+    LifecycleResumeEffect(Unit) {
+        canInstallUpdates = updateViewModel.canInstall()
+        onPauseOrDispose { }
+    }
     val activeKeyLabel by viewModel.activeKeyLabel.collectAsStateWithLifecycle()
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -271,6 +290,121 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         enabled = !checkingReminders
                     ) {
                         Text(if (checkingReminders) "Checking…" else "Check now")
+                    }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Updates", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "This is version ${updateViewModel.currentLabel}. Spray Day is not " +
+                            "installed from an app store, so nothing else will ever mention a new " +
+                            "version \u2014 it asks GitHub once a day instead.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Switch(
+                            checked = autoUpdateChecks,
+                            onCheckedChange = updateViewModel::setAutoCheck
+                        )
+                        Text(
+                            text = "Tell me when a newer version is released",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    if (!canInstallUpdates) {
+                        Text(
+                            text = "Android needs your permission before Spray Day can install an " +
+                                "update. Downloading works without it; installing does not.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        OutlinedButton(onClick = updateViewModel::openInstallPermission) {
+                            Text("Allow installing updates")
+                        }
+                    }
+
+                    when (val state = updateState) {
+                        UpdateState.Idle -> Unit
+                        UpdateState.Checking -> Text(
+                            text = "Asking GitHub\u2026",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        is UpdateState.NothingToInstall -> Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        is UpdateState.Available -> Text(
+                            text = "${state.update.title} is available (${state.update.sizeLabel}).",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    when (val state = installState) {
+                        InstallState.Idle -> Unit
+
+                        is InstallState.Downloading -> {
+                            LinearProgressIndicator(
+                                progress = { state.progress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Downloading\u2026 ${(state.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        InstallState.HandedToInstaller -> Text(
+                            text = "Android is installing it. Confirm the update when it asks, and " +
+                                "Spray Day reopens on the new version \u2014 with everything you " +
+                                "have recorded kept.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        is InstallState.Failed -> Text(
+                            text = state.message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = updateViewModel::check,
+                            enabled = updateState != UpdateState.Checking
+                        ) {
+                            Text(
+                                if (updateState == UpdateState.Checking) {
+                                    "Checking\u2026"
+                                } else {
+                                    "Check for updates"
+                                }
+                            )
+                        }
+
+                        (updateState as? UpdateState.Available)?.let { state ->
+                            Button(
+                                onClick = { updateViewModel.install(state.update) },
+                                enabled = canInstallUpdates && installState !is InstallState.Downloading
+                            ) {
+                                Text("Update to ${state.update.version}")
+                            }
+                        }
                     }
                 }
             }

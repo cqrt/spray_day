@@ -24,6 +24,8 @@ class SettingsRepository(private val context: Context) {
 
     private val linzKeyPref = stringPreferencesKey("linz_api_key")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
+    private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
+    private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
 
     /** What the user has entered, empty when unset. */
     val storedLinzApiKey: Flow<String> =
@@ -56,5 +58,33 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setRemindersEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { prefs -> prefs[remindersPref] = enabled }
+    }
+
+    /**
+     * Whether the app should look for a newer version of itself.
+     *
+     * On by default. This app is not installed from a store, so nothing else will ever
+     * mention a new version - without this, the only way to find out would be to go and
+     * read the releases page, which nobody does.
+     */
+    val updateChecksEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[updateChecksPref] ?: true
+    }
+
+    suspend fun setUpdateChecksEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[updateChecksPref] = enabled }
+    }
+
+    /**
+     * The version the operator has already been told about.
+     *
+     * Remembered so a daily check does not become a daily notification about the same
+     * release. Stored rather than inferred, so it survives a restart.
+     */
+    val lastNotifiedUpdate: Flow<String> =
+        context.settingsDataStore.data.map { prefs -> prefs[lastNotifiedUpdatePref].orEmpty() }
+
+    suspend fun setLastNotifiedUpdate(version: String) {
+        context.settingsDataStore.edit { prefs -> prefs[lastNotifiedUpdatePref] = version }
     }
 }

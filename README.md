@@ -47,6 +47,9 @@ sprayed).
   amounts each asset remembers, and every GPS recording. A restore replaces, and says
   what is on both sides of that before it does anything. Files written before groups
   existed still restore: their "block or area" becomes a group of that name.
+- **Updates from inside the app**: nothing else will ever mention a new version, because
+  this is not installed from a store — so it asks GitHub once a day, says so with a
+  notification, and installs the release from Settings, handed to Android's own installer.
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
 - **Spraying while recording**: pick the asset, type the amounts as they go in,
@@ -243,6 +246,35 @@ Pushing a tag like `v0.6.2` stamps `versionName 0.6.2` and `versionCode 602`
 (major × 10000 + minor × 100 + patch), so release codes are predictable and
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.
+
+## Getting a new version
+
+The app is not installed from a store, so nothing else will ever mention that a new version
+exists. It asks GitHub for the newest release of itself once a day instead — WorkManager,
+network required, and the switch in Settings turns it off — and says so with a notification
+when there is one. The same check is on a button, so you can ask now rather than wait.
+
+**Settings → Updates** shows which version this is, whether there is a newer one, and one
+button that downloads it and hands it to Android's installer. The download is the APK built
+for *this* phone's architecture: each release carries one per ABI plus a universal build,
+and the universal one is about four times the size, so the size shown before you commit is
+the size you get.
+
+Three things the platform decides rather than this app:
+
+- Android asks you to confirm every install, and needs **install unknown apps** allowed for
+  Spray Day before it will even offer to. Settings says when that is missing, and has the
+  button that goes to the screen where it is granted.
+- Play Protect may scan a sideloaded APK before it installs, because it has not seen it
+  before. That is Google's check, not this app's, and it happens after the download.
+- An APK signed with a different key is refused by the installer, which is the protection
+  against a tampered or substituted download rather than anything in this code. The same
+  property means an update cannot cross between a debug build and a release build.
+
+Worth knowing while developing: a debug build reports `versionName 0.1.0` unless it is
+stamped (`-PversionName=0.6.2`), so it will always claim there is a newer version; and
+being debug-signed it cannot install a release APK. Both show up as the installer refusing
+rather than as a fault in the download.
 
 ## Data attribution
 

@@ -47,6 +47,10 @@ sprayed).
   amounts each asset remembers, and every GPS recording. A restore replaces, and says
   what is on both sides of that before it does anything. Files written before groups
   existed still restore: their "block or area" becomes a group of that name.
+- **Off-site copy**: the same backup, written by the app itself — to a file you chose, or
+  to a private GitHub repository where every backup is a commit, so the copy from before a
+  mistake is still there. An empty database is never written over it, so a phone that has
+  been wiped cannot destroy the last record of the season.
 - **Updates from inside the app**: nothing else will ever mention a new version, because
   this is not installed from a store — so it asks GitHub once a day, says so with a
   notification, and installs the release from Settings, handed to Android's own installer.
@@ -160,13 +164,51 @@ holds now, and only then replaces. Replacement rather than merge, because half o
 season and half of another is not a state to discover in a paddock. It runs in a single
 transaction, so an interrupted restore leaves the previous data untouched.
 
-Two things are deliberately absent. Downloaded offline imagery: it describes tiles on
-one phone, and the tiles can be fetched again. And the LINZ key, which is a setting
-rather than a record.
+Downloaded offline imagery is deliberately absent: it describes tiles on one phone, and
+the tiles can be fetched again. The switches travel, so a restored phone comes back set up
+rather than factory-fresh — reminders, the update check, and where the off-site copy goes —
+but the LINZ key and the GitHub token do not, because both are credentials rather than
+records, and a backup file may be read by whoever finds it.
 
 Files are versioned (`"format": "spray-day-backup"`, `"version": 2`). An older file
 restores into a newer build, since missing fields fall back to defaults; a file from a
-newer build is refused with an explanation rather than half-read.
+newer build is refused with an explanation rather than half-read. The switches arrived
+without a version bump for the same reason: a file written before they existed simply has
+no such key.
+
+### The copy that is not on the phone
+
+A file you keep still depends on you keeping it, and the phone holding the season is
+exactly the thing that gets lost, wiped, or dropped in the creek. So the same backup is
+written somewhere else as well, down the same seam: a `BackupTarget`, which is a file
+(through the picker above) or a private GitHub repository.
+
+**Where the copy goes** chooses between nowhere, a file, and a repository. The repository
+is the one that keeps history without being asked: every backup is a commit, so the copy
+from before a mistake is still there. Each phone writes its own file
+(`spray-day-<model>.json`), so two phones pointed at one repository cannot overwrite each
+other's copy, and a copy says which phone it came from.
+
+The token is a fine-grained GitHub token with **Contents: read and write** on that one
+repository. It is kept on the phone and never written into a backup — the copy lives in
+the very repository the token can write to, and a file carrying the token would hand over
+the repository with it. **Test** asks GitHub what the repository is and what the token may
+do, and refuses a public one: a season of spray records is not a thing to publish.
+
+One rule decides whether a copy is written at all: **an empty database is never written
+over the copy.** After a wipe this phone holds nothing, and the copy off-site may be the
+only record left — so the write is refused, the screen says so in as many words, and the
+way forward is **Restore from the copy**. There is no override, because "my phone is
+empty, so empty it shall be written" is not a thing anybody means.
+
+Restoring from the copy is the same dialog as restoring from a file: both sides counted,
+and counted again at the moment of confirming rather than remembered from when the list
+was drawn, because which side is which is the only thing that has to be got right.
+
+Unattended, the copy is written once a week (WorkManager, network required) and a failure
+is said out loud at most once every three days — a backup failing quietly since spring is
+the failure that costs a season, and a notification a day about the same expired token is
+the one that gets turned off.
 
 ## Handover records
 

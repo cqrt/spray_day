@@ -7,7 +7,9 @@ import kotlinx.coroutines.withContext
 import nz.mckenzie.sprayday.domain.backup.BackupDocument
 import nz.mckenzie.sprayday.domain.backup.BackupFileException
 import nz.mckenzie.sprayday.domain.backup.BackupFormat
+import nz.mckenzie.sprayday.domain.backup.BackupSettingsRecord
 import nz.mckenzie.sprayday.domain.backup.BackupSummary
+import nz.mckenzie.sprayday.domain.backup.BackupSwitches
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -20,11 +22,21 @@ import java.util.Locale
  * attachment) through the system file picker, so this deals in `Uri`s. Inspecting is
  * separate from restoring on purpose: the screen shows what a file holds, and what
  * the app holds, before anything is replaced.
+ *
+ * Text rather than a file is what the destinations above this actually exchange - an
+ * off-site backup hands the same text to a repository instead of a `Uri` - so the encoding,
+ * the decoding and the counters live here once, and no destination gets its own idea of what
+ * a backup is.
  */
 class BackupController(
     private val repository: BackupRepository,
     private val context: Context,
-    private val zoneId: ZoneId = ZoneId.systemDefault()
+    private val zoneId: ZoneId = ZoneId.systemDefault(),
+    /**
+     * The switches a backup carries to a new phone. Null when there are none to carry,
+     * which is how the tests and the handover path have always used this.
+     */
+    private val switches: BackupSwitches? = null
 ) {
 
     /** "spray-day-backup-2026-09-14.json" - dated, so two backups do not collide. */
@@ -35,20 +47,40 @@ class BackupController(
     }
 
     suspend fun exportTo(uri: Uri, nowEpochMs: Long = System.currentTimeMillis()): BackupSummary {
-        val document = repository.export()
+        val document = exportDocument()
         writeText(uri, BackupFormat.encode(document))
         return BackupFormat.summarise(document)
     }
 
+    /** The backup as text, with the switches in it, for any destination to keep. */
+    suspend fun exportText(): String = BackupFormat.encode(exportDocument())
+
     /** What the file holds, without touching anything. */
-    suspend fun inspect(uri: Uri): BackupSummary = BackupFormat.summarise(readDocument(uri))
+    suspend fun inspect(uri: Uri): BackupSummary = inspectText(readText(uri))
+
+    /** What text holds, without touching anything. */
+    suspend fun inspectText(text: String): BackupSummary = BackupFormat.summarise(BackupFormat.decode(text))
 
     /** What the app holds right now, so the two can be compared before restoring. */
     suspend fun currentSummary(): BackupSummary = repository.currentSummary()
 
-    suspend fun restoreFrom(uri: Uri): BackupSummary = repository.restore(readDocument(uri))
+    suspend fun restoreFrom(uri: Uri): BackupSummary = restoreText(readText(uri))
 
-    private suspend fun readDocument(uri: Uri): BackupDocument = readText(uri).let(BackupFormat::decode)
+    /**
+     * Replaces everything with what the text holds.
+     *
+     * The switches come back with the data on purpose: a phone restored from a copy should
+     * come back set up, not factory-fresh. Credentials do not travel this way - see
+     * [nz.mckenzie.sprayday.domain.backup.BackupSettingsRecord].
+     */
+    suspend fun restoreText(text: String): BackupSummary {
+        val document = BackupFormat.decode(text)
+        val summary = repository.restore(document)
+        document.settings?.let { record -> switches?.apply(record) }
+        return summary
+    }
+
+    private suspend fun exportDocument(): BackupDocument = repository.export(switches?.read())
 
     private suspend fun readText(uri: Uri): String = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(uri)?.use { stream ->

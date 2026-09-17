@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.domain.backup.AssetDefaultRecord
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.backup.BackupDocument
 import nz.mckenzie.sprayday.domain.backup.BackupFormat
+import nz.mckenzie.sprayday.domain.backup.BackupSettingsRecord
 import nz.mckenzie.sprayday.domain.backup.BackupSummary
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.LinePointRecord
@@ -50,7 +51,7 @@ class BackupRepository(
     private val dao = db.backupDao()
 
     /** Everything the app holds, ready to be written to a file. */
-    suspend fun export(): BackupDocument {
+    suspend fun export(settings: BackupSettingsRecord? = null): BackupDocument {
         val pointsByAsset = dao.allAssetPoints().groupBy { it.assetId }
         val productsByEvent = dao.allSprayEventProducts().groupBy { it.sprayEventId }
         val pointsBySession = dao.allRecordedPoints().groupBy { it.sessionId }
@@ -65,7 +66,8 @@ class BackupRepository(
             assetDefaults = dao.allAssetDefaults().map { it.toRecord() },
             recordings = dao.allRecordedSessions().map { session ->
                 session.toRecord(pointsBySession[session.id].orEmpty())
-            }
+            },
+            settings = settings
         )
     }
 

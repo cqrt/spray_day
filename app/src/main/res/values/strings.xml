@@ -20,4 +20,6 @@
     <!-- App updates -->
     <string name="update_channel_name">App updates</string>
     <string name="update_channel_description">Tells you when a newer version of Spray Day has been released</string>
+    <string name="backup_channel_name">Off-site backup</string>
+    <string name="backup_channel_description">Tells you when the copy of your season kept off the phone did not get written</string>
 </resources>

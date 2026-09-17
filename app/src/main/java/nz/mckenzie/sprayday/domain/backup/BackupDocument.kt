@@ -39,7 +39,15 @@ data class BackupDocument(
     /** Called `trackDefaults` before format 2, like everything else with "track" in it. */
     @JsonNames("trackDefaults")
     val assetDefaults: List<AssetDefaultRecord> = emptyList(),
-    val recordings: List<RecordingRecord> = emptyList()
+    val recordings: List<RecordingRecord> = emptyList(),
+    /**
+     * The switches, so a restored phone comes back set up rather than factory-fresh.
+     *
+     * Optional and added without a version bump: a file written before this existed simply
+     * has no such key, and the switches stay as the new device has them. The LINZ key and
+     * the GitHub token are deliberately not in here - see [BackupSettingsRecord].
+     */
+    val settings: BackupSettingsRecord? = null
 ) {
     companion object {
         const val FORMAT = "spray-day-backup"

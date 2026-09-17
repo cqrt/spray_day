@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import nz.mckenzie.sprayday.backup.BackupScheduler
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.reminders.DueReminderScheduler
@@ -45,6 +46,14 @@ class SprayDayApplication : Application() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             settings.updateChecksEnabled.collect { enabled ->
                 UpdateCheckScheduler.sync(this@SprayDayApplication, enabled)
+            }
+        }
+
+        // And for the off-site copy, where the setting can arrive from a restore as well as
+        // from the switch - a phone restored from a backup should start backing itself up.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            settings.backUpAutomatically.collect { enabled ->
+                BackupScheduler.sync(this@SprayDayApplication, enabled)
             }
         }
     }

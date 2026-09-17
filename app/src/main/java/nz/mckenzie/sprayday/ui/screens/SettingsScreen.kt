@@ -43,9 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.domain.backup.BackupDestination
 import nz.mckenzie.sprayday.viewmodel.KeyCheckState
 import nz.mckenzie.sprayday.viewmodel.KeySource
 import nz.mckenzie.sprayday.viewmodel.InstallState
+import nz.mckenzie.sprayday.viewmodel.OffsiteCheckState
 import nz.mckenzie.sprayday.viewmodel.SettingsViewModel
 import nz.mckenzie.sprayday.viewmodel.UpdateState
 import nz.mckenzie.sprayday.viewmodel.UpdateViewModel
@@ -88,6 +90,23 @@ fun SettingsScreen(
     val dataMessage by viewModel.dataMessage.collectAsStateWithLifecycle()
     val dataBusy by viewModel.dataBusy.collectAsStateWithLifecycle()
     val pendingRestore by viewModel.pendingRestore.collectAsStateWithLifecycle()
+    val offsiteMessage by viewModel.offsiteMessage.collectAsStateWithLifecycle()
+    val offsiteBusy by viewModel.offsiteBusy.collectAsStateWithLifecycle()
+    val offsiteCheck by viewModel.offsiteCheck.collectAsStateWithLifecycle()
+    val copiesToChoose by viewModel.copiesToChoose.collectAsStateWithLifecycle()
+    val backupDestination by viewModel.backupDestination.collectAsStateWithLifecycle()
+    val backupFileName by viewModel.backupFileName.collectAsStateWithLifecycle()
+    val backUpAutomatically by viewModel.backUpAutomatically.collectAsStateWithLifecycle()
+    val lastBackupLabel by viewModel.lastBackupLabel.collectAsStateWithLifecycle()
+    val repoText by viewModel.repoText.collectAsStateWithLifecycle()
+    val tokenText by viewModel.tokenText.collectAsStateWithLifecycle()
+
+    // The file the off-site copy is written to. Created through the same picker as the
+    // manual backup, so it can be anywhere the operator can reach: a Downloads folder, a
+    // stick, or a folder another app syncs.
+    val offsiteFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let(viewModel::chooseOffsiteFile) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -122,15 +141,18 @@ fun SettingsScreen(
         onPauseOrDispose { }
     }
 
-    // Restoring replaces everything, so the numbers on both sides are shown first.
+    // Restoring replaces everything, so the numbers on both sides are shown first. The
+    // off-site path asks through this same dialog, because it is the same decision - and a
+    // second dialog with its own wording is how two of them end up disagreeing.
     pendingRestore?.let { pending ->
         AlertDialog(
             onDismissRequest = viewModel::cancelRestore,
             title = { Text("Restore this backup?") },
             text = {
                 Text(
-                    "The file holds ${pending.file.describe()}.\n\n" +
-                        "Restoring replaces what is in the app now " +
+                    "${pending.heldBy} holds ${pending.file.describe()}." +
+                        (pending.provenance()?.let { age -> "\n\n$age" } ?: "") +
+                        "\n\nRestoring replaces what is in the app now " +
                         "(${pending.current.describe()}). This cannot be undone."
                 )
             },
@@ -139,6 +161,35 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = viewModel::cancelRestore) { Text("Cancel") }
+            }
+        )
+    }
+
+    // More than one phone has backed up to the same place, so the operator says which one.
+    // The ordinary case is a single copy and never reaches this.
+    copiesToChoose?.let { copies ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelOffsiteChoice,
+            title = { Text("Restore which copy?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "There are ${copies.size} copies. The name says which phone wrote each " +
+                            "one, and the next screen says what is in it."
+                    )
+                    copies.forEach { copy ->
+                        OutlinedButton(
+                            onClick = { viewModel.chooseOffsiteCopy(copy) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("${copy.name} \u2014 ${copy.sizeLabel}")
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelOffsiteChoice) { Text("Cancel") }
             }
         )
     }
@@ -461,6 +512,185 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Off-site copy", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "The backup above is a file you keep. This is the same backup, " +
+                            "written by the app itself, so there is a copy somewhere else if " +
+                            "this phone is lost, wiped, or dropped in the creek.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    ChoiceRow(
+                        label = "Where the copy goes",
+                        choices = BackupDestination.entries,
+                        selected = backupDestination,
+                        onChoose = viewModel::setBackupDestination,
+                        text = ::destinationLabel
+                    )
+
+                    when (backupDestination) {
+                        BackupDestination.OFF -> Text(
+                            text = "Nothing is written anywhere on its own. Backing up is the " +
+                                "button on the card above, which writes a file you choose.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        BackupDestination.FILE -> {
+                            Text(
+                                text = if (backupFileName.isBlank()) {
+                                    "No file chosen yet."
+                                } else {
+                                    "Copies are written to $backupFileName, replacing the last " +
+                                        "one. The file can be in any folder you can reach, " +
+                                        "including one another app syncs."
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            OutlinedButton(
+                                onClick = { offsiteFileLauncher.launch(viewModel.backupFileName()) },
+                                enabled = !offsiteBusy
+                            ) {
+                                Text(
+                                    if (backupFileName.isBlank()) {
+                                        "Choose a file"
+                                    } else {
+                                        "Choose another file"
+                                    }
+                                )
+                            }
+                        }
+
+                        BackupDestination.GITHUB -> {
+                            Text(
+                                text = "A private repository keeps the copy off the property " +
+                                    "and keeps its history: every backup is a commit, so an " +
+                                    "older copy is still there if the newest one is wrong.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            OutlinedTextField(
+                                value = repoText,
+                                onValueChange = viewModel::setRepoText,
+                                label = { Text("Repository, owner/name") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = tokenText,
+                                onValueChange = viewModel::setTokenText,
+                                label = { Text("Token for that repository") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(onClick = viewModel::saveOffsite) { Text("Save") }
+                                OutlinedButton(
+                                    onClick = viewModel::testOffsite,
+                                    enabled = offsiteCheck != OffsiteCheckState.Checking
+                                ) {
+                                    Text(
+                                        if (offsiteCheck == OffsiteCheckState.Checking) {
+                                            "Testing\u2026"
+                                        } else {
+                                            "Test"
+                                        }
+                                    )
+                                }
+                            }
+
+                            when (val state = offsiteCheck) {
+                                OffsiteCheckState.Idle -> Unit
+
+                                OffsiteCheckState.Checking ->
+                                    Text("Asking GitHub\u2026", style = MaterialTheme.typography.bodySmall)
+
+                                is OffsiteCheckState.Worked -> Column(
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = state.note,
+                                        color = if (state.warning == null) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    state.warning?.let { warning ->
+                                        Text(
+                                            text = warning,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+
+                                is OffsiteCheckState.Failed -> Text(
+                                    text = "The destination did not answer: ${state.message}",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+
+                            Text(
+                                text = "The token is a GitHub fine-grained token with Contents: " +
+                                    "read and write on this one repository. It is kept on this " +
+                                    "phone and never written into a backup \u2014 the copy " +
+                                    "lives in the very repository the token can write to.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+
+                    if (backupDestination != BackupDestination.OFF) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Switch(
+                                checked = backUpAutomatically,
+                                onCheckedChange = viewModel::setBackUpAutomatically
+                            )
+                            Text("Back up once a week, on its own", style = MaterialTheme.typography.bodyMedium)
+                        }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(onClick = viewModel::backUpOffsiteNow, enabled = !offsiteBusy) {
+                                Text(if (offsiteBusy) "Working\u2026" else "Back up now")
+                            }
+                            OutlinedButton(
+                                onClick = viewModel::reviewOffsiteRestore,
+                                enabled = !offsiteBusy
+                            ) {
+                                Text("Restore from the copy")
+                            }
+                        }
+                    }
+
+                    lastBackupLabel?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+                    offsiteMessage?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+
+                    Text(
+                        text = "An empty database is never written over the copy: if this phone " +
+                            "holds nothing \u2014 after a wipe, say \u2014 the copy is left " +
+                            "alone, so it is still there to restore from.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("This device", style = MaterialTheme.typography.titleMedium)
@@ -496,4 +726,10 @@ private fun sourceLabel(source: KeySource): String = when (source) {
     KeySource.ENTERED -> "entered on this device"
     KeySource.BUILT_IN -> "built into this build"
     KeySource.NONE -> "no key set yet"
+}
+
+private fun destinationLabel(destination: BackupDestination): String = when (destination) {
+    BackupDestination.OFF -> "Nowhere"
+    BackupDestination.FILE -> "A file"
+    BackupDestination.GITHUB -> "GitHub"
 }

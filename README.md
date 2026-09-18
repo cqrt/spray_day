@@ -66,7 +66,10 @@ sprayed).
 - **GPS recording** via a `location`-type foreground service, with every fix
   written to the database as it arrives.
 - **Spraying while recording**: pick the asset, type the amounts as they go in,
-  and watch a live **coverage percentage** of the planned line. Finishing saves
+  and watch a live **coverage percentage** of the planned line — with the line
+  itself turning green where this pass has sprayed it and staying red where it
+  has not, and the track's own length beside the number, so a track shorter than
+  the job it is being driven for is visible before it is driven. Finishing saves
   the recording and the spray together, linked by session id, so the traffic
   light updates, the spray history carries the distance actually driven, and a
   line that was only part done comes back on the map in two colours.

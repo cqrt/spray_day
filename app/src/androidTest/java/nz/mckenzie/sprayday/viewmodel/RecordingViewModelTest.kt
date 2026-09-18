@@ -557,4 +557,84 @@ class RecordingViewModelTest {
             withTimeout(5_000) { viewModel.finished.first { it == null } }
         )
     }
+
+    /**
+     * The report from the field: after Save, the card kept the last pass's distance, its points
+     * and the sentence about saving it for as long as the app lived - through a tab away and back,
+     * and left overnight - so a card that was ready to start the next job read as though the last
+     * one were still on. Killing the app was the only way to clear it.
+     *
+     * Leaving the recorder is what finishes with that pass: it is on the screen while the operator
+     * is there to see it, and the next visit opens ready to record.
+     */
+    @Test
+    fun leavingTheRecorderPutsTheSavedPassAway() = runBlocking {
+        val viewModel = viewModel()
+        val (assetId, walking, walked) = trackMadeAndPassUnderWay()
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+        walked.forEach { recordings.appendPoint(walking, it) }
+        viewModel.finish()
+        withTimeout(5_000) { viewModel.finished.first { it != null } }
+        withTimeout(5_000) { viewModel.message.first { it?.startsWith("Saved") == true } }
+
+        viewModel.onScreenLeft()
+
+        assertNull(
+            "the pass belongs to the visit, not to the screen",
+            withTimeout(5_000) { viewModel.finished.first { it == null } }
+        )
+        val ready = withTimeout(5_000) { viewModel.summary.first { it.pointCount == 0 } }
+        assertNull("so the card is ready to record, not still reading the last one: $ready", ready.status)
+        assertEquals("with its clock back to the start", 0.0, ready.distanceM, 0.001)
+
+        assertNull(
+            "and the sentence about saving it does not survive the screen either",
+            withTimeout(5_000) { viewModel.message.first { it == null } }
+        )
+        assertNull(
+            "nor the coverage, which was the saved pass's number",
+            withTimeout(5_000) { viewModel.coverage.first { it == null } }
+        )
+        assertNull(
+            "nor the length of the track it was driven against",
+            withTimeout(5_000) { viewModel.trackLengthM.first { it == null } }
+        )
+        // Watched the way the screen watches it, so "nothing is drawn" is the map's own answer
+        // rather than the initial value of a flow nobody is collecting.
+        val empty = withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { !it.contains(drawn(walked.last())) }
+        }
+        assertFalse(
+            "and none of that pass is left in the drawing: $empty",
+            empty.contains(AssetColors.GREEN)
+        )
+    }
+
+    /**
+     * Leaving the screen mid-spray is not leaving the pass, which is the other half of what
+     * [RecordingViewModel.onScreenLeft] has to get right: the service owns the recording and the
+     * database has its fixes, so a tab away loses nothing - and the message on the card belongs to
+     * the pass that is still on rather than being a leftover to be cleared.
+     */
+    @Test
+    fun leavingTheRecorderMidSprayKeepsThePassAndItsMessage() = runBlocking {
+        val viewModel = viewModel()
+        val sessionId = recordingSession()
+        withTimeout(5_000) { viewModel.tracking.first { it.sessionId == sessionId } }
+        viewModel.onPermissionDenied()
+        val told = viewModel.message.value
+        assertNotNull("the card has something on it to lose", told)
+
+        viewModel.onScreenLeft()
+
+        assertEquals(
+            "the pass is still the one in hand",
+            sessionId,
+            viewModel.tracking.value.sessionId
+        )
+        assertNull("and nothing has been saved", viewModel.finished.value)
+        assertEquals("with the card still saying what it was saying", told, viewModel.message.value)
+        assertNull("and the session still open in the database", recordings.getSession(sessionId)!!.endedAtEpochMs)
+    }
 }

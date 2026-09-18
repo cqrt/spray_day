@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -49,6 +50,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import nz.mckenzie.sprayday.data.AssetWithDue
@@ -102,6 +105,17 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     // Finish asks what to call the line; the suggested name arrives with the prompt.
     LaunchedEffect(pendingTrackName) {
         pendingTrackName?.let { assetNameDraft = it }
+    }
+
+    // The pass that has just been saved is on the card while the operator is here to see it -
+    // that is what stops Save looking like it wiped the work - and is given up when they leave:
+    // another tab, back to the map, or the app put down. A card waiting to start the next job
+    // must not still be carrying the last job's distance, points and save message, which is what
+    // it did until the app was killed, because this view model lives as long as the activity.
+    // A pass still being driven is untouched: see RecordingViewModel.onScreenLeft.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onScreenLeft() }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.onScreenLeft() }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(

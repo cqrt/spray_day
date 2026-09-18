@@ -81,6 +81,9 @@ sprayed).
   **The pass stays on the screen after it is saved** — the line in its two colours,
   the distance, the time, the points, the coverage and the track's length — so the
   screen a second after Save is the record of what was just done rather than a blank.
+  It is kept for as long as you are on the recorder and no longer: move to another tab,
+  or put the phone down, and the next visit opens **ready to record** instead of still
+  carrying the last job's numbers and the sentence about saving it.
 - **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it

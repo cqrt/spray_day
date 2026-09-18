@@ -130,8 +130,9 @@ class RecordingViewModel(
      * see. The pass is kept here instead, so that the screen a moment after the save still
      * shows what was driven and what it covered.
      *
-     * Held until the operator chooses another track or starts another recording: those are
-     * both a statement that the last pass is finished with.
+     * Held while the operator is here to see it, and given up the moment they say they are done
+     * with it: choosing another track, starting another recording, or leaving the recorder
+     * altogether - see [onScreenLeft].
      */
     private val _finished = MutableStateFlow<FinishedPass?>(null)
     val finished: StateFlow<FinishedPass?> = _finished
@@ -546,6 +547,25 @@ class RecordingViewModel(
      */
     fun onMapPanned() {
         _following.value = false
+    }
+
+    /**
+     * The operator has left the recorder: another tab, back to the map, or the app put down.
+     *
+     * A saved pass belongs to the visit, not to the screen for good. Left behind, a card that is
+     * waiting to start the next job still carries the last job's distance, its points and the
+     * sentence about saving it, and so reads as if that pass were still the one in hand - and
+     * because this view model lives as long as the activity does, the only way to clear it was to
+     * kill the app.
+     *
+     * A pass still being driven is left alone. Leaving mid-spray loses nothing - the service owns
+     * the recording and the database has its fixes - and the message on the card is that pass's
+     * own, not a leftover.
+     */
+    fun onScreenLeft() {
+        if (sessionIdOrNull() != null) return
+        _finished.value = null
+        _message.value = null
     }
 
     /**

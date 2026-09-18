@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -33,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +87,11 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     var permissionGranted by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     var pickingTrack by remember { mutableStateOf(false) }
     var assetNameDraft by remember { mutableStateOf("") }
+
+    // The picker opens fully rather than at half height. Half a sheet is a third of the
+    // blocks hidden below the fold, and the row that matters - the one just recorded, or
+    // "no asset" - is as likely as any other to be the hidden one.
+    val pickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Finish asks what to call the line; the suggested name arrives with the prompt.
     LaunchedEffect(pendingTrackName) {
@@ -242,7 +251,10 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     }
 
     if (pickingTrack) {
-        ModalBottomSheet(onDismissRequest = { pickingTrack = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingTrack = false },
+            sheetState = pickerSheetState
+        ) {
             Column(modifier = Modifier.padding(bottom = 24.dp)) {
                 Text(
                     text = "Which asset are you spraying?",
@@ -257,29 +269,39 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )
                 }
-                tracks.forEach { item ->
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            viewModel.selectTrack(item.asset.id)
-                            pickingTrack = false
-                        },
-                        headlineContent = { Text(item.asset.name) },
-                        // The due colour travels with the name, because which block to spray
-                        // next is the question this sheet is answering.
-                        leadingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .background(
-                                        parseHexColor(AssetColors.forStatus(item.due.status)),
-                                        CircleShape
-                                    )
-                            )
-                        }
-                    )
+                // The rows scroll inside a window of their own rather than running off the
+                // bottom of the sheet: a season is dozens of blocks, and the sheet's content
+                // does not scroll by itself, so everything past the screen edge - a track
+                // recorded this morning included - could not be reached at all.
+                LazyColumn(modifier = Modifier.heightIn(max = PICKER_LIST_MAX_HEIGHT)) {
+                    itemsIndexed(tracks, key = { _, item -> item.asset.id }) { index, item ->
+                        if (index > 0) HorizontalDivider()
+                        ListItem(
+                            modifier = Modifier.clickable {
+                                viewModel.selectTrack(item.asset.id)
+                                pickingTrack = false
+                            },
+                            headlineContent = { Text(item.asset.name) },
+                            // The due colour travels with the name, because which block to
+                            // spray next is the question this sheet is answering.
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(
+                                            parseHexColor(AssetColors.forStatus(item.due.status)),
+                                            CircleShape
+                                        )
+                                )
+                            }
+                        )
+                    }
                 }
+                if (tracks.isNotEmpty()) HorizontalDivider()
                 // Recording without choosing an asset stays possible: the line that was
                 // driven is the evidence, and which asset it belongs to can be settled later.
+                // It sits outside the scrolling rows, so it stays one tap away however long
+                // the list gets.
                 ListItem(
                     modifier = Modifier.clickable {
                         viewModel.selectTrack(null)
@@ -321,6 +343,16 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
         )
     }
 }
+
+/**
+ * How tall the picker's rows may get before they scroll.
+ *
+ * About seven rows - the height the sheet happened to come to before - so the list looks
+ * the same as it always did, and the blocks below it are reached by scrolling the rows
+ * rather than lost off the bottom of the screen. The title and "Just record, no asset"
+ * stay outside it, because those are the two things that must not need finding.
+ */
+private val PICKER_LIST_MAX_HEIGHT = 400.dp
 
 /** One product and the amount that went in, typed where it is being sprayed. */
 @Composable

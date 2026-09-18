@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.domain.geo
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -146,5 +147,187 @@ class CoverageTest {
         assertEquals("0%", formatCoveragePercent(0.0))
         assertEquals("94%", formatCoveragePercent(0.9412))
         assertEquals("100%", formatCoveragePercent(1.0))
+    }
+
+    // --- Which part of the line was covered ---------------------------------------------
+    //
+    // This is what the map draws: half a track green and half of it red is this, not the
+    // percentage above. The dates matter as much as the geometry, because a stretch covered
+    // a fortnight ago and one covered this morning are both "done".
+
+    @Test
+    fun `a line nothing has covered is one stretch with no date`() {
+        val planned = lineEast(1_000.0)
+
+        val stretches = Coverage.splitByCoverage(planned, emptyList())
+
+        assertEquals(1, stretches.size)
+        assertNull("nothing has sprayed it", stretches.single().lastSprayedAtEpochMs)
+        assertEquals(
+            "and the one stretch is the whole line",
+            polylineLengthMeters(planned),
+            stretches.single().lengthM,
+            1e-6
+        )
+    }
+
+    @Test
+    fun `driving half the line leaves half of it still to spray`() {
+        val planned = lineEast(1_000.0)
+        val pass = RecordedPass(atEpochMs = 1_000L, points = driveAlong(500.0))
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(pass))
+
+        assertEquals("a driven half and a half that was not", 2, stretches.size)
+        assertEquals(500.0, stretches[0].lengthM, 20.0)
+        assertEquals(500.0, stretches[1].lengthM, 20.0)
+        assertEquals(1_000L, stretches[0].lastSprayedAtEpochMs)
+        assertNull("the rest of the line was never driven", stretches[1].lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `the stretches tile the plan, meeting where they were cut`() {
+        val planned = lineEast(1_000.0)
+        val pass = RecordedPass(atEpochMs = 1_000L, points = driveAlong(500.0))
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(pass))
+
+        assertEquals(
+            "the pieces add up to the line",
+            polylineLengthMeters(planned),
+            stretches.sumOf { it.lengthM },
+            1.0
+        )
+        assertEquals(
+            "and they meet, with no gap and no overlap for a shortfall to hide in",
+            stretches[0].points.last(),
+            stretches[1].points.first()
+        )
+        assertEquals(
+            "the first piece starts where the line starts",
+            planned.first(),
+            stretches[0].points.first()
+        )
+        assertEquals("and the last ends where it ends", planned.last(), stretches.last().points.last())
+    }
+
+    @Test
+    fun `two halves sprayed on two days are both sprayed`() {
+        val planned = lineEast(1_000.0)
+        val monday = RecordedPass(atEpochMs = 1_000L, points = driveAlong(500.0))
+        val tuesday = RecordedPass(
+            atEpochMs = 2_000L,
+            points = driveAlong(500.0, fromLng = 500.0 / METRES_PER_DEG_LNG_AT_EQUATOR)
+        )
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(monday, tuesday))
+
+        assertEquals(2, stretches.size)
+        assertEquals("Monday's half keeps Monday", 1_000L, stretches[0].lastSprayedAtEpochMs)
+        assertEquals("and Tuesday's keeps Tuesday", 2_000L, stretches[1].lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `where two passes cover the same ground the newer one is the date`() {
+        val planned = lineEast(1_000.0)
+        val wholeLine = RecordedPass(atEpochMs = 1_000L, points = driveAlong(1_000.0))
+        val again = RecordedPass(atEpochMs = 2_000L, points = driveAlong(300.0))
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(wholeLine, again))
+
+        assertEquals(2, stretches.size)
+        assertEquals(2_000L, stretches[0].lastSprayedAtEpochMs)
+        assertEquals("the part only the first pass reached", 1_000L, stretches[1].lastSprayedAtEpochMs)
+        assertEquals(300.0, stretches[0].lengthM, 20.0)
+    }
+
+    @Test
+    fun `a spray logged by hand covers the whole line`() {
+        val stretches = Coverage.splitByCoverage(
+            planned = lineEast(1_000.0),
+            passes = emptyList(),
+            assetSprayedAtEpochMs = 5_000L
+        )
+
+        assertEquals("a spray with no recording behind it is the whole line", 1, stretches.size)
+        assertEquals(5_000L, stretches.single().lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `a hand spray newer than a pass takes the line over`() {
+        val half = RecordedPass(atEpochMs = 1_000L, points = driveAlong(500.0))
+
+        val stretches = Coverage.splitByCoverage(
+            planned = lineEast(1_000.0),
+            passes = listOf(half),
+            assetSprayedAtEpochMs = 5_000L
+        )
+
+        assertEquals(1, stretches.size)
+        assertEquals(5_000L, stretches.single().lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `a recorded line that never came near the plan covers none of it`() {
+        val alongside = driveAlong(1_000.0, lat = 40.0 / METRES_PER_DEG_LAT)
+
+        val stretches = Coverage.splitByCoverage(
+            planned = lineEast(1_000.0),
+            passes = listOf(RecordedPass(atEpochMs = 1_000L, points = alongside))
+        )
+
+        assertEquals(
+            "the recording is the evidence, and it says the line was not driven",
+            1,
+            stretches.size
+        )
+        assertNull(stretches.single().lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `a pass with no fixes proves nothing`() {
+        val stretches = Coverage.splitByCoverage(
+            planned = lineEast(1_000.0),
+            passes = listOf(RecordedPass(atEpochMs = 1_000L, points = emptyList()))
+        )
+
+        assertNull(stretches.single().lastSprayedAtEpochMs)
+    }
+
+    @Test
+    fun `a stretch of a bent track is bent, because it follows the plan`() {
+        val corner = GeoPoint(0.0, 500.0 / METRES_PER_DEG_LNG_AT_EQUATOR)
+        val planned = listOf(
+            GeoPoint(0.0, 0.0),
+            corner,
+            GeoPoint(500.0 / METRES_PER_DEG_LAT, corner.lng)
+        )
+        // The first leg driven: the corner, and the tolerance's worth past it.
+        val pass = RecordedPass(atEpochMs = 1_000L, points = driveAlong(500.0))
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(pass))
+
+        assertEquals(2, stretches.size)
+        assertTrue(
+            "the corner is inside the driven stretch rather than cut off in a straight line",
+            stretches[0].points.contains(corner)
+        )
+    }
+
+    @Test
+    fun `a plan with nowhere to walk has nothing to cut up`() {
+        val nowhere = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.0))
+        val pass = RecordedPass(atEpochMs = 1_000L, points = driveAlong(100.0))
+
+        assertEquals(emptyList<CoverageStretch>(), Coverage.splitByCoverage(nowhere, listOf(pass)))
+        assertEquals(
+            emptyList<CoverageStretch>(),
+            Coverage.splitByCoverage(listOf(GeoPoint(0.0, 0.0)), listOf(pass))
+        )
+        assertEquals(
+            "and no tolerance to probe with is the same answer",
+            emptyList<CoverageStretch>(),
+            Coverage.splitByCoverage(lineEast(100.0), listOf(pass), toleranceM = 0.0)
+        )
     }
 }

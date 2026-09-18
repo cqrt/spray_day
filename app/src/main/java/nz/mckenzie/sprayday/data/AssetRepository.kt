@@ -17,6 +17,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.gpx.GpxParser
 import nz.mckenzie.sprayday.domain.gpx.GpxWriter
@@ -41,6 +42,7 @@ class AssetRepository(
     private val groupDao = db.groupDao()
     private val sprayEventDao = db.sprayEventDao()
     private val productDao = db.productDao()
+    private val recordingDao = db.recordingDao()
 
     // --- Assets ----------------------------------------------------------------------
 
@@ -104,6 +106,40 @@ class AssetRepository(
         val maxLat = bounds.maxLat ?: return null
         val maxLng = bounds.maxLng ?: return null
         return LatLngBounds(minLat = minLat, minLng = minLng, maxLat = maxLat, maxLng = maxLng)
+    }
+
+    /**
+     * The sprays of an asset that could still colour part of its line.
+     *
+     * A spray older than the asset's own interval is left out, because whatever part of the
+     * line it covered is due again anyway, and a part that nothing covers is drawn as still
+     * to spray - which is the same answer. Reading every pass a track has ever had would
+     * mean loading years of fixes to draw the same picture.
+     *
+     * The passes are the sprays that carry a recording, since a recording is the only thing
+     * that says which part of the line went out. A spray logged by hand has no fixes behind
+     * it and is reported as [AssetSprayCoverage.lastWithoutRecordingAtEpochMs] instead.
+     */
+    suspend fun getSprayCoverage(assetId: Long): AssetSprayCoverage {
+        val asset = assetDao.getAsset(assetId) ?: return AssetSprayCoverage.NONE
+        val since = System.currentTimeMillis() -
+            (asset.intervalDays.toLong() + AssetEntity.DEFAULT_LEAD_DAYS) * MILLIS_PER_DAY
+        val events = sprayEventDao.eventsSince(assetId, since)
+        if (events.isEmpty()) return AssetSprayCoverage.NONE
+
+        return AssetSprayCoverage(
+            passes = events.mapNotNull { event ->
+                event.recordedSessionId?.let { sessionId ->
+                    RecordedPass(
+                        atEpochMs = event.sprayedAtEpochMs,
+                        points = recordingDao.getPoints(sessionId).map { it.toGeoPoint() }
+                    )
+                }
+            },
+            lastWithoutRecordingAtEpochMs = events
+                .lastOrNull { it.recordedSessionId == null }
+                ?.sprayedAtEpochMs
+        )
     }
 
     /**
@@ -238,3 +274,10 @@ class AssetRepository(
 }
 
 private fun AssetPointEntity.toGeoPoint() = GeoPoint(lat = lat, lng = lng)
+
+/**
+ * For the window of sprays the map reads. A day of exactly 24 hours is close enough for a
+ * window: which sprays are inside it decides what the map *looks at*, never what it says -
+ * an hour either side of the edge colours a stretch the same way.
+ */
+private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L

@@ -5,6 +5,17 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 
+/**
+ * One stretch of an asset's line, drawn in its own colour.
+ *
+ * The map needs these because a track can be in two states at once: half of it sprayed this
+ * morning and half of it still to do. One colour for the whole line cannot say that.
+ */
+data class AssetStretch(
+    val colorHex: String,
+    val points: List<GeoPoint>
+)
+
 /** One planned asset ready to be drawn on the map. */
 data class AssetLine(
     val assetId: Long,
@@ -19,7 +30,15 @@ data class AssetLine(
      */
     val kind: AssetKind = AssetKind.TRACK,
     /** A line to travel along, or a single place to stop at. */
-    val shape: AssetShape = AssetShape.LINE
+    val shape: AssetShape = AssetShape.LINE,
+    /**
+     * Set when the line is not all in one state - a track half sprayed - in which case these
+     * are drawn instead of the single line above, one feature each.
+     *
+     * Every one of them carries this asset's id, so a tap on any part of the line opens the
+     * asset, and the map's layers filter on kind and shape exactly as they did before.
+     */
+    val stretches: List<AssetStretch> = emptyList()
 )
 
 /**
@@ -107,30 +126,53 @@ object AssetGeoJson {
 
         val builder = StringBuilder(128 + drawable.size * 256)
         builder.append("{\"type\":\"FeatureCollection\",\"features\":[")
-        drawable.forEachIndexed { index, line ->
-            if (index > 0) builder.append(',')
-            builder.append("{\"type\":\"Feature\",\"properties\":{")
-            builder.append("\"id\":").append(line.assetId).append(',')
-            builder.append("\"name\":\"").append(escape(line.name)).append("\",")
-            builder.append("\"stroke\":\"").append(escape(line.colorHex)).append("\",")
-            builder.append("\"kind\":\"").append(line.kind.name).append("\",")
-            builder.append("\"shape\":\"").append(line.shape.name).append("\"")
-            builder.append("},\"geometry\":{")
-            if (line.shape == AssetShape.POINT) {
-                builder.append("\"type\":\"Point\",\"coordinates\":")
-                appendPoint(builder, line.points.first())
-            } else {
-                builder.append("\"type\":\"LineString\",\"coordinates\":[")
-                line.points.forEachIndexed { pointIndex, point ->
-                    if (pointIndex > 0) builder.append(',')
-                    appendPoint(builder, point)
-                }
-                builder.append("]")
+        var written = 0
+        drawable.forEach { line ->
+            stretchesOf(line).forEach { stretch ->
+                if (written > 0) builder.append(',')
+                appendFeature(builder, line, stretch)
+                written++
             }
-            builder.append("}}")
         }
         builder.append("]}")
         return builder.toString()
+    }
+
+    /**
+     * What one asset is drawn as: the whole line in its own colour, or the stretches of it
+     * that are in different states.
+     *
+     * A stretch too short to be a line is dropped rather than drawn as a dot where the line
+     * should be, and an asset whose stretches all came out that way falls back to being
+     * drawn whole - a map that has lost a track is worse than one that shows it in one
+     * colour.
+     */
+    private fun stretchesOf(line: AssetLine): List<AssetStretch> {
+        val whole = AssetStretch(colorHex = line.colorHex, points = line.points)
+        if (line.shape == AssetShape.POINT) return listOf(whole)
+        return line.stretches.filter { it.points.size >= 2 }.ifEmpty { listOf(whole) }
+    }
+
+    private fun appendFeature(builder: StringBuilder, line: AssetLine, stretch: AssetStretch) {
+        builder.append("{\"type\":\"Feature\",\"properties\":{")
+        builder.append("\"id\":").append(line.assetId).append(',')
+        builder.append("\"name\":\"").append(escape(line.name)).append("\",")
+        builder.append("\"stroke\":\"").append(escape(stretch.colorHex)).append("\",")
+        builder.append("\"kind\":\"").append(line.kind.name).append("\",")
+        builder.append("\"shape\":\"").append(line.shape.name).append("\"")
+        builder.append("},\"geometry\":{")
+        if (line.shape == AssetShape.POINT) {
+            builder.append("\"type\":\"Point\",\"coordinates\":")
+            appendPoint(builder, stretch.points.first())
+        } else {
+            builder.append("\"type\":\"LineString\",\"coordinates\":[")
+            stretch.points.forEachIndexed { pointIndex, point ->
+                if (pointIndex > 0) builder.append(',')
+                appendPoint(builder, point)
+            }
+            builder.append("]")
+        }
+        builder.append("}}")
     }
 
     /** GeoJSON is [longitude, latitude] - the opposite of how humans say it. */

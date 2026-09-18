@@ -126,4 +126,51 @@ class AssetGeoJsonTest {
             AssetGeoJson.build(listOf(stub)).contains("\"type\":\"Feature\"")
         )
     }
+
+    @Test
+    fun `a half-sprayed track is two features, one per stretch, opening the same asset`() {
+        val halfSprayed = AssetLine(
+            assetId = 7L,
+            name = "Track 4",
+            colorHex = AssetColors.GREEN,
+            points = wellingtonLine,
+            stretches = listOf(
+                AssetStretch(colorHex = AssetColors.GREEN, points = wellingtonLine),
+                AssetStretch(
+                    colorHex = AssetColors.RED,
+                    points = listOf(GeoPoint(-41.2867, 174.7764), GeoPoint(-41.2868, 174.7765))
+                )
+            )
+        )
+
+        val json = AssetGeoJson.build(listOf(halfSprayed))
+
+        assertEquals("one feature per stretch", 2, Regex("\"type\":\"Feature\",").findAll(json).count())
+        assertTrue(json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
+        assertTrue(json.contains("\"stroke\":\"${AssetColors.RED}\""))
+        assertEquals(
+            "both parts are the same asset, so a tap on either opens it",
+            2,
+            Regex("\"id\":7").findAll(json).count()
+        )
+    }
+
+    @Test
+    fun `a stretch too short to be a line is dropped, and the whole line drawn instead`() {
+        val shortStretch = AssetLine(
+            assetId = 7L,
+            name = "Track 4",
+            colorHex = AssetColors.GREEN,
+            points = wellingtonLine,
+            stretches = listOf(
+                AssetStretch(colorHex = AssetColors.RED, points = listOf(GeoPoint(-41.2865, 174.7762)))
+            )
+        )
+
+        val json = AssetGeoJson.build(listOf(shortStretch))
+
+        assertEquals("the track is not lost off the map", 1, Regex("\"type\":\"Feature\",").findAll(json).count())
+        assertTrue(json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
+        assertFalse("a dot where the line should be is worse than the line", json.contains(AssetColors.RED))
+    }
 }

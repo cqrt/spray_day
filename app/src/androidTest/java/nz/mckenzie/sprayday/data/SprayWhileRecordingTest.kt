@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LNG_AT_EQUATOR
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -189,5 +190,61 @@ class SprayWhileRecordingTest {
         assertTrue("no products means no spray", sprays.observeSprayEvents(assetId).first().isEmpty())
         assertEquals(DueStatus.NEVER_SPRAYED, dueFor(assetId))
         assertEquals("but the recording is kept", 21, recordings.pointCount(sessionId))
+    }
+
+    @Test
+    fun theMapCanSeeWhichPartOfALineASprayCovered() = runBlocking {
+        val assetId = assetRepository.createAsset("Block G", plannedLine)
+        val sessionId = recordings.startRecording("Half a block", assetId = assetId)
+        val drove = driveLine(250.0)
+        drove.forEach { recordings.appendPoint(sessionId, it) }
+        recordings.finishRecording(sessionId, distanceM = polylineLengthMeters(drove))
+        sprays.recordSpray(assetId = assetId, recordedSessionId = sessionId)
+
+        val coverage = assetRepository.getSprayCoverage(assetId)
+
+        assertNotNull("the map asks for this, and gets nothing without it", coverage)
+        assertEquals("one pass, off the one spray", 1, coverage.passes.size)
+        assertEquals(
+            "and the fixes come with it, because they are what says which part of the line went out",
+            drove.size,
+            coverage.passes.single().points.size
+        )
+        assertNull("nothing was logged by hand", coverage.lastWithoutRecordingAtEpochMs)
+    }
+
+    @Test
+    fun aSprayWithNoRecordingIsTheWholeLineAsFarAsTheMapIsConcerned() = runBlocking {
+        val assetId = assetRepository.createAsset("Block H", plannedLine)
+        sprays.recordSpray(assetId = assetId)
+
+        val coverage = assetRepository.getSprayCoverage(assetId)
+
+        assertTrue("there are no fixes to say otherwise", coverage.passes.isEmpty())
+        assertNotNull(
+            "but the spray happened, and a track sprayed without a recording must not read as untouched",
+            coverage.lastWithoutRecordingAtEpochMs
+        )
+    }
+
+    @Test
+    fun aPassFromBeforeTheAssetsOwnIntervalIsNotReadBack() = runBlocking {
+        // A pass this old cannot change what part of the line is coloured: whatever it covered
+        // is due again by now, and reading years of fixes back to draw the same picture is
+        // work the map does not need to do.
+        val assetId = assetRepository.createAsset("Block I", plannedLine)
+        val sessionId = recordings.startRecording("Long ago", assetId = assetId)
+        val drove = driveLine(250.0)
+        drove.forEach { recordings.appendPoint(sessionId, it) }
+        recordings.finishRecording(sessionId, distanceM = polylineLengthMeters(drove))
+        sprays.recordSpray(
+            assetId = assetId,
+            sprayedAtEpochMs = System.currentTimeMillis() - 200L * 24 * 60 * 60 * 1000,
+            recordedSessionId = sessionId
+        )
+
+        val coverage = assetRepository.getSprayCoverage(assetId)
+
+        assertTrue("an old pass cannot change what part of a line is coloured", coverage.passes.isEmpty())
     }
 }

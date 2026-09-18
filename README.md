@@ -44,7 +44,10 @@ sprayed).
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
   each kind drawn differently — solid for tracks, dashed for roads, dotted for
-  infrastructure, and a circle for anything that is a spot rather than a path. A tap
+  infrastructure, and a circle for anything that is a spot rather than a path. A
+  **part-sprayed track is drawn in parts**: what the pass covered in the colour it
+  earned, and what is still waiting for a tank in red, so "half this line is left" is
+  visible without opening anything. A tap
   on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
   out over the farm as well as at spray height. The map does not rotate: north is up,
   which is one less thing to get wrong with gloves on.
@@ -65,7 +68,8 @@ sprayed).
 - **Spraying while recording**: pick the asset, type the amounts as they go in,
   and watch a live **coverage percentage** of the planned line. Finishing saves
   the recording and the spray together, linked by session id, so the traffic
-  light updates and the spray history carries the distance actually driven.
+  light updates, the spray history carries the distance actually driven, and a
+  line that was only part done comes back on the map in two colours.
 - **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
@@ -193,6 +197,38 @@ what it is for, or delete it. Deleting a block never touches the assets in it �
 out of it, and the confirmation says how many, by name — and a block that nobody is in any more
 is listed as holding nothing rather than quietly disappearing, because clearing it up is the
 reason to open the screen at all.
+
+## A line that was only part sprayed
+
+Running out of spray halfway along a track used to leave a problem you could only find by
+opening the record: the map drew the whole line in one colour, so a half-sprayed track looked
+done and the other half could sit untouched until it was a fortnight overdue.
+
+The map now colours each **stretch** of a line by its own last spray, using the same interval
+and lead time the asset's own light uses, and the recording is what says which stretch that
+was. Four things follow from that, and they are the whole behaviour:
+
+- **Half sprayed today is half green and half red.** The recorded pass covers the stretch that
+  was driven; the rest reads as still to spray, which is what it is.
+- **Two halves on two days is a sprayed line.** Each stretch keeps its own date, so the half
+  done a fortnight ago is still green rather than being reddened by a pass that happened not
+  to drive it. A map that cries shortfall over work that was done is a map that stops being
+  believed.
+- **A spray logged by hand covers the whole line.** It has no fixes to disagree with, and
+  logging it was the operator saying they did it. Without this rule, every track sprayed
+  without a recording would turn red the day this existed.
+- **The recording is the evidence, and it wins.** If a pass was recorded and the phone never
+  came within the tolerance of the line, the line reads as still to spray - the same thing the
+  recording's own screen says about it. A green line because somebody typed a number in is
+  the failure this replaced.
+
+Nothing about it is stored. The stretches are recomputed from the planned line against the
+recordings whenever the map is drawn, so a line that has been edited since is cut up as it is
+now: the same rule the coverage percentage has always followed.
+
+Only the sprays that could still matter are read - a pass older than the asset's own interval
+cannot change a colour, because whatever it covered is due again anyway - so a map with a
+season behind it does not load a season of fixes to draw itself.
 
 ## Backup files
 

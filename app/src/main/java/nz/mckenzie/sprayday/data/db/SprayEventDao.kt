@@ -44,6 +44,21 @@ abstract class SprayEventDao {
     @Query("SELECT * FROM spray_events WHERE assetId = :assetId ORDER BY sprayedAtEpochMs DESC")
     abstract fun observeEventsForTrack(assetId: Long): Flow<List<SprayEventEntity>>
 
+    /**
+     * An asset's sprays from [sinceEpochMs] onwards, oldest first.
+     *
+     * For the map, which asks which parts of a line a spray could account for: a spray
+     * older than the asset's own interval cannot change what any part of it looks like.
+     */
+    @Query(
+        """
+        SELECT * FROM spray_events
+        WHERE assetId = :assetId AND sprayedAtEpochMs >= :sinceEpochMs
+        ORDER BY sprayedAtEpochMs
+        """
+    )
+    abstract suspend fun eventsSince(assetId: Long, sinceEpochMs: Long): List<SprayEventEntity>
+
     @Query("SELECT * FROM spray_event_products WHERE sprayEventId = :sprayEventId")
     abstract suspend fun getEventProducts(sprayEventId: Long): List<SprayEventProductEntity>
 

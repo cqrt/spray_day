@@ -5,12 +5,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds as DomainBounds
 import nz.mckenzie.sprayday.offline.TileServerHolder
+import nz.mckenzie.sprayday.tracking.DevicePosition
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdate
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -65,6 +68,15 @@ private const val POSITION_ACCURACY_OUTLINE = "rgba(33, 33, 33, 0.38)"
 private const val BOUNDS_PADDING_PX = 96
 
 /**
+ * How long the camera takes to glide to the next fix while following.
+ *
+ * Fixes arrive every couple of seconds, so a glide of about a second reads as the map moving
+ * along with the phone; a jump from fix to fix reads as the map twitching, and the operator
+ * has both hands on a quad bike.
+ */
+private const val FOLLOW_DURATION_MS = 900
+
+/**
  * The LINZ aerial basemap with the track network drawn on top.
  *
  * The native [MapView] is hosted directly (rather than through a Compose map
@@ -77,10 +89,22 @@ fun LinzMapView(
     assetGeoJson: String,
     modifier: Modifier = Modifier,
     /**
-     * The marker for where the phone is, as GeoJSON: a dot, and a ring the size of the fix's
-     * accuracy. Empty when the app may not know where it is, which draws nothing.
+     * Whether the camera should keep the phone in the middle of the screen.
+     *
+     * Set while a pass is being driven, when the map is being watched rather than read.
+     * Following gives way the moment the operator drags the map - see [onFollowBroken] -
+     * because a camera that swings back to the phone at every fix is a camera you cannot look
+     * at a block with. The zoom is always the operator's: following moves the map, it does
+     * not zoom it.
      */
-    positionGeoJson: String = PositionGeoJson.build(null),
+    follow: Boolean = false,
+    /**
+     * The operator dragged the map, which is them saying "let me look at this instead".
+     *
+     * The screen turns following off and says so, rather than the map fighting the drag on
+     * the next fix.
+     */
+    onFollowBroken: () -> Unit = {},
     fitBounds: DomainBounds? = null,
     /**
      * A camera move the operator asked for. The bounds say where; [recentreCount] is what says
@@ -106,6 +130,20 @@ fun LinzMapView(
 
     // Keeps the tap handler current without rebuilding the map.
     val currentOnMapClick by rememberUpdatedState(onMapClick)
+    val currentOnFollowBroken by rememberUpdatedState(onFollowBroken)
+
+    // Where the phone is. Every map in the app shows it, and this is the whole of how: the
+    // marker is built here from the app's own stream rather than handed in per screen, so a
+    // screen added later cannot be the one that forgot. Collection lasts exactly as long as
+    // this map is on screen.
+    //
+    // The stream is remembered rather than asked for on the way through: a fresh one per
+    // recomposition would start from "no fix yet" every time the map drew, and a marker that
+    // blinks out while the camera is moving is a marker nobody ever sees.
+    val positionScope = rememberCoroutineScope()
+    val fixes = remember(positionScope) { DevicePosition.updates(positionScope) }
+    val fix by fixes.collectAsStateWithLifecycle()
+    val positionGeoJson = remember(fix) { PositionGeoJson.build(fix) }
 
     AndroidView(
         modifier = modifier,
@@ -144,6 +182,21 @@ fun LinzMapView(
                             true
                         }
                     }
+                    // A drag is the operator asking for the map rather than the phone, so
+                    // following gives way to them. Only a gesture counts: the map's own
+                    // camera moves arrive here too, and treating those as a drag would stop
+                    // following the first time it followed anything.
+                    map.addOnCameraMoveStartedListener(
+                        object : MapLibreMap.OnCameraMoveStartedListener {
+                            override fun onCameraMoveStarted(reason: Int) {
+                                if (reason ==
+                                    MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE
+                                ) {
+                                    currentOnFollowBroken()
+                                }
+                            }
+                        }
+                    )
                     map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson, positionGeoJson) { style ->
                         styleState.value = style
                     }
@@ -176,8 +229,27 @@ fun LinzMapView(
         styleState.value?.getSourceAs<GeoJsonSource>(POSITION_SOURCE)?.setGeoJson(positionGeoJson)
     }
 
-    // A recentre asked for by the operator, which is the only thing that moves the camera after
-    // the first frame - the map does not follow the phone, because it is also for reading work.
+    // Following: the phone stays in the middle, at the zoom the operator chose, while the pass
+    // is being driven. Every fix glides the camera and a newer fix replaces the glide in
+    // flight, so the map moves with the phone rather than jumping from fix to fix. Turning
+    // following on moves the map at once, rather than waiting for the next fix to arrive.
+    LaunchedEffect(fix, follow, mapState.value) {
+        val map = mapState.value ?: return@LaunchedEffect
+        val point = fix ?: return@LaunchedEffect
+        if (!follow) return@LaunchedEffect
+
+        map.animateCamera(
+            CameraUpdateFactory.newLatLng(LatLng(point.lat, point.lng)),
+            FOLLOW_DURATION_MS
+        )
+        // Following settles the question of the first frame in the same way an asked-for move
+        // does: an operator who starts recording before the tracks' bounds come back off the
+        // database must not be dragged off their own pass a second later.
+        boundsApplied = true
+    }
+
+    // A recentre asked for by the operator. The map reads the work more than it reads the
+    // phone, so it stays where it was put unless it is following a pass or is asked to move.
     LaunchedEffect(recentreBounds, recentreCount, mapState.value) {
         val map = mapState.value ?: return@LaunchedEffect
         val bounds = recentreBounds ?: return@LaunchedEffect

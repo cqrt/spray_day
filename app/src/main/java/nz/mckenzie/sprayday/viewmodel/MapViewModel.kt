@@ -35,7 +35,6 @@ import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetHitTest
 import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.map.AssetStretch
-import nz.mckenzie.sprayday.map.PositionGeoJson
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.tracking.LocationUnavailable
@@ -105,26 +104,14 @@ class MapViewModel(
     val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
 
     /**
-     * Where the phone is, while somebody is looking at the map.
+     * The camera move the operator asks for with the locate button.
      *
-     * Live fixes, and only while the map is on screen: this is a GPS stream, and a tab that is
-     * not being looked at has no business keeping the receiver awake. Collection starts when
-     * the map subscribes and stops when it goes away - which is also what makes the marker an
-     * honest thing to add to a screen that opens and closes all day. Null until the first fix,
-     * and for ever if the app is not allowed to know where it is.
+     * Where the phone *is* is not this view model's business any more: the marker belongs to
+     * the map, so that every map in the app draws one rather than only the screens that thought
+     * to collect a stream. See [nz.mckenzie.sprayday.tracking.DevicePosition] and
+     * [nz.mckenzie.sprayday.map.LinzMapView]. What is left here is what this screen alone asks
+     * of the location: the frame for a first look, and this - the move that answers a tap.
      */
-    val position: StateFlow<GeoPoint?> = locationSource.updates()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
-
-    /** The marker the map draws: a dot at the fix, ringed by however accurate that fix is. */
-    val positionGeoJson: StateFlow<String> = position
-        .map { fix -> PositionGeoJson.build(fix) }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-            PositionGeoJson.build(null)
-        )
-
     private val _recentre = MutableStateFlow<RecentreRequest?>(null)
     val recentre: StateFlow<RecentreRequest?> = _recentre
 

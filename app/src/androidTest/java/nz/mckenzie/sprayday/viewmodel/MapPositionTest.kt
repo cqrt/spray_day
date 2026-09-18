@@ -26,10 +26,12 @@ import org.junit.runner.RunWith
 /**
  * Where the map thinks the phone is.
  *
- * The marker is the visible half of this; the half worth testing is that the map *does* know,
- * that asking to be put back on the map produces a camera frame around the fix - twice, if
- * asked twice - and that a phone which cannot say where it is produces a sentence rather than
- * a button that does nothing.
+ * The marker itself has moved: the fix is the map's own business now, so every map in the app
+ * shows it rather than only the ones whose screen collected a stream - see
+ * [nz.mckenzie.sprayday.tracking.DevicePositionTest] for that half. What is left to this screen
+ * is the camera: asking to be put back on the map produces a frame around the fix - twice, if
+ * asked twice - and a phone which cannot say where it is produces a sentence rather than a
+ * button that does nothing.
  */
 @RunWith(AndroidJUnit4::class)
 class MapPositionTest {
@@ -65,17 +67,6 @@ class MapPositionTest {
         dueNow = flowOf(now),
         loadGeometry = { emptyList() }
     )
-
-    @Test
-    fun theMarkerFollowsTheFixes() = runBlocking {
-        val viewModel = viewModel(FakeLocation(listOf(fix(-41.50, 173.95), fix(-41.51, 173.96))))
-
-        val marker = withTimeout(5_000) {
-            viewModel.positionGeoJson.first { it.contains("173.9600000") }
-        }
-
-        assertTrue("the newest fix is what the map draws: $marker", marker.contains("\"part\":\"dot\""))
-    }
 
     @Test
     fun askingToBePutBackOnTheMapFramesTheFixEveryTimeItIsAsked() = runBlocking {

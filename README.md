@@ -11,12 +11,14 @@ sprayed).
 
 - **LINZ aerial basemap** (New Zealand), with the required attribution shown
   permanently, and **offline areas** you can download so the map still works
-  where there is no reception. **Where you are** is a dot on it, ringed by the accuracy the
-  fix was actually good to — a fix under trees is drawn as the uncertainty it is, and a fix
-  with no accuracy is drawn as a dot with no ring, because unknown is not the same as small.
-  A **locate** button puts the camera back on you, and is where the map asks for location
-  permission — on a tap, not on the way in. The dot follows you while the map is open and
-  stops when you leave the tab, so it costs nothing to keep on.
+  where there is no reception. **Where you are** is a dot on **every** map — the
+  map, the recorder, the drawing screen, an asset's own map, the offline picker —
+  ringed by the accuracy the fix was actually good to: a fix under trees is drawn as
+  the uncertainty it is, and a fix with no accuracy is drawn as a dot with no ring,
+  because unknown is not the same as small. A **locate** button puts the camera back
+  on you, and is where the map asks for location permission — on a tap, not on the
+  way in. The dot follows you while a map is open and stops when you leave it, so it
+  costs nothing to keep on.
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
@@ -69,10 +71,16 @@ sprayed).
   and watch a live **coverage percentage** of the planned line — with the line
   itself turning green where this pass has sprayed it and staying red where it
   has not, and the track's own length beside the number, so a track shorter than
-  the job it is being driven for is visible before it is driven. Finishing saves
-  the recording and the spray together, linked by session id, so the traffic
-  light updates, the spray history carries the distance actually driven, and a
-  line that was only part done comes back on the map in two colours.
+  the job it is being driven for is visible before it is driven. The map **follows
+  you** while a pass is being driven, so the line you are on stays under the screen
+  without a hand on it; dragging the map hands it back to you, and the follow button
+  at the top right says whether it is following and puts the camera back on you when
+  tapped. Finishing saves the recording and the spray together, linked by session id,
+  so the traffic light updates, the spray history carries the distance actually
+  driven, and a line that was only part done comes back on the map in two colours.
+  **The pass stays on the screen after it is saved** — the line in its two colours,
+  the distance, the time, the points, the coverage and the track's length — so the
+  screen a second after Save is the record of what was just done rather than a blank.
 - **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
@@ -369,7 +377,7 @@ downloads ~15 MB (arm64) rather than ~50 MB of native libraries for four
 architectures it will never use. Take the `arm64-v8a` APK for any phone from the
 last few years; the universal APK runs anywhere.
 
-Pushing a tag like `v0.6.11` stamps `versionName 0.6.11` and `versionCode 611`
+Pushing a tag like `v0.6.12` stamps `versionName 0.6.12` and `versionCode 612`
 (major × 10000 + minor × 100 + patch), so release codes are predictable and
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.

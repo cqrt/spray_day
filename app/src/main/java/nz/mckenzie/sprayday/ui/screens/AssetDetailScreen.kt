@@ -289,6 +289,15 @@ fun AssetDetailScreen(
     if (actionsOpen) {
         ModalBottomSheet(onDismissRequest = { actionsOpen = false }) {
             Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                // A menu with a way out that is written down. Swiping the sheet away or
+                // pressing back both work, and neither of them is anything the operator can
+                // see: a sheet of destructive choices should say how to leave it.
+                TextButton(
+                    onClick = { actionsOpen = false },
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(end = 8.dp)
+                ) { Text("Cancel") }
                 ListItem(
                     modifier = Modifier.clickable {
                         actionsOpen = false

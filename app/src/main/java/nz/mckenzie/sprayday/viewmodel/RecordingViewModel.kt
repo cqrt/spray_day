@@ -122,11 +122,104 @@ class RecordingViewModel(
     val rememberDefaults: StateFlow<Boolean> = _rememberDefaults
 
     /**
-     * How much of the chosen track's line this run has covered so far, or null when
-     * there is nothing to compare (no track chosen, or nothing recorded yet).
+     * The pass that has just been saved.
+     *
+     * Pressing Finish used to wipe the screen it was pressed on: the line went out of the
+     * drawing, the distance and the points went back to zero, the coverage vanished and the
+     * track's length with it, leaving a message about a pass that the operator could no longer
+     * see. The pass is kept here instead, so that the screen a moment after the save still
+     * shows what was driven and what it covered.
+     *
+     * Held until the operator chooses another track or starts another recording: those are
+     * both a statement that the last pass is finished with.
+     */
+    private val _finished = MutableStateFlow<FinishedPass?>(null)
+    val finished: StateFlow<FinishedPass?> = _finished
+
+    /**
+     * Whether the operator wants the map to keep the phone in the middle of the screen.
+     *
+     * Their wish, not the map's behaviour: [followPhone] is what the map is told.
+     */
+    private val _following = MutableStateFlow(false)
+    val following: StateFlow<Boolean> = _following
+
+    /**
+     * What the map is told: follow the phone while a pass is being driven, and only while the
+     * operator has not taken the map for themselves by dragging it.
+     *
+     * Not while the recording is paused - that is the operator stopped, with both hands free
+     * and the map theirs to read - and not after it is finished, so the pass they have just
+     * finished stays where it ended rather than sliding around under them.
+     */
+    val followPhone: StateFlow<Boolean> = combine(tracking, _following) { live, wanted ->
+        wanted && live.status == RecordingStatus.RECORDING
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
+
+    /**
+     * How much of the chosen track's line this run has covered, or null when there is nothing
+     * to compare - no track chosen yet, or nothing recorded.
+     *
+     * The number the screen shows, which for a moment after a save is the saved pass's: a
+     * plain state flow rather than a combination of two, so it stays a value anybody can read,
+     * and the fallback to the saved pass happens where the number is worked out rather than in
+     * a second flow beside it.
      */
     private val _coverage = MutableStateFlow<Double?>(null)
     val coverage: StateFlow<Double?> = _coverage
+
+    /**
+     * The numbers on the card: the pass being driven, or the one just saved.
+     *
+     * One flow rather than the screen reaching into [TrackingState] itself, so that what the
+     * card says and what the map draws come from the same place and cannot disagree about
+     * which pass is being looked at.
+     */
+    val summary: StateFlow<PassSummary> = combine(tracking, _finished) { live, done ->
+        when {
+            live.sessionId != null -> live.summary()
+            done != null -> done.summary
+            else -> live.summary()
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PassSummary.EMPTY)
+
+    /** One pass as the card reads it, whether it is still being driven or has just been saved. */
+    data class PassSummary(
+        val status: RecordingStatus?,
+        val startedAtEpochMs: Long?,
+        val endedAtEpochMs: Long?,
+        val distanceM: Double,
+        val pointCount: Int,
+        val accuracyM: Float?,
+        val rejectedFixes: Int
+    ) {
+        companion object {
+            val EMPTY = PassSummary(null, null, null, 0.0, 0, null, 0)
+        }
+    }
+
+    /** A pass that has been saved: what it was for, what was driven, and what that covered. */
+    data class FinishedPass(
+        val trackName: String?,
+        val planned: List<GeoPoint>,
+        val recorded: List<GeoPoint>,
+        val coverage: Double?,
+        val summary: PassSummary
+    )
+
+    /** The live pass's numbers, in the shape the card reads. */
+    private fun TrackingState.State.summary(
+        status: RecordingStatus? = this.status,
+        endedAtEpochMs: Long? = null
+    ) = PassSummary(
+        status = status,
+        startedAtEpochMs = startedAtEpochMs,
+        endedAtEpochMs = endedAtEpochMs,
+        distanceM = distanceM,
+        pointCount = pointCount,
+        accuracyM = lastAccuracyM,
+        rejectedFixes = rejectedFixes
+    )
 
     /**
      * The fixes of the recording that is happening now - what the screen draws, and what the
@@ -171,7 +264,17 @@ class RecordingViewModel(
      * drawn - that is the "record a new line" case, where the line being made is the point.
      */
     val recordedGeoJson: StateFlow<String> =
-        combine(sessionPoints, plannedGeometry) { recorded, planned -> planned to recorded }
+        combine(sessionPoints, plannedGeometry, _finished) { recorded, planned, done ->
+            when {
+                // A pass being driven, or a track chosen and waiting for one: the plan is the
+                // thing on the screen, in the colours of how much of it is done.
+                recorded.isNotEmpty() || planned.isNotEmpty() -> planned to recorded
+                // Nothing live. The pass that has just been saved stays where it was, rather
+                // than the map going blank the moment Save is pressed.
+                done != null -> done.planned to done.recorded
+                else -> emptyList<GeoPoint>() to emptyList()
+            }
+        }
             .map { (planned, recorded) -> routeGeoJson(planned, recorded) }
             .stateIn(
                 viewModelScope,
@@ -234,11 +337,17 @@ class RecordingViewModel(
      * The operator's own job is longer than the track they picked whenever they picked the
      * wrong one, and until now nothing on this screen said how long the track was - so
      * "Covered 100%" could only be taken on trust. Beside the distance driven so far it is
-     * the comparison that matters.
+     * the comparison that matters. A pass that has just been saved keeps its length on the
+     * screen for the same reason: it is the pair of numbers, driven and to drive, that says
+     * whether the job was done.
      */
-    val trackLengthM: StateFlow<Double?> = plannedGeometry
-        .map { planned -> if (planned.size >= 2) polylineLengthMeters(planned) else null }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+    val trackLengthM: StateFlow<Double?> = combine(plannedGeometry, _finished) { planned, done ->
+        when {
+            planned.size >= 2 -> polylineLengthMeters(planned)
+            done != null && done.planned.size >= 2 -> polylineLengthMeters(done.planned)
+            else -> null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -271,13 +380,27 @@ class RecordingViewModel(
             }
         }
 
+        // A new pass is a map that should be moving with the operator: following comes back on
+        // by itself whenever a session begins, so driving a line one-handed never starts with
+        // the map parked somewhere else. Only a drag, or the control, takes it off again.
+        viewModelScope.launch {
+            tracking.map { it.sessionId }
+                .distinctUntilChanged()
+                .collect { sessionId -> if (sessionId != null) _following.value = true }
+        }
+
         // Live coverage. collectLatest plus a short delay makes this a debounce: a
         // fresh fix cancels the pending calculation rather than queueing another.
         viewModelScope.launch {
-            combine(sessionPoints, plannedGeometry) { recorded, planned -> planned to recorded }
-                .collectLatest { (planned, recorded) ->
+            combine(sessionPoints, plannedGeometry, _finished) { recorded, planned, done ->
+                Triple(planned, recorded, done)
+            }
+                .collectLatest { (planned, recorded, done) ->
                     if (planned.size < 2 || recorded.isEmpty()) {
-                        _coverage.value = null
+                        // Nothing to measure: no track chosen yet, or the track has just been
+                        // sprayed and saved, in which case the number that belongs on the
+                        // screen is the one the saved pass came to.
+                        _coverage.value = done?.coverage
                         return@collectLatest
                     }
                     delay(COVERAGE_DEBOUNCE_MS)
@@ -333,6 +456,11 @@ class RecordingViewModel(
      */
     fun selectTrack(assetId: Long?) {
         _selectedAssetId.value = assetId
+        // Choosing a track is the start of a new job, so the pass that was on the screen gives
+        // way to the one being set up. Cancelling the choice - assetId null - is not: that is
+        // the operator backing out of the picker, with the finished pass still the last thing
+        // they did.
+        if (assetId != null) _finished.value = null
         viewModelScope.launch {
             if (assetId == null) {
                 plannedGeometry.value = emptyList()
@@ -379,6 +507,9 @@ class RecordingViewModel(
             onPermissionDenied()
             return
         }
+        // A new pass, so the last one leaves the screen. Following is turned on by the session
+        // itself beginning - see the initialiser - rather than twice over here.
+        _finished.value = null
         viewModelScope.launch {
             _message.value = null
             val sessionId = recordings.startRecording(
@@ -392,7 +523,30 @@ class RecordingViewModel(
 
     fun pause() = sessionIdOrNull()?.let { TrackingService.pause(context) }
 
-    fun resume() = sessionIdOrNull()?.let { TrackingService.resume(context) }
+    /**
+     * Carrying on is a pass being driven again, so following comes back on: the operator
+     * stopped for a reason that has now passed, and the map is theirs to look at until then.
+     */
+    fun resume() {
+        _following.value = true
+        sessionIdOrNull()?.let { TrackingService.resume(context) }
+    }
+
+    /** The follow control: the operator saying yes, or no, to the map moving with them. */
+    fun setFollowing(value: Boolean) {
+        _following.value = value
+    }
+
+    /**
+     * The operator dragged the map while it was following them.
+     *
+     * Following gives way rather than fighting the drag at the next fix. It stays off until
+     * they ask for it again, which the screen's control does - and the same control is what
+     * tells them it is off, so the map does not appear to have stopped working.
+     */
+    fun onMapPanned() {
+        _following.value = false
+    }
 
     /**
      * Closes the session with the distance the service accumulated, then records the
@@ -438,6 +592,18 @@ class RecordingViewModel(
                 parseQuantityMl(row.quantityText)?.let { ml -> SprayProductQuantity(row.productId, ml) }
             }
             val coverageNow = _coverage.value
+
+            // The pass as it stands this instant, kept whole. A moment from now the live
+            // session is closed and cleared, and the screen should be showing what was just
+            // done rather than nothing at all: the line it drove, the colours and the number
+            // that came from the same split, and the distance, time and points it took.
+            val plannedNow = plannedGeometry.value
+            val numbersNow = TrackingState.current.summary(
+                // The pass is finished by the time this is read off the screen, whatever the
+                // service's last word on it was.
+                status = RecordingStatus.FINISHED,
+                endedAtEpochMs = System.currentTimeMillis()
+            )
 
             // Read the geometry back from the database rather than the live flow: the
             // newest fix may not have reached the flow yet, and it must not be missing
@@ -516,6 +682,13 @@ class RecordingViewModel(
             }
 
             _message.value = message
+            _finished.value = FinishedPass(
+                trackName = sprayTrackName,
+                planned = plannedNow,
+                recorded = geometry,
+                coverage = coverageNow,
+                summary = numbersNow
+            )
             _selectedAssetId.value = null
             _rows.value = _rows.value.map { it.copy(quantityText = "") }
         }

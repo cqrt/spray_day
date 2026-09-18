@@ -56,7 +56,6 @@ fun MapScreen(
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.assetGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
-    val positionGeoJson by viewModel.positionGeoJson.collectAsStateWithLifecycle()
     val recentre by viewModel.recentre.collectAsStateWithLifecycle()
     val locationNotice by viewModel.locationNotice.collectAsStateWithLifecycle()
 
@@ -106,9 +105,8 @@ fun MapScreen(
             LinzMapView(
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
-                // Where the phone is: a dot, ringed by the accuracy it was fixed to. An empty
-                // collection - nothing drawn - when the app is not allowed to know.
-                positionGeoJson = positionGeoJson,
+                // The marker for the phone is the map's own business now, so this screen
+                // says nothing about it: it draws where you are wherever a map is drawn.
                 // The operator's own tracks first; failing that, where the device is;
                 // failing that, the neutral country-wide default.
                 fitBounds = initialFrame,

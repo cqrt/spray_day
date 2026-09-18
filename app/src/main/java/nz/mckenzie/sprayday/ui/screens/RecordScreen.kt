@@ -26,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -79,6 +80,10 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val coverage by viewModel.coverage.collectAsStateWithLifecycle()
     val trackLengthM by viewModel.trackLengthM.collectAsStateWithLifecycle()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val finished by viewModel.finished.collectAsStateWithLifecycle()
+    val following by viewModel.following.collectAsStateWithLifecycle()
+    val followPhone by viewModel.followPhone.collectAsStateWithLifecycle()
     val rows by viewModel.rows.collectAsStateWithLifecycle()
     val assetName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
     val tracks by viewModel.assetsToSpray.collectAsStateWithLifecycle()
@@ -114,7 +119,11 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
             delay(1_000)
         }
     }
-    val elapsedMs = state.startedAtEpochMs?.let { (nowMs - it).coerceAtLeast(0L) } ?: 0L
+    // A saved pass has an end, so its clock stops: the finish time is what the card reads,
+    // and the tick above only moves the clock of a pass that is still being driven.
+    val elapsedMs = summary.startedAtEpochMs
+        ?.let { started -> ((summary.endedAtEpochMs ?: nowMs) - started).coerceAtLeast(0L) }
+        ?: 0L
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Record") }) },
@@ -133,8 +142,40 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                 assetGeoJson = geoJson,
                 // Recording starts where the operator is, not on a view of the country.
                 fitBounds = initialFrame,
+                // While a pass is being driven the map keeps the phone in the middle, so the
+                // operator can see the line they are on without touching the screen. A drag
+                // takes the map off them - see the follow control - and nothing else moves it.
+                follow = followPhone,
+                onFollowBroken = viewModel::onMapPanned,
                 modifier = Modifier.fillMaxSize()
             )
+
+            // Following, and whether it is on. The map follows a pass by itself, so the
+            // question the operator actually has is the one this answers at a glance: is it
+            // following me or not? Tapping it back on also puts the camera back on them at
+            // once, which is the fastest way to find yourself again after a drag.
+            if (state.status == RecordingStatus.RECORDING || state.status == RecordingStatus.PAUSED) {
+                FilledTonalIconButton(
+                    onClick = { viewModel.setFollowing(!following) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = 16.dp, top = 16.dp)
+                ) {
+                    AppIcon(
+                        glyph = IconGlyph.LOCATE,
+                        tint = if (following) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        contentDescription = if (following) {
+                            "Following the phone"
+                        } else {
+                            "Follow the phone"
+                        }
+                    )
+                }
+            }
 
             AttributionStrip(
                 modifier = Modifier
@@ -156,7 +197,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = when (state.status) {
+                        text = when (summary.status) {
                             RecordingStatus.RECORDING -> "Recording"
                             RecordingStatus.PAUSED -> "Paused"
                             RecordingStatus.FINISHED -> "Finished"
@@ -164,16 +205,20 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                         },
                         style = MaterialTheme.typography.titleMedium
                     )
+                    // The pass being driven, or - once Save has been pressed - the one just
+                    // saved: its own distance, its own time and its own points, rather than
+                    // the zeros the screen used to fall back to the moment it was saved.
                     Text(
-                        text = "${formatDistance(state.distanceM)} \u00b7 ${formatDuration(elapsedMs)} " +
-                            "\u00b7 ${state.pointCount} ${if (state.pointCount == 1) "point" else "points"}",
+                        text = "${formatDistance(summary.distanceM)} \u00b7 " +
+                            "${formatDuration(elapsedMs)} \u00b7 ${summary.pointCount} " +
+                            (if (summary.pointCount == 1) "point" else "points"),
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    state.lastAccuracyM?.let { accuracy ->
+                    summary.accuracyM?.let { accuracy ->
                         Text(
                             text = "Accuracy \u00b1${accuracy.toInt()} m" +
-                                if (state.rejectedFixes > 0) {
-                                    " \u00b7 ${state.rejectedFixes} fixes rejected"
+                                if (summary.rejectedFixes > 0) {
+                                    " \u00b7 ${summary.rejectedFixes} fixes rejected"
                                 } else {
                                     ""
                                 },
@@ -184,7 +229,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                     coverage?.let { covered ->
                         Text(
                             text = "Covered ${formatCoveragePercent(covered)} of " +
-                                (assetName ?: "the line"),
+                                (assetName ?: finished?.trackName ?: "the line"),
                             style = MaterialTheme.typography.titleSmall
                         )
                     }
@@ -264,11 +309,23 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
             sheetState = pickerSheetState
         ) {
             Column(modifier = Modifier.padding(bottom = 24.dp)) {
-                Text(
-                    text = "Which asset are you spraying?",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp)
-                )
+                // The picker asks a question, so it takes an answer. Cancel is the answer that
+                // means "never mind", and it sits with the question rather than behind a swipe
+                // - which is the gesture a gloved hand makes by accident, and the one an
+                // operator with a tank waiting should not have to know.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Which asset are you spraying?",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { pickingTrack = false }) { Text("Cancel") }
+                }
                 if (tracks.isEmpty()) {
                     Text(
                         text = "Nothing planned yet. You can still record a line.",

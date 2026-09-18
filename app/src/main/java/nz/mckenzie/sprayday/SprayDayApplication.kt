@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.backup.BackupScheduler
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.offline.TileServerHolder
+import nz.mckenzie.sprayday.tracking.DevicePosition
 import nz.mckenzie.sprayday.reminders.DueReminderScheduler
 import nz.mckenzie.sprayday.update.UpdateCheckScheduler
 import org.maplibre.android.MapLibre
@@ -31,6 +32,10 @@ class SprayDayApplication : Application() {
         // or not there is a network, and anything browsed online is kept for
         // offline use.
         TileServerHolder.start(this)
+
+        // One position stream for the whole app: every map shows where the phone is, and
+        // collection starts and stops with whichever map is on screen.
+        DevicePosition.start(this)
 
         // Keep the reminder schedule in step with the setting, whatever changes it -
         // the settings switch, or a restore putting the setting back.

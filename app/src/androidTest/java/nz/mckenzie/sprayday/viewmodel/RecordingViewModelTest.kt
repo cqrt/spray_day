@@ -28,6 +28,7 @@ import nz.mckenzie.sprayday.tracking.TrackingState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -411,5 +412,149 @@ class RecordingViewModelTest {
             viewModel.recordedGeoJson.first { redPart(it).contains(drawn(walked.last())) }
         }
         assertFalse("there is no track to colour in: $map", map.contains(AssetColors.GREEN))
+    }
+
+    /**
+     * Following the phone while a pass is being driven, and giving way when the operator takes
+     * the map back.
+     *
+     * The map tab is deliberately *not* a map that follows: it is for reading work, and a
+     * camera that keeps swinging back to the phone is one you cannot pan across a block. On
+     * this screen the opposite is true - the operator is driving the line the map is showing,
+     * one-handed - so a fresh pass turns following on, and the two things that turn it off are
+     * the operator's own: a drag, or the control.
+     */
+    @Test
+    fun aPassBeingDrivenFollowsThePhoneUntilTheMapIsDragged() = runBlocking {
+        // The session is closed before the view model exists, so its init has nothing to
+        // reattach to and cannot put the recording status back under this test's feet: what is
+        // being tested is the map, not the reattach.
+        val sessionId = recordings.startRecording(name = "Spray run")
+        recordings.finishRecording(sessionId, distanceM = 0.0)
+        val viewModel = viewModel()
+
+        TrackingState.begin(sessionId, System.currentTimeMillis())
+        awaitFollow("a session beginning", expected = true, viewModel = viewModel)
+
+        TrackingState.setStatus(RecordingStatus.PAUSED)
+        awaitFollow("paused, with both hands free and the map the operator's to read",
+            expected = false, viewModel = viewModel)
+
+        TrackingState.setStatus(RecordingStatus.RECORDING)
+        awaitFollow("carrying on is a pass being driven again",
+            expected = true, viewModel = viewModel)
+
+        viewModel.onMapPanned()
+        awaitFollow("a drag is the operator taking the map back", expected = false, viewModel = viewModel)
+        assertFalse(viewModel.following.value)
+
+        viewModel.setFollowing(true)
+        awaitFollow("the control is how they ask for it again", expected = true, viewModel = viewModel)
+    }
+
+    /**
+     * Waits for the map to be following the phone, or not, and names the stage that did not
+     * happen: a bare timeout says nothing about which of these five the map disagreed with.
+     */
+    private suspend fun awaitFollow(
+        stage: String,
+        expected: Boolean,
+        viewModel: RecordingViewModel
+    ) {
+        val reached = runCatching {
+            withTimeout(5_000) { viewModel.followPhone.first { it == expected } }
+        }
+        assertTrue(
+            "$stage: the map should ${if (expected) "follow" else "not follow"} the phone, " +
+                "but the operator asked for ${viewModel.following.value} and the map was last " +
+                "told ${viewModel.followPhone.value}",
+            reached.isSuccess
+        )
+    }
+
+    /**
+     * The map and the numbers a moment after Save.
+     *
+     * Pressing Finish used to wipe the screen it was pressed on - the line out of the drawing,
+     * the distance and points back to zero, the coverage and the track's length gone - so the
+     * operator was left reading a sentence about a pass they could no longer see. "Just
+     * aesthetics", as it was reported, but the pass is the thing they came to the screen to
+     * do, and it should be the thing they are looking at when it is done.
+     */
+    @Test
+    fun finishingAPassLeavesItOnTheScreenWithItsNumbers() = runBlocking {
+        val viewModel = viewModel()
+        val (assetId, walking, walked) = trackMadeAndPassUnderWay()
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+
+        walked.forEach { recordings.appendPoint(walking, it) }
+        TrackingState.onAcceptedFix(pointCount = walked.size, distanceM = 250.0, accuracyM = 4f)
+        withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { greenPart(it).contains(drawn(walked.last())) }
+        }
+        // The coverage is debounced by three quarters of a second; give it the beat it asks for
+        // so that what is saved is what the screen was showing.
+        delay(1_500)
+
+        viewModel.finish()
+        val saved = withTimeout(5_000) { viewModel.finished.first { it != null } }!!
+
+        // The live session is closed by the time the pass is saved, so let the drawing settle on
+        // the one that replaced it.
+        delay(500)
+        val drawnAfterSave = viewModel.recordedGeoJson.value
+        assertTrue(
+            "the line stays where the pass left it: $drawnAfterSave",
+            drawnAfterSave.contains(AssetColors.GREEN) && drawnAfterSave.contains(AssetColors.RED)
+        )
+        assertTrue(
+            "with the sprayed part still the part that was driven: $drawnAfterSave",
+            greenPart(drawnAfterSave).contains(drawn(walked.last()))
+        )
+
+        val numbers = withTimeout(5_000) { viewModel.summary.first { it.pointCount == walked.size } }
+        assertEquals("the distance the pass came to", 250.0, numbers.distanceM, 0.001)
+        assertEquals("its own accuracy", 4f, numbers.accuracyM!!, 0.001f)
+        assertEquals("and it is finished, not running", RecordingStatus.FINISHED, numbers.status)
+        assertNotNull("with a stop time, so its clock has stopped", numbers.endedAtEpochMs)
+
+        assertEquals(
+            "the coverage stays on the screen",
+            0.5,
+            withTimeout(5_000) { viewModel.coverage.first { it != null } }!!,
+            0.08
+        )
+        assertEquals(
+            "and so does the track's length: the pair of numbers is what says whether the " +
+                "job was done",
+            polylineLengthMeters(fixesAlong(500.0)),
+            withTimeout(5_000) { viewModel.trackLengthM.first { it != null } }!!,
+            1.0
+        )
+        assertEquals(
+            "and the name it was driven under, so the sentence above it still names the track",
+            "Track 18 Sep",
+            saved.trackName
+        )
+    }
+
+    /** A saved pass is the last thing that happened, not a permanent fixture of the screen. */
+    @Test
+    fun choosingAnotherTrackPutsTheSavedPassAway() = runBlocking {
+        val viewModel = viewModel()
+        val (assetId, walking, walked) = trackMadeAndPassUnderWay()
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+        walked.forEach { recordings.appendPoint(walking, it) }
+        viewModel.finish()
+        withTimeout(5_000) { viewModel.finished.first { it != null } }
+
+        viewModel.selectTrack(assetRepository.createAsset("Block B", line))
+
+        assertNull(
+            "a new job means the saved pass is finished with",
+            withTimeout(5_000) { viewModel.finished.first { it == null } }
+        )
     }
 }

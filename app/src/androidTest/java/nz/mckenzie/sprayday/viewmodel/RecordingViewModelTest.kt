@@ -337,4 +337,33 @@ class RecordingViewModelTest {
             covered != null && covered < 0.25
         )
     }
+
+    /**
+     * The record screen has two numbers about one pass - the distance and points it has
+     * recorded, and the coverage measured from those same fixes. A screen that is
+     * re-created mid-spray (a configuration change, the system discarding it, or the app
+     * being restarted) used to come back with the counters at zero while the fixes, and
+     * so the coverage, carried on: the operator read "0 m" beside "100%", with no way to
+     * tell that the coverage was the honest of the two.
+     */
+    @Test
+    fun aScreenThatComesBackToARecordingKeepsItsProgress() = runBlocking {
+        // The service's session, paused with fixes in the database and nothing in memory,
+        // which is exactly what a re-created screen finds.
+        val sessionId = recordings.startRecording(name = "Spray run")
+        line.forEach { recordings.appendPoint(sessionId, it) }
+        recordings.setStatus(sessionId, RecordingStatus.PAUSED)
+        TrackingState.clear()
+
+        val viewModel = viewModel()
+
+        val state = withTimeout(5_000) { viewModel.tracking.first { it.sessionId == sessionId } }
+        assertEquals("the points it already has", line.size, state.pointCount)
+        assertEquals(
+            "and the distance they come to, so the readout and the coverage agree",
+            polylineLengthMeters(line),
+            state.distanceM,
+            1.0
+        )
+    }
 }

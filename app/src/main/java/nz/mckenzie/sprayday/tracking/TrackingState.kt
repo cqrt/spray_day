@@ -33,10 +33,25 @@ object TrackingState {
 
     val current: State get() = _state.value
 
-    fun begin(sessionId: Long, startedAtEpochMs: Long) {
+    /**
+     * Starts mirroring a session.
+     *
+     * [pointCount] and [distanceM] are for a session that already has something in it:
+     * reattaching to a recording that is still going must not say the operator has just
+     * started, because the coverage beside those numbers is measured from the whole
+     * pass - and it is the coverage that is right.
+     */
+    fun begin(
+        sessionId: Long,
+        startedAtEpochMs: Long,
+        pointCount: Int = 0,
+        distanceM: Double = 0.0
+    ) {
         _state.value = State(
             sessionId = sessionId,
             status = RecordingStatus.RECORDING,
+            pointCount = pointCount,
+            distanceM = distanceM,
             startedAtEpochMs = startedAtEpochMs
         )
     }

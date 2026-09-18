@@ -7,7 +7,31 @@ import nz.mckenzie.sprayday.data.db.RecordedPointEntity
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
+
+/**
+ * What a recording already holds, for whatever picks it back up.
+ *
+ * Read from the fixes themselves, so a screen that is re-created mid-spray says how far
+ * the pass has really got rather than starting again from nothing.
+ */
+data class RecordingProgress(
+    val pointCount: Int = 0,
+    val distanceM: Double = 0.0,
+    /** The last fix recorded, which is the ground the next one is compared against. */
+    val lastPoint: GeoPoint? = null
+) {
+    companion object {
+        val EMPTY = RecordingProgress()
+
+        fun of(points: List<GeoPoint>) = RecordingProgress(
+            pointCount = points.size,
+            distanceM = polylineLengthMeters(points),
+            lastPoint = points.lastOrNull()
+        )
+    }
+}
 
 /**
  * GPS recordings.
@@ -106,6 +130,17 @@ class RecordingRepository(private val db: SprayDayDatabase) {
         recordingDao.getPoints(sessionId).map { it.toGeoPoint() }
 
     suspend fun pointCount(sessionId: Long): Int = recordingDao.pointCount(sessionId)
+
+    /**
+     * What a session has recorded so far.
+     *
+     * Computed from the fixes rather than remembered, so a recording that outlived the
+     * process that started it comes back with the distance and point count it really
+     * has - the same fixes the coverage is measured from, and the last of them, which
+     * is what the next fix has to be a plausible distance and speed from.
+     */
+    suspend fun recordingProgress(sessionId: Long): RecordingProgress =
+        RecordingProgress.of(getPoints(sessionId))
 
     suspend fun deleteRecording(sessionId: Long) = db.withTransaction {
         // A spray recorded from this recording stays - it is the history - but its

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import nz.mckenzie.sprayday.data.RecordingProgress
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayProductQuantity
@@ -230,7 +231,17 @@ class RecordingViewModel(
         viewModelScope.launch {
             // Reattach to a session left running, e.g. the app was killed mid-spray.
             val unfinished = recordings.findUnfinishedSession() ?: return@launch
-            TrackingState.begin(unfinished.id, unfinished.startedAtEpochMs)
+            // Its fixes are still in the database, so how far it has got is too. A
+            // screen that came back saying "0 m" would sit beside a coverage measured
+            // from every fix of the pass - and the coverage would be the honest one.
+            val progress = runCatching { recordings.recordingProgress(unfinished.id) }
+                .getOrDefault(RecordingProgress.EMPTY)
+            TrackingState.begin(
+                sessionId = unfinished.id,
+                startedAtEpochMs = unfinished.startedAtEpochMs,
+                pointCount = progress.pointCount,
+                distanceM = progress.distanceM
+            )
             val status = runCatching { RecordingStatus.valueOf(unfinished.status) }
                 .getOrDefault(RecordingStatus.RECORDING)
             TrackingState.setStatus(status)

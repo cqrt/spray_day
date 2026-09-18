@@ -25,6 +25,7 @@ import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.TrackPointFilter
 import nz.mckenzie.sprayday.domain.geo.haversineMeters
+import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.ui.formatDistance
 
@@ -67,12 +68,22 @@ class TrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                sessionId = intent.getLongExtra(EXTRA_SESSION_ID, -1L)
-                if (sessionId <= 0L) {
+                val requested = intent.getLongExtra(EXTRA_SESSION_ID, -1L)
+                if (requested <= 0L) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                // A fresh session means a fresh filter and distance.
+                // A second START for the session already being recorded is what a
+                // re-created Record screen sends. Rewinding the counters for it would put
+                // "0 m" beside a coverage measured from the whole pass - and the coverage
+                // would be the honest of the two - so the recording simply carries on.
+                if (stillRecording(requested, sessionId, collectionJob?.isActive == true)) {
+                    goForeground()
+                    return START_NOT_STICKY
+                }
+                sessionId = requested
+                // A fresh session means a fresh filter and distance; one that already has
+                // fixes in it is picked up from them instead.
                 filter = TrackPointFilter()
                 distanceM = 0.0
                 status = RecordingStatus.RECORDING
@@ -125,6 +136,7 @@ class TrackingService : Service() {
     private fun startCollecting() {
         collectionJob?.cancel()
         collectionJob = scope.launch {
+            resumeFromWhatIsRecorded()
             locationSource.updates().collect { fix ->
                 if (status != RecordingStatus.RECORDING) return@collect
 
@@ -149,6 +161,22 @@ class TrackingService : Service() {
                 notifyProgress()
             }
         }
+    }
+
+    /**
+     * Picks the recording up where it left off.
+     *
+     * The distance driven and the fix the filter compares against both come back from
+     * the session's own fixes. Without this, collecting again on a session that is
+     * already half recorded restarts the distance at zero while the fixes - and with
+     * them the coverage, which is measured from the fixes - carry on, leaving an
+     * operator two numbers about one pass that disagree, and no way to tell which is
+     * the honest one. A session with nothing recorded yet is unaffected.
+     */
+    private suspend fun resumeFromWhatIsRecorded() {
+        val recorded = runCatching { recordings.getPoints(sessionId) }.getOrDefault(emptyList())
+        distanceM = polylineLengthMeters(recorded)
+        filter = TrackPointFilter().apply { seed(recorded) }
     }
 
     /** The notification is refreshed periodically rather than on every fix. */
@@ -230,3 +258,19 @@ class TrackingService : Service() {
         }
     }
 }
+
+/**
+ * Whether an ACTION_START is for the session this service is already collecting.
+ *
+ * Kept beside the service rather than inside it so the rule can be read and tested
+ * without a running service: a re-created Record screen sends START again for the
+ * session that is already recording, and that must not rewind a recording that is
+ * going perfectly well - the operator would be told they had just started while the
+ * coverage beside it counted the whole pass.
+ */
+internal fun stillRecording(
+    requestedSessionId: Long,
+    currentSessionId: Long,
+    collecting: Boolean
+): Boolean = collecting && requestedSessionId == currentSessionId
+

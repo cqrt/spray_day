@@ -69,6 +69,39 @@ class RecordingDataTest {
     }
 
     @Test
+    fun aPartRecordedSessionReportsHowFarItHasGot() = runBlocking {
+        val sessionId = recordings.startRecording(name = "Half a block")
+        fixes.forEach { recordings.appendPoint(sessionId, it) }
+
+        val progress = recordings.recordingProgress(sessionId)
+
+        assertEquals("the fixes it already holds", fixes.size, progress.pointCount)
+        assertEquals(
+            "and the distance they come to, which is what the coverage counts",
+            polylineLengthMeters(fixes),
+            progress.distanceM,
+            0.5
+        )
+        assertEquals(
+            "and the ground the next fix has to be a plausible distance from",
+            fixes.last().lng,
+            progress.lastPoint?.lng ?: Double.NaN,
+            1e-9
+        )
+    }
+
+    @Test
+    fun aSessionWithNothingRecordedReportsNothing() = runBlocking {
+        val sessionId = recordings.startRecording(name = "Just started")
+
+        val progress = recordings.recordingProgress(sessionId)
+
+        assertEquals(0, progress.pointCount)
+        assertEquals(0.0, progress.distanceM, 1e-9)
+        assertNull(progress.lastPoint)
+    }
+
+    @Test
     fun finishingASessionStoresDistancePointCountAndEndTime() = runBlocking {
         val sessionId = recordings.startRecording(name = "Spray run")
         fixes.forEach { recordings.appendPoint(sessionId, it) }

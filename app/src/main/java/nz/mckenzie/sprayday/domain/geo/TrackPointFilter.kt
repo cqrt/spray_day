@@ -43,6 +43,20 @@ class TrackPointFilter(
         rejectedSpeedCount = 0
     }
 
+    /**
+     * Carries the filter on from a recording that already exists.
+     *
+     * Used when collection starts again against a session that has fixes behind it -
+     * the process was killed mid-spray, or the screen the operator was watching was
+     * re-created. The first fix after that is compared against the ground actually
+     * covered, and the point count goes on from where the recording got to, rather
+     * than restarting at one on a track that is already half recorded.
+     */
+    fun seed(points: List<GeoPoint>) {
+        lastAccepted = points.lastOrNull()
+        acceptedCount = points.size
+    }
+
     /** @return true if the fix was accepted and should be persisted. */
     fun accept(candidate: GeoPoint): Boolean {
         val accuracy = candidate.accuracyM

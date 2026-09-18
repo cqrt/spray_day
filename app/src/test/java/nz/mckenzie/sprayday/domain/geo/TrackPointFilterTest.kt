@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.domain.geo
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -70,6 +71,33 @@ class TrackPointFilterTest {
         assertTrue(filter.accept(point(timeMs = 0L)))
         assertTrue(filter.accept(point(lat = 0.001, timeMs = 0L)))
         assertEquals(0, filter.rejectedSpeedCount)
+    }
+
+    @Test
+    fun `seeding carries the pass so far on`() {
+        val filter = TrackPointFilter()
+        val recorded = listOf(point(lat = 0.0, timeMs = 1_000L), point(lat = 0.0001, timeMs = 3_000L))
+
+        filter.seed(recorded)
+
+        assertEquals("the points already recorded are counted", 2, filter.acceptedCount)
+        assertEquals(recorded.last().lat, filter.lastAcceptedPoint?.lat ?: Double.NaN, 0.0)
+        // A metre past the last recorded fix is jitter, exactly as it would have been
+        // had collection never stopped.
+        assertFalse(filter.accept(point(lat = 0.00011, timeMs = 4_000L)))
+        assertEquals(2, filter.acceptedCount)
+        assertEquals(1, filter.rejectedDistanceCount)
+    }
+
+    @Test
+    fun `seeding with nothing recorded is the same as starting fresh`() {
+        val filter = TrackPointFilter()
+
+        filter.seed(emptyList())
+
+        assertEquals(0, filter.acceptedCount)
+        assertNull(filter.lastAcceptedPoint)
+        assertTrue(filter.accept(point()))
     }
 
     @Test

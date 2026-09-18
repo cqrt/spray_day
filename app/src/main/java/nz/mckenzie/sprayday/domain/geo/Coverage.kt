@@ -200,6 +200,16 @@ object Coverage {
             // One list of cut points for the whole walk, so that two steps meeting at one
             // are the same coordinate and not two coordinates an ulp apart: stretches are
             // drawn as separate lines, and a seam between them would be a gap.
+            //
+            // Every vertex ends a step, whatever the step size. A line recorded by this app
+            // has a fix every few metres, so most segments of a recorded track are shorter
+            // than a step - half the tolerance - and subdivide into nothing at all. Without
+            // the vertex as a boundary they merged into one long step judged from a single
+            // probe in the middle of the run, which is how a 160 m track driven over its
+            // eastern 72 m read as 100% covered and the map drew the whole line as sprayed:
+            // the one probe fell within tolerance of the recording, so every metre of the
+            // plan in that merged step counted. Cutting at the vertices costs one probe per
+            // recorded fix and makes the answer follow the recording along the line.
             val cuts = mutableListOf(0.0)
             for (i in 1 until vertices.size) {
                 val segment = along[i] - along[i - 1]
@@ -207,8 +217,11 @@ object Coverage {
                 val count = max(1, ceil(segment / stepM).toInt())
                 val stepLength = segment / count
                 for (k in 1 until count) cuts += along[i - 1] + k * stepLength
+                cuts += along[i]
             }
-            cuts += totalM
+            // The last vertex is the end of the plan; a plan whose tail was a repeated point
+            // still has to reach its own end, or the last step would fall short of it.
+            if (cuts.last() < totalM) cuts += totalM
 
             val built = mutableListOf<Step>()
             for (j in 0 until cuts.size - 1) {

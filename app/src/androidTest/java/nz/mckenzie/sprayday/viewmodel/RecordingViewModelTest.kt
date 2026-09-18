@@ -219,12 +219,19 @@ class RecordingViewModelTest {
         )
     }
 
-    /** Fixes along a straight line running east, one every ten metres, as far as [lengthM]. */
+    /**
+     * Fixes along a straight line running east, one every four metres, as far as [lengthM].
+     *
+     * Four metres because that is what the app records in the field: the filter wants three
+     * metres of movement and a fix every few seconds, so a real track's points are a few
+     * metres apart. Ten metres - a step and a half of the coverage maths - hid a fault that
+     * only appears when a plan's segments are shorter than the step it is walked in.
+     */
     private fun fixesAlong(lengthM: Double): List<GeoPoint> = buildList {
         var travelled = 0.0
         while (travelled <= lengthM) {
             add(GeoPoint(-41.5, 173.9 + travelled / METRES_PER_DEG_LNG_AT_EQUATOR))
-            travelled += 10.0
+            travelled += 4.0
         }
     }
 
@@ -233,11 +240,25 @@ class RecordingViewModelTest {
         String.format(java.util.Locale.US, "%.7f", point.lng)
 
     /**
-     * The map's line for the recording, which is the one drawn in red. Empty when the map is
-     * drawing no recording at all.
+     * The map's line drawn in red: the part of the track still to spray, or the recording
+     * itself when no track is chosen and there is nothing to compare it with.
      */
-    private fun recordedLine(geoJson: String): String =
+    private fun redPart(geoJson: String): String =
         if (geoJson.contains(AssetColors.RED)) geoJson.substringAfter(AssetColors.RED) else ""
+
+    /**
+     * The map's line drawn in green: the part of the track this pass has sprayed, which is the
+     * recording as it landed on the plan.
+     *
+     * The stretches are written in the plan's own order, and every test here walks from the
+     * track's start, so the green stretch is the first one and runs up to the red.
+     */
+    private fun greenPart(geoJson: String): String =
+        if (geoJson.contains(AssetColors.GREEN)) {
+            geoJson.substringAfter(AssetColors.GREEN).substringBefore(AssetColors.RED)
+        } else {
+            ""
+        }
 
     /**
      * The state the spraying was reported from: a track made from a finished recording, and a
@@ -274,13 +295,18 @@ class RecordingViewModelTest {
         // The walk, as the service writes it: one fix at a time.
         walked.forEach { recordings.appendPoint(walking, it) }
 
-        // The screen has read every fix when it is drawing the last of them.
+        // The screen has read every fix when the sprayed part reaches the last of them.
         val map = withTimeout(5_000) {
-            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(walked.last())) }
+            viewModel.recordedGeoJson.first { greenPart(it).contains(drawn(walked.last())) }
         }
+        assertTrue(
+            "half the track drawn as sprayed and half as still to do, not one colour: $map",
+            map.contains(AssetColors.GREEN) && map.contains(AssetColors.RED)
+        )
         assertFalse(
-            "the line drawn is the one being walked, so it stops where the walk stopped: $map",
-            recordedLine(map).contains(drawn(fixesAlong(500.0).last()))
+            "the sprayed part stops where the walk stopped, and the rest of the track " +
+                "stays to do: $map",
+            greenPart(map).contains(drawn(fixesAlong(500.0).last()))
         )
 
         // The number is debounced by three quarters of a second, so give it the beat it asks for.
@@ -307,7 +333,7 @@ class RecordingViewModelTest {
         withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
         walked.forEach { recordings.appendPoint(walking, it) }
         withTimeout(5_000) {
-            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(walked.last())) }
+            viewModel.recordedGeoJson.first { greenPart(it).contains(drawn(walked.last())) }
         }
 
         // That pass is finished and named, and the next one starts from the same line.
@@ -321,14 +347,14 @@ class RecordingViewModelTest {
         // into that table wakes the query that reads it, whichever session it belongs to.
         recordings.appendPoint(walking, fixesAlong(500.0)[30])
         withTimeout(5_000) {
-            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(justStarted.last())) }
+            viewModel.recordedGeoJson.first { greenPart(it).contains(drawn(justStarted.last())) }
         }
         delay(1_500)
 
         val map = viewModel.recordedGeoJson.value
         assertFalse(
-            "the retired pass must not be redrawn: $map",
-            recordedLine(map).contains(drawn(walked.last()))
+            "the retired pass must not be drawn as sprayed again: $map",
+            greenPart(map).contains(drawn(walked.last()))
         )
         val covered = viewModel.coverage.value
         assertTrue(
@@ -365,5 +391,25 @@ class RecordingViewModelTest {
             state.distanceM,
             1.0
         )
+    }
+
+    /**
+     * With no track chosen there is nothing to compare the recording with, so the recording
+     * itself is drawn: that is the "record a new line" case, where the line being made is the
+     * only thing there is to see.
+     */
+    @Test
+    fun aRecordingWithNoTrackChosenIsDrawnAsTheLineItIs() = runBlocking {
+        val viewModel = viewModel()
+        val sessionId = recordings.startRecording(name = "Spray run")
+        TrackingState.begin(sessionId, System.currentTimeMillis())
+        val walked = fixesAlong(40.0)
+
+        walked.forEach { recordings.appendPoint(sessionId, it) }
+
+        val map = withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { redPart(it).contains(drawn(walked.last())) }
+        }
+        assertFalse("there is no track to colour in: $map", map.contains(AssetColors.GREEN))
     }
 }

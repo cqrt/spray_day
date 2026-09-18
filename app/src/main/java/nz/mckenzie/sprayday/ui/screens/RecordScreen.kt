@@ -78,6 +78,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val coverage by viewModel.coverage.collectAsStateWithLifecycle()
+    val trackLengthM by viewModel.trackLengthM.collectAsStateWithLifecycle()
     val rows by viewModel.rows.collectAsStateWithLifecycle()
     val assetName by viewModel.selectedTrackName.collectAsStateWithLifecycle()
     val tracks by viewModel.assetsToSpray.collectAsStateWithLifecycle()
@@ -185,6 +186,13 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                             text = "Covered ${formatCoveragePercent(covered)} of " +
                                 (assetName ?: "the line"),
                             style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+
+                    trackLengthM?.let { length ->
+                        Text(
+                            text = "Track ${formatDistance(length)}",
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
 

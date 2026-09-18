@@ -34,12 +34,15 @@ import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
+import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.map.AssetStretch
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.tracking.TrackingService
@@ -152,34 +155,90 @@ class RecordingViewModel(
     private val plannedGeometry = MutableStateFlow<List<GeoPoint>>(emptyList())
 
     /**
-     * What the map draws: the planned line being followed, in grey, and the line as
-     * recorded so far in red - so the gap still to drive is visible rather than
-     * something to be worked out from a percentage.
+     * What the map draws: the planned line, cut into the part this pass has sprayed and the
+     * part still to do, in the colours the rest of the app uses for those two states.
+     *
+     * The line carries the answer, not only a percentage beside it - and the two come from
+     * the same [Coverage.splitByCoverage] call, so the screen cannot say one thing and draw
+     * another. Reading *this* pass is the point: a track half sprayed a fortnight ago is not
+     * this run's business, and the coverage beside these colours is this run's too.
+     *
+     * Drawn as one line instead, the plan vanished: the recording is drawn over it, both are
+     * the same width, so an operator driving the line saw only their own trail and had no way
+     * to see which part of the track was left, or that the track had ended at all.
+     *
+     * With no track chosen there is nothing to compare against, and the recording itself is
+     * drawn - that is the "record a new line" case, where the line being made is the point.
      */
     val recordedGeoJson: StateFlow<String> =
-        combine(sessionPoints, plannedGeometry) { recorded, planned ->
-            AssetGeoJson.build(
-                listOf(
-                    AssetLine(
-                        assetId = PLANNED_ID,
-                        name = "Planned",
-                        colorHex = AssetColors.UNKNOWN,
-                        points = planned
-                    ),
-                    AssetLine(
-                        assetId = RECORDING_ID,
-                        name = "Recording",
-                        colorHex = AssetColors.RED,
-                        points = recorded
-                    )
-                )
-            )
-        }
+        combine(sessionPoints, plannedGeometry) { recorded, planned -> planned to recorded }
+            .map { (planned, recorded) -> routeGeoJson(planned, recorded) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
                 AssetGeoJson.build(emptyList())
             )
+
+    /**
+     * The planned track in the colours of the job: green for the part this pass has sprayed,
+     * red for the part still waiting for a tank.
+     *
+     * The pass is dated from its newest fix rather than from the session row, so this stays a
+     * pure function of the two lists it is given.
+     */
+    private fun routeGeoJson(planned: List<GeoPoint>, recorded: List<GeoPoint>): String {
+        if (planned.size >= 2) {
+            val pass = RecordedPass(
+                atEpochMs = recorded.lastOrNull()?.timeMs ?: 0L,
+                points = recorded
+            )
+            val stretches = Coverage.splitByCoverage(planned, listOf(pass))
+                .map { stretch ->
+                    AssetStretch(
+                        colorHex = if (stretch.lastSprayedAtEpochMs != null) {
+                            AssetColors.GREEN
+                        } else {
+                            AssetColors.RED
+                        },
+                        points = stretch.points
+                    )
+                }
+            return AssetGeoJson.build(
+                listOf(
+                    AssetLine(
+                        assetId = PLANNED_ID,
+                        name = "Planned",
+                        colorHex = AssetColors.RED,
+                        points = planned,
+                        stretches = stretches
+                    )
+                )
+            )
+        }
+
+        return AssetGeoJson.build(
+            listOf(
+                AssetLine(
+                    assetId = RECORDING_ID,
+                    name = "Recording",
+                    colorHex = AssetColors.RED,
+                    points = recorded
+                )
+            )
+        )
+    }
+
+    /**
+     * How long the chosen track is, or null when there is nothing chosen.
+     *
+     * The operator's own job is longer than the track they picked whenever they picked the
+     * wrong one, and until now nothing on this screen said how long the track was - so
+     * "Covered 100%" could only be taken on trust. Beside the distance driven so far it is
+     * the comparison that matters.
+     */
+    val trackLengthM: StateFlow<Double?> = plannedGeometry
+        .map { planned -> if (planned.size >= 2) polylineLengthMeters(planned) else null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message

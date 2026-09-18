@@ -330,4 +330,60 @@ class CoverageTest {
             Coverage.splitByCoverage(lineEast(100.0), listOf(pass), toleranceM = 0.0)
         )
     }
+
+    // --- The reported case -------------------------------------------------------------
+
+    /**
+     * A 160 m track made from 41 fixes, then a pass over its eastern 72 m only, at the
+     * latitude it happened at. The screen said "Covered 100%" while the map drew the
+     * western 88 m of the same track as still to do.
+     *
+     * Every case above is built on the equator out of two-point lines, which is exactly
+     * the geometry this one is not.
+     */
+    @Test
+    fun `a pass over part of a many-point track away from the equator is not a full pass`() {
+        val lat = -41.5450
+        val perDegLng = METRES_PER_DEG_LNG_AT_EQUATOR * Math.cos(Math.toRadians(lat))
+        fun at(metres: Double) = GeoPoint(lat, 174.0020 + metres / perDegLng)
+
+        // The track: 41 fixes 4 m apart, 160 m long - what a recorded line looks like.
+        val planned = (0..40).map { step -> at(step * 4.0) }
+        // The pass: 19 fixes over the eastern 72 m of it.
+        val recorded = (0..18).map { step -> at(160.0 - step * 4.0) }
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+
+        // Driven over the eastern 72 m, plus the tolerance reaching 12 m past where the
+        // recording starts, over a 160 m line: about half of it, and no more.
+        assertEquals(0.52, covered, 0.03)
+    }
+
+    @Test
+    fun `a recorded track driven over half of it splits where the pass stops`() {
+        val lat = -41.5450
+        val perDegLng = METRES_PER_DEG_LNG_AT_EQUATOR * Math.cos(Math.toRadians(lat))
+        fun at(metres: Double) = GeoPoint(lat, 174.0020 + metres / perDegLng)
+
+        // The track as this app records one, and a pass over its western 72 m.
+        val planned = (0..40).map { step -> at(step * 4.0) }
+        val pass = RecordedPass(atEpochMs = 7L, points = (0..18).map { step -> at(step * 4.0) })
+
+        val stretches = Coverage.splitByCoverage(planned, listOf(pass))
+
+        assertEquals(
+            "a driven part and a part still to spray, not one stretch for the whole line",
+            2,
+            stretches.size
+        )
+        assertEquals(
+            "the driven part, drawn to where the tolerance reaches past where the pass stopped",
+            84.0,
+            stretches[0].lengthM,
+            3.0
+        )
+        assertEquals(76.0, stretches[1].lengthM, 3.0)
+        assertEquals(7L, stretches[0].lastSprayedAtEpochMs)
+        assertNull(stretches[1].lastSprayedAtEpochMs)
+    }
 }

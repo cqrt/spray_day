@@ -10,12 +10,17 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,7 +124,30 @@ class RecordingViewModel(
     private val _coverage = MutableStateFlow<Double?>(null)
     val coverage: StateFlow<Double?> = _coverage
 
-    private val sessionPoints = MutableStateFlow<List<GeoPoint>>(emptyList())
+    /**
+     * The fixes of the recording that is happening now - what the screen draws, and what the
+     * coverage above is measured from.
+     *
+     * Followed from [TrackingState] rather than collected when a session starts, so that
+     * exactly one collection is alive at a time: `flatMapLatest` drops the previous session's
+     * the moment the session changes. Collecting a session's points and merely moving on does
+     * not work, and the way it fails is not obvious - a flow over `recorded_points` re-emits
+     * whenever *that table* changes, whichever session was written to, so a recording that has
+     * already finished keeps handing its whole geometry back. The line then flips between the
+     * one being walked and the one that is finished (which is what "the track keeps
+     * disappearing" looks like), and the coverage is taken against the finished pass - and
+     * when that pass is the one the track was made from, it covers the line by definition and
+     * the screen says 100% with half the track still to drive.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val sessionPoints: StateFlow<List<GeoPoint>> = TrackingState.state
+        .map { it.sessionId }
+        .distinctUntilChanged()
+        .flatMapLatest { sessionId ->
+            if (sessionId == null) flowOf(emptyList()) else recordings.observePoints(sessionId)
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private val plannedGeometry = MutableStateFlow<List<GeoPoint>>(emptyList())
 
     /**
@@ -162,8 +190,6 @@ class RecordingViewModel(
      */
     private val _pendingTrackName = MutableStateFlow<String?>(null)
     val pendingTrackName: StateFlow<String?> = _pendingTrackName
-
-    private var observingSession: Long? = null
 
     init {
         viewModelScope.launch {
@@ -208,7 +234,6 @@ class RecordingViewModel(
             val status = runCatching { RecordingStatus.valueOf(unfinished.status) }
                 .getOrDefault(RecordingStatus.RECORDING)
             TrackingState.setStatus(status)
-            observe(unfinished.id)
             unfinished.assetId?.let { selectTrack(it) }
 
             // A foreground service does not survive a process kill, so a session
@@ -291,7 +316,6 @@ class RecordingViewModel(
                 assetId = _selectedAssetId.value
             )
             TrackingState.begin(sessionId, System.currentTimeMillis())
-            observe(sessionId)
             TrackingService.start(context, sessionId)
         }
     }
@@ -384,9 +408,9 @@ class RecordingViewModel(
             assetId?.let { runCatching { recordings.setSessionAsset(sessionId, it) } }
 
             TrackingService.stop(context)
+            // Clearing the tracking state is what empties the drawing and stops the coverage:
+            // these are the running session's fixes, and there is no longer one running.
             TrackingState.clear()
-            observingSession = null
-            sessionPoints.value = emptyList()
             plannedGeometry.value = emptyList()
 
             var message = "Saved $points ${if (points == 1) "point" else "points"}"
@@ -428,14 +452,6 @@ class RecordingViewModel(
     }
 
     private fun sessionIdOrNull(): Long? = TrackingState.current.sessionId
-
-    private fun observe(sessionId: Long) {
-        if (observingSession == sessionId) return
-        observingSession = sessionId
-        viewModelScope.launch {
-            recordings.observePoints(sessionId).collect { sessionPoints.value = it }
-        }
-    }
 
     private fun defaultName(): String = "Spray run"
 

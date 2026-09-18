@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.RecordingRepository
@@ -19,7 +20,10 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LNG_AT_EQUATOR
+import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
+import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.tracking.TrackingState
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -212,6 +216,125 @@ class RecordingViewModelTest {
         assertTrue(
             "no track should have been created",
             assetRepository.observeAssetsWithDue(nowProvider = flowOf(System.currentTimeMillis())).first().isEmpty()
+        )
+    }
+
+    /** Fixes along a straight line running east, one every ten metres, as far as [lengthM]. */
+    private fun fixesAlong(lengthM: Double): List<GeoPoint> = buildList {
+        var travelled = 0.0
+        while (travelled <= lengthM) {
+            add(GeoPoint(-41.5, 173.9 + travelled / METRES_PER_DEG_LNG_AT_EQUATOR))
+            travelled += 10.0
+        }
+    }
+
+    /** A fix as the map's GeoJSON writes it, so a test can say which line the map is showing. */
+    private fun drawn(point: GeoPoint): String =
+        String.format(java.util.Locale.US, "%.7f", point.lng)
+
+    /**
+     * The map's line for the recording, which is the one drawn in red. Empty when the map is
+     * drawing no recording at all.
+     */
+    private fun recordedLine(geoJson: String): String =
+        if (geoJson.contains(AssetColors.RED)) geoJson.substringAfter(AssetColors.RED) else ""
+
+    /**
+     * The state the spraying was reported from: a track made from a finished recording, and a
+     * second recording walking the same line - half of it so far.
+     *
+     * Returns the track's id, the session being walked, and the fixes walked so far. The screen
+     * follows the session, and both the start button and the reattach on launch come down to one
+     * `TrackingState.begin` call, so this drives that directly: no GPS and no foreground service.
+     */
+    private suspend fun trackMadeAndPassUnderWay(): Triple<Long, Long, List<GeoPoint>> {
+        val madeIt = recordings.startRecording(name = "Track 18 Sep")
+        val whole = fixesAlong(500.0)
+        whole.forEach { recordings.appendPoint(madeIt, it) }
+        recordings.finishRecording(madeIt, distanceM = polylineLengthMeters(whole))
+        val assetId = assetRepository.createAsset("Track 18 Sep", whole)
+
+        val walking = recordings.startRecording(name = "Spray run", assetId = assetId)
+        TrackingState.begin(walking, System.currentTimeMillis())
+        return Triple(assetId, walking, fixesAlong(250.0))
+    }
+
+    /**
+     * The report from the field: half the track walked, and the screen said the whole line was
+     * covered. The recording that *made* the track covers all of it, so a screen that keeps
+     * following that one reads 100% the moment anything brings it back.
+     */
+    @Test
+    fun aHalfWalkedPassReadsAsHalfTheLineNotAsTheWholeOfIt() = runBlocking {
+        val viewModel = viewModel()
+        val (assetId, walking, walked) = trackMadeAndPassUnderWay()
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+
+        // The walk, as the service writes it: one fix at a time.
+        walked.forEach { recordings.appendPoint(walking, it) }
+
+        // The screen has read every fix when it is drawing the last of them.
+        val map = withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(walked.last())) }
+        }
+        assertFalse(
+            "the line drawn is the one being walked, so it stops where the walk stopped: $map",
+            recordedLine(map).contains(drawn(fixesAlong(500.0).last()))
+        )
+
+        // The number is debounced by three quarters of a second, so give it the beat it asks for.
+        delay(1_500)
+        val covered = viewModel.coverage.value
+        assertEquals(
+            "half the line walked is half the line covered; the finished recording that made " +
+                "the track covers all of it, and measuring against that one gave $covered",
+            0.5,
+            covered!!,
+            0.08
+        )
+    }
+
+    /**
+     * The other half of the same fault: the fixes that keep arriving for a recording that has
+     * been finished used to be shown, because the screen was still listening to that session.
+     */
+    @Test
+    fun aRetiredRecordingCannotPutItsLineBackOnTheScreen() = runBlocking {
+        val viewModel = viewModel()
+        val (assetId, walking, walked) = trackMadeAndPassUnderWay()
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+        walked.forEach { recordings.appendPoint(walking, it) }
+        withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(walked.last())) }
+        }
+
+        // That pass is finished and named, and the next one starts from the same line.
+        recordings.finishRecording(walking, distanceM = polylineLengthMeters(walked))
+        val next = recordings.startRecording(name = "Spray run", assetId = assetId)
+        TrackingState.begin(next, System.currentTimeMillis())
+        val justStarted = fixesAlong(30.0)
+        justStarted.forEach { recordings.appendPoint(next, it) }
+
+        // Writing to the retired session is what used to fetch its whole line back: every insert
+        // into that table wakes the query that reads it, whichever session it belongs to.
+        recordings.appendPoint(walking, fixesAlong(500.0)[30])
+        withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { recordedLine(it).contains(drawn(justStarted.last())) }
+        }
+        delay(1_500)
+
+        val map = viewModel.recordedGeoJson.value
+        assertFalse(
+            "the retired pass must not be redrawn: $map",
+            recordedLine(map).contains(drawn(walked.last()))
+        )
+        val covered = viewModel.coverage.value
+        assertTrue(
+            "and the number is the new pass's 30 m of 500, not the retired pass's whole line: " +
+                "$covered",
+            covered != null && covered < 0.25
         )
     }
 }

@@ -77,7 +77,9 @@ sprayed).
   you** while a pass is being driven, so the line you are on stays under the screen
   without a hand on it; dragging the map hands it back to you, and the follow button
   at the top right says whether it is following and puts the camera back on you when
-  tapped. Finishing saves the recording and the spray together, linked by session id,
+  tapped — while a pass is being driven. Pause, and the button goes with the following:
+  the map is yours to read while you are stopped, and carrying on turns following back
+  on by itself. Finishing saves the recording and the spray together, linked by session id,
   so the traffic light updates, the spray history carries the distance actually
   driven, and a line that was only part done comes back on the map in two colours.
   **The pass stays on the screen after it is saved** — the line in its two colours,

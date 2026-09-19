@@ -168,7 +168,13 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
             // question the operator actually has is the one this answers at a glance: is it
             // following me or not? Tapping it back on also puts the camera back on them at
             // once, which is the fastest way to find yourself again after a drag.
-            if (state.status == RecordingStatus.RECORDING || state.status == RecordingStatus.PAUSED) {
+            //
+            // Only while the pass is being driven. Paused, the map deliberately does not follow
+            // - the operator is stopped, with both hands free and the map theirs to read - so a
+            // control that said "Following the phone" while nothing moved was telling them
+            // something untrue, and tapping it did nothing either way. Resume turns following
+            // back on by itself, so nothing is lost by its not being there.
+            if (state.status == RecordingStatus.RECORDING) {
                 FilledTonalIconButton(
                     onClick = { viewModel.setFollowing(!following) },
                     modifier = Modifier

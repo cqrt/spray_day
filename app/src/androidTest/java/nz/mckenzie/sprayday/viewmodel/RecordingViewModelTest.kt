@@ -262,6 +262,18 @@ class RecordingViewModelTest {
         }
 
     /**
+     * Every part of the drawing that is green: the plan this pass has sprayed, all of it.
+     *
+     * [greenPart] takes the first stretch, which is enough for a pass that walked from the start
+     * of the track. This takes them all, because a pass with a pause in it has green on both
+     * sides of the red - and a test waiting for the end of the line to be sprayed has to see the
+     * second one.
+     */
+    private fun sprayedPart(geoJson: String): String =
+        geoJson.split(AssetColors.GREEN).drop(1)
+            .joinToString(" ") { it.substringBefore(AssetColors.RED) }
+
+    /**
      * The state the spraying was reported from: a track made from a finished recording, and a
      * second recording walking the same line - half of it so far.
      *
@@ -689,22 +701,30 @@ class RecordingViewModelTest {
         recordings.appendPoint(walking, timedFixAt(800.0, atMs = 900_000L))
         recordings.appendPoint(walking, timedFixAt(1_000.0, atMs = 960_000L))
 
-        val map = withTimeout(5_000) {
-            viewModel.recordedGeoJson.first { it.contains(drawn(timedFixAt(800.0, atMs = 900_000L))) }
+        // Waiting on the drawing rather than on the number keeps it subscribed, as the screen
+        // does: it is a `WhileSubscribed` state flow, and one nobody collects goes back to empty.
+        // The end of the line turns green only once the pass has reached it, which is what says
+        // every fix has been read.
+        val end = timedFixAt(1_000.0, atMs = 960_000L)
+        withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { sprayedPart(it).contains(drawn(end)) }
         }
-        // The coverage is debounced by three quarters of a second; give it the beat it asks for.
-        delay(1_500)
 
-        val covered = viewModel.coverage.value
-        assertNotNull("the pass should have a coverage to read", covered)
-        assertTrue(
-            "the 400 m the pass was stopped over is not sprayed, got $covered",
-            covered!! < 0.75
+        // The number settles a beat later: 400 m and 1,000 m of a 1 km line sprayed, and nothing
+        // for the 400 m the pass was stopped over.
+        val covered = runCatching {
+            withTimeout(5_000) { viewModel.coverage.first { it != null && it!! < 0.75 } }
+        }.getOrNull()
+        assertNotNull(
+            "the ground the pass was stopped over is not sprayed, got ${viewModel.coverage.value}",
+            covered
         )
-        assertTrue("and the parts either side of it are, got $covered", covered > 0.5)
+        assertTrue("and the parts either side of it are, got $covered", covered!! > 0.5)
+        delay(500)
+
         assertTrue(
-            "and the line says the same thing: the stop is still red: $map",
-            map.contains(AssetColors.RED)
+            "and the line says the same thing: the stop is still red: ${viewModel.recordedGeoJson.value}",
+            viewModel.recordedGeoJson.value.contains(AssetColors.RED)
         )
     }
 
@@ -723,14 +743,18 @@ class RecordingViewModelTest {
         recordings.appendPoint(walking, timedFixAt(800.0, atMs = 900_000L))
         recordings.appendPoint(walking, timedFixAt(1_000.0, atMs = 960_000L))
 
+        val end = timedFixAt(1_000.0, atMs = 960_000L)
         val map = withTimeout(5_000) {
-            viewModel.recordedGeoJson.first { it.contains(drawn(timedFixAt(800.0, atMs = 900_000L))) }
+            viewModel.recordedGeoJson.first { sprayedPart(it).contains(drawn(end)) }
         }
-        delay(1_500)
 
-        val covered = viewModel.coverage.value
-        assertNotNull("the pass should have a coverage to read", covered)
-        assertTrue("a line driven end to end reads as sprayed: $covered", covered!! > 0.95)
+        val covered = runCatching {
+            withTimeout(5_000) { viewModel.coverage.first { it != null && it!! > 0.95 } }
+        }.getOrNull()
+        assertNotNull(
+            "a line driven end to end should read as sprayed, got ${viewModel.coverage.value}",
+            covered
+        )
         assertFalse("so none of it is left red: $map", map.contains(AssetColors.RED))
     }
 }

@@ -162,7 +162,26 @@ data class RecordingRecord(
     val distanceM: Double = 0.0,
     val durationMs: Long = 0L,
     val pointCount: Int = 0,
-    val points: List<RecordedPointRecord> = emptyList()
+    val points: List<RecordedPointRecord> = emptyList(),
+    /**
+     * The stretches the pass was paused for. Optional and added without a version bump: a file
+     * written before pauses were kept simply has no such key, and a restored recording with no
+     * pauses is read exactly as the app read it before - a gap in its fixes was ground the pass
+     * drove, which is what a gap is.
+     */
+    val breaks: List<RecordedBreakRecord> = emptyList()
+)
+
+/**
+ * One pause in a recording.
+ *
+ * [toEpochMs] is null for a pass that was finished while it was paused, which reads as a stop
+ * running to the end of the recording.
+ */
+@Serializable
+data class RecordedBreakRecord(
+    val fromEpochMs: Long,
+    val toEpochMs: Long? = null
 )
 
 /** One accepted GPS fix, as it was written. */

@@ -81,4 +81,29 @@ abstract class RecordingDao {
 
     @Query("SELECT * FROM recorded_points WHERE sessionId = :sessionId ORDER BY sequence")
     abstract fun observePoints(sessionId: Long): Flow<List<RecordedPointEntity>>
+
+    // --- Pauses ---------------------------------------------------------------------
+
+    /** Opens a break: the operator has stopped, and nothing in between is claimed as driven. */
+    @Insert
+    abstract suspend fun insertBreak(row: RecordedBreakEntity): Long
+
+    /**
+     * Closes whatever break is still open, at the moment the pass carried on.
+     *
+     * Deliberately closes every open break rather than the newest one: two open breaks in a
+     * session would mean the pass had carried on without anyone saying so, and the later
+     * stamp is the honest end for both.
+     */
+    @Query(
+        "UPDATE recorded_breaks SET toEpochMs = :toEpochMs " +
+            "WHERE sessionId = :sessionId AND toEpochMs IS NULL"
+    )
+    abstract suspend fun closeOpenBreaks(sessionId: Long, toEpochMs: Long)
+
+    @Query("SELECT * FROM recorded_breaks WHERE sessionId = :sessionId ORDER BY fromEpochMs")
+    abstract suspend fun getBreaks(sessionId: Long): List<RecordedBreakEntity>
+
+    @Query("SELECT * FROM recorded_breaks WHERE sessionId = :sessionId ORDER BY fromEpochMs")
+    abstract fun observeBreaks(sessionId: Long): Flow<List<RecordedBreakEntity>>
 }

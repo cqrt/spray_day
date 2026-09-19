@@ -331,3 +331,32 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("DROP TABLE IF EXISTS `tmp_recorded_sessions`")
     }
 }
+
+/**
+ * Adds the pauses of a recording.
+ *
+ * A pause is written down rather than worked out later from the fixes, because the fixes
+ * cannot tell a pause from a dropped signal - and the two mean opposite things: the ground
+ * under a dropped signal was driven and sprayed, the ground across a pause was not. Nothing
+ * to carry over: every recording made before this simply has no pauses in it, and a gap of
+ * missing fixes in one of those is read as ground the pass drove, which is what it was.
+ *
+ * The SQL is written out in the shape Room exports (see app/schemas/.../4.json), and
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated
+ * v3 database.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `recorded_breaks` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, " +
+                "`fromEpochMs` INTEGER NOT NULL, `toEpochMs` INTEGER, " +
+                "FOREIGN KEY(`sessionId`) REFERENCES `recorded_sessions`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recorded_breaks_sessionId` " +
+                "ON `recorded_breaks` (`sessionId`)"
+        )
+    }
+}

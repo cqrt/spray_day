@@ -3,10 +3,12 @@ package nz.mckenzie.sprayday.data
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import androidx.room.withTransaction
+import nz.mckenzie.sprayday.data.db.RecordedBreakEntity
 import nz.mckenzie.sprayday.data.db.RecordedPointEntity
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.RecordingBreak
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 
@@ -129,6 +131,29 @@ class RecordingRepository(private val db: SprayDayDatabase) {
     suspend fun getPoints(sessionId: Long): List<GeoPoint> =
         recordingDao.getPoints(sessionId).map { it.toGeoPoint() }
 
+    /**
+     * Opens a break: the operator has paused, so nothing between here and the moment they
+     * carry on is claimed as driven or sprayed.
+     *
+     * Written the instant the button is pressed rather than when the pass carries on,
+     * because a pass can be finished - or the phone put away - while it is paused, and the
+     * stop still happened.
+     */
+    suspend fun beginBreak(sessionId: Long, atEpochMs: Long = System.currentTimeMillis()) {
+        recordingDao.insertBreak(RecordedBreakEntity(sessionId = sessionId, fromEpochMs = atEpochMs))
+    }
+
+    /** Closes the break, at the moment the pass carried on. */
+    suspend fun endBreak(sessionId: Long, atEpochMs: Long = System.currentTimeMillis()) {
+        recordingDao.closeOpenBreaks(sessionId, atEpochMs)
+    }
+
+    fun observeBreaks(sessionId: Long): Flow<List<RecordingBreak>> =
+        recordingDao.observeBreaks(sessionId).map { rows -> rows.map { it.toRecordingBreak() } }
+
+    suspend fun getBreaks(sessionId: Long): List<RecordingBreak> =
+        recordingDao.getBreaks(sessionId).map { it.toRecordingBreak() }
+
     suspend fun pointCount(sessionId: Long): Int = recordingDao.pointCount(sessionId)
 
     /**
@@ -158,4 +183,9 @@ internal fun RecordedPointEntity.toGeoPoint() = GeoPoint(
     speedMps = speedMps,
     bearingDeg = bearingDeg,
     timeMs = recordedAtEpochMs
+)
+
+internal fun RecordedBreakEntity.toRecordingBreak() = RecordingBreak(
+    fromEpochMs = fromEpochMs,
+    toEpochMs = toEpochMs
 )

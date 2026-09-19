@@ -195,6 +195,74 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The migration that adds pauses.
+     *
+     * There is nothing to carry over - no recording made before this had a pause in it - so what
+     * it has to prove is that it leaves the recordings it runs over alone, and that the table it
+     * adds behaves: a pause is written as an open one when the operator stops, and goes with the
+     * recording it belongs to.
+     */
+    @Test
+    fun migrationFrom3To4AddsBreaksWithoutTouchingTheRecordings() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL(
+                "INSERT INTO recorded_sessions (id, name, assetId, startedAtEpochMs, " +
+                    "endedAtEpochMs, status, distanceM, durationMs, pointCount) " +
+                    "VALUES (5, 'Estuary road', NULL, 2000, 3000, 'FINISHED', 1234.5, 600000, 2)"
+            )
+            execSQL(
+                "INSERT INTO recorded_points (sessionId, sequence, lat, lng, altitudeM, " +
+                    "accuracyM, speedMps, bearingDeg, recordedAtEpochMs) " +
+                    "VALUES (5, 0, -41.5, 173.95, 12.0, 4.5, 2.2, 180.0, 2000), " +
+                    "(5, 1, -41.51, 173.96, 13.0, 4.0, 2.4, 181.0, 2010)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4)
+
+        migrated.query("SELECT name, distanceM FROM recorded_sessions WHERE id = 5").use { cursor ->
+            assertTrue("the recording must survive the migration", cursor.moveToFirst())
+            assertEquals("Estuary road", cursor.getString(0))
+            assertEquals(1234.5, cursor.getDouble(1), 0.01)
+        }
+        migrated.query("SELECT COUNT(*) FROM recorded_points").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("and every fix of it", 2, cursor.getInt(0))
+        }
+
+        // The new table, with the two things about it that matter.
+        migrated.execSQL(
+            "INSERT INTO recorded_breaks (sessionId, fromEpochMs, toEpochMs) VALUES (5, 2100, 2900)"
+        )
+        migrated.execSQL(
+            "INSERT INTO recorded_breaks (sessionId, fromEpochMs, toEpochMs) VALUES (5, 2500, NULL)"
+        )
+        migrated.query("SELECT fromEpochMs, toEpochMs FROM recorded_breaks ORDER BY fromEpochMs")
+            .use { cursor ->
+                assertEquals(2, cursor.count)
+                cursor.moveToFirst()
+                assertEquals(2100L, cursor.getLong(0))
+                assertEquals(2900L, cursor.getLong(1))
+                cursor.moveToNext()
+                assertTrue("a pass still paused has no end to its break", cursor.isNull(1))
+            }
+
+        // A pause belongs to its pass and goes when it does. Foreign keys are enforced here the
+        // way the app enforces them, because the harness opens the migrated database without
+        // Room's own `PRAGMA foreign_keys = ON`: without this the delete would leave the pauses
+        // behind and the test would be asserting about SQLite's default rather than the app's.
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL("DELETE FROM recorded_sessions WHERE id = 5")
+        migrated.query("SELECT COUNT(*) FROM recorded_breaks").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("a pause goes when the recording it belongs to does", 0, cursor.getInt(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

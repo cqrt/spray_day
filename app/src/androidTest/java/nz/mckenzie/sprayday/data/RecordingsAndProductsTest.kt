@@ -50,6 +50,52 @@ class RecordingsAndProductsTest {
     @After
     fun tearDown() = db.close()
 
+    /**
+     * The pause the app writes down when the button is pressed.
+     *
+     * A pause and a dropped signal leave the same hole in a recording's fixes, and they mean
+     * opposite things: the ground under a dropped signal was driven and sprayed, the ground
+     * across a pause was not. The fixes cannot tell them apart, so the break is recorded where
+     * it happens, and read back with the pass.
+     */
+    @Test
+    fun pausingAPassOpensABreakAndCarryingOnClosesIt() = runBlocking {
+        val sessionId = recordings.startRecording("Spray run")
+        recordings.appendPoint(sessionId, line[0])
+
+        recordings.beginBreak(sessionId, atEpochMs = 1_000L)
+
+        val opened = recordings.getBreaks(sessionId).single()
+        assertEquals(1_000L, opened.fromEpochMs)
+        assertNull("a pass that is still paused has no end to its break", opened.toEpochMs)
+
+        recordings.appendPoint(sessionId, line[1])
+        recordings.endBreak(sessionId, atEpochMs = 900_000L)
+
+        val closed = recordings.getBreaks(sessionId).single()
+        assertEquals(1_000L, closed.fromEpochMs)
+        assertEquals("carrying on closes it", 900_000L, closed.toEpochMs)
+    }
+
+    /** Two pauses in one pass are two breaks, and neither is invented. */
+    @Test
+    fun twoPausesAreKeptApart() = runBlocking {
+        val sessionId = recordings.startRecording("Spray run")
+
+        recordings.beginBreak(sessionId, atEpochMs = 1_000L)
+        recordings.endBreak(sessionId, atEpochMs = 2_000L)
+        recordings.beginBreak(sessionId, atEpochMs = 3_000L)
+
+        val breaks = recordings.getBreaks(sessionId)
+        assertEquals(2, breaks.size)
+        assertEquals(1_000L, breaks[0].fromEpochMs)
+        assertEquals(2_000L, breaks[0].toEpochMs)
+        assertEquals("the second one is still open", null, breaks[1].toEpochMs)
+
+        recordings.endBreak(sessionId, atEpochMs = 4_000L)
+        assertEquals(4_000L, recordings.getBreaks(sessionId)[1].toEpochMs)
+    }
+
     @Test
     fun renamingAProductKeepsItsSprayHistory() = runBlocking {
         val assetId = assetRepository.createAsset("Block", line)

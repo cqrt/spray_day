@@ -5,17 +5,6 @@ import kotlin.math.cos
 import kotlin.math.max
 
 /**
- * One pass over a planned line that could account for part of it: when it happened, and
- * the fixes that prove it.
- *
- * A pass with no fixes proves nothing, and is ignored wherever one of these is read.
- */
-data class RecordedPass(
-    val atEpochMs: Long,
-    val points: List<GeoPoint>
-)
-
-/**
  * A stretch of a planned line sharing one answer to *when was this last sprayed?*
  *
  * This is what lets the map draw a half-sprayed track as half done. The answer has to be
@@ -39,6 +28,14 @@ data class CoverageStretch(
  * The answer is computed by walking the planned geometry and asking whether the recording
  * came within a tolerance of each part of it - so a section driven twice does not inflate
  * the number, and a section missed entirely shows up as a shortfall straight away.
+ *
+ * A recording is read as the line it drew, not as the fixes it happens to hold: the ground
+ * between one fix and the next is ground the pass crossed, so it is walked and counted too.
+ * That matters because fixes go missing - rejected for poor accuracy under trees, or simply
+ * not delivered for a minute in a gully - and a pass that read 92% because the phone lost
+ * the sky for 200 m was telling the operator they had missed a bit of a line they drove.
+ * The one gap that is not ground driven is a pause, which the app knows about because the
+ * operator pressed the button: see [RecordingBreak].
  */
 object Coverage {
 
@@ -58,18 +55,24 @@ object Coverage {
      * is what makes the number mean "how much of the track", not "how many of my
      * samples": a long straight stretch counts for more than a short kink, and half
      * of a segment reports as half.
+     *
+     * [breaks] are the stretches of the pass that were paused; without them a jump in the
+     * fixes is read as ground the pass crossed, which is what it usually is. Pass them
+     * wherever the recording has them - see [RecordedPass] - or the number and the drawing
+     * will disagree with the same pass read anywhere else.
      */
     fun coveredFraction(
         planned: List<GeoPoint>,
         recorded: List<GeoPoint>,
-        toleranceM: Double = DEFAULT_TOLERANCE_M
+        toleranceM: Double = DEFAULT_TOLERANCE_M,
+        breaks: List<RecordingBreak> = emptyList()
     ): Double {
         if (planned.size < 2 || recorded.isEmpty() || toleranceM <= 0.0) return 0.0
 
         val walk = PlannedWalk(planned, stepM = toleranceM / 2.0)
         if (walk.totalM <= 0.0) return 0.0
 
-        val index = RecordedIndex(recorded, cellSizeM = toleranceM)
+        val index = RecordedIndex(recorded, cellSizeM = toleranceM, breaks = breaks)
         var covered = 0.0
         for (step in walk.steps) {
             if (index.containsWithin(step.probe, toleranceM)) covered += step.lengthM
@@ -86,7 +89,9 @@ object Coverage {
      * of it, and by [assetSprayedAtEpochMs] - a spray with no recording behind it, which is
      * a whole line by definition, because that is what the operator was saying when they
      * logged it. Where several of those could account for a stretch, the most recent one is
-     * the answer, so two halves sprayed on two days both read as sprayed.
+     * the answer, so two halves sprayed on two days both read as sprayed. A pass is read as
+     * the line it drew rather than as its fixes, and its own [RecordedPass.breaks] are the
+     * gaps in it that are not - see [coveredFraction].
      *
      * Nothing is stored: the answer is recomputed from the plan against the recordings, so
      * a line that has been edited since is cut up as it is now.
@@ -108,7 +113,7 @@ object Coverage {
 
         val indexes = passes
             .filter { it.points.isNotEmpty() }
-            .map { it.atEpochMs to RecordedIndex(it.points, cellSizeM = toleranceM) }
+            .map { it.atEpochMs to RecordedIndex(it.points, cellSizeM = toleranceM, breaks = it.breaks) }
 
         val stamped = walk.steps.map { step ->
             var latest = assetSprayedAtEpochMs
@@ -275,8 +280,24 @@ object Coverage {
      * only has to be compared with the handful of fixes that could possibly be close
      * enough. Recomputing coverage as a recording grows is then cheap enough to do
      * live on screen.
+     *
+     * The buckets hold the fixes *and the ground between them*: the line is walked between
+     * one fix and the next and samples are put in at [bridgeStepM] intervals, so a plan
+     * metre that lies between two fixes is vouched for by the pass that crossed it. Without
+     * that, only the metres near an actual fix count, and a recording with a fix every 50 m
+     * - a fast pass, or a phone that only gets a fix now and then - reads as a quarter of
+     * the line sprayed.
+     *
+     * Two things stop the walk. A [RecordingBreak] between the two fixes means the operator
+     * was stopped, so nothing is claimed across it. And a jump longer than
+     * [MAX_BRIDGE_SAMPLES] steps is not one pass over one line at all - it is two different
+     * places - so the fixes vouch for what they are near and nothing more.
      */
-    private class RecordedIndex(points: List<GeoPoint>, cellSizeM: Double) {
+    private class RecordedIndex(
+        points: List<GeoPoint>,
+        cellSizeM: Double,
+        breaks: List<RecordingBreak> = emptyList()
+    ) {
 
         // One longitude scale for the whole recording: a sprayed track is small
         // enough that the variation with latitude is far below the tolerance.
@@ -288,9 +309,34 @@ object Coverage {
         private val cells = HashMap<Long, MutableList<GeoPoint>>()
 
         init {
-            points.forEach { point ->
-                cells.getOrPut(key(row(point.lat), column(point.lng))) { mutableListOf() } += point
+            points.forEach { point -> add(point) }
+
+            val bridgeStepM = cellSizeM * BRIDGE_STEP_FRACTION
+            for (index in 1 until points.size) {
+                val from = points[index - 1]
+                val to = points[index]
+                if (breaks.any { it.fallsBetween(from.timeMs, to.timeMs) }) continue
+
+                val gapM = haversineMeters(from.lat, from.lng, to.lat, to.lng)
+                if (gapM <= bridgeStepM) continue
+                val steps = ceil(gapM / bridgeStepM).toInt()
+                if (steps > MAX_BRIDGE_SAMPLES) continue
+
+                // The two fixes are already in the buckets; this is the ground between them.
+                for (step in 1 until steps) {
+                    val t = step.toDouble() / steps
+                    add(
+                        GeoPoint(
+                            lat = from.lat + (to.lat - from.lat) * t,
+                            lng = from.lng + (to.lng - from.lng) * t
+                        )
+                    )
+                }
             }
+        }
+
+        private fun add(point: GeoPoint) {
+            cells.getOrPut(key(row(point.lat), column(point.lng))) { mutableListOf() } += point
         }
 
         fun containsWithin(probe: GeoPoint, toleranceM: Double): Boolean {
@@ -324,6 +370,25 @@ object Coverage {
  * boundary is not drawn twice in the same line.
  */
 private const val BOUNDARY_EPS_M = 1e-6
+
+/**
+ * How far apart the samples walked between two fixes are, as a fraction of the tolerance:
+ * half, so that any point on the line between them is within a quarter of a tolerance of a
+ * sample - comfortably inside it, whatever the plan's own step size lands on.
+ */
+private const val BRIDGE_STEP_FRACTION = 0.5
+
+/**
+ * The most samples one gap between two fixes may be walked with.
+ *
+ * A gap of a few hundred metres - the length of a fix outage under trees or in a gully -
+ * takes a handful of samples. The cap is what keeps a recording that was left on during a
+ * drive to town from walking hundreds of thousands of them: at the default tolerance it is
+ * 6 km, and a jump longer than that is not one pass over one line, it is two different
+ * places, so the fixes vouch for what they are near and nothing more - which is what a
+ * coverage measured from the fixes alone used to say.
+ */
+private const val MAX_BRIDGE_SAMPLES = 1_000
 
 /** "94%" / "100%" - coverage as the operator reads it. */
 fun formatCoveragePercent(fraction: Double): String =

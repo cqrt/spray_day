@@ -45,6 +45,9 @@ interface BackupDao {
     @Query("SELECT * FROM recorded_points ORDER BY sessionId, sequence")
     suspend fun allRecordedPoints(): List<RecordedPointEntity>
 
+    @Query("SELECT * FROM recorded_breaks ORDER BY sessionId, fromEpochMs")
+    suspend fun allRecordedBreaks(): List<RecordedBreakEntity>
+
     // --- Counting, for "what is in the app right now" ------------------------------
 
     @Query("SELECT COUNT(*) FROM assets")
@@ -94,6 +97,9 @@ interface BackupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecordedPoints(rows: List<RecordedPointEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecordedBreaks(rows: List<RecordedBreakEntity>)
+
     // --- Clearing, children before parents so foreign keys are never left dangling --
 
     @Query("DELETE FROM asset_product_defaults")
@@ -119,6 +125,9 @@ interface BackupDao {
 
     @Query("DELETE FROM recorded_points")
     suspend fun clearRecordedPoints()
+
+    @Query("DELETE FROM recorded_breaks")
+    suspend fun clearRecordedBreaks()
 
     @Query("DELETE FROM recorded_sessions")
     suspend fun clearRecordedSessions()

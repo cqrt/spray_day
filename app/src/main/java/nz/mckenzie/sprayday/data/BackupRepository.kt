@@ -6,6 +6,7 @@ import nz.mckenzie.sprayday.data.db.AssetPointEntity
 import nz.mckenzie.sprayday.data.db.AssetProductDefaultEntity
 import nz.mckenzie.sprayday.data.db.GroupEntity
 import nz.mckenzie.sprayday.data.db.ProductEntity
+import nz.mckenzie.sprayday.data.db.RecordedBreakEntity
 import nz.mckenzie.sprayday.data.db.RecordedPointEntity
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
@@ -20,6 +21,7 @@ import nz.mckenzie.sprayday.domain.backup.BackupSummary
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.LinePointRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.backup.RecordedBreakRecord
 import nz.mckenzie.sprayday.domain.backup.RecordedPointRecord
 import nz.mckenzie.sprayday.domain.backup.RecordingRecord
 import nz.mckenzie.sprayday.domain.backup.SprayEventRecord
@@ -55,6 +57,7 @@ class BackupRepository(
         val pointsByAsset = dao.allAssetPoints().groupBy { it.assetId }
         val productsByEvent = dao.allSprayEventProducts().groupBy { it.sprayEventId }
         val pointsBySession = dao.allRecordedPoints().groupBy { it.sessionId }
+        val breaksBySession = dao.allRecordedBreaks().groupBy { it.sessionId }
 
         return BackupDocument(
             exportedAtEpochMs = nowEpochMs(),
@@ -65,7 +68,10 @@ class BackupRepository(
             sprayEvents = dao.allSprayEvents().map { event -> event.toRecord(productsByEvent[event.id].orEmpty()) },
             assetDefaults = dao.allAssetDefaults().map { it.toRecord() },
             recordings = dao.allRecordedSessions().map { session ->
-                session.toRecord(pointsBySession[session.id].orEmpty())
+                session.toRecord(
+                    points = pointsBySession[session.id].orEmpty(),
+                    breaks = breaksBySession[session.id].orEmpty()
+                )
             },
             settings = settings
         )
@@ -97,6 +103,7 @@ class BackupRepository(
         dao.clearAssets()
         dao.clearGroups()
         dao.clearProducts()
+        dao.clearRecordedBreaks()
         dao.clearRecordedPoints()
         dao.clearRecordedSessions()
 
@@ -142,6 +149,20 @@ class BackupRepository(
                         speedMps = point.speedMps,
                         bearingDeg = point.bearingDeg,
                         recordedAtEpochMs = point.recordedAtEpochMs
+                    )
+                }
+            }
+        )
+        // The pauses come back with the fixes they belong to. Their own row ids do not matter,
+        // so they are left to the database: what ties a break to its pass is the session, and
+        // that is the id the file carried.
+        dao.insertRecordedBreaks(
+            document.recordings.flatMap { session ->
+                session.breaks.map { pause ->
+                    RecordedBreakEntity(
+                        sessionId = session.id,
+                        fromEpochMs = pause.fromEpochMs,
+                        toEpochMs = pause.toEpochMs
                     )
                 }
             }
@@ -281,7 +302,10 @@ private fun AssetDefaultRecord.toEntity() = AssetProductDefaultEntity(
     defaultQuantityMl = defaultQuantityMl
 )
 
-private fun RecordedSessionEntity.toRecord(points: List<RecordedPointEntity>) = RecordingRecord(
+private fun RecordedSessionEntity.toRecord(
+    points: List<RecordedPointEntity>,
+    breaks: List<RecordedBreakEntity>
+) = RecordingRecord(
     id = id,
     name = name,
     assetId = assetId,
@@ -302,6 +326,9 @@ private fun RecordedSessionEntity.toRecord(points: List<RecordedPointEntity>) = 
             bearingDeg = it.bearingDeg,
             recordedAtEpochMs = it.recordedAtEpochMs
         )
+    },
+    breaks = breaks.sortedBy { it.fromEpochMs }.map {
+        RecordedBreakRecord(fromEpochMs = it.fromEpochMs, toEpochMs = it.toEpochMs)
     }
 )
 

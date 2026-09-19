@@ -132,7 +132,11 @@ class AssetRepository(
                 event.recordedSessionId?.let { sessionId ->
                     RecordedPass(
                         atEpochMs = event.sprayedAtEpochMs,
-                        points = recordingDao.getPoints(sessionId).map { it.toGeoPoint() }
+                        points = recordingDao.getPoints(sessionId).map { it.toGeoPoint() },
+                        // A pass read here has to be the same pass the recorder showed: the
+                        // ground it was paused over stays red, and the gaps where the fixes
+                        // only went missing are ground it drove.
+                        breaks = recordingDao.getBreaks(sessionId).map { it.toRecordingBreak() }
                     )
                 }
             },

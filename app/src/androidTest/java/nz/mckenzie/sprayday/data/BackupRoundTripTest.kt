@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import nz.mckenzie.sprayday.data.db.ProductEntity
+import nz.mckenzie.sprayday.data.db.RecordedBreakEntity
 import nz.mckenzie.sprayday.data.db.RecordedPointEntity
 import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
@@ -111,6 +112,17 @@ class BackupRoundTripTest {
                 lng = 173.96,
                 recordedAtEpochMs = 1_788_000_001_000L
             )
+        )
+        // One pause, and one the operator never carried on from: both have to survive the file.
+        db.recordingDao().insertBreak(
+            RecordedBreakEntity(
+                sessionId = session,
+                fromEpochMs = 1_788_000_000_500L,
+                toEpochMs = 1_788_000_000_900L
+            )
+        )
+        db.recordingDao().insertBreak(
+            RecordedBreakEntity(sessionId = session, fromEpochMs = 1_788_000_001_500L)
         )
 
         val spray = db.sprayEventDao().insertEvent(

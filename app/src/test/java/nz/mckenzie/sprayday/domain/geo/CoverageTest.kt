@@ -51,6 +51,81 @@ class CoverageTest {
         assertEquals(1.0, covered, 0.01)
     }
 
+    /**
+     * A recorded fix [metres] along the line, [atMs] after the pass started, [northM] off it.
+     *
+     * Times matter now that a pause is told apart from a dropped signal by when it happened, so
+     * the tests that care about that build their passes out of these rather than [driveAlong].
+     */
+    private fun fixAt(metres: Double, atMs: Long, northM: Double = 0.0) = GeoPoint(
+        lat = northM / METRES_PER_DEG_LAT,
+        lng = metres / METRES_PER_DEG_LNG_AT_EQUATOR,
+        timeMs = atMs
+    )
+
+    /**
+     * A fix every fifty metres - a pass at 70 km/h, or a phone that only gets a fix now and
+     * then - over a line the whole of which was driven.
+     *
+     * Every metre of the ground between two fixes was driven and sprayed by the machine that
+     * crossed it, and none of it counted: the metres between the fixes read as unsprayed, and a
+     * pass down the whole line came back as a quarter of it. That is the report this fixes.
+     */
+    @Test
+    fun `fixes every fifty metres still cover the line between them`() {
+        val planned = lineEast(1_000.0)
+        val recorded = (0..20).map { step -> fixAt(step * 50.0, atMs = step * 25_000L) }
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+
+        assertEquals(1.0, covered, 0.01)
+    }
+
+    /**
+     * A fix outage under trees: 200 m of the line with nothing in the recording at all.
+     *
+     * The pass carried on - there is no pause behind this - so the ground in between is ground
+     * it drove. The line is drawn across the gap and the plan under it counts as sprayed, which
+     * is the same thing the drawing says.
+     */
+    @Test
+    fun `a gap in the fixes is ground the pass drove`() {
+        val planned = lineEast(1_000.0)
+        val recorded = listOf(
+            fixAt(0.0, atMs = 0L),
+            fixAt(400.0, atMs = 60_000L),
+            fixAt(600.0, atMs = 180_000L),
+            fixAt(1_000.0, atMs = 240_000L)
+        )
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+
+        assertEquals("the whole line, fixes or no fixes in the middle", 1.0, covered, 0.01)
+
+        val stretches = Coverage.splitByCoverage(
+            planned,
+            listOf(RecordedPass(atEpochMs = 240_000L, points = recorded))
+        )
+        assertEquals("one stretch, sprayed the whole way", 1, stretches.size)
+    }
+
+    /** A jump too long to be one pass over one line, however far apart the fixes are in time. */
+    @Test
+    fun `a jump of twenty kilometres is not a pass over the line between`() {
+        val planned = lineEast(1_200.0)
+        // Left recording on the ute and back on the line two days later.
+        val recorded = listOf(fixAt(0.0, atMs = 0L), fixAt(20_000.0, atMs = 172_800_000L))
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+
+        assertEquals(
+            "only the ground around the two fixes, as it was before any of this",
+            0.02,
+            covered,
+            0.02
+        )
+    }
+
     @Test
     fun `driving half the line covers about half of it`() {
         val planned = lineEast(1_000.0)
@@ -60,18 +135,38 @@ class CoverageTest {
         assertEquals(0.5, covered, 0.05)
     }
 
+    /**
+     * The pass that was stopped in the middle of it.
+     *
+     * Driven to 400 m, paused for a tank or a load, carried on from 800 m: the fixes on either
+     * side of the stop, and the break the pause button left behind - which is the one gap in a
+     * recording that is not ground the pass drove. The middle third is the part that was not
+     * sprayed, and it is the part this has to keep saying was not.
+     */
     @Test
-    fun `a gap in the middle is reported as a gap`() {
+    fun `a pause in the middle of a pass leaves the middle unsprayed`() {
         val planned = lineEast(1_200.0)
-        // The first and last thirds are driven; the middle third is missed.
-        val recorded = driveAlong(400.0) +
-            driveAlong(400.0, fromLng = 800.0 / METRES_PER_DEG_LNG_AT_EQUATOR)
+        val recorded = listOf(
+            fixAt(0.0, atMs = 0L),
+            fixAt(400.0, atMs = 60_000L),
+            fixAt(800.0, atMs = 900_000L),
+            fixAt(1_200.0, atMs = 960_000L)
+        )
+        val paused = listOf(RecordingBreak(fromEpochMs = 65_000L, toEpochMs = 890_000L))
 
-        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance, breaks = paused)
 
-        // The two thirds driven, plus the tolerance reaching just past each end of
-        // a driven section - roughly 824 m of 1,200 m.
+        // The two thirds driven, plus the tolerance reaching just past each end of a driven
+        // stretch - roughly 824 m of 1,200 m, the same answer the two thirds always gave.
         assertEquals(0.69, covered, 0.03)
+
+        val stretches = Coverage.splitByCoverage(
+            planned,
+            listOf(RecordedPass(atEpochMs = 960_000L, points = recorded, breaks = paused))
+        )
+        assertEquals("sprayed, the stop, sprayed again", 3, stretches.size)
+        assertEquals(960_000L, stretches[0].lastSprayedAtEpochMs)
+        assertNull("the ground the pass was stopped over is still to spray", stretches[1].lastSprayedAtEpochMs)
     }
 
     @Test
@@ -314,6 +409,56 @@ class CoverageTest {
         )
     }
 
+    /**
+     * A jump that leaves the line: through a gate, 40 m off it, and back on.
+     *
+     * The straight line between the two fixes is what vouches for the ground in between, and
+     * the tolerance is what says how far off the line that ground may be. A bridge that carried
+     * the spray with it wherever it went would turn this into a sprayed line.
+     */
+    @Test
+    fun `a jump off the line covers only the ground the bridge crosses`() {
+        val planned = lineEast(1_200.0)
+        val recorded = listOf(
+            fixAt(0.0, atMs = 0L),
+            fixAt(1_200.0, atMs = 60_000L, northM = 40.0)
+        )
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance)
+
+        assertTrue("the line under the bridge is covered, got $covered", covered > 0.2)
+        assertTrue("but most of the line is not, got $covered", covered < 0.6)
+    }
+
+    /** A break that never ended: the pass was finished while it was paused. */
+    @Test
+    fun `a pause that is still open still divides the pass`() {
+        val planned = lineEast(1_200.0)
+        val recorded = listOf(
+            fixAt(0.0, atMs = 0L),
+            fixAt(400.0, atMs = 60_000L),
+            fixAt(800.0, atMs = 900_000L)
+        )
+        // Nothing after it: the operator stopped and saved the pass from where they were.
+        val paused = listOf(RecordingBreak(fromEpochMs = 65_000L))
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance, breaks = paused)
+
+        assertEquals("the 400 m before the stop, and nothing after it", 0.34, covered, 0.03)
+    }
+
+    /** A break that falls outside the pass altogether says nothing about it. */
+    @Test
+    fun `a pause with no fixes around it changes nothing`() {
+        val planned = lineEast(600.0)
+        val recorded = (0..6).map { step -> fixAt(step * 100.0, atMs = step * 10_000L) }
+        val afterwards = listOf(RecordingBreak(fromEpochMs = 500_000L, toEpochMs = 600_000L))
+
+        val covered = Coverage.coveredFraction(planned, recorded, tolerance, breaks = afterwards)
+
+        assertEquals(1.0, covered, 0.01)
+    }
+
     @Test
     fun `a plan with nowhere to walk has nothing to cut up`() {
         val nowhere = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.0))
@@ -385,5 +530,45 @@ class CoverageTest {
         assertEquals(76.0, stretches[1].lengthM, 3.0)
         assertEquals(7L, stretches[0].lastSprayedAtEpochMs)
         assertNull(stretches[1].lastSprayedAtEpochMs)
+    }
+
+    // --- The recorded line, divided where the operator stopped -------------------------
+
+    /** The recorded line is drawn in one piece until a pause divides it, and no further. */
+    @Test
+    fun `a pause divides the recorded line in two`() {
+        val points = listOf(
+            fixAt(0.0, atMs = 0L),
+            fixAt(100.0, atMs = 10_000L),
+            fixAt(200.0, atMs = 20_000L),
+            fixAt(300.0, atMs = 30_000L)
+        )
+
+        val pieces = points.splitAtBreaks(listOf(RecordingBreak(fromEpochMs = 12_000L, toEpochMs = 18_000L)))
+
+        assertEquals("one line either side of the stop", 2, pieces.size)
+        assertEquals(points.take(2), pieces[0])
+        assertEquals(points.drop(2), pieces[1])
+        assertEquals(
+            "and a pass that was never paused is one line",
+            1,
+            points.splitAtBreaks(emptyList()).size
+        )
+    }
+
+    /**
+     * Two fixes with the stop between them: dropping a piece of one fix each would lose the line
+     * altogether, and a recording that cannot be seen is worse than one drawn in one piece.
+     */
+    @Test
+    fun `a pass too short to divide is still drawn whole`() {
+        val points = listOf(fixAt(0.0, atMs = 0L), fixAt(100.0, atMs = 10_000L))
+
+        val paused = listOf(RecordingBreak(fromEpochMs = 5_000L, toEpochMs = 6_000L))
+
+        val pieces = points.splitAtBreaks(paused)
+
+        assertEquals(1, pieces.size)
+        assertEquals(points, pieces.single())
     }
 }

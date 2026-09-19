@@ -35,8 +35,10 @@ import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
+import nz.mckenzie.sprayday.domain.geo.RecordingBreak
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
+import nz.mckenzie.sprayday.domain.geo.splitAtBreaks
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
@@ -204,9 +206,19 @@ class RecordingViewModel(
         val trackName: String?,
         val planned: List<GeoPoint>,
         val recorded: List<GeoPoint>,
+        /** The stretches of it that were paused for, so the colours and the line stay honest. */
+        val breaks: List<RecordingBreak> = emptyList(),
         val coverage: Double?,
         val summary: PassSummary
-    )
+    ) {
+
+        /** The saved pass in the shape the drawing and the coverage maths read. */
+        fun toPass() = RecordedPass(
+            atEpochMs = recorded.lastOrNull()?.timeMs ?: 0L,
+            points = recorded,
+            breaks = breaks
+        )
+    }
 
     /** The live pass's numbers, in the shape the card reads. */
     private fun TrackingState.State.summary(
@@ -246,6 +258,33 @@ class RecordingViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /**
+     * The breaks in the recording that is happening now: the stretches the operator paused for.
+     *
+     * Followed exactly as the fixes are, so the number on the card and the colour of the line
+     * are worked out from the pass as it actually was. A pause in the middle of a pass leaves
+     * ground that was not sprayed, and no amount of fixes after it changes that - which is why
+     * the two have to reach the coverage maths together.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val sessionBreaks: StateFlow<List<RecordingBreak>> = TrackingState.state
+        .map { it.sessionId }
+        .distinctUntilChanged()
+        .flatMapLatest { sessionId ->
+            if (sessionId == null) flowOf(emptyList()) else recordings.observeBreaks(sessionId)
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The pass being driven, in the shape the coverage maths and the drawing read. */
+    private val livePass: StateFlow<RecordedPass> =
+        combine(sessionPoints, sessionBreaks) { points, breaks ->
+            RecordedPass(
+                atEpochMs = points.lastOrNull()?.timeMs ?: 0L,
+                points = points,
+                breaks = breaks
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, RecordedPass(0L, emptyList()))
+
     private val plannedGeometry = MutableStateFlow<List<GeoPoint>>(emptyList())
 
     /**
@@ -265,18 +304,18 @@ class RecordingViewModel(
      * drawn - that is the "record a new line" case, where the line being made is the point.
      */
     val recordedGeoJson: StateFlow<String> =
-        combine(sessionPoints, plannedGeometry, _finished) { recorded, planned, done ->
+        combine(livePass, plannedGeometry, _finished) { pass, planned, done ->
             when {
                 // A pass being driven, or a track chosen and waiting for one: the plan is the
                 // thing on the screen, in the colours of how much of it is done.
-                recorded.isNotEmpty() || planned.isNotEmpty() -> planned to recorded
+                pass.points.isNotEmpty() || planned.isNotEmpty() -> planned to pass
                 // Nothing live. The pass that has just been saved stays where it was, rather
                 // than the map going blank the moment Save is pressed.
-                done != null -> done.planned to done.recorded
-                else -> emptyList<GeoPoint>() to emptyList()
+                done != null -> done.planned to done.toPass()
+                else -> emptyList<GeoPoint>() to RecordedPass(0L, emptyList())
             }
         }
-            .map { (planned, recorded) -> routeGeoJson(planned, recorded) }
+            .map { (planned, pass) -> routeGeoJson(planned, pass) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -290,12 +329,8 @@ class RecordingViewModel(
      * The pass is dated from its newest fix rather than from the session row, so this stays a
      * pure function of the two lists it is given.
      */
-    private fun routeGeoJson(planned: List<GeoPoint>, recorded: List<GeoPoint>): String {
+    private fun routeGeoJson(planned: List<GeoPoint>, pass: RecordedPass): String {
         if (planned.size >= 2) {
-            val pass = RecordedPass(
-                atEpochMs = recorded.lastOrNull()?.timeMs ?: 0L,
-                points = recorded
-            )
             val stretches = Coverage.splitByCoverage(planned, listOf(pass))
                 .map { stretch ->
                     AssetStretch(
@@ -326,7 +361,13 @@ class RecordingViewModel(
                     assetId = RECORDING_ID,
                     name = "Recording",
                     colorHex = AssetColors.RED,
-                    points = recorded
+                    points = pass.points,
+                    // The line this pass drove, broken where the operator paused. The rest of a
+                    // gap in the fixes is ground the pass crossed, and is drawn through - the
+                    // two come from the same rule the plan's colours do.
+                    stretches = pass.points.splitAtBreaks(pass.breaks).map { piece ->
+                        AssetStretch(colorHex = AssetColors.RED, points = piece)
+                    }
                 )
             )
         )
@@ -393,11 +434,11 @@ class RecordingViewModel(
         // Live coverage. collectLatest plus a short delay makes this a debounce: a
         // fresh fix cancels the pending calculation rather than queueing another.
         viewModelScope.launch {
-            combine(sessionPoints, plannedGeometry, _finished) { recorded, planned, done ->
-                Triple(planned, recorded, done)
+            combine(livePass, plannedGeometry, _finished) { pass, planned, done ->
+                Triple(planned, pass, done)
             }
-                .collectLatest { (planned, recorded, done) ->
-                    if (planned.size < 2 || recorded.isEmpty()) {
+                .collectLatest { (planned, pass, done) ->
+                    if (planned.size < 2 || pass.points.isEmpty()) {
                         // Nothing to measure: no track chosen yet, or the track has just been
                         // sprayed and saved, in which case the number that belongs on the
                         // screen is the one the saved pass came to.
@@ -406,7 +447,7 @@ class RecordingViewModel(
                     }
                     delay(COVERAGE_DEBOUNCE_MS)
                     _coverage.value = withContext(Dispatchers.Default) {
-                        Coverage.coveredFraction(planned, recorded)
+                        Coverage.coveredFraction(planned, pass.points, breaks = pass.breaks)
                     }
                 }
         }
@@ -630,6 +671,11 @@ class RecordingViewModel(
             // from the track.
             val geometry = runCatching { recordings.getPoints(sessionId) }
                 .getOrDefault(emptyList())
+            // And the pauses with it, for the same reason: the saved pass is drawn, and its
+            // colours are worked out, from what the database holds rather than from what the
+            // screen happened to have collected.
+            val breaks = runCatching { recordings.getBreaks(sessionId) }
+                .getOrDefault(emptyList())
 
             var trackError: String? = null
             val assetId = when {
@@ -706,6 +752,7 @@ class RecordingViewModel(
                 trackName = sprayTrackName,
                 planned = plannedNow,
                 recorded = geometry,
+                breaks = breaks,
                 coverage = coverageNow,
                 summary = numbersNow
             )

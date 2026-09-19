@@ -637,4 +637,100 @@ class RecordingViewModelTest {
         assertEquals("with the card still saying what it was saying", told, viewModel.message.value)
         assertNull("and the session still open in the database", recordings.getSession(sessionId)!!.endedAtEpochMs)
     }
+
+    // --- The ground a paused pass did not drive -----------------------------------------
+
+    /** A fix [metres] along the test line, [atMs] after the pass started. */
+    private fun timedFixAt(metres: Double, atMs: Long) = GeoPoint(
+        lat = -41.5,
+        lng = 173.9 + metres / METRES_PER_DEG_LNG_AT_EQUATOR,
+        timeMs = atMs
+    )
+
+    /**
+     * A 1 km track made from a recording of it, and a second pass over it already under way,
+     * with the track selected on the screen.
+     *
+     * The track is written 4 m apart, as the app records one, because the plan is what gets
+     * split and its own geometry has to be the geometry of a real track.
+     */
+    private suspend fun passUnderWayOverATrack(viewModel: RecordingViewModel): Long {
+        val madeIt = recordings.startRecording(name = "Track 18 Sep")
+        val whole = fixesAlong(1_000.0)
+        whole.forEach { recordings.appendPoint(madeIt, it) }
+        recordings.finishRecording(madeIt, distanceM = polylineLengthMeters(whole))
+        val assetId = assetRepository.createAsset("Track 18 Sep", whole)
+
+        val walking = recordings.startRecording(name = "Spray run", assetId = assetId)
+        TrackingState.begin(walking, System.currentTimeMillis())
+        viewModel.selectTrack(assetId)
+        withTimeout(5_000) { viewModel.selectedAssetId.first { it == assetId } }
+        return walking
+    }
+
+    /**
+     * The pass that was stopped in the middle of it - the one gap in a recording that is not
+     * ground the pass drove.
+     *
+     * The fixes either side of the stop join up perfectly well, so nothing in them says the
+     * operator stopped spraying; the break the pause button writes is the only thing that does.
+     * The plan under the stop stays red, and the number beside it says so.
+     */
+    @Test
+    fun aPausedStretchOfAPassReadsAsUnsprayed() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel)
+
+        // Driven to 400 m, stopped for a tank, carried on from 800 m.
+        recordings.appendPoint(walking, timedFixAt(0.0, atMs = 0L))
+        recordings.appendPoint(walking, timedFixAt(400.0, atMs = 60_000L))
+        recordings.beginBreak(walking, atEpochMs = 65_000L)
+        recordings.endBreak(walking, atEpochMs = 890_000L)
+        recordings.appendPoint(walking, timedFixAt(800.0, atMs = 900_000L))
+        recordings.appendPoint(walking, timedFixAt(1_000.0, atMs = 960_000L))
+
+        val map = withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { it.contains(drawn(timedFixAt(800.0, atMs = 900_000L))) }
+        }
+        // The coverage is debounced by three quarters of a second; give it the beat it asks for.
+        delay(1_500)
+
+        val covered = viewModel.coverage.value
+        assertNotNull("the pass should have a coverage to read", covered)
+        assertTrue(
+            "the 400 m the pass was stopped over is not sprayed, got $covered",
+            covered!! < 0.75
+        )
+        assertTrue("and the parts either side of it are, got $covered", covered > 0.5)
+        assertTrue(
+            "and the line says the same thing: the stop is still red: $map",
+            map.contains(AssetColors.RED)
+        )
+    }
+
+    /**
+     * The same jump in the fixes with no pause behind it, which is the fixes going missing
+     * rather than the driving stopping: the ground between them is ground the pass drove, and
+     * a pass that drove the whole line reads as the whole line.
+     */
+    @Test
+    fun aGapInTheFixesWithNoPauseIsGroundThePassDrove() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel)
+
+        recordings.appendPoint(walking, timedFixAt(0.0, atMs = 0L))
+        recordings.appendPoint(walking, timedFixAt(400.0, atMs = 60_000L))
+        recordings.appendPoint(walking, timedFixAt(800.0, atMs = 900_000L))
+        recordings.appendPoint(walking, timedFixAt(1_000.0, atMs = 960_000L))
+
+        val map = withTimeout(5_000) {
+            viewModel.recordedGeoJson.first { it.contains(drawn(timedFixAt(800.0, atMs = 900_000L))) }
+        }
+        delay(1_500)
+
+        val covered = viewModel.coverage.value
+        assertNotNull("the pass should have a coverage to read", covered)
+        assertTrue("a line driven end to end reads as sprayed: $covered", covered!! > 0.95)
+        assertFalse("so none of it is left red: $map", map.contains(AssetColors.RED))
+    }
 }

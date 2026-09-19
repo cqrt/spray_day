@@ -16,9 +16,10 @@ import androidx.room.RoomDatabase
         AssetProductDefaultEntity::class,
         RecordedSessionEntity::class,
         RecordedPointEntity::class,
+        RecordedBreakEntity::class,
         OfflineAreaEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class SprayDayDatabase : RoomDatabase() {
@@ -46,7 +47,7 @@ abstract class SprayDayDatabase : RoomDatabase() {
                     context.applicationContext,
                     SprayDayDatabase::class.java,
                     NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build().also { instance = it }
             }
     }

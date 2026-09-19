@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.MainActivity
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.RecordingRepository
+import nz.mckenzie.sprayday.data.db.RecordedBreakEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.TrackPointFilter
 import nz.mckenzie.sprayday.domain.geo.haversineMeters
@@ -106,9 +107,25 @@ class TrackingService : Service() {
     }
 
     private fun updateStatus(newStatus: RecordingStatus) {
+        val previous = status
         status = newStatus
         TrackingState.setStatus(newStatus)
-        scope.launch { recordings.setStatus(sessionId, newStatus) }
+
+        if (sessionId > 0L) {
+            scope.launch {
+                recordings.setStatus(sessionId, newStatus)
+
+                // A pause is a break in the pass, not a gap in the fixes: the operator said
+                // they had stopped, so the ground in between is not counted as sprayed - and a
+                // dropped signal, which looks the same in the fixes, is. Written here, where
+                // the button is, because the fixes cannot tell the two apart afterwards. See
+                // RecordedBreakEntity.
+                when {
+                    newStatus == RecordingStatus.PAUSED -> recordings.beginBreak(sessionId)
+                    previous == RecordingStatus.PAUSED -> recordings.endBreak(sessionId)
+                }
+            }
+        }
 
         if (newStatus == RecordingStatus.RECORDING) {
             goForeground()

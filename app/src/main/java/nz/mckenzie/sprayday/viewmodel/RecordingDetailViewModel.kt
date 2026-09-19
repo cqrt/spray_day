@@ -20,11 +20,14 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.RecordingBreak
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
+import nz.mckenzie.sprayday.domain.geo.splitAtBreaks
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.map.AssetStretch
 
 /** One recording, in full: what was driven, and how much of the plan it covered. */
 data class RecordingDetail(
@@ -38,6 +41,8 @@ data class RecordingDetail(
     /** Distance computed from the stored geometry, which is the same thing re-derived. */
     val geometryDistanceM: Double,
     val points: List<GeoPoint>,
+    /** The stretches of the pass that were paused for, which are not ground it drove. */
+    val breaks: List<RecordingBreak> = emptyList(),
     val assetId: Long?,
     val assetName: String?,
     val plannedGeometry: List<GeoPoint>,
@@ -75,6 +80,8 @@ class RecordingDetailViewModel(
     /** The recorded line in red over the planned line in grey. */
     val geoJson: StateFlow<String> = _detail
         .map { detail ->
+            val points = detail?.points.orEmpty()
+            val breaks = detail?.breaks.orEmpty()
             AssetGeoJson.build(
                 listOf(
                     AssetLine(
@@ -87,7 +94,13 @@ class RecordingDetailViewModel(
                         assetId = RECORDED_ID,
                         name = detail?.name ?: "Recording",
                         colorHex = AssetColors.RED,
-                        points = detail?.points.orEmpty()
+                        points = points,
+                        // Broken where the pass was paused, and drawn straight through the gaps
+                        // where the fixes only went missing: the recording is the evidence, and
+                        // what the operator stopped for is part of it.
+                        stretches = points.splitAtBreaks(breaks).map { piece ->
+                            AssetStretch(colorHex = AssetColors.RED, points = piece)
+                        }
                     )
                 )
             )
@@ -127,6 +140,7 @@ class RecordingDetailViewModel(
             }
 
             val points = recordings.getPoints(sessionId)
+            val breaks = recordings.getBreaks(sessionId)
             val planned = session.assetId?.let { assetId ->
                 runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(emptyList())
             }.orEmpty()
@@ -136,7 +150,7 @@ class RecordingDetailViewModel(
 
             val coverage = withContext(Dispatchers.Default) {
                 if (planned.size >= 2 && points.isNotEmpty()) {
-                    Coverage.coveredFraction(planned, points)
+                    Coverage.coveredFraction(planned, points, breaks = breaks)
                 } else {
                     null
                 }
@@ -152,6 +166,7 @@ class RecordingDetailViewModel(
                 recordedDistanceM = session.distanceM,
                 geometryDistanceM = polylineLengthMeters(points),
                 points = points,
+                breaks = breaks,
                 assetId = session.assetId,
                 assetName = assetName,
                 plannedGeometry = planned,

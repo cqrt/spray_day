@@ -66,7 +66,9 @@ sprayed).
   this is not installed from a store — so it asks GitHub once a day, says so with a
   notification, and installs the release from Settings, handed to Android's own installer.
 - **GPS recording** via a `location`-type foreground service, with every fix
-  written to the database as it arrives.
+  written to the database as it arrives, and a pause written down as a pause — so a
+  stopped pass leaves ground that reads as unsprayed, while a gap where the fixes
+  only went missing is ground the pass drove.
 - **Spraying while recording**: pick the asset, type the amounts as they go in,
   and watch a live **coverage percentage** of the planned line — with the line
   itself turning green where this pass has sprayed it and staying red where it
@@ -220,10 +222,20 @@ done and the other half could sit untouched until it was a fortnight overdue.
 
 The map now colours each **stretch** of a line by its own last spray, using the same interval
 and lead time the asset's own light uses, and the recording is what says which stretch that
-was. Four things follow from that, and they are the whole behaviour:
+was. Six things follow from that, and they are the whole behaviour:
 
 - **Half sprayed today is half green and half red.** The recorded pass covers the stretch that
   was driven; the rest reads as still to spray, which is what it is.
+- **A gap in the fixes is ground the pass drove.** The recording is read as the line it drew,
+  not as the fixes it happens to hold: a fix rejected under trees, or a minute with no fix in a
+  gully, is not a stretch that went unsprayed — the machine that crossed it sprayed it, and both
+  the number and the colour count it. A pass walked with a fix every fifty metres used to read
+  as a quarter of the line sprayed.
+- **A pause is a break, and it stays red.** Pausing stops the fixes, so a paused pass leaves the
+  same hole in the recording a dropped signal does — and they mean opposite things. The app
+  writes the pause down when the button is pressed (`recorded_breaks`, kept in a backup too), so
+  the ground the operator was stopped over stays red, and the recording's own line is drawn in
+  two pieces rather than joined across the trip to the water tank.
 - **Two halves on two days is a sprayed line.** Each stretch keeps its own date, so the half
   done a fortnight ago is still green rather than being reddened by a pass that happened not
   to drive it. A map that cries shortfall over work that was done is a map that stops being

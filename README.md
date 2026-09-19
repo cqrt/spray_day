@@ -512,18 +512,17 @@ Pushing a tag like `v0.6.12` stamps `versionName 0.6.12` and `versionCode 612`
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.
 
-**Every push to `main` is tagged**, and the tag is what ships: the rule is that the code
-and the release never drift apart, so what is on a phone is always a commit that can be
-found by name. Take the next version in the sequence — patch + 1 — rather than reusing
-one: a tag points at the code that was built from it, and a number that has been
+**The tag is what ships**: every push to `main` that changes more than the words is tagged,
+so the code and the release never drift apart and what is on a phone is always a commit
+that can be found by name. Take the next version in the sequence — patch + 1 — rather than
+reusing one: a tag points at the code that was built from it, and a number that has been
 published cannot be moved without lying about what somebody already has installed.
 
-No change to what the app does waits for the next release: **a code change is committed,
-pushed and tagged as its own version**, in that order, before anything else is started.
-Work sitting in the working tree is work that cannot be found by name, and a fix that is
-only on this machine is a fix the phone has not got — the version number is cheap, while
-a batch of changes shipped together is a batch that has to be untangled together if one of
-them turns out to be wrong.
+A code change does not wait for the next release: **it is committed, pushed and tagged as its
+own version**, in that order, before anything else is started. Work sitting in the working
+tree is work that cannot be found by name, and a fix that is only on this machine is a fix
+the phone has not got — the version number is cheap, while a batch of changes shipped
+together is a batch that has to be untangled together if one of them turns out to be wrong.
 
 **A change to the documentation alone is not a release.** The README, and comments, are
 committed and pushed straight away so that they are never only on this machine, but they

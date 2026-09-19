@@ -449,6 +449,17 @@ Pushing a tag like `v0.6.12` stamps `versionName 0.6.12` and `versionCode 612`
 always increase — a locally built test APK can be installed over, and can itself
 be replaced by, a release.
 
+**Every push to `main` is tagged**, and the tag is what ships: the rule is that the code
+and the release never drift apart, so what is on a phone is always a commit that can be
+found by name. Take the next version in the sequence — patch + 1 — rather than reusing
+one: a tag points at the code that was built from it, and a number that has been
+published cannot be moved without lying about what somebody already has installed.
+
+```bash
+git push origin main
+git tag -a v0.6.15 -m "..." && git push origin v0.6.15    # ships the release
+```
+
 ## Getting a new version
 
 The app is not installed from a store, so nothing else will ever mention that a new version

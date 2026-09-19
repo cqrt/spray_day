@@ -64,6 +64,11 @@ sprayed).
   on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
   out over the farm as well as at spray height. The map does not rotate: north is up,
   which is one less thing to get wrong with gloves on.
+- **Layers you can switch off**: the layers button on the map lists what it draws — tracks,
+  roads, fencelines and stopbanks, and places — and hides any of them, so the map can be
+  cleared down to what is being read. The choice is remembered between visits, and it is the
+  home map's own: a spot being drawn still appears while it is being drawn, and an asset's
+  page still draws that asset.
 - **Backup and restore**: one JSON file holding the whole season — assets and their
   lines, every spray with its amounts, the groups and the product catalogue, the
   amounts each asset remembers, and every GPS recording. A restore replaces, and says

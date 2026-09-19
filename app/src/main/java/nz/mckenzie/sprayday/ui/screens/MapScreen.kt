@@ -20,13 +20,20 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +45,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.BasemapView
@@ -59,6 +67,9 @@ fun MapScreen(
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
     val recentre by viewModel.recentre.collectAsStateWithLifecycle()
     val locationNotice by viewModel.locationNotice.collectAsStateWithLifecycle()
+    val hiddenLayers by viewModel.hiddenLayers.collectAsStateWithLifecycle()
+
+    var layersOpen by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -86,10 +97,13 @@ fun MapScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
-                // Settings is all the map's own bar still holds. What used to be words up
-                // here - Assets, Offline - are tabs in the bar below now, which is where a
-                // place belongs; and the key is set once, so the icon is enough.
+                // Settings is the map's own key and switches. What used to be words up here -
+                // Assets, Offline - are tabs in the bar below now, which is where a place belongs;
+                // and the key is set once, so the icon is enough.
                 actions = {
+                    IconButton(onClick = { layersOpen = true }) {
+                        AppIcon(IconGlyph.LAYERS, contentDescription = "What the map draws")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         AppIcon(IconGlyph.SETTINGS, contentDescription = "Settings")
                     }
@@ -107,6 +121,10 @@ fun MapScreen(
                 basemap = basemap,
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
+                // What the operator has switched off. The home map is the one these apply to: a
+                // screen that is about one asset, or about the spot being drawn, draws it
+                // whatever is hidden here.
+                hiddenLayers = hiddenLayers,
                 // The marker for the phone is the map's own business now, so this screen
                 // says nothing about it: it draws where you are wherever a map is drawn.
                 // The operator's own tracks first; failing that, where the device is;
@@ -168,6 +186,71 @@ fun MapScreen(
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)
             )
+        }
+    }
+
+    if (layersOpen) {
+        LayersSheet(
+            hidden = hiddenLayers,
+            onHide = viewModel::setLayerHidden,
+            onShowAll = viewModel::showEveryLayer,
+            onDismiss = { layersOpen = false }
+        )
+    }
+}
+
+/**
+ * What the map draws, and the switches for it.
+ *
+ * A sheet rather than a settings screen, because the question "why is that not on the map" is
+ * asked while looking at the map, and is answered by switches in front of you. It also says what
+ * it does not do: the drawing screen still draws what is being drawn, and an asset's own page
+ * still draws that asset, whatever is switched off here - a switch that left one of those blank
+ * would have gone too far.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LayersSheet(
+    hidden: Set<AssetLayer>,
+    onHide: (layer: AssetLayer, hide: Boolean) -> Unit,
+    onShowAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    // Opened at its full height rather than half of it: this is four switches and a way to undo
+    // them, and half a sheet left the last of them - and the reset - behind a scroll that nothing
+    // on the screen says is there.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("What the map draws", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Switch off what you do not need to see. The map remembers, and it is " +
+                    "only this map: a spot being drawn, or an asset's own page, still draws it.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            AssetLayer.ALL.forEach { layer ->
+                val shown = layer !in hidden
+                ListItem(
+                    // The whole row switches, rather than only the switch: this is a screen used
+                    // with gloves on, and a switch is a small target. Tapping a layer that is on
+                    // turns it off, which is what "hide" means here.
+                    modifier = Modifier.clickable { onHide(layer, shown) },
+                    headlineContent = { Text(layer.displayName) },
+                    supportingContent = { Text(layer.summary) },
+                    trailingContent = {
+                        Switch(checked = shown, onCheckedChange = { checked -> onHide(layer, !checked) })
+                    }
+                )
+            }
+            if (hidden.isNotEmpty()) {
+                TextButton(onClick = onShowAll) { Text("Show everything") }
+            }
         }
     }
 }

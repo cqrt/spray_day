@@ -26,6 +26,7 @@ import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.Basemap
@@ -55,7 +56,7 @@ data class RecentreRequest(val bounds: LatLngBounds, val count: Int)
  */
 class MapViewModel(
     private val assetRepository: AssetRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     private val locationSource: LocationSource,
     /**
      * The due-status clock. A parameter so a test can tick it, rather than having to
@@ -74,6 +75,17 @@ class MapViewModel(
     /** Which map to draw under the work: the operator's choice in Settings. */
     val basemap: StateFlow<Basemap> = settingsRepository.basemap
         .stateIn(viewModelScope, SharingStarted.Eagerly, Basemap.DEFAULT)
+
+    /**
+     * The layers of the work this map is not drawing.
+     *
+     * A stored choice rather than a screen's, because it is the same map every time it is opened:
+     * an operator who has cleared the roads off it once does not want them back tomorrow. What is
+     * held here is what is *hidden*, so the map an install has never touched draws everything -
+     * see [AssetLayer].
+     */
+    val hiddenLayers: StateFlow<Set<AssetLayer>> = settingsRepository.hiddenMapLayers
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue(dueNow)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
@@ -255,6 +267,23 @@ class MapViewModel(
     /** The track under a tap on the map, or null when the tap was not on one. */
     fun assetAt(lat: Double, lng: Double, radiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M): Long? =
         AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
+
+    /**
+     * Hides or shows one layer of the work, leaving the others as they are.
+     *
+     * Written straight through to the preference rather than held here and saved later: a map has
+     * no Save button, and a choice that is forgotten when the app is closed is worse than no
+     * choice at all. The repository does the read and the write together, so two taps in a row
+     * accumulate rather than the second undoing the first.
+     */
+    fun setLayerHidden(layer: AssetLayer, hidden: Boolean) {
+        viewModelScope.launch { settingsRepository.hideMapLayer(layer, hidden) }
+    }
+
+    /** Puts every layer back on the map: one switch to undo the lot. */
+    fun showEveryLayer() {
+        viewModelScope.launch { settingsRepository.setHiddenMapLayers(emptySet()) }
+    }
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L

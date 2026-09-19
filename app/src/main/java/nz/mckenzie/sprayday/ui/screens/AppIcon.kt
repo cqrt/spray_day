@@ -41,7 +41,8 @@ enum class IconGlyph {
     SPRAY,
     CHEVRON,
     BLOCKS,
-    LOCATE
+    LOCATE,
+    LAYERS
 }
 
 /**
@@ -190,6 +191,23 @@ internal fun AppIcon(
                 line(0.50f, 0.80f, 0.50f, 0.94f)
                 line(0.06f, 0.50f, 0.20f, 0.50f)
                 line(0.80f, 0.50f, 0.94f, 0.50f)
+            }
+
+            // Sheets stacked, one under another: the shape every map app uses for "what is drawn
+            // on this map", which is what this button opens.
+            IconGlyph.LAYERS -> {
+                val top = Path().apply {
+                    moveTo(width * 0.50f, height * 0.14f)
+                    lineTo(width * 0.88f, height * 0.36f)
+                    lineTo(width * 0.50f, height * 0.58f)
+                    lineTo(width * 0.12f, height * 0.36f)
+                    close()
+                }
+                drawPath(top, tint, style = Stroke(width = stroke))
+                line(0.12f, 0.54f, 0.50f, 0.76f)
+                line(0.50f, 0.76f, 0.88f, 0.54f)
+                line(0.12f, 0.70f, 0.50f, 0.92f)
+                line(0.50f, 0.92f, 0.88f, 0.70f)
             }
 
             IconGlyph.MORE -> {

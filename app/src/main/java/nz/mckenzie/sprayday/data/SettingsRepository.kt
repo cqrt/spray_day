@@ -7,11 +7,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import nz.mckenzie.sprayday.BuildConfig
+import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.backup.BackupDestination
 import nz.mckenzie.sprayday.domain.backup.BackupSettingsRecord
 import nz.mckenzie.sprayday.domain.backup.BackupSwitches
@@ -34,6 +36,7 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
 
     private val linzKeyPref = stringPreferencesKey("linz_api_key")
     private val basemapPref = stringPreferencesKey("basemap")
+    private val hiddenMapLayersPref = stringSetPreferencesKey("hidden_map_layers")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
     private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
     private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
@@ -79,6 +82,42 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
 
     suspend fun setBasemap(value: Basemap) {
         context.settingsDataStore.edit { prefs -> prefs[basemapPref] = value.id }
+    }
+
+    /**
+     * The layers of the work the map is not drawing.
+     *
+     * What is stored is what is **hidden**, so the default is everything and a layer added in a
+     * later build arrives visible - see [AssetLayer]. An empty set is written as no value at all:
+     * that is the same thing to read, and it keeps a fresh install's file to what has actually
+     * been chosen.
+     */
+    val hiddenMapLayers: Flow<Set<AssetLayer>> = context.settingsDataStore.data.map { prefs ->
+        AssetLayer.hiddenIn(prefs[hiddenMapLayersPref])
+    }
+
+    suspend fun setHiddenMapLayers(layers: Set<AssetLayer>) {
+        context.settingsDataStore.edit { prefs ->
+            val ids = layers.mapTo(mutableSetOf()) { it.id }
+            if (ids.isEmpty()) prefs.remove(hiddenMapLayersPref) else prefs[hiddenMapLayersPref] = ids
+        }
+    }
+
+    /**
+     * Hides or shows one layer, in a single write.
+     *
+     * The set is read and written inside the same edit, as one step, rather than from a value the
+     * caller is holding: two taps in a row - which is exactly what a screen of switches is - would
+     * otherwise both read what was there before either of them, and the second tap would undo the
+     * first. DataStore serialises edits, so reading the truth inside one is what makes the two
+     * accumulate.
+     */
+    suspend fun hideMapLayer(layer: AssetLayer, hidden: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            val now = AssetLayer.hiddenIn(prefs[hiddenMapLayersPref])
+            val ids = (if (hidden) now + layer else now - layer).mapTo(mutableSetOf()) { it.id }
+            if (ids.isEmpty()) prefs.remove(hiddenMapLayersPref) else prefs[hiddenMapLayersPref] = ids
+        }
     }
 
     /**

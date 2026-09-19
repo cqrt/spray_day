@@ -34,6 +34,7 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import kotlin.math.roundToInt
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 
@@ -50,10 +51,10 @@ val DEFAULT_CAMERA_TARGET = LatLng(-41.5, 172.8)
 const val DEFAULT_CAMERA_ZOOM = 6.0
 
 internal const val ASSETS_SOURCE = "sprayday-assets"
-internal const val ASSETS_LAYER = "sprayday-assets-line-track"
-internal const val ASSETS_ROAD_LAYER = "sprayday-assets-line-road"
-internal const val ASSETS_INFRASTRUCTURE_LAYER = "sprayday-assets-line-infrastructure"
-internal const val ASSETS_POINT_LAYER = "sprayday-assets-point"
+
+// The four asset layers are named in [AssetLayerIds], which is also where the map's own switches
+// find them: the layer that is created and the layer a switch hides are the same name by
+// construction, rather than two strings that have to be kept in step.
 
 internal const val POSITION_SOURCE = "sprayday-position"
 internal const val POSITION_ACCURACY_LAYER = "sprayday-position-accuracy"
@@ -123,6 +124,16 @@ fun BasemapView(
      */
     onFollowBroken: () -> Unit = {},
     fitBounds: DomainBounds? = null,
+    /**
+     * The layers of the work this map is not drawing.
+     *
+     * Empty by default, which is what every map that is not the operator's own home map wants: a
+     * screen that is *about* something - one asset's own line, a pass being recorded, a spot being
+     * drawn - has to show it whatever the switches on the home map say. Hiding a layer is a
+     * property of the style's layers rather than a reload, so the camera, the tiles and the zoom
+     * stay exactly where the operator left them.
+     */
+    hiddenLayers: Set<AssetLayer> = emptySet(),
     /**
      * A camera move the operator asked for. The bounds say where; [recentreCount] is what says
      * it is a new request rather than the same one arriving twice, so the second tap on
@@ -226,7 +237,8 @@ fun BasemapView(
                         tileUrlTemplate = tileUrlTemplate,
                         assetGeoJson = assetGeoJson,
                         positionGeoJson = positionGeoJson,
-                        density = density
+                        density = density,
+                        hiddenLayers = hiddenLayers
                     ) { style ->
                         styleState.value = style
                     }
@@ -249,7 +261,8 @@ fun BasemapView(
                 tileUrlTemplate = tileUrlTemplate,
                 assetGeoJson = assetGeoJson,
                 positionGeoJson = positionGeoJson,
-                density = density
+                density = density,
+                hiddenLayers = hiddenLayers
             ) { style ->
                 styleState.value = style
             }
@@ -258,6 +271,15 @@ fun BasemapView(
 
     LaunchedEffect(assetGeoJson, styleState.value) {
         styleState.value?.getSourceAs<GeoJsonSource>(ASSETS_SOURCE)?.setGeoJson(assetGeoJson)
+    }
+
+    // A layer the operator has switched off, applied to the style that is already loaded. This is a
+    // property of a layer rather than a new style, so the camera, the tiles and the zoom are all
+    // left exactly where they were - which is what makes the switch usable while reading the map
+    // rather than something that sends you back to the farm gate every time you touch it.
+    LaunchedEffect(hiddenLayers, styleState.value) {
+        val style = styleState.value ?: return@LaunchedEffect
+        applyLayerVisibility(style, hiddenLayers)
     }
 
     // The marker follows the fixes. Setting the GeoJSON on one source rather than rebuilding
@@ -340,6 +362,7 @@ internal fun MapLibreMap.loadSprayDayStyle(
     assetGeoJson: String,
     positionGeoJson: String,
     density: Float,
+    hiddenLayers: Set<AssetLayer>,
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
@@ -365,16 +388,16 @@ internal fun MapLibreMap.loadSprayDayStyle(
         // One line layer per kind, because line-dasharray is a constant in MapLibre
         // rather than something a feature can carry. So a track is solid, a road is
         // dashed and infrastructure is dotted, and the filter is what keeps them apart.
-        addLineLayer(style, ASSETS_LAYER, AssetKind.TRACK)
-        addLineLayer(style, ASSETS_ROAD_LAYER, AssetKind.ROAD)
-        addLineLayer(style, ASSETS_INFRASTRUCTURE_LAYER, AssetKind.INFRASTRUCTURE)
+        addLineLayer(style, AssetLayerIds.TRACKS, AssetKind.TRACK)
+        addLineLayer(style, AssetLayerIds.ROADS, AssetKind.ROAD)
+        addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.INFRASTRUCTURE)
         // A place is a house, not a short line: drawing a picnic table as a line would
         // claim a shape the record does not have, and a house says what the thing is
         // rather than only where it is - the same picture the asset's row carries.
         addPlaceIconImages(style, density)
-        if (style.getLayer(ASSETS_POINT_LAYER) == null) {
+        if (style.getLayer(AssetLayerIds.PLACES) == null) {
             style.addLayer(
-                SymbolLayer(ASSETS_POINT_LAYER, ASSETS_SOURCE)
+                SymbolLayer(AssetLayerIds.PLACES, ASSETS_SOURCE)
                     .withProperties(
                         // The feature names the house it wants, so which colour a place is
                         // drawn in is decided in Kotlin, where it is tested - and the
@@ -430,7 +453,31 @@ internal fun MapLibreMap.loadSprayDayStyle(
                     .withFilter(partIs(PositionGeoJson.PART_DOT))
             )
         }
+        // The switches, applied to the style that has just been built, so that the first frame is
+        // already the map the operator asked for rather than one that flashes everything and then
+        // hides half of it.
+        applyLayerVisibility(style, hiddenLayers)
         onLoaded(style)
+    }
+}
+
+/**
+ * Draws or hides each layer of the work, as the switches have it.
+ *
+ * Visibility rather than removing and re-adding the layers: MapLibre keeps them, so a layer that
+ * has been switched off costs nothing to switch back on, and the source is left alone - which is
+ * the difference between this and reloading the style.
+ *
+ * Called as the style is built and again whenever the choice changes. A layer that is not in the
+ * style is skipped: this is the map's own list, and a style that is missing one of them is a
+ * reason to draw the rest rather than to stop.
+ */
+private fun applyLayerVisibility(style: Style, hidden: Set<AssetLayer>) {
+    AssetLayer.ALL.forEach { layer ->
+        val target = style.getLayer(AssetLayerIds.of(layer)) ?: return@forEach
+        target.setProperties(
+            PropertyFactory.visibility(if (layer in hidden) Property.NONE else Property.VISIBLE)
+        )
     }
 }
 

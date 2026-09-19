@@ -360,3 +360,26 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
     }
 }
+
+/**
+ * Adds the two-pass fields: how many passes a line's job takes, how far apart they run, and
+ * the operator's word that both sides were done on a pass the fixes could not vouch for.
+ *
+ * Every asset in the database was sprayed in one pass - the app had no other idea of a job -
+ * so the default of one is not a guess, it is what the record already means. The two columns
+ * carry a SQL default because SQLite will not add a NOT NULL column without one; nothing else
+ * needs carrying over, and no existing row is touched.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated
+ * v4 database.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `assets` ADD COLUMN `passesRequired` INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE `assets` ADD COLUMN `passSeparationM` REAL")
+        db.execSQL(
+            "ALTER TABLE `recorded_sessions` ADD COLUMN `bothSidesClaimed` INTEGER NOT NULL " +
+                "DEFAULT 0"
+        )
+    }
+}

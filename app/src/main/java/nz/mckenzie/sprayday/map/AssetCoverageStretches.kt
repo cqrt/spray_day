@@ -1,9 +1,11 @@
 package nz.mckenzie.sprayday.map
 
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
+import nz.mckenzie.sprayday.domain.geo.TwoPasses
 import java.time.ZoneId
 
 /**
@@ -40,6 +42,10 @@ object AssetCoverageStretches {
      * [passes] are the recorded passes that could still matter, [lastWithoutRecordingAtEpochMs]
      * the last spray with no recording behind it, and [nowEpochMs] the clock the colours are
      * worked out against - the same one the asset's own traffic light uses.
+     *
+     * [passesRequired] and [separationM] are the asset's own two-pass settings. A line sprayed
+     * twice is coloured by when it was last *done* - both passes - so one pass over it leaves the
+     * line as it was rather than turning it green: see [TwoPasses].
      */
     fun of(
         planned: List<GeoPoint>,
@@ -49,25 +55,66 @@ object AssetCoverageStretches {
         leadDays: Int,
         nowEpochMs: Long,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        toleranceM: Double = Coverage.DEFAULT_TOLERANCE_M
+        toleranceM: Double = Coverage.DEFAULT_TOLERANCE_M,
+        passesRequired: Int = 1,
+        separationM: Double? = null
     ): List<AssetStretch> =
-        Coverage.splitByCoverage(
+        dated(
             planned = planned,
             passes = passes,
-            assetSprayedAtEpochMs = lastWithoutRecordingAtEpochMs,
-            toleranceM = toleranceM
+            lastWithoutRecordingAtEpochMs = lastWithoutRecordingAtEpochMs,
+            toleranceM = toleranceM,
+            passesRequired = passesRequired,
+            separationM = separationM
         ).map { stretch ->
             AssetStretch(
                 colorHex = AssetColors.forStatus(
                     DueCalculator.calculate(
-                        lastSprayedAtEpochMs = stretch.lastSprayedAtEpochMs,
+                        lastSprayedAtEpochMs = stretch.first,
                         intervalDays = intervalDays,
                         leadDays = leadDays,
                         nowEpochMs = nowEpochMs,
                         zoneId = zoneId
                     ).status
                 ),
-                points = stretch.points
+                points = stretch.second
             )
         }
+
+    /**
+     * The plan cut up, each stretch with the date that colours it.
+     *
+     * Two shapes of the same answer: a line sprayed once is dated by the pass that covered it, and
+     * a line sprayed twice by the two passes that made it done. The two-pass reading is asked for
+     * first when the asset says it needs two passes, and it falls back to the single-pass one
+     * when there is no line to walk at all.
+     */
+    private fun dated(
+        planned: List<GeoPoint>,
+        passes: List<RecordedPass>,
+        lastWithoutRecordingAtEpochMs: Long?,
+        toleranceM: Double,
+        passesRequired: Int,
+        separationM: Double?
+    ): List<Pair<Long?, List<GeoPoint>>> {
+        if (passesRequired >= AssetEntity.TWO_PASSES_REQUIRED) {
+            val twice = TwoPasses.split(
+                planned = planned,
+                passes = passes,
+                handSprayedAtEpochMs = lastWithoutRecordingAtEpochMs,
+                separationM = separationM,
+                toleranceM = toleranceM
+            )
+            if (twice != null) {
+                return twice.stretches.map { it.completedAtEpochMs to it.points }
+            }
+        }
+
+        return Coverage.splitByCoverage(
+            planned = planned,
+            passes = passes,
+            assetSprayedAtEpochMs = lastWithoutRecordingAtEpochMs,
+            toleranceM = toleranceM
+        ).map { it.lastSprayedAtEpochMs to it.points }
+    }
 }

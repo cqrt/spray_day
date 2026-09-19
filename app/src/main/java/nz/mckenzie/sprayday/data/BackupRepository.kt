@@ -218,6 +218,8 @@ private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
     notes = notes,
     intervalDays = intervalDays,
     swathWidthM = swathWidthM,
+    passesRequired = passesRequired,
+    passSeparationM = passSeparationM,
     active = active,
     createdAtEpochMs = createdAtEpochMs,
     lastSprayedAtEpochMs = lastSprayedAtEpochMs,
@@ -241,6 +243,8 @@ private fun AssetRecord.toEntity(groupId: Long?) = AssetEntity(
     notes = notes,
     intervalDays = intervalDays,
     swathWidthM = swathWidthM,
+    passesRequired = passesRequired,
+    passSeparationM = passSeparationM,
     active = active,
     createdAtEpochMs = createdAtEpochMs,
     lastSprayedAtEpochMs = lastSprayedAtEpochMs,
@@ -315,6 +319,7 @@ private fun RecordedSessionEntity.toRecord(
     distanceM = distanceM,
     durationMs = durationMs,
     pointCount = pointCount,
+    bothSidesClaimed = bothSidesClaimed,
     points = points.sortedBy { it.sequence }.map {
         RecordedPointRecord(
             sequence = it.sequence,
@@ -341,5 +346,6 @@ private fun RecordingRecord.toEntity() = RecordedSessionEntity(
     status = status,
     distanceM = distanceM,
     durationMs = durationMs,
-    pointCount = pointCount
+    pointCount = pointCount,
+    bothSidesClaimed = bothSidesClaimed
 )

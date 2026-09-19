@@ -164,8 +164,12 @@ object Coverage {
      * Half the tolerance is the step because a step is judged from its midpoint: a shorter
      * step would ask the same question twice, and a longer one could straddle a gap in the
      * recording and call the whole of itself covered.
+     *
+     * Not private, because a line sprayed twice is measured against the same walk: see
+     * [TwoPasses], which asks a harder question of each step and has to walk the plan in
+     * exactly the same places to give an answer that lines up with this one.
      */
-    private class PlannedWalk(planned: List<GeoPoint>, private val stepM: Double) {
+    internal class PlannedWalk(planned: List<GeoPoint>, private val stepM: Double) {
 
         /** A step of the plan: where it starts and ends, and the point it is judged at. */
         class Step(val startM: Double, val endM: Double, val probe: GeoPoint) {
@@ -292,8 +296,13 @@ object Coverage {
      * was stopped, so nothing is claimed across it. And a jump longer than
      * [MAX_BRIDGE_SAMPLES] steps is not one pass over one line at all - it is two different
      * places - so the fixes vouch for what they are near and nothing more.
+     *
+     * Not private, and with [nearby] as well as [containsWithin], because a line sprayed twice
+     * is read from the same buckets: [TwoPasses] needs the fixes themselves - which way each
+     * one was heading, and which side of the line it was on - rather than only whether there
+     * was one.
      */
-    private class RecordedIndex(
+    internal class RecordedIndex(
         points: List<GeoPoint>,
         cellSizeM: Double,
         breaks: List<RecordingBreak> = emptyList()
@@ -325,10 +334,22 @@ object Coverage {
                 // The two fixes are already in the buckets; this is the ground between them.
                 for (step in 1 until steps) {
                     val t = step.toDouble() / steps
+                    // A sample carries the time it was crossed, interpolated between the two fixes,
+                    // so that a pass whose fixes are far apart is still read as a pass with a
+                    // direction and a side: at twenty-five metres between fixes - a slow fix rate,
+                    // or a fast drive - only the ground between them is within reach of the plan's
+                    // steps, and a fix that is out of reach says nothing about which way the pass
+                    // was heading. See [TwoPasses].
+                    val crossesAtMs = if (from.timeMs > 0L && to.timeMs > from.timeMs) {
+                        from.timeMs + ((to.timeMs - from.timeMs) * t).toLong()
+                    } else {
+                        0L
+                    }
                     add(
                         GeoPoint(
                             lat = from.lat + (to.lat - from.lat) * t,
-                            lng = from.lng + (to.lng - from.lng) * t
+                            lng = from.lng + (to.lng - from.lng) * t,
+                            timeMs = crossesAtMs
                         )
                     )
                 }
@@ -353,6 +374,33 @@ object Coverage {
                 }
             }
             return false
+        }
+
+        /**
+         * The recorded fixes within [toleranceM] of [probe], in the order they were recorded.
+         *
+         * The fixes themselves, without the samples walked between them: a line sprayed twice
+         * is read for which way each pass was heading and which side of the plan it was on, and
+         * a sample interpolated between two fixes has neither. An interpolated sample is there
+         * to vouch for the ground under it, which is what [containsWithin] reads; its time is
+         * zero, which is how the two are told apart.
+         */
+        fun nearby(probe: GeoPoint, toleranceM: Double): List<GeoPoint> {
+            val row = row(probe.lat)
+            val column = column(probe.lng)
+            val found = mutableListOf<GeoPoint>()
+            for (dr in -1..1) {
+                for (dc in -1..1) {
+                    val bucket = cells[key(row + dr, column + dc)] ?: continue
+                    for (point in bucket) {
+                        if (point.timeMs <= 0L) continue
+                        if (haversineMeters(probe.lat, probe.lng, point.lat, point.lng) <= toleranceM) {
+                            found += point
+                        }
+                    }
+                }
+            }
+            return found.sortedBy { it.timeMs }
         }
 
         private fun row(lat: Double): Int = Math.floor(lat / latStep).toInt()

@@ -79,6 +79,12 @@ class BackupRoundTripTest {
             createdAtEpochMs = 1_701_000_000_000L
         )
 
+        // The first of them is sprayed twice, and how far apart the two passes run is known: the
+        // two-pass fields have to survive the file as surely as the interval does.
+        assetRepository.updateAsset(
+            assetRepository.getAsset(first)!!.copy(passesRequired = 2, passSeparationM = 3.0)
+        )
+
         val session = db.recordingDao().insertSession(
             RecordedSessionEntity(
                 name = "Winter block \u00b7 14 Sep",
@@ -148,6 +154,33 @@ class BackupRoundTripTest {
         )
         db.sprayEventDao().upsertDefault(
             AssetProductDefaultEntity(assetId = second, productId = glyphosate)
+        )
+
+        // And the operator had to say the two passes were both sides of that line.
+        db.recordingDao().claimBothSides(session)
+    }
+
+    /**
+     * The two-pass fields survive the file like everything else.
+     *
+     * Covered by the byte-identical comparison below, but said out loud here because the failure
+     * it guards against is quiet: a track walked twice coming back as a track that is done after
+     * one pass, with nothing on any screen to suggest the file lost anything.
+     */
+    @Test
+    fun aTwoPassLineAndTheOperatorsWordComeBackThroughTheFile(): Unit = runBlocking {
+        populate()
+
+        val file = repository().export()
+
+        repository().restore(file)
+
+        val asset = db.assetDao().observeAllAssets().first().first { it.name == "Winter block" }
+        assertEquals("the line still takes two passes", 2, asset.passesRequired)
+        assertEquals("and still knows how far apart they run", 3.0, asset.passSeparationM!!, 1e-9)
+        assertTrue(
+            "and the pass that finished it still carries the operator's word",
+            db.recordingDao().observeSessions().first().single().bothSidesClaimed
         )
     }
 

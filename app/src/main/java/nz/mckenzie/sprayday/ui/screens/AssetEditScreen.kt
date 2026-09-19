@@ -34,6 +34,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
+import nz.mckenzie.sprayday.domain.asset.PassPhrase
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
@@ -81,6 +82,10 @@ fun AssetEditScreen(
         mutableStateOf(asset.swathWidthM?.let(::formatPlainNumber).orEmpty())
     }
     var notes by remember { mutableStateOf(asset.notes.orEmpty()) }
+    var passes by remember { mutableStateOf(asset.passesRequired) }
+    var separation by remember {
+        mutableStateOf(asset.passSeparationM?.let(::formatPlainNumber).orEmpty())
+    }
     var problem by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -101,7 +106,9 @@ fun AssetEditScreen(
                                     method = method,
                                     intervalDays = intervalDays,
                                     swathWidthM = swathWidth,
-                                    notes = notes
+                                    notes = notes,
+                                    passesRequired = passes,
+                                    passSeparationM = separation
                                 )
                             )
                         ) {
@@ -223,6 +230,31 @@ fun AssetEditScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
+            // How many passes the job takes, and - when it takes two - how far apart they run. The
+            // second field is what the app reads to decide whether it can tell which side each
+            // pass was on; left empty it goes by direction and asks when even that cannot tell.
+            ChoiceRow(
+                label = "Passes to finish it",
+                choices = PassPhrase.choices,
+                selected = passes,
+                onChoose = { choice ->
+                    passes = choice
+                    if (choice < PassPhrase.TWO_PASSES) separation = ""
+                    problem = null
+                },
+                text = PassPhrase::choice
+            )
+            if (passes >= PassPhrase.TWO_PASSES) {
+                OutlinedTextField(
+                    value = separation,
+                    onValueChange = { separation = it; problem = null },
+                    label = { Text("Two passes about (m) apart") },
+                    supportingText = { Text(PassPhrase.SEPARATION_HINT) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it; problem = null },

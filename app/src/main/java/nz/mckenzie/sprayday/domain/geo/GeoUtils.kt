@@ -82,8 +82,13 @@ fun distanceToPolylineMeters(point: GeoPoint, polyline: List<GeoPoint>): Double 
 }
 
 /**
- * Estimated area treated for a track of [lengthM] sprayed with a swath of
- * [swathWidthM] metres. Note this assumes no overlap between passes.
+ * Estimated area treated for a track of [lengthM] sprayed with a swath of [swathWidthM] metres
+ * over [passes] passes. Each pass covers its own width beside the line rather than on top of the
+ * last one, so a line walked up one side and back down the other treats twice the area.
  */
-fun estimatedAreaSqm(lengthM: Double, swathWidthM: Double): Double =
-    if (lengthM <= 0.0 || swathWidthM <= 0.0) 0.0 else lengthM * swathWidthM
+fun estimatedAreaSqm(lengthM: Double, swathWidthM: Double, passes: Int = 1): Double =
+    if (lengthM <= 0.0 || swathWidthM <= 0.0 || passes <= 0) {
+        0.0
+    } else {
+        lengthM * swathWidthM * passes
+    }

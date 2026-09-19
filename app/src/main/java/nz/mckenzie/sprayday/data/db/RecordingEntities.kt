@@ -26,7 +26,17 @@ data class RecordedSessionEntity(
     val status: String,
     val distanceM: Double = 0.0,
     val durationMs: Long = 0L,
-    val pointCount: Int = 0
+    val pointCount: Int = 0,
+    /**
+     * The operator's word that this pass did the other side of a line that is sprayed twice.
+     *
+     * The app can usually tell two passes apart by themselves - one heading each way, or one
+     * each side of the line - and writes down nothing beyond the fixes when it can. When it
+     * cannot, it asks, and this is the answer: the claim that the two passes over this line
+     * were complementary. Stored here rather than derived, because a claim has to outlive the
+     * reading of the fixes - otherwise the question would be asked again on every screen.
+     */
+    val bothSidesClaimed: Boolean = false
 )
 
 /**

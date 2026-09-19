@@ -136,7 +136,12 @@ class AssetRepository(
                         // A pass read here has to be the same pass the recorder showed: the
                         // ground it was paused over stays red, and the gaps where the fixes
                         // only went missing are ground it drove.
-                        breaks = recordingDao.getBreaks(sessionId).map { it.toRecordingBreak() }
+                        breaks = recordingDao.getBreaks(sessionId).map { it.toRecordingBreak() },
+                        // And the operator's word, where they had to give it: a pass whose second
+                        // side the fixes could not vouch for says so, and reads as the second
+                        // pass - see TwoPasses.
+                        bothSidesClaimed =
+                            recordingDao.getSession(sessionId)?.bothSidesClaimed == true
                     )
                 }
             },

@@ -33,12 +33,32 @@ class AssetCoverageStretchesTest {
     )
 
     /** Fixes along that line, from [fromM] for [lengthM], one every ten metres. */
-    private fun driveAlong(lengthM: Double, fromM: Double = 0.0): List<GeoPoint> {
+    private fun driveAlong(lengthM: Double, fromM: Double = 0.0, atMs: Long = 0L): List<GeoPoint> {
         val fixes = mutableListOf<GeoPoint>()
         var travelled = 0.0
         while (travelled <= lengthM) {
             val at = fromM + travelled
-            fixes += GeoPoint(-41.5, 173.9 + at / METRES_PER_DEG_LNG_AT_EQUATOR)
+            fixes += GeoPoint(
+                lat = -41.5,
+                lng = 173.9 + at / METRES_PER_DEG_LNG_AT_EQUATOR,
+                timeMs = atMs + travelled.toLong()
+            )
+            travelled += 10.0
+        }
+        return fixes
+    }
+
+    /** The same line driven back the other way, from [fromM] towards the near end. */
+    private fun driveBack(lengthM: Double, fromM: Double, atMs: Long = 0L): List<GeoPoint> {
+        val fixes = mutableListOf<GeoPoint>()
+        var travelled = 0.0
+        while (travelled <= lengthM) {
+            val at = fromM - travelled
+            fixes += GeoPoint(
+                lat = -41.5,
+                lng = 173.9 + at / METRES_PER_DEG_LNG_AT_EQUATOR,
+                timeMs = atMs + travelled.toLong()
+            )
             travelled += 10.0
         }
         return fixes
@@ -47,7 +67,9 @@ class AssetCoverageStretchesTest {
     private fun colours(
         passes: List<RecordedPass>,
         lastWithoutRecordingAtEpochMs: Long? = null,
-        planned: List<GeoPoint> = lineEast()
+        planned: List<GeoPoint> = lineEast(),
+        passesRequired: Int = 1,
+        separationM: Double? = null
     ): List<String> = AssetCoverageStretches.of(
         planned = planned,
         passes = passes,
@@ -55,7 +77,9 @@ class AssetCoverageStretchesTest {
         intervalDays = intervalDays,
         leadDays = leadDays,
         nowEpochMs = now,
-        zoneId = zone
+        zoneId = zone,
+        passesRequired = passesRequired,
+        separationM = separationM
     ).map { it.colorHex }
 
     @Test
@@ -131,5 +155,55 @@ class AssetCoverageStretchesTest {
     @Test
     fun `a line nothing has ever covered is one red stretch`() {
         assertEquals(listOf(AssetColors.RED), colours(passes = emptyList()))
+    }
+
+    @Test
+    fun `a line that takes two passes stays red when it has been walked once`() {
+        // The report this whole feature came from: a track walked up one side and back down the
+        // other went green after the first side, and the traffic light went out for four months.
+        assertEquals(
+            "one pass is not half sprayed, it is not sprayed",
+            listOf(AssetColors.RED),
+            colours(
+                passes = listOf(RecordedPass(now, driveAlong(1_000.0, atMs = daysAgo(0)))),
+                passesRequired = 2
+            )
+        )
+    }
+
+    @Test
+    fun `a line that takes two passes goes green when it has been walked both ways`() {
+        val up = RecordedPass(now, driveAlong(1_000.0, atMs = now - 60_000L))
+        val back = RecordedPass(
+            atEpochMs = now,
+            points = driveBack(lengthM = 1_000.0, fromM = 1_000.0, atMs = now - 30_000L)
+        )
+
+        assertEquals(
+            "one colour, because every metre of it was done by the same pass",
+            listOf(AssetColors.GREEN),
+            colours(passes = listOf(up, back), passesRequired = 2).distinct()
+        )
+    }
+
+    @Test
+    fun `a two-pass line walked once before is due again on its old date`() {
+        // An old job, then one pass today: the line is not done today, so its colour is still the
+        // old job's - which is what makes the second side worth going back for.
+        assertEquals(
+            "sprayed 130 days ago and walked once since: due again",
+            listOf(AssetColors.RED),
+            colours(
+                passes = listOf(
+                    RecordedPass(daysAgo(130), driveAlong(1_000.0, atMs = daysAgo(130))),
+                    RecordedPass(
+                        atEpochMs = daysAgo(130) + 1_000L,
+                        points = driveBack(1_000.0, 1_000.0, daysAgo(130) + 1_000L)
+                    ),
+                    RecordedPass(now, driveAlong(1_000.0, atMs = now - 60_000L))
+                ),
+                passesRequired = 2
+            ).distinct()
+        )
     }
 }

@@ -37,7 +37,11 @@ data class AssetEditFields(
     val method: SprayMethod,
     val intervalDays: String,
     val swathWidthM: String,
-    val notes: String
+    val notes: String,
+    /** Chooses between named states rather than typed: how many passes the job takes. */
+    val passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
+    /** How far apart the two passes run, typed. Ignored when the job is one pass. */
+    val passSeparationM: String = ""
 )
 
 /**
@@ -60,6 +64,16 @@ object AssetEdits {
 
     /** Narrower than this and it is not a boom, it is a stray keystroke. */
     const val MIN_SWATH_M = 0.1
+
+    /**
+     * How far apart the two passes of a two-pass asset may be said to run.
+     *
+     * Half a metre is closer than the app can tell apart and fifty is a different paddock, so
+     * either is a misread field rather than an answer. A field left empty is neither: it means
+     * nobody has said, which is how the app reads "too close together to tell".
+     */
+    const val MIN_PASS_SEPARATION_M = 0.5
+    const val MAX_PASS_SEPARATION_M = 50.0
 
     /**
      * The swath width the field should hold after the operator picks a method.
@@ -109,6 +123,27 @@ object AssetEdits {
             )
         }
 
+        // The two passes only exist if the job takes two, so a line that has just been set back
+        // to one pass keeps no separation rather than storing a number nothing reads.
+        val passes = fields.passesRequired.coerceIn(
+            AssetEntity.DEFAULT_PASSES_REQUIRED,
+            AssetEntity.MAX_PASSES_REQUIRED
+        )
+        val separation = when {
+            passes < AssetEntity.TWO_PASSES_REQUIRED -> null
+            fields.passSeparationM.isBlank() -> null
+            else -> parsePositiveAmount(fields.passSeparationM.trim())
+                ?: return AssetEditResult.Invalid(
+                    "How far apart the two passes run must be a number of metres, or empty"
+                )
+        }
+        if (separation != null && separation !in MIN_PASS_SEPARATION_M..MAX_PASS_SEPARATION_M) {
+            return AssetEditResult.Invalid(
+                "The two passes must be between $MIN_PASS_SEPARATION_M m and " +
+                    "$MAX_PASS_SEPARATION_M m apart, or empty"
+            )
+        }
+
         return AssetEditResult.Ok(
             asset = asset.copy(
                 name = cleanName,
@@ -117,7 +152,9 @@ object AssetEdits {
                 method = fields.method.name,
                 notes = fields.notes.trim().ifBlank { null },
                 intervalDays = days,
-                swathWidthM = swath
+                swathWidthM = swath,
+                passesRequired = passes,
+                passSeparationM = separation
             ),
             groupName = fields.groupName.trim().ifBlank { null }
         )

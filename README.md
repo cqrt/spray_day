@@ -30,8 +30,10 @@ sprayed).
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
   only the default), its **kind** (track, road or infrastructure), whether it is a
   line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the
-  usual width for that method), the swath width for a treated-area estimate, a
-  **block or group** to work it with (assets sharing one fold into a single tile in the
+  usual width for that method), the swath width for a treated-area estimate, how many
+  passes finish the job (**one**, or **two** for a line walked up one side and back
+  down the other — see [A line that is sprayed twice](#a-line-that-is-sprayed-twice)),
+  a **block or group** to work it with (assets sharing one fold into a single tile in the
   list), and notes. The interval is what the traffic light uses,
   so a block sprayed on a shorter cycle turns yellow on its own schedule.
 - **Spray records**: pick an asset, enter the products and the **mL of each**,
@@ -82,6 +84,10 @@ sprayed).
   on by itself. Finishing saves the recording and the spray together, linked by session id,
   so the traffic light updates, the spray history carries the distance actually
   driven, and a line that was only part done comes back on the map in two colours.
+  **The pass is the spray**: amounts are there for the record's sake, and a pass over
+  the chosen asset records the spray whether or not any were typed — a line driven
+  with the sprayer on is a line that has been sprayed. The one exception is a line
+  that takes two passes, where the spray waits for the pass that finishes the job.
   **The pass stays on the screen after it is saved** — the line in its two colours,
   the distance, the time, the points, the coverage and the track's length — so the
   screen a second after Save is the record of what was just done rather than a blank.
@@ -257,6 +263,50 @@ now: the same rule the coverage percentage has always followed.
 Only the sprays that could still matter are read - a pass older than the asset's own interval
 cannot change a colour, because whatever it covered is due again anyway - so a map with a
 season behind it does not load a season of fixes to draw itself.
+
+## A line that is sprayed twice
+
+Half the tracks on the place are walked up one side and back down the other, and a road is done an
+edge at a time. For those, one pass is not half sprayed: it is not sprayed at all. Read as a single
+pass - which is what the app did until now - a track walked once went green, its traffic light went
+out for four months, and the other side was never done.
+
+So an asset can be told that it takes **two passes**, on the edit form, and how far apart those two
+passes run if the operator knows. Everything else in the app is unchanged: a line that has never
+been told otherwise is one pass, and behaves exactly as it always did.
+
+What the app then claims is decided from the fixes, in this order:
+
+- **Opposite directions.** Up one side and back down the other walks the same metres twice heading
+  opposite ways. Direction needs no accuracy at all: consecutive fixes either head along the line or
+  back along it, and five metres of sideways GPS wander does not touch that.
+- **Opposite sides.** One side and then the other, both times the same way along, is two passes at
+  two offsets from the line - but only where those offsets are far enough apart to be real. Three
+  metres on a road is two strips the app can see; a metre apart on a knapsack track is inside the
+  noise of a phone in a pocket, and there the app does not pretend.
+- **The operator's word, when neither of those can tell.** Two passes the same way along, on sides
+  too close together to separate, is the one case the fixes cannot settle. Finishing such a pass
+  asks: *did you do both sides?* Yes writes the spray and closes the job; no leaves the line owing
+  the other pass. The answer is stored with the pass it was given for (`recorded_sessions`,
+  `bothSidesClaimed`, carried in a backup), so the question is asked once and not on every screen.
+
+Four consequences worth knowing:
+
+- **One spray record for the job, written when it is done.** A pass over a line that takes two is
+  saved as a recording but records no spray, because there is no job yet to record: the asset's
+  light stays as it was and the recorder says *one pass still to go*. When the second pass finishes
+  it - in the same walk or a fortnight later - one spray is written, carrying the ground driven over
+  both legs, and the line turns green then.
+- **A line that is walked once is not a line that needs attention either.** Its colour stays on the
+  last completed job's date, so a two-pass track sprayed 130 days ago and walked once today is due
+  again - which is what makes the second side worth going back for.
+- **Treated area counts both passes.** The second pass runs beside the first rather than over it, so
+  a 1 km track walked twice with a 1.5 m knapsack treats 3,000 m², and the area in a block's total
+  and in a handover says so.
+- **The app cannot see the swath.** It can see that a line has been walked twice, in two directions
+  or on two sides, and it will say that rather than claiming more. Two walks up the same side, a
+  metre apart, with the two passes recorded as one run, read as two passes it cannot tell apart -
+  so it asks, and the answer is what counts.
 
 ## Backup files
 

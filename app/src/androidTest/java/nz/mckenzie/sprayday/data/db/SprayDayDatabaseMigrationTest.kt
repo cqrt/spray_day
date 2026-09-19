@@ -263,6 +263,93 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The migration that adds the two-pass fields.
+     *
+     * Every line in the database was sprayed in one pass - the app had no other idea of a job - so
+     * the defaults are not a guess: they are what the record already means. What this has to prove
+     * is that the assets and the recordings it runs over keep everything they had, that a line
+     * that has never been told otherwise reads as one pass, and that the columns can hold the
+     * other answer.
+     */
+    @Test
+    fun migrationFrom4To5AddsTheTwoPassFieldsWithoutTouchingAnything() {
+        helper.createDatabase(TEST_DB, 4).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                    "swathWidthM, active, createdAtEpochMs, lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (3, 'Estuary road', 'ROAD', 'LINE', 'KNAPSACK', NULL, 'both edges', " +
+                    "120, 1.5, 1, 1000, 2000, 800.0)"
+            )
+            execSQL(
+                "INSERT INTO recorded_sessions (id, name, assetId, startedAtEpochMs, " +
+                    "endedAtEpochMs, status, distanceM, durationMs, pointCount) " +
+                    "VALUES (5, 'Estuary road · 17 Sep', 3, 2000, 3000, 'FINISHED', 800.0, 600000, 2)"
+            )
+            execSQL(
+                "INSERT INTO recorded_points (sessionId, sequence, lat, lng, altitudeM, " +
+                    "accuracyM, speedMps, bearingDeg, recordedAtEpochMs) " +
+                    "VALUES (5, 0, -41.5, 173.95, 12.0, 4.5, 2.2, 180.0, 2000), " +
+                    "(5, 1, -41.51, 173.96, 13.0, 4.0, 2.4, 181.0, 2010)"
+            )
+            execSQL(
+                "INSERT INTO recorded_breaks (sessionId, fromEpochMs, toEpochMs) VALUES (5, 2100, 2900)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        migrated.query(
+            "SELECT name, swathWidthM, passesRequired, passSeparationM, notes " +
+                "FROM assets WHERE id = 3"
+        ).use { cursor ->
+            assertTrue("the asset must survive the migration", cursor.moveToFirst())
+            assertEquals("Estuary road", cursor.getString(0))
+            assertEquals(1.5, cursor.getDouble(1), 0.01)
+            assertEquals("a line nobody has said otherwise about is one pass", 1, cursor.getInt(2))
+            assertTrue("and has no separation to tell sides apart by", cursor.isNull(3))
+            assertEquals("both edges", cursor.getString(4))
+        }
+        migrated.query("SELECT pointCount, bothSidesClaimed FROM recorded_sessions WHERE id = 5")
+            .use { cursor ->
+                assertTrue("the recording must survive too", cursor.moveToFirst())
+                assertEquals(2, cursor.getInt(0))
+                assertEquals(
+                    "an old recording holds no claim nobody made",
+                    0,
+                    cursor.getInt(1)
+                )
+            }
+        migrated.query("SELECT COUNT(*) FROM recorded_points").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("and every fix of it", 2, cursor.getInt(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM recorded_breaks").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("and its pause", 1, cursor.getInt(0))
+        }
+
+        // And the columns hold the other answer, which is the one the feature is for.
+        migrated.execSQL(
+            "UPDATE assets SET passesRequired = 2, passSeparationM = 3.0 WHERE id = 3"
+        )
+        migrated.execSQL("UPDATE recorded_sessions SET bothSidesClaimed = 1 WHERE id = 5")
+        migrated.query(
+            "SELECT passesRequired, passSeparationM FROM assets WHERE id = 3"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+            assertEquals(3.0, cursor.getDouble(1), 0.01)
+        }
+        migrated.query("SELECT bothSidesClaimed FROM recorded_sessions WHERE id = 5").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("and the operator's word can be written", 1, cursor.getInt(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

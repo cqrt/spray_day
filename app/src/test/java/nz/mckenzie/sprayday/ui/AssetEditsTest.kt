@@ -39,7 +39,9 @@ class AssetEditsTest {
         method: SprayMethod = SprayMethod.UNSET,
         intervalDays: String = asset.intervalDays.toString(),
         swathWidthM: String = asset.swathWidthM.toString(),
-        notes: String = asset.notes.orEmpty()
+        notes: String = asset.notes.orEmpty(),
+        passesRequired: Int = asset.passesRequired,
+        passSeparationM: String = asset.passSeparationM?.toString().orEmpty()
     ) = AssetEdits.apply(
         asset,
         AssetEditFields(
@@ -50,7 +52,9 @@ class AssetEditsTest {
             method = method,
             intervalDays = intervalDays,
             swathWidthM = swathWidthM,
-            notes = notes
+            notes = notes,
+            passesRequired = passesRequired,
+            passSeparationM = passSeparationM
         )
     )
 
@@ -208,6 +212,64 @@ class AssetEditsTest {
         val edited = ok(apply(notes = ""))
 
         assertNull(edited.asset.notes)
+    }
+
+    @Test
+    fun `a line that takes two passes keeps how far apart they run`() {
+        val edited = ok(apply(passesRequired = 2, passSeparationM = "3"))
+
+        assertEquals(2, edited.asset.passesRequired)
+        assertEquals(3.0, edited.asset.passSeparationM!!, 1e-9)
+    }
+
+    @Test
+    fun `a line that takes two passes is fine without knowing how far apart they run`() {
+        // Blank is the operator saying they do not know, which the app reads as "too close to tell
+        // apart": it goes by direction, and asks when that cannot tell either.
+        val edited = ok(apply(passesRequired = 2, passSeparationM = ""))
+
+        assertEquals(2, edited.asset.passesRequired)
+        assertNull(edited.asset.passSeparationM)
+    }
+
+    @Test
+    fun `setting a line back to one pass keeps no separation`() {
+        val twoPass = ok(apply(passesRequired = 2, passSeparationM = "3"))
+        val edited = ok(
+            AssetEdits.apply(
+                twoPass.asset,
+                AssetEditFields(
+                    name = twoPass.asset.name,
+                    groupName = "Home",
+                    kind = AssetKind.TRACK,
+                    shape = AssetShape.LINE,
+                    method = SprayMethod.UNSET,
+                    intervalDays = "120",
+                    swathWidthM = "4.5",
+                    notes = "",
+                    passesRequired = 1,
+                    passSeparationM = "3"
+                )
+            )
+        )
+
+        assertEquals(1, edited.asset.passesRequired)
+        assertNull("a number nothing reads is not kept", edited.asset.passSeparationM)
+    }
+
+    @Test
+    fun `a separation that is not a distance is refused, worth reading`() {
+        assertTrue(invalid(apply(passesRequired = 2, passSeparationM = "about a metre")).contains("metres"))
+        assertTrue("zero is not a distance either", invalid(apply(passesRequired = 2, passSeparationM = "0")).contains("metres"))
+        assertTrue(invalid(apply(passesRequired = 2, passSeparationM = "200")).contains("between"))
+    }
+
+    @Test
+    fun `a choice of passes that is not one or two is read as the nearest real one`() {
+        // The choice is between named states, so a number nobody offered is a field that has been
+        // edited by hand, and the nearest real answer is the safe one.
+        assertEquals(2, ok(apply(passesRequired = 7)).asset.passesRequired)
+        assertEquals(1, ok(apply(passesRequired = 0)).asset.passesRequired)
     }
 
     @Test

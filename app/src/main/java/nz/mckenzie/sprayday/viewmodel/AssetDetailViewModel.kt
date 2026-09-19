@@ -137,7 +137,11 @@ class AssetDetailViewModel(
     /** Estimated treated area, if the asset records a swath width. */
     val areaSqm: Double?
         get() = track.value?.let { entity ->
-            entity.swathWidthM?.let { width -> estimatedAreaSqm(entity.lengthM, width) }
+            entity.swathWidthM?.let { width ->
+                // Both passes of a line sprayed twice go on the ground, so the area counts them:
+                // see estimatedAreaSqm.
+                estimatedAreaSqm(entity.lengthM, width, entity.passesRequired)
+            }
         }
 
     fun exportGpx(uri: Uri) {

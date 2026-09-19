@@ -95,6 +95,22 @@ data class AssetRecord(
     val notes: String? = null,
     val intervalDays: Int,
     val swathWidthM: Double? = null,
+    /**
+     * How many passes along the line the job takes: one, or two.
+     *
+     * Optional and added without a version bump, like the settings and the pauses before it: a
+     * file written before this existed has no such key, and an asset restored from one takes the
+     * default - one pass, which is what a job meant then. The number is
+     * [nz.mckenzie.sprayday.data.db.AssetEntity.DEFAULT_PASSES_REQUIRED] and its neighbours, kept
+     * in step by a test rather than imported, because a backup is read by an app that may be
+     * older or newer than the one that wrote it.
+     */
+    val passesRequired: Int = 1,
+    /**
+     * How far apart the two passes run, in metres, or null when nobody has said. See
+     * [nz.mckenzie.sprayday.data.db.AssetEntity.passSeparationM].
+     */
+    val passSeparationM: Double? = null,
     val active: Boolean = true,
     val createdAtEpochMs: Long,
     val lastSprayedAtEpochMs: Long? = null,
@@ -162,6 +178,13 @@ data class RecordingRecord(
     val distanceM: Double = 0.0,
     val durationMs: Long = 0L,
     val pointCount: Int = 0,
+    /**
+     * The operator's word that this pass did the other side of a line sprayed twice. Optional and
+     * added without a version bump: a file written before this existed has no such key, and a
+     * restored pass with no claim is read as evidence alone, which is what it was.
+     * See [nz.mckenzie.sprayday.data.db.RecordedSessionEntity.bothSidesClaimed].
+     */
+    val bothSidesClaimed: Boolean = false,
     val points: List<RecordedPointRecord> = emptyList(),
     /**
      * The stretches the pass was paused for. Optional and added without a version bump: a file

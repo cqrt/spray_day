@@ -88,6 +88,16 @@ class RecordingRepository(private val db: SprayDayDatabase) {
     suspend fun renameSession(sessionId: Long, name: String) =
         recordingDao.renameSession(sessionId, name)
 
+    /**
+     * Writes down the operator's word that both sides of a line were done on this pass.
+     *
+     * The app reads the fixes first and only asks when they cannot say - which pass was heading
+     * which way, or which side of the line each one was on - so this is the answer to a
+     * question, not a setting. Written at Finish so that the claim and the recording that goes
+     * with it are stored together.
+     */
+    suspend fun claimBothSides(sessionId: Long) = recordingDao.claimBothSides(sessionId)
+
     /** Closes a session, storing the distance and point count actually recorded. */
     suspend fun finishRecording(
         sessionId: Long,

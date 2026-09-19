@@ -30,12 +30,16 @@ import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayProductQuantity
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.AssetRepository
+import nz.mckenzie.sprayday.data.AssetSprayCoverage
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import nz.mckenzie.sprayday.domain.geo.RecordingBreak
+import nz.mckenzie.sprayday.domain.geo.TwoPasses
+import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.geo.splitAtBreaks
@@ -138,6 +142,28 @@ class RecordingViewModel(
      */
     private val _finished = MutableStateFlow<FinishedPass?>(null)
     val finished: StateFlow<FinishedPass?> = _finished
+
+    /**
+     * What the chosen line still owes, when it takes two passes: null for everything else.
+     *
+     * Worked out from the recordings the line already has, so the card can say "one pass still to
+     * go" before the operator sets off, rather than only after they finish. Re-read whenever the
+     * choice changes or a pass is saved - see [refreshTwoPasses] - and it is the same reading the
+     * two-pass maths makes everywhere else, so the sentence and the line's colour agree.
+     */
+    private val _twoPasses = MutableStateFlow<TwoPasses.Result?>(null)
+    val twoPasses: StateFlow<TwoPasses.Result?> = _twoPasses
+
+    /**
+     * Whether the app is waiting for the operator's word that both sides were done.
+     *
+     * Set at Finish, when the line has had two passes that cannot be told apart - the same way
+     * along it, on sides too close together to separate - and there is nothing left to read. The
+     * screen shows a dialog while this is set: the answer is the only thing that can settle it,
+     * and it is written down with the pass it was given for - see [confirmBothSides].
+     */
+    private val _pendingBothSides = MutableStateFlow(false)
+    val pendingBothSides: StateFlow<Boolean> = _pendingBothSides
 
     /**
      * Whether the operator wants the map to keep the phone in the middle of the screen.
@@ -506,6 +532,7 @@ class RecordingViewModel(
         viewModelScope.launch {
             if (assetId == null) {
                 plannedGeometry.value = emptyList()
+                _twoPasses.value = null
                 return@launch
             }
 
@@ -531,7 +558,125 @@ class RecordingViewModel(
             TrackingState.current.sessionId?.let { sessionId ->
                 runCatching { recordings.setSessionAsset(sessionId, assetId) }
             }
+
+            // And what the line still owes, for a line that takes two passes: the card says so
+            // before the operator sets off, rather than only after they have finished.
+            refreshTwoPasses(assetId)
         }
+    }
+
+    /**
+     * Reads what the chosen line still owes, and puts it on the card.
+     *
+     * Nothing at all for a line sprayed in one pass, and for a line with no geometry to measure
+     * against: both are "there is nothing to say about two passes here".
+     */
+    private suspend fun refreshTwoPasses(assetId: Long?) {
+        val id = assetId ?: run {
+            _twoPasses.value = null
+            return
+        }
+        val asset = runCatching { assetRepository.getAsset(id) }.getOrNull()
+        if (asset == null || asset.passesRequired < AssetEntity.TWO_PASSES_REQUIRED) {
+            _twoPasses.value = null
+            return
+        }
+        val planned = plannedGeometry.value.takeIf { it.size >= 2 }
+            ?: runCatching { assetRepository.getAssetGeometry(id) }.getOrDefault(emptyList())
+        if (planned.size < 2) {
+            _twoPasses.value = null
+            return
+        }
+
+        val coverage = runCatching { assetRepository.getSprayCoverage(id) }
+            .getOrDefault(AssetSprayCoverage.NONE)
+        _twoPasses.value = TwoPasses.split(
+            planned = planned,
+            passes = coverage.passes,
+            handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
+            separationM = asset.passSeparationM
+        )
+    }
+
+    /**
+     * Whether finishing needs the operator's word that both sides were done.
+     *
+     * Read before the recording is closed, because the answer is what decides whether the spray is
+     * recorded: cancelling the dialog leaves the pass running, exactly as cancelling the naming
+     * dialog does.
+     */
+    private suspend fun bothSidesQuestion(assetId: Long): Boolean {
+        val sessionId = sessionIdOrNull() ?: return false
+        val geometry = runCatching { recordings.getPoints(sessionId) }.getOrDefault(emptyList())
+        val breaks = runCatching { recordings.getBreaks(sessionId) }.getOrDefault(emptyList())
+        return twoPassOutcome(assetId, geometry, breaks, bothSides = false)
+            ?.result
+            ?.needsAnswer == true
+    }
+
+    /** What one pass has done to a line that takes two, as the recorder has to see it. */
+    private data class TwoPassOutcome(
+        /** The line after this pass: what is done, and what is still owed. */
+        val result: TwoPasses.Result,
+        /** The ground driven on the legs already finished, which the spray record carries. */
+        val legsM: Double,
+        /** Whether the operator has said the two passes were both sides. */
+        val claimed: Boolean
+    )
+
+    /**
+     * Reads the line's two-pass state with this pass on the end of it.
+     *
+     * Null when there is nothing to read: the chosen asset is not there, it takes one pass, or
+     * there is no line to measure against. That is what makes "the job is done" the answer for
+     * every line sprayed once, which is every line the app has ever known.
+     *
+     * Read twice over: the state before this pass is what says how many legs the job already had,
+     * and the state after it is what says whether the job is done.
+     */
+    private suspend fun twoPassOutcome(
+        assetId: Long,
+        geometry: List<GeoPoint>,
+        breaks: List<RecordingBreak>,
+        bothSides: Boolean
+    ): TwoPassOutcome? {
+        val asset = runCatching { assetRepository.getAsset(assetId) }.getOrNull() ?: return null
+        if (asset.passesRequired < AssetEntity.TWO_PASSES_REQUIRED) return null
+        // The plan the screen is drawing, or - if Finish has been pressed before it got there, which
+        // is a database read away - the plan as it is stored. Reading one pass over a line that
+        // takes two as a whole job is the one mistake this must not make.
+        val planned = plannedGeometry.value.takeIf { it.size >= 2 }
+            ?: runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(emptyList())
+        if (planned.size < 2 || geometry.isEmpty()) return null
+
+        val coverage = runCatching { assetRepository.getSprayCoverage(assetId) }
+            .getOrDefault(AssetSprayCoverage.NONE)
+        val before = TwoPasses.split(
+            planned = planned,
+            passes = coverage.passes,
+            handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
+            separationM = asset.passSeparationM
+        )
+        val pass = RecordedPass(
+            // The same stamp the spray event will carry, so the pass and the record it becomes
+            // are one thing by the clock as well as by session.
+            atEpochMs = System.currentTimeMillis(),
+            points = geometry,
+            breaks = breaks,
+            bothSidesClaimed = bothSides
+        )
+        val after = TwoPasses.split(
+            planned = planned,
+            passes = coverage.passes + pass,
+            handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
+            separationM = asset.passSeparationM
+        ) ?: return null
+
+        return TwoPassOutcome(
+            result = after,
+            legsM = before?.pending.orEmpty().sumOf { polylineLengthMeters(it.points) },
+            claimed = bothSides
+        )
     }
 
     fun updateQuantity(productId: Long, text: String) {
@@ -606,6 +751,7 @@ class RecordingViewModel(
     fun onScreenLeft() {
         if (sessionIdOrNull() != null) return
         _finished.value = null
+        _twoPasses.value = null
         _message.value = null
     }
 
@@ -623,11 +769,33 @@ class RecordingViewModel(
         // name. Recording a brand new line asks what to call it first, because on
         // this screen "record" means "make a track": a recording that only ever
         // appeared in the recordings list is not what anyone goes looking for.
-        if (_selectedAssetId.value != null) {
-            completeFinish(newTrackName = null)
-        } else {
+        //
+        // A line that takes two passes may have one question of its own first: whether two passes
+        // that look the same were both sides. That is read from the fixes, so the path is a
+        // coroutine even though nothing else about finishing is.
+        val assetId = _selectedAssetId.value
+        if (assetId == null) {
             _pendingTrackName.value = defaultTrackName()
+            return
         }
+        viewModelScope.launch {
+            if (bothSidesQuestion(assetId)) {
+                _pendingBothSides.value = true
+            } else {
+                completeFinish(newTrackName = null)
+            }
+        }
+    }
+
+    /**
+     * From the dialog: whether both sides were done on the pass that has just ended.
+     *
+     * "Yes" is the operator's word for the second side, which is what closes the job and records
+     * the spray; "no" finishes the pass and leaves the line owing the other one, with nothing
+     * recorded. Both answers end the recording, because the pass itself has ended either way.
+     */
+    fun confirmBothSides(bothSides: Boolean) {
+        completeFinish(newTrackName = null, bothSides = bothSides)
     }
 
     /** From the naming dialog: saves the recorded line as a new, named track. */
@@ -635,15 +803,17 @@ class RecordingViewModel(
         completeFinish(newTrackName = name.trim().ifBlank { defaultTrackName() })
     }
 
-    /** Dismisses the naming dialog without ending the recording. */
+    /** Dismisses whichever dialog is up without ending the recording. */
     fun cancelFinish() {
         _pendingTrackName.value = null
+        _pendingBothSides.value = false
     }
 
-    private fun completeFinish(newTrackName: String?) {
+    private fun completeFinish(newTrackName: String?, bothSides: Boolean = false) {
         val sessionId = sessionIdOrNull() ?: return
         viewModelScope.launch {
             _pendingTrackName.value = null
+            _pendingBothSides.value = false
 
             val distanceM = TrackingState.current.distanceM
             val points = TrackingState.current.pointCount
@@ -726,17 +896,32 @@ class RecordingViewModel(
                 message += " · covered ${formatCoveragePercent(coverageNow)} of the line"
             }
 
+            // Whether this pass finishes the job, for a line that takes two passes. Read before
+            // the spray is written, because it is what decides whether there is a spray to write:
+            // a line walked once is not half sprayed, it is not sprayed, and its record waits for
+            // the pass that finishes it. Null - and so no waiting - for everything else, which is
+            // every line sprayed in one pass.
+            val twoPass = assetId?.let { id -> twoPassOutcome(id, geometry, breaks, bothSides) }
+
             message += when {
                 assetId == null -> ""
-                lines.isEmpty() -> " · no products entered, so no spray was recorded"
+                // Not the job yet: a line walked once is not half sprayed, it is not sprayed, so
+                // there is nothing to record and the card says what is still owed.
+                twoPass != null && !twoPass.result.isComplete ->
+                    " · " + TwoPassPhrase.notRecorded(twoPass.result)
 
                 else -> runCatching {
                     sprays.recordSpray(
                         assetId = assetId,
                         products = lines,
-                        distanceM = distanceM,
+                        // Both legs of a two-pass job are ground that was driven: the pass being
+                        // finished, and the one it was waiting on.
+                        distanceM = distanceM + (twoPass?.legsM ?: 0.0),
                         recordedSessionId = sessionId
                     )
+                    // The operator's word for the second side, where the fixes could not say:
+                    // written with the pass it was given for, so the question is not asked again.
+                    if (twoPass != null && twoPass.claimed) recordings.claimBothSides(sessionId)
                     if (_rememberDefaults.value) sprays.rememberDefaultsForTrack(assetId, lines)
                 }.fold(
                     onSuccess = { " · recorded the spray for ${sprayTrackName ?: "the track"}" },
@@ -748,6 +933,9 @@ class RecordingViewModel(
             }
 
             _message.value = message
+            // The sentence on the card follows the pass: the line that was just walked once now
+            // reads as owing its other one, from the same reading the colours come from.
+            _twoPasses.value = twoPass?.result
             _finished.value = FinishedPass(
                 trackName = sprayTrackName,
                 planned = plannedNow,

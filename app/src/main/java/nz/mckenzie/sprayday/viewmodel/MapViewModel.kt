@@ -204,7 +204,9 @@ class MapViewModel(
             lastWithoutRecordingAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
             intervalDays = item.asset.intervalDays,
             leadDays = AssetEntity.DEFAULT_LEAD_DAYS,
-            nowEpochMs = nowEpochMs
+            nowEpochMs = nowEpochMs,
+            passesRequired = item.asset.passesRequired,
+            separationM = item.asset.passSeparationM
         )
     }
 

@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.LinzMapView
@@ -92,6 +93,8 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val tracks by viewModel.assetsToSpray.collectAsStateWithLifecycle()
     val remember by viewModel.rememberDefaults.collectAsStateWithLifecycle()
     val pendingTrackName by viewModel.pendingTrackName.collectAsStateWithLifecycle()
+    val twoPasses by viewModel.twoPasses.collectAsStateWithLifecycle()
+    val pendingBothSides by viewModel.pendingBothSides.collectAsStateWithLifecycle()
 
     var permissionGranted by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     var pickingTrack by remember { mutableStateOf(false) }
@@ -261,6 +264,13 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                         )
                     }
 
+                    // A line that takes two passes: whether it is done, and what it is still owed.
+                    // A line sprayed in one pass - every line the app knew before this - says
+                    // nothing here, because there is nothing to say.
+                    TwoPassPhrase.state(twoPasses)?.let { owed ->
+                        Text(text = owed, style = MaterialTheme.typography.titleSmall)
+                    }
+
                     message?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
 
                     TextButton(onClick = { pickingTrack = true }) {
@@ -427,6 +437,33 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                 // "Keep recording" read as the same answer as Save - it means "carry on", which
                 // is what cancelling a dialog does.
                 TextButton(onClick = { viewModel.cancelFinish() }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Two passes that look the same, on a line that needs two: the fixes have said all they can,
+    // and the operator's word is the only thing left that can settle it. Yes is what closes the
+    // job and records the spray; no finishes the pass with the line still owing its other one.
+    // Cancelling leaves the recording going, as the naming dialog does.
+    if (pendingBothSides) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelFinish() },
+            title = { Text("Did you do both sides?") },
+            text = {
+                Text(
+                    text = "This line has had two passes, both the same way along it, and they are " +
+                        "too close together for the app to tell which side each one was on. " +
+                        "Saying yes records the spray and marks the line done.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmBothSides(true) }) {
+                    Text("Both sides done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.confirmBothSides(false) }) { Text("One side to go") }
             }
         )
     }

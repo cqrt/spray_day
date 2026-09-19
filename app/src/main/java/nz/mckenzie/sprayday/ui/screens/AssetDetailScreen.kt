@@ -38,6 +38,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
+import nz.mckenzie.sprayday.domain.asset.PassPhrase
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DuePhrase
@@ -152,14 +153,14 @@ fun AssetDetailScreen(
                     groupName?.takeIf { it.isNotBlank() }?.let { group ->
                         Text(text = group, style = MaterialTheme.typography.bodyMedium)
                     }
-                    // What it is, and how it is done. The kind is always known, so this
-                    // line always says something; the method is left out when nobody has
-                    // said, because an empty claim is worse than a gap.
+                    // What it is, how it is done, and - for a line that takes two passes - how many
+                    // passes that is, because the two are what decide when the light next changes.
                     track?.let { asset ->
                         val kind = AssetKind.fromStorage(asset.kind)
                         val method = MethodPhrase.of(SprayMethod.fromStorage(asset.method))
+                        val passes = PassPhrase.detail(asset.passesRequired, asset.passSeparationM)
                         Text(
-                            text = listOf(AssetPhrase.kind(kind), method)
+                            text = listOf(AssetPhrase.kind(kind), method, passes.orEmpty())
                                 .filter { it.isNotBlank() }
                                 .joinToString(" \u00b7 "),
                             style = MaterialTheme.typography.bodyMedium

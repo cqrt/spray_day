@@ -47,6 +47,28 @@ data class AssetEntity(
     val intervalDays: Int = DEFAULT_INTERVAL_DAYS,
     /** Used to estimate treated area: length x swath width. */
     val swathWidthM: Double? = null,
+    /**
+     * How many passes along the line the job takes: one, or two for a line that is sprayed
+     * up one side and back down the other.
+     *
+     * A line sprayed twice is not half sprayed when the first pass ends - it is not sprayed
+     * yet - and this is what says so. It is a property of the place, like [method]: the
+     * estuary road is always done both edges, the shelter belt is always done once.
+     *
+     * One by default, which is what every asset in the database was before this existed and
+     * what the app has always assumed, so nothing behaves differently for not having said.
+     */
+    val passesRequired: Int = DEFAULT_PASSES_REQUIRED,
+    /**
+     * How far apart the two passes run, in metres, when the operator has said.
+     *
+     * Used for one thing: deciding whether the app can tell which pass was on which side.
+     * Three metres on a road is two strips it can tell apart; a metre apart on a knapsack
+     * track is not, and then the app goes by which way each pass was heading and asks the
+     * operator when even that is no help. Null means nobody has said, which reads the same
+     * way as "too close to tell".
+     */
+    val passSeparationM: Double? = null,
     val active: Boolean = true,
     val createdAtEpochMs: Long,
     val lastSprayedAtEpochMs: Long? = null,
@@ -58,5 +80,14 @@ data class AssetEntity(
 
         /** Days before the due date at which an asset turns yellow. */
         const val DEFAULT_LEAD_DAYS = 14
+
+        /** One pass is the job unless the operator says otherwise. */
+        const val DEFAULT_PASSES_REQUIRED = 1
+
+        /** The most passes a line can be said to need: up and back, or both sides. */
+        const val MAX_PASSES_REQUIRED = 2
+
+        /** A line that is sprayed twice. */
+        const val TWO_PASSES_REQUIRED = 2
     }
 }

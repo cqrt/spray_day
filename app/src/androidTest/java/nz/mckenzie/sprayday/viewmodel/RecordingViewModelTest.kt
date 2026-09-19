@@ -20,7 +20,9 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LAT
 import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LNG_AT_EQUATOR
+import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.map.AssetColors
@@ -144,7 +146,18 @@ class RecordingViewModelTest {
             assetRepository.getAssetGeometry(stored.asset.id).size
         )
         assertTrue("its length should have been computed", stored.asset.lengthM > 0.0)
-        assertEquals("a freshly recorded track has not been sprayed", DueStatus.NEVER_SPRAYED, stored.due.status)
+        assertEquals(
+            "the pass that made the track is the spray that starts its history: a line recorded " +
+                "with the sprayer on is a line that has been sprayed, whether or not amounts " +
+                "were typed",
+            DueStatus.NOT_DUE,
+            stored.due.status
+        )
+        assertEquals(
+            "and there is one spray on it, from that pass",
+            1,
+            SprayRepository(db).observeSprayEvents(assetId = stored.asset.id).first().size
+        )
     }
 
     @Test
@@ -652,9 +665,9 @@ class RecordingViewModelTest {
 
     // --- The ground a paused pass did not drive -----------------------------------------
 
-    /** A fix [metres] along the test line, [atMs] after the pass started. */
-    private fun timedFixAt(metres: Double, atMs: Long) = GeoPoint(
-        lat = -41.5,
+    /** A fix [metres] along the test line, [atMs] after the pass started, [offsetM] to one side. */
+    private fun timedFixAt(metres: Double, atMs: Long, offsetM: Double = 0.0) = GeoPoint(
+        lat = -41.5 + offsetM / METRES_PER_DEG_LAT,
         lng = 173.9 + metres / METRES_PER_DEG_LNG_AT_EQUATOR,
         timeMs = atMs
     )
@@ -666,12 +679,27 @@ class RecordingViewModelTest {
      * The track is written 4 m apart, as the app records one, because the plan is what gets
      * split and its own geometry has to be the geometry of a real track.
      */
-    private suspend fun passUnderWayOverATrack(viewModel: RecordingViewModel): Long {
+    private suspend fun passUnderWayOverATrack(
+        viewModel: RecordingViewModel,
+        passesRequired: Int = 1,
+        separationM: Double? = null
+    ): Long {
         val madeIt = recordings.startRecording(name = "Track 18 Sep")
         val whole = fixesAlong(1_000.0)
         whole.forEach { recordings.appendPoint(madeIt, it) }
         recordings.finishRecording(madeIt, distanceM = polylineLengthMeters(whole))
         val assetId = assetRepository.createAsset("Track 18 Sep", whole)
+
+        // A track that takes two passes is one the operator has said so about: the field is theirs,
+        // and it is read when a pass finishes rather than assumed from anything about the geometry.
+        if (passesRequired > 1) {
+            assetRepository.updateAsset(
+                assetRepository.getAsset(assetId)!!.copy(
+                    passesRequired = passesRequired,
+                    passSeparationM = separationM
+                )
+            )
+        }
 
         val walking = recordings.startRecording(name = "Spray run", assetId = assetId)
         TrackingState.begin(walking, System.currentTimeMillis())
@@ -757,4 +785,245 @@ class RecordingViewModelTest {
         )
         assertFalse("so none of it is left red: $map", map.contains(AssetColors.RED))
     }
+
+    /**
+     * A pass that nobody typed an amount for is still a spray.
+     *
+     * It used to record nothing at all, which left the track reading "never sprayed" after the
+     * operator had been over it with the sprayer on - the traffic light never moved and the map
+     * stayed red, so the obvious response was to go and do it again. The pass is what happened;
+     * the amounts are a detail the record is allowed to be missing.
+     */
+    @Test
+    fun aPassWithNoAmountsTypedStillCountsAsSprayed() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel)
+        val walked = fixesAlong(1_000.0)
+        walked.forEach { recordings.appendPoint(walking, it) }
+        TrackingState.onAcceptedFix(
+            pointCount = walked.size,
+            distanceM = polylineLengthMeters(walked),
+            accuracyM = 4f
+        )
+
+        viewModel.finish()
+
+        val message = withTimeout(5_000) { viewModel.message.first { it?.startsWith("Saved") == true } }
+        assertTrue(
+            "the spray should be recorded without amounts: $message",
+            message!!.contains("recorded the spray")
+        )
+        assertEquals(
+            "one spray event, with no product lines on it",
+            1,
+            SprayRepository(db).observeSprayEvents(assetId = assetsIdNamed("Track 18 Sep")).first().size
+        )
+        assertEquals(
+            "and the track is not due again for months",
+            DueStatus.NOT_DUE,
+            assetsNamed("Track 18 Sep").single().due.status
+        )
+    }
+
+    /**
+     * A line that takes two passes is not sprayed until it has been walked both ways.
+     *
+     * The report this is from: a track walked up one side went green, the light went out for four
+     * months, and the other side was never done. One pass over a line that takes two is not half
+     * sprayed - it is not sprayed - so there is nothing to record yet, and the card says so.
+     */
+    @Test
+    fun aLineThatTakesTwoPassesIsNotSprayedAfterOne() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel, passesRequired = 2)
+
+        // Up the line: one way along it, and only one. Fixes every four of the plan's metres, which
+        // is what a real recording holds and what the tolerance reads.
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(walking, timedFixAt(metres.toDouble(), atMs = metres * 1_000L))
+        }
+        TrackingState.onAcceptedFix(pointCount = 251, distanceM = 1_000.0, accuracyM = 4f)
+
+        viewModel.finish()
+
+        val message = withTimeout(5_000) { viewModel.message.first { it?.startsWith("Saved") == true } }
+        assertTrue(
+            "the card should say what is still owed: $message",
+            message!!.contains("one pass still to go")
+        )
+        assertTrue(
+            "and nothing should have been recorded as a spray",
+            SprayRepository(db).observeSprayEvents(assetId = assetsIdNamed("Track 18 Sep")).first().isEmpty()
+        )
+        assertEquals(
+            "so the track is still waiting to be sprayed",
+            DueStatus.NEVER_SPRAYED,
+            assetsNamed("Track 18 Sep").single().due.status
+        )
+        assertEquals(
+            "the pass itself is still kept",
+            RecordingStatus.FINISHED.name,
+            recordings.getSession(walking)!!.status
+        )
+    }
+
+    /** The same line, walked up one side and back down the other: the job, and one spray. */
+    @Test
+    fun aLineWalkedBothWaysIsDoneAndRecorded() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel, passesRequired = 2)
+
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(walking, timedFixAt(metres.toDouble(), atMs = metres * 1_000L))
+        }
+        for (metres in 1_000 downTo 0 step 4) {
+            recordings.appendPoint(
+                walking,
+                timedFixAt(metres.toDouble(), atMs = (2_000 + (1_000 - metres)) * 1_000L)
+            )
+        }
+        TrackingState.onAcceptedFix(pointCount = 502, distanceM = 2_000.0, accuracyM = 4f)
+
+        viewModel.finish()
+        withTimeout(5_000) { viewModel.message.first { it?.contains("recorded the spray") == true } }
+
+        val assetId = assetsIdNamed("Track 18 Sep")
+        val events = SprayRepository(db).observeSprayEvents(assetId = assetId).first()
+        assertEquals("one job, one spray record", 1, events.size)
+        assertEquals(
+            "and it carries the ground driven over both legs",
+            2_000.0,
+            events.single().distanceM!!,
+            30.0
+        )
+        assertEquals(
+            "the line is done, so it is not due again",
+            DueStatus.NOT_DUE,
+            assetsNamed("Track 18 Sep").single().due.status
+        )
+    }
+
+    /**
+     * Two passes that look the same along a line, on a track whose two sides are too close together
+     * to tell apart: the app asks rather than guessing, and the answer is what settles it.
+     */
+    @Test
+    fun twoPassesThatCannotBeToldApartAreAskedAbout() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel, passesRequired = 2, separationM = 1.0)
+
+        // Two ascents the same way, a metre either side of the line: the shape the app cannot read.
+        // The walk back down between them is paused, as it would be with the sprayer off.
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(
+                walking,
+                timedFixAt(metres.toDouble(), atMs = metres * 1_000L, offsetM = 0.5)
+            )
+        }
+        recordings.beginBreak(walking, atEpochMs = 1_100_000L)
+        recordings.endBreak(walking, atEpochMs = 1_900_000L)
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(
+                walking,
+                timedFixAt(metres.toDouble(), atMs = (2_000 + metres) * 1_000L, offsetM = -0.5)
+            )
+        }
+        TrackingState.onAcceptedFix(pointCount = 502, distanceM = 2_000.0, accuracyM = 4f)
+
+        viewModel.finish()
+
+        assertTrue(
+            "the app has to ask about this one",
+            withTimeout(5_000) { viewModel.pendingBothSides.first { it } }
+        )
+        assertNull(
+            "and the recording stays open while it waits for the answer",
+            recordings.getSession(walking)!!.endedAtEpochMs
+        )
+
+        viewModel.confirmBothSides(true)
+        withTimeout(5_000) { viewModel.message.first { it?.contains("recorded the spray") == true } }
+
+        val assetId = assetsIdNamed("Track 18 Sep")
+        assertEquals(
+            "the operator's word closes the job",
+            1,
+            SprayRepository(db).observeSprayEvents(assetId = assetId).first().size
+        )
+        assertTrue(
+            "and is written down with the pass it was given for",
+            recordings.getSession(walking)!!.bothSidesClaimed
+        )
+        assertEquals(
+            "so the track is done",
+            DueStatus.NOT_DUE,
+            assetsNamed("Track 18 Sep").single().due.status
+        )
+    }
+
+    @Test
+    fun sayingOneSideIsStillToGoLeavesTheLineOwed() = runBlocking {
+        val viewModel = viewModel()
+        val walking = passUnderWayOverATrack(viewModel, passesRequired = 2, separationM = 1.0)
+
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(
+                walking,
+                timedFixAt(metres.toDouble(), atMs = metres * 1_000L, offsetM = 0.5)
+            )
+        }
+        recordings.beginBreak(walking, atEpochMs = 1_100_000L)
+        recordings.endBreak(walking, atEpochMs = 1_900_000L)
+        for (metres in 0..1_000 step 4) {
+            recordings.appendPoint(
+                walking,
+                timedFixAt(metres.toDouble(), atMs = (2_000 + metres) * 1_000L, offsetM = -0.5)
+            )
+        }
+        TrackingState.onAcceptedFix(pointCount = 502, distanceM = 2_000.0, accuracyM = 4f)
+
+        viewModel.finish()
+        withTimeout(5_000) { viewModel.pendingBothSides.first { it } }
+
+        viewModel.confirmBothSides(false)
+
+        val message = withTimeout(5_000) { viewModel.message.first { it?.startsWith("Saved") == true } }
+        assertTrue("the card says what is owed: $message", message!!.contains("one pass still to go"))
+        assertTrue(
+            "the pass is saved but no spray is recorded",
+            SprayRepository(db).observeSprayEvents(assetId = assetsIdNamed("Track 18 Sep")).first().isEmpty()
+        )
+        assertFalse(
+            "and no claim is written for it",
+            recordings.getSession(walking)!!.bothSidesClaimed
+        )
+    }
+
+    @Test
+    fun aLineSprayedInOnePassHasNothingToSayAboutTwoPasses() = runBlocking {
+        val viewModel = viewModel()
+        passUnderWayOverATrack(viewModel)
+
+        assertNull(
+            "a line sprayed in one pass has nothing to say here",
+            viewModel.twoPasses.value
+        )
+    }
+
+    @Test
+    fun aLineThatTakesTwoPassesIsOwedUntilItHasBeenWalkedBothWays() = runBlocking {
+        val viewModel = viewModel()
+        passUnderWayOverATrack(viewModel, passesRequired = 2, separationM = 3.0)
+
+        val reading = withTimeout(5_000) { viewModel.twoPasses.first { it != null } }!!
+
+        assertFalse(reading.isComplete)
+        assertNull(
+            "and a line nothing has been along yet says nothing on the card either",
+            TwoPassPhrase.state(reading)
+        )
+    }
+
+    /** The id of the one asset with this name, as the list the app shows would have it. */
+    private suspend fun assetsIdNamed(name: String): Long = assetsNamed(name).single().asset.id
 }

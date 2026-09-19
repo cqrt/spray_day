@@ -63,6 +63,15 @@ abstract class RecordingDao {
     @Query("UPDATE recorded_sessions SET name = :name WHERE id = :sessionId")
     abstract suspend fun renameSession(sessionId: Long, name: String)
 
+    /**
+     * Writes down the operator's answer that both sides of a line were done on this pass.
+     *
+     * Only ever set, never cleared: the answer is part of what happened, and a later pass
+     * does not take it back. See [RecordedSessionEntity.bothSidesClaimed].
+     */
+    @Query("UPDATE recorded_sessions SET bothSidesClaimed = 1 WHERE id = :sessionId")
+    abstract suspend fun claimBothSides(sessionId: Long)
+
     @Query("DELETE FROM recorded_sessions WHERE id = :id")
     abstract suspend fun deleteSession(id: Long)
 

@@ -18,8 +18,36 @@ class AssetGroupingTest {
     private fun line(status: DueStatus, lengthM: Double = 1000.0, swathWidthM: Double? = 3.0) =
         GroupableAsset(status = status, lengthM = lengthM, swathWidthM = swathWidthM)
 
+    private fun twoPassLine(status: DueStatus, lengthM: Double = 1000.0, swathWidthM: Double = 1.5) =
+        GroupableAsset(
+            status = status,
+            lengthM = lengthM,
+            swathWidthM = swathWidthM,
+            passesRequired = 2
+        )
+
     private fun spot(status: DueStatus) =
         GroupableAsset(status = status, lengthM = 0.0, swathWidthM = null)
+
+    @Test
+    fun `a block counts both passes of a track that is walked twice`() {
+        // A handover's treated area is the ground that got sprayed, and a track walked up one side
+        // and back down the other is sprayed over twice: reporting one pass under-reports it by
+        // half, which is the kind of figure that ends up in a spray diary as though it were right.
+        val totals = AssetGrouping.totals(
+            listOf(
+                twoPassLine(DueStatus.NOT_DUE, lengthM = 1000.0),
+                line(DueStatus.NOT_DUE, lengthM = 1000.0)
+            )
+        )
+
+        assertEquals(
+            "1.5 m twice over 1 km, plus 3 m once over 1 km",
+            6000.0,
+            totals.areaSqm,
+            0.01
+        )
+    }
 
     @Test
     fun `a block adds up its lines, its area and what is left`() {

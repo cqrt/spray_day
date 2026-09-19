@@ -94,7 +94,8 @@ internal object AssetListRows {
     private fun asGroupable(item: AssetWithDue) = GroupableAsset(
         status = item.due.status,
         lengthM = item.asset.lengthM,
-        swathWidthM = item.asset.swathWidthM
+        swathWidthM = item.asset.swathWidthM,
+        passesRequired = item.asset.passesRequired
     )
 }
 

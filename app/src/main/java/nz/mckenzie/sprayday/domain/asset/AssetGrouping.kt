@@ -15,7 +15,13 @@ data class GroupableAsset(
     val status: DueStatus,
     val lengthM: Double,
     /** Null when nobody has said how wide the work is, which is why the area is partial. */
-    val swathWidthM: Double?
+    val swathWidthM: Double?,
+    /**
+     * How many passes the line's job takes. A block's area is the ground that gets treated, and
+     * a track walked up one side and back down the other is sprayed over twice: leaving this out
+     * would under-report every two-pass track in the block by half.
+     */
+    val passesRequired: Int = 1
 ) {
     /** Due, overdue or never done: this one still has to be driven. */
     val isLeft: Boolean get() = status != DueStatus.NOT_DUE
@@ -81,7 +87,13 @@ object AssetGrouping {
         return GroupTotals(
             assetCount = assets.size,
             lengthM = lines.sumOf { it.lengthM },
-            areaSqm = measured.sumOf { asset -> estimatedAreaSqm(asset.lengthM, asset.swathWidthM ?: 0.0) },
+            areaSqm = measured.sumOf { asset ->
+                estimatedAreaSqm(
+                    lengthM = asset.lengthM,
+                    swathWidthM = asset.swathWidthM ?: 0.0,
+                    passes = asset.passesRequired
+                )
+            },
             areaAssetCount = measured.size,
             leftCount = left.size,
             leftLengthM = left.filter { it.lengthM > 0.0 }.sumOf { it.lengthM },

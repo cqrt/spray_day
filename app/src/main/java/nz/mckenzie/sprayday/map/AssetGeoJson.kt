@@ -23,7 +23,7 @@ data class AssetLine(
     val colorHex: String,
     val points: List<GeoPoint>,
     /**
-     * What it is, which decides how it is drawn: solid, dashed, dotted, or a circle.
+     * What it is, which decides how it is drawn: solid, dashed, dotted, or a house.
      *
      * Defaulted for the map's previews - a line being drawn, or a planned line shown
      * over a recording - which are not assets and have no kind to be drawn by.
@@ -109,13 +109,24 @@ object AssetColors {
  * Each feature carries what the map needs and nothing more: its id for tapping, its
  * traffic-light colour, its kind and its shape. The kind and shape are properties
  * rather than baked into the geometry because the layers read them - the kind picks
- * which line layer draws a feature, and a point asset is drawn as a circle rather
- * than a line at all.
+ * which line layer draws a feature, and a point asset is drawn as a house rather
+ * than a line at all. A place also carries the name of the picture to draw it with
+ * ([ICON_PROPERTY]), because a house is one picture per colour and which picture a
+ * colour asks for belongs where the colour is known.
  *
  * Hand-rolled rather than pulling in a JSON library: the payload is tiny, and
  * keeping it pure Kotlin means it is covered by fast JVM unit tests.
  */
 object AssetGeoJson {
+
+    /**
+     * The property naming the picture a place is drawn with.
+     *
+     * The same idiom as [PositionGeoJson.PART_PROPERTY]: the feature says what it wants and
+     * the layer reads it, so which picture a colour asks for is decided in Kotlin - and
+     * tested there - rather than in a style expression nobody can read.
+     */
+    internal const val ICON_PROPERTY = "icon"
 
     private const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
@@ -160,6 +171,12 @@ object AssetGeoJson {
         builder.append("\"stroke\":\"").append(escape(stretch.colorHex)).append("\",")
         builder.append("\"kind\":\"").append(line.kind.name).append("\",")
         builder.append("\"shape\":\"").append(line.shape.name).append("\"")
+        // Only a place is drawn as a picture. A line carries its colour and the layer draws
+        // it, so a line has no picture to ask for and does not carry this property at all.
+        if (line.shape == AssetShape.POINT) {
+            builder.append(",\"").append(ICON_PROPERTY).append("\":\"")
+                .append(escape(PlaceIcons.houseImageName(stretch.colorHex))).append("\"")
+        }
         builder.append("},\"geometry\":{")
         if (line.shape == AssetShape.POINT) {
             builder.append("\"type\":\"Point\",\"coordinates\":")

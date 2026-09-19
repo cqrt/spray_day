@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.map
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -9,6 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds as DomainBounds
@@ -28,7 +30,9 @@ import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.PropertyValue
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
+import kotlin.math.roundToInt
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
@@ -141,6 +145,12 @@ fun BasemapView(
     val mapViewState = remember { mutableStateOf<MapView?>(null) }
     var boundsApplied by remember { mutableStateOf(false) }
 
+    // The houses a place is drawn with are rendered at the device's own density, so a place is
+    // the size it is meant to be, and sharp, on the screen it lands on. Read here and passed
+    // in because a style is loaded from two places - the first frame, and a basemap change -
+    // and both want the same answer.
+    val density = LocalDensity.current.density
+
     // Keeps the tap handler current without rebuilding the map.
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val currentOnFollowBroken by rememberUpdatedState(onFollowBroken)
@@ -215,7 +225,8 @@ fun BasemapView(
                         apiKey = apiKey,
                         tileUrlTemplate = tileUrlTemplate,
                         assetGeoJson = assetGeoJson,
-                        positionGeoJson = positionGeoJson
+                        positionGeoJson = positionGeoJson,
+                        density = density
                     ) { style ->
                         styleState.value = style
                     }
@@ -237,7 +248,8 @@ fun BasemapView(
                 apiKey = apiKey,
                 tileUrlTemplate = tileUrlTemplate,
                 assetGeoJson = assetGeoJson,
-                positionGeoJson = positionGeoJson
+                positionGeoJson = positionGeoJson,
+                density = density
             ) { style ->
                 styleState.value = style
             }
@@ -316,7 +328,10 @@ fun BasemapView(
 /**
  * Loads a spray-day style and installs the track source/layer. Tracks are drawn
  * from a data-driven `stroke` property so each track takes its traffic-light
- * colour.
+ * colour, and a place is drawn as a house in the same one.
+ *
+ * [density] is the device's, and it is what the houses are rendered at: see
+ * [addPlaceIconImages].
  */
 internal fun MapLibreMap.loadSprayDayStyle(
     basemap: Basemap,
@@ -324,6 +339,7 @@ internal fun MapLibreMap.loadSprayDayStyle(
     tileUrlTemplate: String?,
     assetGeoJson: String,
     positionGeoJson: String,
+    density: Float,
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
@@ -352,17 +368,32 @@ internal fun MapLibreMap.loadSprayDayStyle(
         addLineLayer(style, ASSETS_LAYER, AssetKind.TRACK)
         addLineLayer(style, ASSETS_ROAD_LAYER, AssetKind.ROAD)
         addLineLayer(style, ASSETS_INFRASTRUCTURE_LAYER, AssetKind.INFRASTRUCTURE)
-        // A place is a circle, not a short line: drawing a picnic table as a line would
-        // claim a shape the record does not have.
+        // A place is a house, not a short line: drawing a picnic table as a line would
+        // claim a shape the record does not have, and a house says what the thing is
+        // rather than only where it is - the same picture the asset's row carries.
+        addPlaceIconImages(style, density)
         if (style.getLayer(ASSETS_POINT_LAYER) == null) {
             style.addLayer(
-                CircleLayer(ASSETS_POINT_LAYER, ASSETS_SOURCE)
+                SymbolLayer(ASSETS_POINT_LAYER, ASSETS_SOURCE)
                     .withProperties(
-                        PropertyFactory.circleColor(Expression.get("stroke")),
-                        PropertyFactory.circleRadius(Expression.literal(8f)),
-                        // A white ring keeps a red or amber dot readable over dark imagery.
-                        PropertyFactory.circleStrokeColor(Expression.literal("#FFFFFF")),
-                        PropertyFactory.circleStrokeWidth(Expression.literal(2f))
+                        // The feature names the house it wants, so which colour a place is
+                        // drawn in is decided in Kotlin, where it is tested - and the
+                        // fallback means a place can never be drawn as nothing at all.
+                        PropertyFactory.iconImage(
+                            Expression.coalesce(
+                                Expression.get(AssetGeoJson.ICON_PROPERTY),
+                                Expression.literal(PlaceIcons.FALLBACK_IMAGE_NAME)
+                            )
+                        ),
+                        // The picture is already the size a place is drawn at on this device -
+                        // see [addPlaceIconImages] - because an image is drawn at its own
+                        // pixels: there is no icon-size here to keep in step with the screen.
+                        PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
+                        // Every place is drawn, wherever it is. A dot never hid from another
+                        // dot, and a spot that vanishes because a second one is near it reads
+                        // as a spot that has been deleted.
+                        PropertyFactory.iconAllowOverlap(Expression.literal(true)),
+                        PropertyFactory.iconIgnorePlacement(Expression.literal(true))
                     )
                     .withFilter(shapeIs(AssetShape.POINT))
             )
@@ -401,6 +432,39 @@ internal fun MapLibreMap.loadSprayDayStyle(
         }
         onLoaded(style)
     }
+}
+
+/**
+ * Hands the style the houses a place is drawn with: one per colour a traffic light can be.
+ *
+ * Drawn rather than shipped as a sprite, for the same reason the asset list's glyphs are:
+ * four small pictures that only mean anything as a set are easier to keep honest in one
+ * place than across a sprite sheet and the pixel ratios that come with it.
+ *
+ * Each is rendered at the device's own density - one image pixel per screen pixel - which is
+ * what draws a place at [PlaceIcons.HOUSE_DP] on whatever screen it lands on, and keeps the
+ * roof and the white edge sharp while it does it. There is no size in the style to get wrong
+ * and nothing for the map to scale.
+ */
+private fun addPlaceIconImages(style: Style, density: Float) {
+    val sizePx = (PlaceIcons.HOUSE_DP * density).roundToInt()
+    if (sizePx <= 0) return
+
+    val missing = HashMap<String, Bitmap>(PlaceIcons.COLORS.size)
+    PlaceIcons.COLORS.forEach { colorHex ->
+        val name = PlaceIcons.houseImageName(colorHex)
+        // An image belongs to the style it was added to, and a style can be loaded again -
+        // the same basemap with a key that has just been entered, say. Adding one twice is
+        // not wrong so much as unnecessary work on the main thread.
+        if (style.getImage(name) == null) {
+            missing[name] = HouseMarker.bitmap(
+                colorHex = colorHex,
+                sizePx = sizePx,
+                outlinePx = PlaceIcons.HOUSE_OUTLINE_DP * density
+            )
+        }
+    }
+    if (missing.isNotEmpty()) style.addImages(missing)
 }
 
 /**

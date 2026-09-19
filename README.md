@@ -56,7 +56,8 @@ sprayed).
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
   each kind drawn differently — solid for tracks, dashed for roads, dotted for
-  infrastructure, and a circle for anything that is a spot rather than a path. A
+  infrastructure, and a **house for anything that is a spot** rather than a path, in
+  the same traffic-light colour and the same house the asset's row carries. A
   **part-sprayed track is drawn in parts**: what the pass covered in the colour it
   earned, and what is still waiting for a tank in red, so "half this line is left" is
   visible without opening anything. A tap

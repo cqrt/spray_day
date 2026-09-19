@@ -128,6 +128,35 @@ class AssetGeoJsonTest {
     }
 
     @Test
+    fun `a place carries the house it is to be drawn with, in its traffic-light colour`() {
+        val place = AssetLine(
+            assetId = 9L,
+            name = "Trough",
+            colorHex = AssetColors.forStatus(DueStatus.NEVER_SPRAYED),
+            points = listOf(GeoPoint(-41.2865, 174.7762)),
+            kind = AssetKind.INFRASTRUCTURE,
+            shape = AssetShape.POINT
+        )
+
+        val json = AssetGeoJson.build(listOf(place))
+
+        assertTrue(
+            "a place never sprayed is drawn as the red house: $json",
+            json.contains("\"${AssetGeoJson.ICON_PROPERTY}\":\"${PlaceIcons.houseImageName(AssetColors.RED)}\"")
+        )
+    }
+
+    @Test
+    fun `a line is not given a picture, because its own layer draws it`() {
+        val json = AssetGeoJson.build(listOf(line(), line(kind = AssetKind.INFRASTRUCTURE)))
+
+        assertFalse(
+            "only a place is drawn as a picture: $json",
+            json.contains(AssetGeoJson.ICON_PROPERTY)
+        )
+    }
+
+    @Test
     fun `a half-sprayed track is two features, one per stretch, opening the same asset`() {
         val halfSprayed = AssetLine(
             assetId = 7L,

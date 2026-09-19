@@ -39,8 +39,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.due.DueStatus
-import nz.mckenzie.sprayday.map.LinzBasemap
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 
@@ -53,6 +53,7 @@ fun MapScreen(
     onOpenAsset: (Long) -> Unit = {}
 ) {
     val apiKey by viewModel.linzApiKey.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
     val geoJson by viewModel.assetGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
@@ -102,7 +103,8 @@ fun MapScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LinzMapView(
+            BasemapView(
+                basemap = basemap,
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
                 // The marker for the phone is the map's own business now, so this screen
@@ -148,7 +150,10 @@ fun MapScreen(
                 AppIcon(IconGlyph.LOCATE, contentDescription = "Show where I am")
             }
 
-            if (apiKey.isBlank()) {
+            // Only when the chosen basemap needs a key and none is set. OpenStreetMap needs none,
+            // which is the whole reason it is in the app: the day a LINZ key expires, the map is
+            // still a map.
+            if (basemap.needsKey && apiKey.isBlank()) {
                 MissingKeyCard(
                     onOpenSettings = onOpenSettings,
                     modifier = Modifier
@@ -158,6 +163,7 @@ fun MapScreen(
             }
 
             AttributionStrip(
+                basemap = basemap,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)
@@ -247,17 +253,25 @@ private fun MissingKeyCard(onOpenSettings: () -> Unit, modifier: Modifier = Modi
     }
 }
 
-/** The LINZ licence requires attribution to be visible, not hidden behind a tap. */
+/**
+ * The credit the basemap's licence requires, visible on the map rather than behind a tap.
+ *
+ * Both licences say the same thing in different words: LINZ requires attribution to be shown,
+ * and OpenStreetMap's guidelines add that it must not be hidden "behind toggles, or off-screen".
+ * So this strip is drawn by every screen that draws a map, names the basemap actually in use, and
+ * links to that basemap's own credit page - which is what makes it satisfy the licence rather than
+ * merely mention it.
+ */
 @Composable
-internal fun AttributionStrip(modifier: Modifier = Modifier) {
+internal fun AttributionStrip(basemap: Basemap, modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
     Text(
-        text = LinzBasemap.ATTRIBUTION,
+        text = basemap.attribution,
         style = MaterialTheme.typography.labelSmall,
         color = Color.White,
         modifier = modifier
             .background(Color(0x99000000), RoundedCornerShape(4.dp))
-            .clickable { uriHandler.openUri(LinzBasemap.ATTRIBUTION_LINK) }
+            .clickable { uriHandler.openUri(basemap.attributionLink) }
             .padding(horizontal = 8.dp, vertical = 4.dp)
     )
 }

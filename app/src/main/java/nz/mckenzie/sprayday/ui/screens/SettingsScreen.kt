@@ -44,6 +44,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.backup.BackupDestination
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.viewmodel.KeyCheckState
 import nz.mckenzie.sprayday.viewmodel.KeySource
 import nz.mckenzie.sprayday.viewmodel.InstallState
@@ -81,6 +82,7 @@ fun SettingsScreen(
         onPauseOrDispose { }
     }
     val activeKeyLabel by viewModel.activeKeyLabel.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val storedTiles by viewModel.storedTiles.collectAsStateWithLifecycle()
@@ -215,6 +217,43 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text("Basemap", style = MaterialTheme.typography.titleMedium)
+
+                    ChoiceRow(
+                        label = "What to draw under your tracks",
+                        choices = Basemap.entries,
+                        selected = basemap,
+                        onChoose = viewModel::setBasemap,
+                        text = { it.displayName }
+                    )
+
+                    Text(basemap.summary, style = MaterialTheme.typography.bodySmall)
+
+                    // Only imagery can be downloaded, so it is worth saying on the screen where
+                    // the choice is made, not only on the offline one.
+                    if (!basemap.prefetchable) {
+                        Text(
+                            text = "Offline areas always download aerial imagery, whichever " +
+                                "basemap you read your maps on.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Their tile usage policy asks for a way to report a problem, and a gate that
+                    // is not on the map is exactly the sort of thing the operator would know about.
+                    if (basemap == Basemap.OPENSTREETMAP) {
+                        TextButton(onClick = { uriHandler.openUri(Basemap.OSM_REPORT_LINK) }) {
+                            Text("Report a map issue to OpenStreetMap")
+                        }
+                    }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("LINZ Basemaps key", style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = "In use: " +
@@ -223,11 +262,12 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "The map imagery comes from LINZ and needs one of their keys. " +
+                        text = "The aerial imagery comes from LINZ and needs one of their keys. " +
                             "Standard-access keys expire every 90 days, and an expired key " +
                             "shows up as imagery that still works where you have already been " +
                             "and is blank somewhere new \u2014 so if the map ever looks wrong, " +
-                            "press Check.",
+                            "press Check. OpenStreetMap needs no key, so a map with no key at " +
+                            "all is still a map.",
                         style = MaterialTheme.typography.bodySmall
                     )
 

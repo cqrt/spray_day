@@ -2,7 +2,7 @@ package nz.mckenzie.sprayday.offline
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import nz.mckenzie.sprayday.map.LinzBasemap
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -63,7 +63,7 @@ sealed interface KeyCheck {
  */
 class LinzKeyProbe(
     /** Overridden in tests: the live service is not part of a unit test. */
-    private val urlFor: (String) -> String = LinzBasemap::hostedAerialStyleUrl,
+    private val urlFor: (String) -> String = Basemap::linzStyleUrl,
     private val connectTimeoutMs: Int = 10_000,
     private val readTimeoutMs: Int = 15_000
 ) {

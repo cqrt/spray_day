@@ -9,9 +9,11 @@ sprayed).
 
 ## What it does
 
-- **LINZ aerial basemap** (New Zealand), with the required attribution shown
-  permanently, and **offline areas** you can download so the map still works
-  where there is no reception. **Where you are** is a dot on **every** map — the
+- **Basemap of your choice** — LINZ aerial imagery (New Zealand) by default, or
+  OpenStreetMap for roads, tracks, gates and names, which needs no key and keeps working
+  the day a LINZ key expires. Whichever is chosen, the credit its licence requires is
+  shown permanently on every map, and **offline areas** download aerial imagery so the
+  map still works where there is no reception. **Where you are** is a dot on **every** map — the
   map, the recorder, the drawing screen, an asset's own map, the offline picker —
   ringed by the accuracy the fix was actually good to: a fix under trees is drawn as
   the uncertainty it is, and a fix with no accuracy is drawn as a dot with no ring,
@@ -102,15 +104,70 @@ sprayed).
   history, or archive one so it stops being offered without losing what was
   sprayed with it.
 
+## Basemaps
+
+Two maps can be drawn under the work, chosen in **Settings** and used everywhere a map is: the
+map itself, the recorder, the drawing screen, an asset's map and a pass's own map.
+
+| Basemap | What it is | Key | Offline |
+| --- | --- | --- | --- |
+| **Aerial imagery** (LINZ) | A photograph of the ground — what a spray decision is made from | LINZ Basemaps key | downloadable |
+| **OpenStreetMap** | A drawn map: roads, tracks, gates and names | none | browsed as you look at it |
+
+OpenStreetMap is in the app for one reason above all: the day a LINZ key expires, the map is
+still a map. It shows nothing about what is growing, so it is not a replacement for imagery —
+it is a floor under it, and it is also the map to read when the question is which gate a
+fenceline starts at.
+
+### OpenStreetMap's terms, and what they mean here
+
+Their [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) is a licence
+term rather than a preference, and three parts of it shaped the code:
+
+- **No bulk downloading, and no offline packs.** **Download area** is therefore aerial imagery
+  only, the offline screens say so, and `Basemap.prefetchable` is `false` for OpenStreetMap — the
+  rule sits in the data, where the next feature has to read it, rather than in a comment. Tiles
+  the operator has actually looked at are still cached as they are looked at, which is what the
+  same policy requires.
+- **A `User-Agent` naming the application.** The map never talks to `tile.openstreetmap.org`:
+  their tiles are fetched by the app's own tile server, and `OsmTileFetcher` sends
+  `SprayDay/<version> (+https://github.com/cqrt/spray_day)`. A library's default user agent is
+  exactly what their policy names as not enough.
+- **Attribution that is visible.** `© OpenStreetMap contributors` links to
+  [openstreetmap.org/copyright](https://www.openstreetmap.org/copyright), in the same
+  always-visible strip the imagery credit uses, and Settings carries their
+  [Report a map issue](https://www.openstreetmap.org/fixthemap) link — a gate that is missing
+  from the map is the sort of thing an operator would know about.
+
+### Where the tiles live
+
+Each basemap is one `TileSource` in the same loopback server, so the map has one tile path
+whatever it is drawing: `http://127.0.0.1:<port>/tiles/<source>/{z}/{x}/{y}<suffix>`. The source
+in the path is what keeps two licences, two suffixes and two caches apart:
+
+- `filesDir/tiles/{z}/{x}/{y}.webp` — **aerial imagery**, at exactly the path it has always had,
+  so a season of downloaded imagery is not re-fetched by this feature existing. It is what
+  offline areas are downloaded into, and it is deliberately kept.
+- `cacheDir/tiles-cache-osm/{z}/{x}/{y}.png` — **the drawn map**: a cache of what has been looked
+  at, which Android may reclaim under storage pressure and which nothing but the map itself ever
+  asks for.
+
+Everything that differs between basemaps — the tile URL, the suffix on disk, the content type,
+the zoom the source publishes to, whether a key is needed, whether it may be fetched ahead of
+time, and the credit its licence requires — is one entry in
+[`domain/tiles/Basemap.kt`](app/src/main/java/nz/mckenzie/sprayday/domain/tiles/Basemap.kt).
+Adding a basemap is that entry, a store decision in `TileServerHolder`, and a fetcher if the
+source is not one of the two already there.
+
 ## How offline imagery works
 
-The map never talks to LINZ directly. Tiles are served by a small HTTP server
-inside the app, bound to `127.0.0.1`, which:
+The map never talks to a map service directly — LINZ or OpenStreetMap. Tiles are served by a
+small HTTP server inside the app, bound to `127.0.0.1`, which:
 
-- serves a tile from the on-disk store when it is held, so downloaded areas —
+- serves a tile from that source's on-disk store when it is held, so downloaded areas —
   and imagery you have simply browsed — work with no reception;
-- otherwise fetches it from LINZ and stores it on the way through, so ordinary
-  use of the map builds up offline coverage;
+- otherwise fetches it from LINZ (using the key in Settings) and stores it on the way
+  through, so ordinary use of the map builds up offline coverage;
 - answers 404 for a tile that is neither held nor available, so the map shows
   its background colour rather than an error.
 
@@ -133,12 +190,12 @@ sliders do, so the cost of another level of detail is visible before committing 
 and give the area a name to find it by later. Exactly those tiles are fetched,
 and the area's progress is in the list on the way back.
 
-Tiles are plain `{z}/{x}/{y}.webp` files under `filesDir/tiles`, not MapLibre's
-offline database, which keeps them inspectable, resumable tile by tile, and
-servable straight back to the map. That matters because MapLibre's own
-downloader, pointed at LINZ's hosted style, pulled ~10x the needed tiles (3,175
-resources for a ~304-tile area) by walking style sources the imagery layers
-never use.
+Tiles are plain `{z}/{x}/{y}.webp` files under `filesDir/tiles`, at the path they have always
+had — the source is in the URL rather than in imagery's own path, see **[Basemaps](#basemaps)** —
+rather than MapLibre's offline database, which keeps them inspectable, resumable tile by tile, and
+servable straight back to the map. That matters because MapLibre's own downloader, pointed at
+LINZ's hosted style, pulled ~10x the needed tiles (3,175 resources for a ~304-tile area) by walking
+style sources the imagery layers never use.
 
 One subtlety worth knowing: MapLibre gates HTTP requests on device connectivity,
 so with no reception it requests nothing at all — including from our local
@@ -494,3 +551,10 @@ rather than as a fault in the download.
 Basemap imagery is licensed **CC BY 4.0** and provided by LINZ. Every map screen
 shows `LINZ CC BY 4.0 © Imagery Basemap contributors`, linking to LINZ's
 [attribution page](https://www.linz.govt.nz/products-services/data/licensing-and-using-data/attributing-linz-basemaps-data).
+
+OpenStreetMap data is © OpenStreetMap contributors, under the
+[Open Database Licence](https://www.openstreetmap.org/copyright). Where the drawn map is chosen,
+every map screen instead shows `© OpenStreetMap contributors`, linking to that copyright page —
+the credit is never behind a toggle, which their guidelines require in as many words, and their
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/) is what keeps offline
+areas to imagery only.

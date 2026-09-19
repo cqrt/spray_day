@@ -29,7 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.offline.OfflineAreaDraft
 import nz.mckenzie.sprayday.viewmodel.OfflineAreaPickerViewModel
 import kotlin.math.roundToInt
@@ -81,7 +82,10 @@ fun OfflineAreaPickerScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LinzMapView(
+            // Aerial imagery, whichever basemap the operator reads their own maps on: what is
+            // picked here is what gets downloaded, and only imagery can be downloaded.
+            BasemapView(
+                basemap = Basemap.LINZ_AERIAL,
                 apiKey = apiKey,
                 assetGeoJson = previewGeoJson,
                 fitBounds = startBounds,
@@ -90,6 +94,7 @@ fun OfflineAreaPickerScreen(
             )
 
             AttributionStrip(
+                basemap = Basemap.LINZ_AERIAL,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)

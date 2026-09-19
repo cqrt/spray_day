@@ -58,7 +58,8 @@ import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatDuration
@@ -79,6 +80,7 @@ import nz.mckenzie.sprayday.viewmodel.RecordingViewModel
 fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val state by viewModel.tracking.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val geoJson by viewModel.recordedGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -154,7 +156,8 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LinzMapView(
+            BasemapView(
+                basemap = basemap,
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
                 // Recording starts where the operator is, not on a view of the country.
@@ -201,6 +204,7 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
             }
 
             AttributionStrip(
+                basemap = basemap,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)

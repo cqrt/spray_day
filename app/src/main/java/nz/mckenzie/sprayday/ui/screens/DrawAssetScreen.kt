@@ -32,7 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 
@@ -44,6 +45,7 @@ import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 @Composable
 fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val points by viewModel.points.collectAsStateWithLifecycle()
     val lengthM by viewModel.lengthM.collectAsStateWithLifecycle()
     val geoJson by viewModel.draftGeoJson.collectAsStateWithLifecycle()
@@ -80,7 +82,8 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LinzMapView(
+            BasemapView(
+                basemap = basemap,
                 apiKey = apiKey,
                 assetGeoJson = geoJson,
                 // Drawing happens where the operator is standing, so that is the frame.
@@ -90,6 +93,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
             )
 
             AttributionStrip(
+                basemap = basemap,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)

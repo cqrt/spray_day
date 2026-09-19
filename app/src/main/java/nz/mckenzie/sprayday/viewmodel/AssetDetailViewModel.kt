@@ -28,6 +28,7 @@ import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
 /** One spray in an asset's history, with the amounts that went out. */
@@ -63,6 +64,14 @@ class AssetDetailViewModel(
 
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /**
+     * Which map to draw under the work: the operator's choice in Settings.
+     *
+     * Read here rather than handed in per screen, so a map added later cannot quietly ignore it.
+     */
+    val basemap: StateFlow<Basemap> = settingsRepository.basemap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Basemap.DEFAULT)
 
     val track: StateFlow<AssetEntity?> = assetRepository.observeAsset(assetId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)

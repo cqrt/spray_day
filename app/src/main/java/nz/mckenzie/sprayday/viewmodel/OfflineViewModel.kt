@@ -262,7 +262,7 @@ class OfflineViewModel(
                         manager = OfflineAreaManager(
                             // The same store the tile server serves from, so what
                             // is downloaded here is what the map reads offline.
-                            store = TileServerHolder.store(appContext),
+                            store = TileServerHolder.imageryStore(appContext),
                             dao = database.offlineAreaDao()
                         ),
                         assetRepository = AssetRepository(database),

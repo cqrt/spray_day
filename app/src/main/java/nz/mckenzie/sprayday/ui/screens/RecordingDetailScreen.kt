@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,8 +35,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.ui.formatDate
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.ui.formatDuration
@@ -59,6 +61,7 @@ fun RecordingDetailScreen(
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val geoJson by viewModel.geoJson.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val deleted by viewModel.deleted.collectAsStateWithLifecycle()
@@ -89,14 +92,26 @@ fun RecordingDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            LinzMapView(
-                apiKey = apiKey,
-                assetGeoJson = geoJson,
-                fitBounds = remember(detail) { boundsOf(detail) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-            )
+            // A Box, where before this was the map alone, because the imagery licence requires a
+            // credit wherever the imagery is shown and this map had none. The screenshot of a
+            // pass is a place the imagery is read.
+            Box {
+                BasemapView(
+                    basemap = basemap,
+                    apiKey = apiKey,
+                    assetGeoJson = geoJson,
+                    fitBounds = remember(detail) { boundsOf(detail) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                )
+                AttributionStrip(
+                    basemap = basemap,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 4.dp)
+                )
+            }
 
             Column(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp),

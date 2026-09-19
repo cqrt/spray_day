@@ -235,7 +235,7 @@ class OfflineAreaPickerViewModel(
                     val database = SprayDayDatabase.get(appContext)
                     OfflineAreaPickerViewModel(
                         manager = OfflineAreaManager(
-                            store = TileServerHolder.store(appContext),
+                            store = TileServerHolder.imageryStore(appContext),
                             dao = database.offlineAreaDao()
                         ),
                         assetRepository = AssetRepository(database),

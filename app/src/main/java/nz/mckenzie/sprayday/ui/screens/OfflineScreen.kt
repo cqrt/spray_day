@@ -30,7 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaPlan
 import nz.mckenzie.sprayday.ui.formatCoordinates
@@ -100,8 +101,13 @@ fun OfflineScreen(
 
                         // The outline is drawn as a closed line, so what is about to be
                         // cached is visible rather than described.
+                        //
+                        // Aerial imagery whatever the operator has chosen for their own maps:
+                        // this thumbnail is of the thing being downloaded, and OpenStreetMap
+                        // can never be downloaded.
                         Box {
-                            LinzMapView(
+                            BasemapView(
+                                basemap = Basemap.LINZ_AERIAL,
                                 apiKey = apiKey,
                                 assetGeoJson = previewGeoJson,
                                 fitBounds = area.bounds,
@@ -113,6 +119,7 @@ fun OfflineScreen(
                             // thumbnail is a place imagery is shown: the same strip the map
                             // and the asset screens carry, for the same reason.
                             AttributionStrip(
+                                basemap = Basemap.LINZ_AERIAL,
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .padding(bottom = 4.dp)
@@ -132,6 +139,14 @@ fun OfflineScreen(
                         Text(
                             text = "Exactly those tiles are fetched and stored on the device, so " +
                                 "the map keeps working with no reception.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        // Said here, where the operator is looking at aerial imagery under a
+                        // basemap of their own choosing, because "why is this not the map I
+                        // picked?" is the question this screen otherwise leaves them with.
+                        Text(
+                            text = "Offline areas are always aerial imagery: it is the only " +
+                                "basemap whose licence allows downloading ahead of time.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -154,7 +169,7 @@ fun OfflineScreen(
 
             if (apiKey.isBlank()) {
                 Text(
-                    text = "Add a LINZ Basemaps key in local.properties before downloading.",
+                    text = "Add a LINZ Basemaps key in Settings before downloading.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

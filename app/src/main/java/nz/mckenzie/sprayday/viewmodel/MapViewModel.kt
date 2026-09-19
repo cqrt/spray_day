@@ -28,6 +28,7 @@ import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetCoverageStretches
@@ -70,6 +71,10 @@ class MapViewModel(
     val linzApiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), "")
 
+    /** Which map to draw under the work: the operator's choice in Settings. */
+    val basemap: StateFlow<Basemap> = settingsRepository.basemap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Basemap.DEFAULT)
+
     val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue(dueNow)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
@@ -109,7 +114,7 @@ class MapViewModel(
      * Where the phone *is* is not this view model's business any more: the marker belongs to
      * the map, so that every map in the app draws one rather than only the screens that thought
      * to collect a stream. See [nz.mckenzie.sprayday.tracking.DevicePosition] and
-     * [nz.mckenzie.sprayday.map.LinzMapView]. What is left here is what this screen alone asks
+     * [nz.mckenzie.sprayday.map.BasemapView]. What is left here is what this screen alone asks
      * of the location: the frame for a first look, and this - the move that answers a tap.
      */
     private val _recentre = MutableStateFlow<RecentreRequest?>(null)

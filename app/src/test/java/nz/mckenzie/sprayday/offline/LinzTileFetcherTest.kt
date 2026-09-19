@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.offline
 
 import kotlinx.coroutines.runBlocking
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,9 +25,23 @@ class LinzTileFetcherTest {
     private lateinit var server: LocalTileServer
     private var port: Int = 0
 
+    /**
+     * Aerial imagery in one store, the drawn map in another: the same two sources the app runs,
+     * so the tests exercise the same paths the map asks for.
+     */
     private fun startServer(upstream: TileFetcher? = null) {
-        store = OfflineTileStore(temp.root)
-        server = LocalTileServer(store, upstreamProvider = { upstream })
+        store = OfflineTileStore(temp.root.resolve("imagery"), Basemap.LINZ_AERIAL.tileSuffix)
+        server = LocalTileServer(
+            listOf(
+                TileSource(
+                    id = Basemap.LINZ_AERIAL.id,
+                    store = store,
+                    suffix = Basemap.LINZ_AERIAL.tileSuffix,
+                    contentType = Basemap.LINZ_AERIAL.contentType,
+                    upstream = { upstream }
+                )
+            )
+        )
         port = server.start()
     }
 
@@ -39,7 +54,10 @@ class LinzTileFetcherTest {
     /** A fetcher that talks to the local server instead of LINZ. */
     private fun fetcher() = LinzTileFetcher(
         apiKey = "test-key",
-        urlFor = { zoom, x, y -> "http://127.0.0.1:$port/tiles/$zoom/$x/$y.webp" }
+        urlFor = { zoom, x, y ->
+            "http://127.0.0.1:$port/tiles/${Basemap.LINZ_AERIAL.id}/$zoom/$x/$y" +
+                Basemap.LINZ_AERIAL.tileSuffix
+        }
     )
 
     @Test
@@ -87,7 +105,7 @@ class LinzTileFetcherTest {
 
     @Test
     fun `the default url is a keyed linz aerial tile`() {
-        val url = nz.mckenzie.sprayday.map.LinzBasemap.aerialTileUrl("abc123", 14, 1017, 660)
+        val url = Basemap.LINZ_AERIAL.tileUrl("abc123", 14, 1017, 660)
 
         assertEquals(
             "https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/14/1017/660.webp?api=abc123",

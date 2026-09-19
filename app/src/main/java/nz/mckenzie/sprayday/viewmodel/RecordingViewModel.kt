@@ -44,6 +44,7 @@ import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.geo.splitAtBreaks
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
@@ -92,6 +93,10 @@ class RecordingViewModel(
 
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /** Which map to draw the pass on: the operator's choice in Settings. */
+    val basemap: StateFlow<Basemap> = settingsRepository.basemap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Basemap.DEFAULT)
 
     val tracking: StateFlow<TrackingState.State> = TrackingState.state
 

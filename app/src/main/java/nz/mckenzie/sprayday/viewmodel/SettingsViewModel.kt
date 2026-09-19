@@ -32,6 +32,7 @@ import nz.mckenzie.sprayday.domain.backup.BackupDestination
 import nz.mckenzie.sprayday.domain.backup.BackupSummary
 import nz.mckenzie.sprayday.domain.backup.OffsiteBackupRules
 import nz.mckenzie.sprayday.domain.backup.StoredBackup
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.offline.KeyCheck
 import nz.mckenzie.sprayday.offline.LinzKeyProbe
 import nz.mckenzie.sprayday.offline.OfflineTileStore
@@ -132,6 +133,21 @@ class SettingsViewModel(
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
             maskKey(BuildConfig.LINZ_API_KEY)
         )
+
+    /**
+     * Which basemap the operator has chosen for their maps.
+     *
+     * Seeded with the default rather than left empty, like the key label above: DataStore answers
+     * in a frame, and a card whose selection is briefly wrong is better than one that is briefly
+     * blank.
+     */
+    val basemap: StateFlow<Basemap> = settings.basemap
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), Basemap.DEFAULT)
+
+    /** Chooses a basemap. Every map reads the same preference, so this is visible at once. */
+    fun setBasemap(value: Basemap) {
+        viewModelScope.launch { settings.setBasemap(value) }
+    }
 
     private val _check = MutableStateFlow<KeyCheckState>(KeyCheckState.Idle)
     val check: StateFlow<KeyCheckState> = _check
@@ -719,7 +735,7 @@ class SettingsViewModel(
 
                     SettingsViewModel(
                         settings = settings,
-                        store = TileServerHolder.store(appContext),
+                        store = TileServerHolder.imageryStore(appContext),
                         runReminderCheck = {
                             DueReminderCheck(
                                 assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),

@@ -31,6 +31,7 @@ import org.maplibre.android.style.layers.PropertyValue
 import org.maplibre.android.style.sources.GeoJsonSource
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 
 /**
  * Where the map opens when there is nothing better to show: the whole country, at a
@@ -77,14 +78,26 @@ private const val BOUNDS_PADDING_PX = 96
 private const val FOLLOW_DURATION_MS = 900
 
 /**
- * The LINZ aerial basemap with the track network drawn on top.
+ * The chosen basemap with the track network drawn on top.
  *
- * The native [MapView] is hosted directly (rather than through a Compose map
- * wrapper) so that MapLibre's OfflineManager stays available for the offline
- * region downloads.
+ * The native [MapView] is hosted directly rather than through a Compose map wrapper, so that the
+ * app keeps control of the style document - which is what lets one tile server serve every
+ * basemap, and lets a downloaded area work with no reception.
  */
 @Composable
-fun LinzMapView(
+fun BasemapView(
+    /**
+     * Which map to draw under the work. Imagery unless the operator says otherwise; see
+     * [nz.mckenzie.sprayday.domain.tiles.Basemap].
+     */
+    basemap: Basemap,
+    /**
+     * The LINZ key, for the basemaps that need one.
+     *
+     * Passed in rather than read here because a key that changes has to reload the style, and
+     * that is the screen's flow to observe. A basemap that needs no key ignores it entirely,
+     * which is the whole point of having one: the map still works the day a LINZ key expires.
+     */
     apiKey: String,
     assetGeoJson: String,
     modifier: Modifier = Modifier,
@@ -114,11 +127,11 @@ fun LinzMapView(
     recentreBounds: DomainBounds? = null,
     recentreCount: Int = 0,
     /**
-     * Tile template to render. Defaults to the app's own tile server so every map
-     * shares one tile path - and therefore one offline store - rather than some
-     * screens talking to LINZ directly and some not.
+     * Tile template to render. Defaults to the app's own tile server for the chosen basemap, so
+     * every map shares one tile path - and therefore one cache, one set of offline tiles - rather
+     * than some screens talking to a provider directly and some not.
      */
-    tileUrlTemplate: String? = TileServerHolder.templateUrl,
+    tileUrlTemplate: String? = TileServerHolder.templateUrl(basemap),
     onMapClick: ((latitude: Double, longitude: Double, radiusM: Double) -> Unit)? = null,
     initialTarget: LatLng = DEFAULT_CAMERA_TARGET,
     initialZoom: Double = DEFAULT_CAMERA_ZOOM
@@ -197,7 +210,13 @@ fun LinzMapView(
                             }
                         }
                     )
-                    map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson, positionGeoJson) { style ->
+                    map.loadSprayDayStyle(
+                        basemap = basemap,
+                        apiKey = apiKey,
+                        tileUrlTemplate = tileUrlTemplate,
+                        assetGeoJson = assetGeoJson,
+                        positionGeoJson = positionGeoJson
+                    ) { style ->
                         styleState.value = style
                     }
                 }
@@ -206,13 +225,20 @@ fun LinzMapView(
         }
     )
 
-    // The key itself is not used here: the style URL already embeds it, or the
-    // tile server holds it. Note what is *not* a key: the position, which changes every few
+    // The key itself is not used here: the style URL already embeds it, or the tile
+    // server holds it. Note what is *not* a key: the position, which changes every few
     // seconds and must never send the map back to reload its style.
-    LaunchedEffect(apiKey, tileUrlTemplate) {
+    LaunchedEffect(basemap, apiKey, tileUrlTemplate) {
         val map = mapState.value
-        if (map != null && (apiKey.isNotBlank() || !tileUrlTemplate.isNullOrBlank())) {
-            map.loadSprayDayStyle(apiKey, tileUrlTemplate, assetGeoJson, positionGeoJson) { style ->
+        val usable = !tileUrlTemplate.isNullOrBlank() || !basemap.needsKey || apiKey.isNotBlank()
+        if (map != null && usable) {
+            map.loadSprayDayStyle(
+                basemap = basemap,
+                apiKey = apiKey,
+                tileUrlTemplate = tileUrlTemplate,
+                assetGeoJson = assetGeoJson,
+                positionGeoJson = positionGeoJson
+            ) { style ->
                 styleState.value = style
             }
         }
@@ -293,6 +319,7 @@ fun LinzMapView(
  * colour.
  */
 internal fun MapLibreMap.loadSprayDayStyle(
+    basemap: Basemap,
     apiKey: String,
     tileUrlTemplate: String?,
     assetGeoJson: String,
@@ -300,15 +327,19 @@ internal fun MapLibreMap.loadSprayDayStyle(
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
-        // A running tile server is the preferred source: it serves downloaded
-        // areas with no reception and keeps whatever it fetches, and it holds the
-        // API key so the style does not have to.
-        !tileUrlTemplate.isNullOrBlank() -> LinzBasemap.aerialStyleJsonForTemplate(tileUrlTemplate)
+        // A running tile server is the preferred source: it serves downloaded areas
+        // with no reception, keeps whatever it fetches, and holds the LINZ key so the
+        // style does not have to.
+        !tileUrlTemplate.isNullOrBlank() -> BasemapStyles.rasterStyleJson(basemap, tileUrlTemplate)
 
-        // No server (tests, previews): talk to LINZ directly.
-        apiKey.isNotBlank() -> LinzBasemap.aerialStyleJson(apiKey)
+        // No server (tests, previews). A basemap that needs no key can simply be talked to.
+        !basemap.needsKey -> BasemapStyles.rasterStyleJson(basemap, basemap.tileTemplate(""))
 
-        else -> LinzBasemap.blankStyleJson()
+        apiKey.isNotBlank() -> BasemapStyles.rasterStyleJson(basemap, basemap.tileTemplate(apiKey))
+
+        // A key is needed and there is none: a calm placeholder rather than thousands of
+        // tiles that will come back HTTP 400.
+        else -> BasemapStyles.blankStyleJson()
     }
 
     setStyle(Style.Builder().fromJson(json)) { style ->

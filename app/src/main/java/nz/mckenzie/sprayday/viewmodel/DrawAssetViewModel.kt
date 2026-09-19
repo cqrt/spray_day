@@ -21,6 +21,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
@@ -54,6 +55,10 @@ class DrawAssetViewModel(
     /** Needed to render the basemap behind the drawing. */
     val apiKey: StateFlow<String> = settingsRepository.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /** Which map to draw the line on: the operator's choice in Settings. */
+    val basemap: StateFlow<Basemap> = settingsRepository.basemap
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Basemap.DEFAULT)
 
     private val _initialFrame = MutableStateFlow<LatLngBounds?>(null)
 

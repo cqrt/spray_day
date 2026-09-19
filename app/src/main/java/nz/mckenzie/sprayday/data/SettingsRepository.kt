@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.domain.backup.BackupDestination
 import nz.mckenzie.sprayday.domain.backup.BackupSettingsRecord
 import nz.mckenzie.sprayday.domain.backup.BackupSwitches
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "spray_day_settings")
 
@@ -32,6 +33,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 class SettingsRepository(private val context: Context) : BackupSwitches {
 
     private val linzKeyPref = stringPreferencesKey("linz_api_key")
+    private val basemapPref = stringPreferencesKey("basemap")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
     private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
     private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
@@ -62,6 +64,22 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
 
     /** True when a key was supplied at build time (local.properties or CI secret). */
     fun hasBuildTimeKey(): Boolean = BuildConfig.LINZ_API_KEY.isNotBlank()
+
+    /**
+     * Which map the operator draws under the work.
+     *
+     * Aerial imagery by default, which is what every existing install has been looking at: a new
+     * basemap is an addition to the app, not a change to somebody's maps mid-season. The list of
+     * what can be chosen, and everything that differs between the choices, is in
+     * [nz.mckenzie.sprayday.domain.tiles.Basemap].
+     */
+    val basemap: Flow<Basemap> = context.settingsDataStore.data.map { prefs ->
+        Basemap.fromStorage(prefs[basemapPref])
+    }
+
+    suspend fun setBasemap(value: Basemap) {
+        context.settingsDataStore.edit { prefs -> prefs[basemapPref] = value.id }
+    }
 
     /**
      * Whether the app should tell the operator when tracks come due.

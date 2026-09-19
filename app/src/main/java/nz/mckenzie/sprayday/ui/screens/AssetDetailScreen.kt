@@ -43,7 +43,8 @@ import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DuePhrase
 import nz.mckenzie.sprayday.domain.due.DueStatus
-import nz.mckenzie.sprayday.map.LinzMapView
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
 import nz.mckenzie.sprayday.map.AssetLine
@@ -76,6 +77,7 @@ fun AssetDetailScreen(
     val history by viewModel.history.collectAsStateWithLifecycle()
     val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
+    val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val geoJson = remember(geometry, due, track) {
@@ -130,13 +132,15 @@ fun AssetDetailScreen(
                         .fillMaxWidth()
                         .height(220.dp)
                 ) {
-                    LinzMapView(
+                    BasemapView(
+                        basemap = basemap,
                         apiKey = apiKey,
                         assetGeoJson = geoJson,
                         fitBounds = bounds,
                         modifier = Modifier.fillMaxSize()
                     )
                     AttributionStrip(
+                        basemap = basemap,
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(bottom = 4.dp)

@@ -402,7 +402,8 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "The line you recorded is saved as an asset, so it appears on " +
-                            "the Assets page and can be sprayed again.",
+                            "the Assets page and can be sprayed again. Cancelling leaves the " +
+                            "recording going, so the line can be named whenever you finish.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedTextField(
@@ -417,7 +418,9 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                 TextButton(onClick = { viewModel.confirmFinish(assetNameDraft) }) { Text("Save") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelFinish() }) { Text("Keep recording") }
+                // "Keep recording" read as the same answer as Save - it means "carry on", which
+                // is what cancelling a dialog does.
+                TextButton(onClick = { viewModel.cancelFinish() }) { Text("Cancel") }
             }
         )
     }

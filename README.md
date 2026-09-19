@@ -518,16 +518,24 @@ found by name. Take the next version in the sequence — patch + 1 — rather th
 one: a tag points at the code that was built from it, and a number that has been
 published cannot be moved without lying about what somebody already has installed.
 
-No change waits for the next release: **each edit is committed, pushed and tagged as its
-own version**, in that order, before anything else is started. Work sitting in the working
-tree is work that cannot be found by name, and a fix that is only on this machine is a fix
-the phone has not got — the version number is cheap, while a batch of changes shipped
-together is a batch that has to be untangled together if one of them turns out to be wrong.
+No change to what the app does waits for the next release: **a code change is committed,
+pushed and tagged as its own version**, in that order, before anything else is started.
+Work sitting in the working tree is work that cannot be found by name, and a fix that is
+only on this machine is a fix the phone has not got — the version number is cheap, while
+a batch of changes shipped together is a batch that has to be untangled together if one of
+them turns out to be wrong.
+
+**A change to the documentation alone is not a release.** The README, and comments, are
+committed and pushed straight away so that they are never only on this machine, but they
+carry no version of their own: they go out under the next code release's tag, which is the
+release they describe. Publishing APKs because a paragraph was reworded tells every install
+there is a new version to download and tap through for nothing — the update check asks
+GitHub for the newest release, and the file it would fetch would be the one already there.
 
 ```bash
 git add -A && git commit -m "..."                          # one change, one commit
-git push origin main
-git tag -a v0.6.17 -m "..." && git push origin v0.6.17     # ships the release
+git push origin main                                       # code: tag it, docs: let it ride
+git tag -a v0.6.18 -m "..." && git push origin v0.6.18     # ships the release
 ```
 
 ## Getting a new version

@@ -12,6 +12,7 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.gpx.GpxParser
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -27,6 +28,7 @@ class AssetAndSprayDataTest {
     private lateinit var db: SprayDayDatabase
     private lateinit var assetRepository: AssetRepository
     private lateinit var sprays: SprayRepository
+    private lateinit var recordings: RecordingRepository
 
     private val now = 1_790_000_000_000L
 
@@ -39,6 +41,7 @@ class AssetAndSprayDataTest {
         db = Room.inMemoryDatabaseBuilder(context, SprayDayDatabase::class.java).build()
         assetRepository = AssetRepository(db)
         sprays = SprayRepository(db)
+        recordings = RecordingRepository(db)
     }
 
     @After
@@ -169,6 +172,92 @@ class AssetAndSprayDataTest {
 
         assertNull(sprays.getSprayEvent(eventId))
         assertTrue(sprays.getSprayEventProducts(eventId).isEmpty())
+    }
+
+    /**
+     * Deleting a spray has to move the asset's own last-sprayed date, or the line keeps the
+     * colour of a spray that is no longer on the device. The event table is what the map and
+     * the list read first, and with a spray gone the row for that asset is simply absent -
+     * which would fall back to the column this puts right.
+     */
+    @Test
+    fun deletingASprayLeavesTheOneBeforeItAsTheDateThatColoursTheLine() = runBlocking {
+        val assetId = assetRepository.createAsset(name = "Track 30", geometry = line)
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now - 200 * DAY_MS)
+        val latest = sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now)
+        assertEquals(DueStatus.NOT_DUE, dueFor(assetId).due.status)
+
+        assertTrue(sprays.deleteSprayEvent(latest))
+
+        assertEquals(
+            "the light reads the spray before it",
+            now - 200 * DAY_MS,
+            assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs
+        )
+        assertEquals(DueStatus.OVERDUE, dueFor(assetId).due.status)
+        assertEquals(1, dueFor(assetId).sprayCount)
+    }
+
+    @Test
+    fun deletingTheOnlySprayTurnsTheAssetBackToNeverSprayed() = runBlocking {
+        val assetId = assetRepository.createAsset(name = "Track 31", geometry = line)
+        val productId = sprays.addProduct(name = "Product H")
+        val eventId = sprays.recordSpray(
+            assetId = assetId,
+            sprayedAtEpochMs = now,
+            products = listOf(SprayProductQuantity(productId, 300.0))
+        )
+        assertEquals(DueStatus.NOT_DUE, dueFor(assetId).due.status)
+
+        assertTrue(sprays.deleteSprayEvent(eventId))
+
+        assertNull(
+            "nothing left to colour the line green",
+            assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs
+        )
+        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(assetId).due.status)
+        assertEquals(0, dueFor(assetId).sprayCount)
+        assertNull(sprays.getSprayEvent(eventId))
+        assertTrue("the amounts go with the spray", sprays.getSprayEventProducts(eventId).isEmpty())
+        assertFalse("and a second delete has nothing to do", sprays.deleteSprayEvent(eventId))
+    }
+
+    @Test
+    fun clearingTheSprayHistoryLeavesTheAssetItsLineAndItsRecordings() = runBlocking {
+        val assetId = assetRepository.createAsset(name = "Track 32", geometry = line)
+        val productId = sprays.addProduct(name = "Product I")
+        val sessionId = recordings.startRecording("Estuary pass", assetId = assetId)
+        val eventId = sprays.recordSpray(
+            assetId = assetId,
+            sprayedAtEpochMs = now,
+            products = listOf(SprayProductQuantity(productId, 300.0)),
+            recordedSessionId = sessionId
+        )
+
+        assertEquals(1, sprays.deleteSprayHistory(assetId))
+
+        assertEquals(DueStatus.NEVER_SPRAYED, dueFor(assetId).due.status)
+        assertNull(assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs)
+        assertNull(sprays.getSprayEvent(eventId))
+        assertEquals(
+            "the line is still planned",
+            2,
+            assetRepository.getAssetGeometry(assetId).size
+        )
+        assertNotNull(
+            "and the recording is evidence of a pass, not history of a spray",
+            recordings.getSession(sessionId)
+        )
+        assertEquals(
+            "nothing left for the map to colour a stretch of the line with",
+            AssetSprayCoverage.NONE,
+            assetRepository.getSprayCoverage(assetId)
+        )
+        assertEquals(
+            "clearing it a second time removes nothing",
+            0,
+            sprays.deleteSprayHistory(assetId)
+        )
     }
 
     @Test

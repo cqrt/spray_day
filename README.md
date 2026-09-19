@@ -41,6 +41,12 @@ sprayed).
 - **Spray records**: pick an asset, enter the products and the **mL of each**,
   save. The asset turns green and its history starts. Amounts are remembered per
   asset, so the next pass is a confirmation rather than a retype.
+- **A spray record you can correct**: the bin beside an entry in an asset's history takes that
+  spray off — one logged against the wrong asset, or with the amounts mistyped — and the asset's
+  colour is worked out again, so removing the only one puts the line back to red.
+  **Clear spray history**, in the asset's own actions, does the same to the whole record, for
+  starting an asset again. The asset, its line and its recordings stay where they are: what goes
+  is the record of what was sprayed, and the colour the line was earning from it.
 - **Due reminders**: a notification when an asset comes due, so a spray window is not
   discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
   is not nagged about.
@@ -512,9 +518,16 @@ found by name. Take the next version in the sequence — patch + 1 — rather th
 one: a tag points at the code that was built from it, and a number that has been
 published cannot be moved without lying about what somebody already has installed.
 
+No change waits for the next release: **each edit is committed, pushed and tagged as its
+own version**, in that order, before anything else is started. Work sitting in the working
+tree is work that cannot be found by name, and a fix that is only on this machine is a fix
+the phone has not got — the version number is cheap, while a batch of changes shipped
+together is a batch that has to be untangled together if one of them turns out to be wrong.
+
 ```bash
+git add -A && git commit -m "..."                          # one change, one commit
 git push origin main
-git tag -a v0.6.15 -m "..." && git push origin v0.6.15    # ships the release
+git tag -a v0.6.17 -m "..." && git push origin v0.6.17     # ships the release
 ```
 
 ## Getting a new version

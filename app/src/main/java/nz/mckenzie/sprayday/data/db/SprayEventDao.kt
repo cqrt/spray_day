@@ -107,8 +107,13 @@ abstract class SprayEventDao {
     @Query("SELECT MAX(sprayedAtEpochMs) FROM spray_events WHERE assetId = :assetId")
     abstract suspend fun lastSprayedAt(assetId: Long): Long?
 
+    /** Removes one spray. Its product lines go with it - see [SprayEventProductEntity]. */
     @Query("DELETE FROM spray_events WHERE id = :id")
-    abstract suspend fun deleteEvent(id: Long)
+    abstract suspend fun deleteEvent(id: Long): Int
+
+    /** Removes every spray of one asset, returning how many there were. */
+    @Query("DELETE FROM spray_events WHERE assetId = :assetId")
+    abstract suspend fun deleteEventsForAsset(assetId: Long): Int
 
     /**
      * Forgets the link to a recording that has been deleted. The spray record

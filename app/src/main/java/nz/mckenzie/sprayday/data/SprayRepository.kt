@@ -148,5 +148,41 @@ class SprayRepository(private val db: SprayDayDatabase) {
         eventId
     }
 
-    suspend fun deleteSprayEvent(eventId: Long) = sprayEventDao.deleteEvent(eventId)
+    /**
+     * Takes one spray off an asset's history.
+     *
+     * The asset's stored last-sprayed date is put back to the newest spray left, which is the
+     * point of doing this in one transaction: that date decides the colour of the line and when
+     * the asset is next due, and a spray that is no longer on the device must not go on
+     * colouring anything. With none left the date goes back to null, so the asset reads as never
+     * sprayed.
+     *
+     * The GPS recording behind the spray is not touched. It is the evidence of a pass that
+     * happened, and the two are deleted from opposite ends on purpose - a recording can go
+     * without taking the spray with it, and this takes the spray without the recording.
+     *
+     * @return false when there was no such spray, which is not a failure.
+     */
+    suspend fun deleteSprayEvent(eventId: Long): Boolean = db.withTransaction {
+        val event = sprayEventDao.getEvent(eventId) ?: return@withTransaction false
+        sprayEventDao.deleteEvent(eventId)
+        assetDao.setLastSprayedAtExactly(event.assetId, sprayEventDao.lastSprayedAt(event.assetId))
+        true
+    }
+
+    /**
+     * Clears an asset's whole spray history: the start-again button for a record that has gone
+     * wrong.
+     *
+     * What is left afterwards is the asset, its line, its settings and its recordings, and no
+     * sprays at all - so the traffic light reads red until it is sprayed again, which is also
+     * the only way back to that state once an asset has been sprayed.
+     *
+     * @return how many sprays were removed.
+     */
+    suspend fun deleteSprayHistory(assetId: Long): Int = db.withTransaction {
+        val removed = sprayEventDao.deleteEventsForAsset(assetId)
+        assetDao.setLastSprayedAtExactly(assetId, null)
+        removed
+    }
 }

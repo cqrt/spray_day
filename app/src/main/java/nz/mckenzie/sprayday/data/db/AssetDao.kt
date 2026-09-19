@@ -84,6 +84,19 @@ abstract class AssetDao {
     )
     abstract suspend fun setLastSprayedAt(assetId: Long, sprayedAtEpochMs: Long)
 
+    /**
+     * Moves the stored last-sprayed date wherever the record now says it belongs - backwards,
+     * or to nothing at all.
+     *
+     * [setLastSprayedAt] only ever moves it forwards, which is right when a spray is being
+     * added and wrong when one is being taken away. A deleted spray has to put the date back
+     * to the spray before it, and with no sprays left the date goes back to null, which is
+     * what "never sprayed" means - so the line reads red again instead of keeping the colour
+     * of a spray that is no longer on the device.
+     */
+    @Query("UPDATE assets SET lastSprayedAtEpochMs = :sprayedAtEpochMs WHERE id = :assetId")
+    abstract suspend fun setLastSprayedAtExactly(assetId: Long, sprayedAtEpochMs: Long?)
+
     @Query("UPDATE assets SET lengthM = :lengthM WHERE id = :assetId")
     abstract suspend fun updateLength(assetId: Long, lengthM: Double)
 

@@ -52,6 +52,10 @@ data class AssetEditDraft(
 /**
  * Everything about one asset: its line on the map, when it is next due, what it
  * has been given, and GPX export.
+ *
+ * It is also where the spray history can be corrected - one entry at a time, or the
+ * whole record cleared - which is the same act as setting the asset's colour, since
+ * the colour is worked out from that history.
  */
 class AssetDetailViewModel(
     private val assetId: Long,
@@ -165,6 +169,42 @@ class AssetDetailViewModel(
             } catch (failure: Throwable) {
                 _message.value = failure.message ?: "Export failed"
             }
+        }
+    }
+
+    /**
+     * Takes one spray off the asset's history.
+     *
+     * The repository puts the asset's last-sprayed date back to whatever is left, so this is
+     * also what re-colours the line: remove the only spray and the asset reads red again.
+     */
+    fun deleteSpray(eventId: Long) {
+        viewModelScope.launch {
+            runCatching { sprays.deleteSprayEvent(eventId) }
+                .onSuccess { removed ->
+                    _message.value = if (removed) "Spray removed" else "That spray was already gone"
+                }
+                .onFailure { _message.value = it.message ?: "Could not remove the spray" }
+        }
+    }
+
+    /**
+     * Clears the whole spray history, for starting an asset's record again.
+     *
+     * The asset, its line and its recordings are left alone: what goes is every spray recorded
+     * against it, and with them the colour the line was earning from them.
+     */
+    fun clearSprayHistory() {
+        viewModelScope.launch {
+            runCatching { sprays.deleteSprayHistory(assetId) }
+                .onSuccess { removed ->
+                    _message.value = when (removed) {
+                        0 -> "There was no spray history to clear"
+                        1 -> "Spray history cleared \u00b7 1 spray removed"
+                        else -> "Spray history cleared \u00b7 $removed sprays removed"
+                    }
+                }
+                .onFailure { _message.value = it.message ?: "Could not clear the spray history" }
         }
     }
 

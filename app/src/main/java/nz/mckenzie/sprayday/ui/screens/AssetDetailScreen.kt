@@ -101,6 +101,10 @@ fun AssetDetailScreen(
 
     var confirmingDelete by remember { mutableStateOf(false) }
     var actionsOpen by remember { mutableStateOf(false) }
+    // Clearing the whole record, and the one entry being deleted: non-null while its
+    // dialog is up, which is what the dialog is drawn from.
+    var confirmingClearHistory by remember { mutableStateOf(false) }
+    var deletingSprayId by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
         topBar = {
@@ -213,10 +217,24 @@ fun AssetDetailScreen(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = formatDate(entry.event.sprayedAtEpochMs),
-                            style = MaterialTheme.typography.titleSmall
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatDate(entry.event.sprayedAtEpochMs),
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            // A spray logged against the wrong asset, or with the amounts
+                            // mistyped, is a mistake in the record rather than in the work - and
+                            // the colour of the line is worked out from this list, so the list
+                            // has to be correctable. Taking the last one off puts it back to red.
+                            IconButton(onClick = { deletingSprayId = entry.event.id }) {
+                                AppIcon(
+                                    glyph = IconGlyph.TRASH,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    contentDescription = "Delete this spray"
+                                )
+                            }
+                        }
                         entry.lines.forEach { line ->
                             Text(
                                 text = "${line.name} \u2014 ${formatQuantityWithUnit(line.quantityMl)}",
@@ -288,6 +306,61 @@ fun AssetDetailScreen(
         )
     }
 
+    // One spray off the history, one dialog for it: the entry itself is the context, so this
+    // says what changes rather than repeating the amounts back.
+    deletingSprayId?.let { eventId ->
+        AlertDialog(
+            onDismissRequest = { deletingSprayId = null },
+            title = { Text("Delete this spray?") },
+            text = {
+                Text(
+                    "It comes off the history and the asset's colour is worked out again - " +
+                        "back to red if it was the only one. Any recording made for it stays. " +
+                        "This cannot be undone."
+                )
+            },
+            confirmButton = {
+                DestructiveTextButton(
+                    text = "Delete",
+                    onClick = {
+                        deletingSprayId = null
+                        viewModel.deleteSpray(eventId)
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingSprayId = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (confirmingClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmingClearHistory = false },
+            title = { Text("Clear the spray history?") },
+            text = {
+                Text(
+                    "Every spray recorded against this asset is deleted, so it goes back to " +
+                        "reading as never sprayed - red - and its due date goes with them. " +
+                        "The asset, its line and its recordings are left alone. " +
+                        "This cannot be undone."
+                )
+            },
+            confirmButton = {
+                DestructiveTextButton(
+                    text = "Clear",
+                    onClick = {
+                        confirmingClearHistory = false
+                        viewModel.clearSprayHistory()
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingClearHistory = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     // The secondary actions, in a sheet. The asset is re-read from the database when it is
     // opened rather than copied once, so a rename made from the edit screen cannot be saved
     // back here as a stale name.
@@ -322,6 +395,21 @@ fun AssetDetailScreen(
                     headlineContent = { Text("Export GPX") },
                     supportingContent = { Text("The line on its own, for another device") },
                     leadingContent = { AppIcon(IconGlyph.EXPORT) }
+                )
+                ListItem(
+                    modifier = Modifier.clickable {
+                        actionsOpen = false
+                        confirmingClearHistory = true
+                    },
+                    headlineContent = {
+                        Text("Clear spray history", color = MaterialTheme.colorScheme.error)
+                    },
+                    supportingContent = {
+                        Text("Deletes every spray, so the asset reads as never sprayed")
+                    },
+                    leadingContent = {
+                        AppIcon(glyph = IconGlyph.SPRAY, tint = MaterialTheme.colorScheme.error)
+                    }
                 )
                 ListItem(
                     modifier = Modifier.clickable {

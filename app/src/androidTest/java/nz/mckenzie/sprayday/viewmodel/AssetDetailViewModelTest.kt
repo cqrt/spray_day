@@ -30,6 +30,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private const val DAY_MS = 24L * 60 * 60 * 1000
+
 /**
  * The per-track settings.
  *
@@ -37,6 +39,10 @@ import org.junit.runner.RunWith
  * was nowhere to say otherwise. These tests are about the two consequences of
  * changing that: the fields persist, and the interval set here is the one the
  * traffic light uses.
+ *
+ * The spray history is corrected from here as well, which is the same act by other
+ * means: an asset's colour is worked out from that history, so taking an entry off it
+ * is how a track goes back to reading as never sprayed.
  */
 @RunWith(AndroidJUnit4::class)
 class AssetDetailViewModelTest {
@@ -196,6 +202,44 @@ class AssetDetailViewModelTest {
         viewModel.save(track(), groupName = "Estuary")
 
         assertEquals("Estuary", withTimeout(5_000) { viewModel.groupName.first { it != null } })
+    }
+
+    /**
+     * Clearing the history is how an asset goes back to red.
+     *
+     * The screen's list and the colour of the line are two readings of the same rows, so both
+     * have to come back to nothing - a cleared history that still read green would be worse
+     * than no button at all.
+     */
+    @Test
+    fun clearingTheSprayHistoryEmptiesTheListAndTheTrafficLight() = runBlocking {
+        val sprays = SprayRepository(db)
+        val viewModel = viewModel()
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = System.currentTimeMillis())
+        assertEquals(1, withTimeout(5_000) { viewModel.history.first { it.isNotEmpty() } }.size)
+        assertEquals(DueStatus.NOT_DUE, dueStatus())
+
+        viewModel.clearSprayHistory()
+
+        withTimeout(5_000) { viewModel.history.first { it.isEmpty() } }
+        assertEquals("the line reads red again", DueStatus.NEVER_SPRAYED, dueStatus())
+        assertNull(assetRepository.getAsset(assetId)!!.lastSprayedAtEpochMs)
+    }
+
+    /** One entry rather than the lot: the colour falls back to the spray before it. */
+    @Test
+    fun takingOneSprayOffTheHistoryPutsTheColourBackToTheOneBefore() = runBlocking {
+        val sprays = SprayRepository(db)
+        val viewModel = viewModel()
+        val now = System.currentTimeMillis()
+        sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now - 200 * DAY_MS)
+        val latest = sprays.recordSpray(assetId = assetId, sprayedAtEpochMs = now)
+        assertEquals(DueStatus.NOT_DUE, dueStatus())
+
+        viewModel.deleteSpray(latest)
+
+        withTimeout(5_000) { viewModel.history.first { it.size == 1 } }
+        assertEquals(DueStatus.OVERDUE, dueStatus())
     }
 
     private suspend fun track(): AssetEntity = assetRepository.getAsset(assetId)!!

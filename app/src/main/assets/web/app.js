@@ -1,24 +1,34 @@
 /*
- * The desk: the phone's own work, drawn on a computer.
+ * The desk: the phone's own work, drawn and changed on a computer.
  *
- * It draws, and it changes one thing: the details of a track or a place, saved to the phone when the
- * operator presses Save. What those details may hold, what a refusal says, and what a block name
- * becomes are all decided on the phone, in Kotlin, by the same rules the app's own edit screen uses.
- * This page fills a form in and sends it.
+ * It draws, and it writes four things: the details of a track or a place, the line a track follows, a
+ * track that did not exist until somebody drew it, and - when there is nothing recorded against it - its
+ * removal. What a write may hold, what a refusal says, and what a block name becomes are all decided on
+ * the phone, in Kotlin, by the same rules the app's own screens use. This page fills a form in, draws a
+ * line, and sends them.
  *
- * Everything it shows comes from the phone on the same Wi-Fi, and it shows it without deciding
- * anything itself: the style is the one the phone builds (the same layer ids, the same dashes, the
- * same houses), the features are the ones the phone's own map draws, a due colour is whatever colour
- * the phone painted that feature, and the form's options are the phone's own words. So there is one
- * place in the world that decides what "due soon" looks like and what a track may be called, and this
- * file is not it.
+ * The drawing itself - the handles, the drags, the undo stack - is `edit.js`, with the arithmetic in
+ * `geometry.mjs` so it can be tested without a browser. What is here is the page: the list, the card,
+ * the form, and the four bodies a write can carry.
+ *
+ * Everything it shows comes from the phone on the same Wi-Fi, and it shows it without deciding anything
+ * itself: the style is the one the phone builds (the same layer ids, the same dashes, the same houses),
+ * the features are the ones the phone's own map draws, a due colour is whatever colour the phone painted
+ * that feature, the form's options are the phone's own words, and whether a track may be deleted at all
+ * is the phone's own answer. So there is one place in the world that decides what "due soon" looks like,
+ * what a track may be called and what may go, and this file is not it.
  */
 
 const params = new URLSearchParams(location.search);
 const TOKEN = params.get('k') || '';
 
-/** Everything the phone serves is behind the token, and the token is in the address. */
-const withToken = (path) => `${path}?k=${encodeURIComponent(TOKEN)}`;
+/**
+ * Everything the phone serves is behind the token, and the token is in the address.
+ *
+ * A path that already carries a query - a delete, whose version travels in one - gets the token joined
+ * onto it rather than asked for twice.
+ */
+const withToken = (path) => `${path}${path.includes('?') ? '&' : '?'}k=${encodeURIComponent(TOKEN)}`;
 
 const notice = document.getElementById('notice');
 
@@ -44,20 +54,22 @@ async function getJson(path) {
 }
 
 /**
- * A save: one asset's details, sent to the phone.
+ * A write: one of the three the phone takes, sent with the token on its URL.
  *
- * A refusal is not an exception here. A 400 and a 409 arrive with a document the phone wrote - the
- * words to show the operator, and whether the card is out of date - and both are things to be said
- * in those words rather than in a stack trace. What is thrown is a failure of the arrangement rather
- * than of the edit: no token, a refused address, or an answer that is not a document at all.
+ * A refusal is not an exception here. A 400, a 409 and a delete the phone will not take all arrive with
+ * a document the phone wrote - the words to show the operator, and what kind of refusal it was - and all
+ * are things to be said in those words rather than in a stack trace. What is thrown is a failure of the
+ * arrangement rather than of the write: no token, a refused address, or an answer that is not a document
+ * at all.
  */
-async function putJson(path, body) {
+async function sendJson(path, method, body = null) {
   const response = await fetch(withToken(path), {
-    method: 'PUT',
-    // Both are served from the phone's own origin, so there is no preflight in the way; the content
-    // type is here because the phone refuses a body it was not told was JSON.
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    method,
+    // Both are served from the phone's own origin, so there is no preflight in the way; the content type
+    // is here because the phone refuses a body it was not told was JSON.
+    ...(body === null
+      ? {}
+      : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   });
   if (response.status === 403) throw tokenRefused();
   const answer = await response.json().catch(() => null);
@@ -165,6 +177,19 @@ let selectedId = null;
 /** The map's own source for the work, found from the phone's own layer names - see `assetsSourceId`. */
 let workSource = null;
 
+/** The page's own drawing: the handles, the drags, the keys. Null until the map has its style. */
+let editor = null;
+
+/**
+ * The line drawn for a track that does not exist yet, and null when nothing is waiting.
+ *
+ * A new track is drawn first and described afterwards - lay the line, then say what it is - so the line
+ * has to be held somewhere while the form is open, and the form's Cancel comes back to the drawing with
+ * it intact: a line that took twenty clicks to lay is not something a change of mind about a name ought
+ * to cost.
+ */
+let draftPoints = null;
+
 async function boot() {
   if (!TOKEN) {
     showNotice('There is no token in this address. Open the address from Settings on the phone - ' +
@@ -215,9 +240,35 @@ async function boot() {
     });
 
     map.on('load', () => onStyleLoaded(style));
+
+    // The drawing module: the page's own code, asked for with the token on its URL for the reason the
+    // stylesheet is - a browser requests a module with no query unless it is told otherwise, and every
+    // request the phone answers needs the token. Asked for here rather than at the top of the file
+    // because it is handed the map, which did not exist until a moment ago.
+    const { createEditor } = await import(withToken('./edit.js'));
+    editor = createEditor({
+      map,
+      neighboursOf: featuresExcept,
+      onChange: showDrawing,
+      onFinish: finishDrawing,
+      onCancel: abandonDrawing
+    });
+    // A drawing needs somewhere to be drawn, so the way in stays shut until the style is here.
+    field('draw').disabled = false;
   } catch (error) {
     showNotice(error.message);
   }
+}
+
+/**
+ * The phone's own features for every asset but one: what a drawing snaps onto.
+ *
+ * The features themselves rather than their vertices, because reading `[lng, lat]` into `{lat, lng}` is
+ * the drawing module's business and is tested there without a browser - and turning coordinates round
+ * twice is how a track drawn at the estuary ends up in the Southern Alps.
+ */
+function featuresExcept(exceptId) {
+  return [...featuresById.values()].filter((feature) => feature.properties.id !== exceptId);
 }
 
 function onStyleLoaded(style) {
@@ -235,12 +286,23 @@ function onStyleLoaded(style) {
   // for the style again.
   workSource = assetsSourceId(style);
 
-  // A click on any of the work's own layers opens that asset, whichever layer drew it.
+  // A click on any of the work's own layers opens that asset, whichever layer drew it. While a line is
+  // being drawn a click belongs to the drawing instead - to a handle, to a segment, or to the paddock
+  // at the end of a new line - so the drawing gets it first.
   for (const layer of (style.layers || []).map((l) => l.id)) {
     if (!layer.startsWith('sprayday-assets-')) continue;
-    map.on('click', layer, (event) => selectAsset(event.features[0].properties.id));
-    map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+    map.on('click', layer, (event) => {
+      if (editor && editor.isActive()) return;
+      selectAsset(event.features[0].properties.id);
+    });
+    map.on('mouseenter', layer, () => {
+      if (editor && editor.isActive()) return;
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', layer, () => {
+      if (editor && editor.isActive()) return;
+      map.getCanvas().style.cursor = '';
+    });
   }
 
   // Open on the work rather than on an ocean: the phone's own box. With nothing drawn yet the
@@ -431,9 +493,200 @@ function showCard(item) {
 
   document.getElementById('card').hidden = false;
 
-  // The way into the form. Assigned rather than added, because the card is redrawn on every save and
+  // The ways in from the card. Assigned rather than added, because the card is redrawn on every save and
   // a listener added again on each one would save the asset twice.
   document.getElementById('card-edit').onclick = () => openEdit(item);
+  document.getElementById('card-shape').onclick = () => startShape(item);
+
+  // Deleting: the phone's own sentence about what is on the track, and its own answer about whether the
+  // desk may take it away at all. A track with a spray on it is not something this page can offer to
+  // delete - not because the page has a rule, but because the phone would refuse it, and saying so before
+  // the button is pressed is better than saying so after.
+  field('card-remove-words').textContent = item.removal.sentence;
+  const remove = field('card-remove');
+  remove.disabled = !item.removal.allowed;
+  remove.onclick = () => deleteAsset(item);
+}
+
+/**
+ * Tidying a track's line: its own vertices become handles on the map.
+ *
+ * The feature the map is already drawing is what is handed over, so what the operator takes hold of is
+ * the line the phone holds - not a second copy of it that could drift.
+ */
+function startShape(item) {
+  const feature = featuresById.get(item.asset.id);
+  if (!editor || !feature) return;
+  closeCard();
+  editor.startOn(item.asset.id, feature);
+}
+
+/* ---- Drawing a track, saving a line, taking one away -------------------------------- */
+
+/**
+ * What the page says while a line is being drawn.
+ *
+ * The page's own words, because none of this is a rule - it is how the map is worked. What the phone
+ * will or will not take is the phone's to say, and it says it when the line is saved.
+ */
+function showDrawing({ mode, points, canUndo }) {
+  const bar = field('drawing');
+  if (mode === 'off') {
+    bar.hidden = true;
+    return;
+  }
+
+  const count = points.length;
+  const steps = [`${count} point${count === 1 ? '' : 's'}`];
+  steps.push(mode === 'new'
+    ? 'click the map to lay the track'
+    : 'drag a handle to move it, or click the line to put one in the middle');
+  steps.push('Del takes one off');
+  steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
+  steps.push(mode === 'new'
+    ? 'Enter or a double click finishes'
+    : 'Enter or a double click saves the line');
+  steps.push('Esc gives up');
+
+  field('drawing-words').textContent = steps.join(' · ');
+  bar.hidden = false;
+}
+
+/**
+ * A finished line: a track the phone already has is saved; a new one is described first.
+ *
+ * Both end with the line inside a write, but only one of them can be written straight away. An asset
+ * already on the phone has a name and an interval and only its line has moved, while a new line is
+ * nothing but its shape - so the form comes first and the line waits in `draftPoints`.
+ */
+async function finishDrawing(points, wasEditing) {
+  if (wasEditing !== null) {
+    await savePath(wasEditing, points);
+    return;
+  }
+  draftPoints = points;
+  openDraft();
+}
+
+/**
+ * The operator has given up on a line.
+ *
+ * Nothing has to be put back, which is the whole reason this is cheap: the phone was never asked to
+ * change anything, so for an asset it already has the provisional line is simply hidden, and for a new
+ * track the draft goes with it.
+ */
+function abandonDrawing() {
+  draftPoints = null;
+}
+
+/**
+ * Saves a line the operator has finished drawing.
+ *
+ * The body is the row the card is showing with the new line in it, which is what the phone wants: one
+ * write judged as a whole, so a moved vertex and the rest of the row cannot land without each other.
+ * The card's own version travels with it, so a track that has been drawn again on the phone is refused
+ * rather than overwritten - the phone's line wins and the page reloads to show it.
+ */
+async function savePath(assetId, points) {
+  const item = state.assets.find((one) => one.asset.id === assetId);
+  if (!item) return;
+
+  try {
+    const { status, answer } = await sendJson(`/api/assets/${assetId}`, 'PUT', recordBody(item, points));
+    if (status !== 200) {
+      showNotice(answer.message || 'The phone would not save that line.');
+      if (status === 409 && answer.reason === 'stale') await reloadWork();
+      return;
+    }
+    replaceAsset(answer.asset);
+    await reloadFeatures();
+    drawList();
+    showCard(answer.asset);
+    showNotice('Saved. The phone has it.');
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+/**
+ * Takes a track away, when there is nothing recorded against it.
+ *
+ * The phone decides that and not this page: the sentence on the card is the phone's, the button is off
+ * when the phone said no, and the answer to the request is the phone's too. A mis-drawn track goes; one
+ * with history on it is refused, with the numbers in the sentence, and the operator is sent to the phone
+ * where the sprays can be seen going with it.
+ */
+async function deleteAsset(item) {
+  const button = field('card-remove');
+  button.disabled = true;
+  try {
+    const { status, answer } = await sendJson(
+      `/api/assets/${item.asset.id}?version=${encodeURIComponent(item.version)}`,
+      'DELETE'
+    );
+    if (status !== 200) {
+      showNotice(answer.message || 'The phone would not delete it.');
+      // Either 409 means the page's own copy is the thing that is wrong - the row moved under it, or a
+      // spray arrived that the card had never heard of - so the work is read again rather than argued with.
+      if (status === 409) await reloadWork();
+      return;
+    }
+    closeCard();
+    await reloadWork();
+    showNotice(answer.message);
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/**
+ * The body the form sends: what the operator typed, and the version the card was handed.
+ *
+ * `version` and `points` are left out entirely when they do not apply, rather than sent empty: a body
+ * that says nothing about the line leaves the line alone, which is what the details form means - and a
+ * new track has no version to quote, because there is no row for one to describe.
+ */
+function formBody({ version = null, points = null } = {}) {
+  const body = {
+    name: textOf('edit-name'),
+    kind: selectedValue('edit-kind'),
+    shape: selectedValue('edit-shape'),
+    method: selectedValue('edit-method'),
+    blockName: textOf('edit-block'),
+    intervalDays: textOf('edit-interval'),
+    swathWidthM: textOf('edit-swath'),
+    passesRequired: Number(selectedValue('edit-passes')),
+    passSeparationM: textOf('edit-separation'),
+    notes: textOf('edit-notes')
+  };
+  if (version !== null) body.version = version;
+  if (points !== null) body.points = points;
+  return body;
+}
+
+/**
+ * The body a line's save sends: the row the card is showing, with the drawn line in it.
+ *
+ * Built from the record rather than from the form's fields, because the form is not open - and the record
+ * is the row the phone last handed over, so what goes back is what the operator is looking at.
+ */
+function recordBody(item, points) {
+  return {
+    name: item.asset.name,
+    kind: item.asset.kind,
+    shape: item.asset.shape,
+    method: item.asset.method,
+    blockName: item.groupName || '',
+    intervalDays: String(item.asset.intervalDays),
+    swathWidthM: item.asset.swathWidthM === null ? '' : String(item.asset.swathWidthM),
+    passesRequired: item.asset.passesRequired,
+    passSeparationM: item.asset.passSeparationM === null ? '' : String(item.asset.passSeparationM),
+    notes: item.asset.notes || '',
+    version: item.version,
+    points
+  };
 }
 
 function closeCard() {
@@ -448,6 +701,15 @@ function closeCard() {
 
 /** The asset the form is open on, or null when it is shut. */
 let editingId = null;
+
+/**
+ * Whether the form is describing a track that does not exist yet.
+ *
+ * A new track and an edit are the same form and two different writes - a POST to the collection with the
+ * drawn line, or a PUT of one asset with a version quoted back - so the flag is what tells them apart at
+ * the moment of the save, which is the only place they differ.
+ */
+let drafting = false;
 
 /** The swath width the method in the form came with, so a change of method can move the field. */
 let methodSwath = '';
@@ -491,6 +753,7 @@ function fillChoices(id, choices, chosen) {
 /** Opens the form on an asset, filled with what the phone says it holds. */
 function openEdit(item) {
   editingId = item.asset.id;
+  drafting = false;
 
   field('edit-title').textContent = `Change ${item.asset.name}`;
   field('edit-name').value = item.asset.name;
@@ -594,8 +857,75 @@ function onMethodChange() {
 
 function closeEdit() {
   editingId = null;
+  drafting = false;
   field('edit').hidden = true;
   field('edit-words').hidden = true;
+}
+
+/**
+ * The form for a new track, opened over the line just drawn.
+ *
+ * Prefilled with the phone's own starting point for an asset - a track, following a path, one pass, the
+ * default interval - because those are the answers the phone would fill in for itself. Everything else
+ * here is the same form the card opens: the same fields, the same choices, the same rules underneath, and
+ * the same sentences when the phone refuses something.
+ */
+function openDraft() {
+  editingId = null;
+  drafting = true;
+
+  field('edit-title').textContent = 'New track';
+  field('edit-name').value = '';
+  field('edit-block').value = '';
+  field('edit-interval').value = state.newAsset.intervalDays;
+  field('edit-swath').value = '';
+  field('edit-separation').value = '';
+  field('edit-notes').value = '';
+
+  fillChoices('edit-kind', state.choices.kinds, state.newAsset.kind);
+  fillChoices('edit-shape', state.choices.shapes, state.newAsset.shape);
+  fillChoices('edit-method', state.choices.methods, state.newAsset.method);
+  fillChoices('edit-passes', state.choices.passes, String(state.newAsset.passesRequired));
+
+  // No swath width of its own for a method nobody has set, which is the phone's own table saying so.
+  const method = state.choices.methods.find((one) => one.value === state.newAsset.method);
+  methodSwath = (method && method.swathM) || '';
+
+  field('edit-swath-hint').textContent = state.choices.swathHint;
+  field('edit-separation-hint').textContent = state.choices.separationHint;
+
+  const blocks = field('edit-blocks');
+  blocks.textContent = '';
+  for (const block of state.groups) {
+    const option = document.createElement('option');
+    option.value = block.name;
+    blocks.append(option);
+  }
+
+  showShapeRow();
+  showSeparationRow();
+  updateBlockHint();
+
+  field('edit-words').hidden = true;
+  field('edit').hidden = false;
+  field('card').hidden = true;
+  field('edit-name').focus();
+}
+
+/**
+ * Backing out of the form.
+ *
+ * For a new track that means back to the drawing rather than back to nothing: the line is the operator's
+ * work, and a change of mind about the name is not a reason to lose it. The vertices go back to the map,
+ * so finishing again is one key away - and giving up altogether is the Escape that follows.
+ */
+function cancelForm() {
+  const points = drafting ? draftPoints : null;
+  closeEdit();
+  if (points && editor) {
+    draftPoints = null;
+    editor.startNew(points);
+  }
 }
 
 /** The phone's own words about what it refused, where the operator is looking when it happens. */
@@ -634,44 +964,34 @@ async function reloadWork() {
 }
 
 /**
- * Saves the form to the phone.
+ * Saves the form to the phone: the details of a track, or a track that did not exist until now.
  *
- * The phone judges every field - the ranges, the blank-means-unknown rules, the block name - and its
- * words are what the operator is shown, because they are the words the phone's own edit screen would
- * use. What this function decides is only what to do with the answer: a save closes the form and
- * redraws the work from what came back, a refusal the operator can fix leaves the form open with the
- * phone's sentence under it, and a refusal because the asset moved under the page closes the form
- * and reloads the lot, because the page's copy is the thing that is wrong.
+ * The phone judges every field - the ranges, the blank-means-unknown rules, the block name, and the drawn
+ * line as well - and its words are what the operator is shown, because they are the words the phone's own
+ * screen would use. What this function decides is only what to do with the answer: a save closes the form
+ * and redraws the work from what came back, a refusal the operator can fix leaves the form open with the
+ * phone's sentence under it, and a refusal because the asset moved under the page closes the form and
+ * reloads the lot, because the page's copy is the thing that is wrong.
+ *
+ * The two writes it can make are one line apart: a new track is a POST to the collection with the line
+ * that was drawn, and everything else is a PUT of one asset with the version its card was handed.
  */
 async function saveEdit(event) {
   event.preventDefault();
-  if (editingId === null) return;
 
-  const item = state.assets.find((one) => one.asset.id === editingId);
-  if (!item) return;
+  const item = drafting ? null : state.assets.find((one) => one.asset.id === editingId);
+  if (!drafting && !item) return;
 
-  const body = {
-    name: textOf('edit-name'),
-    kind: selectedValue('edit-kind'),
-    shape: selectedValue('edit-shape'),
-    method: selectedValue('edit-method'),
-    blockName: textOf('edit-block'),
-    intervalDays: textOf('edit-interval'),
-    swathWidthM: textOf('edit-swath'),
-    passesRequired: Number(selectedValue('edit-passes')),
-    passSeparationM: textOf('edit-separation'),
-    notes: textOf('edit-notes'),
-    // What the phone handed this card, so an edit written against an asset that has since changed is
-    // refused rather than written over. See `WebEditorVersion` on the phone.
-    version: item.version
-  };
+  const body = drafting ? formBody({ points: draftPoints }) : formBody({ version: item.version });
+  const path = drafting ? '/api/assets' : `/api/assets/${editingId}`;
 
   const save = field('edit-save');
   save.disabled = true;
   try {
-    const { status, answer } = await putJson(`/api/assets/${editingId}`, body);
+    const { status, answer } = await sendJson(path, drafting ? 'POST' : 'PUT', body);
 
-    if (status !== 200) {
+    // 201 for a new track and 200 for a changed one: both are the phone saying it has it.
+    if (status !== 200 && status !== 201) {
       showEditProblem(answer.message || 'The phone would not save that.');
       if (status === 409) {
         closeEdit();
@@ -681,6 +1001,8 @@ async function saveEdit(event) {
       return;
     }
 
+    // The line is the phone's now, so nothing is waiting on it any more.
+    draftPoints = null;
     replaceAsset(answer.asset);
     closeEdit();
     await reloadFeatures();
@@ -695,18 +1017,32 @@ async function saveEdit(event) {
 }
 
 document.getElementById('card-close').addEventListener('click', closeCard);
-document.getElementById('edit-close').addEventListener('click', closeEdit);
-document.getElementById('edit-cancel').addEventListener('click', closeEdit);
+document.getElementById('edit-close').addEventListener('click', cancelForm);
+document.getElementById('edit-cancel').addEventListener('click', cancelForm);
 document.getElementById('edit-form').addEventListener('submit', saveEdit);
 document.getElementById('edit-kind').addEventListener('change', showShapeRow);
 document.getElementById('edit-passes').addEventListener('change', showSeparationRow);
 document.getElementById('edit-method').addEventListener('change', onMethodChange);
 document.getElementById('edit-block').addEventListener('input', updateBlockHint);
 
+/** The way into drawing a track: an empty line, with nothing on the map to take hold of yet. */
+document.getElementById('draw').addEventListener('click', () => {
+  if (!editor || editor.isActive()) return;
+  closeCard();
+  draftPoints = null;
+  editor.startNew();
+});
+
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  // Escape backs out of the form first: it is on top, and it is the one with unsaved typing in it.
+  // Escape backs out of the form first: it is on top, and it is the one with unsaved typing in it. While a
+  // line is being drawn the drawing has the key itself (see `edit.js`), so this only runs when the form is
+  // open - which is what makes two Escapes in a row mean "back to the drawing, then give it up".
   if (!field('edit').hidden) {
+    if (drafting) {
+      cancelForm();
+      return;
+    }
     const item = state.assets.find((one) => one.asset.id === selectedId);
     closeEdit();
     if (item) showCard(item);

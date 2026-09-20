@@ -85,6 +85,26 @@ abstract class RecordingDao {
     @Query("SELECT COUNT(*) FROM recorded_points WHERE sessionId = :sessionId")
     abstract suspend fun pointCount(sessionId: Long): Int
 
+    /**
+     * How many recordings name an asset.
+     *
+     * For the desk's delete rule, which counts what is attached before it takes anything away. The
+     * column is a plain nullable id with no foreign key on purpose - a recording outlives its asset -
+     * so this count is the only thing that would otherwise be lost quietly at the moment of a delete.
+     */
+    @Query("SELECT COUNT(*) FROM recorded_sessions WHERE assetId = :assetId")
+    abstract suspend fun countForAsset(assetId: Long): Int
+
+    /**
+     * Which assets any recording names, one row per recording.
+     *
+     * The whole-farm version of [countForAsset], for the state document: every asset's delete sentence
+     * counts recordings, and asking per asset would be a query per track for a number that one read
+     * gives for all of them.
+     */
+    @Query("SELECT assetId FROM recorded_sessions WHERE assetId IS NOT NULL")
+    abstract suspend fun assetIds(): List<Long>
+
     @Query("SELECT * FROM recorded_points WHERE sessionId = :sessionId ORDER BY sequence")
     abstract suspend fun getPoints(sessionId: Long): List<RecordedPointEntity>
 

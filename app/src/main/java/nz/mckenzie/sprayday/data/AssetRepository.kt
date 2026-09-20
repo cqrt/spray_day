@@ -96,6 +96,32 @@ class AssetRepository(
         assetDao.getGeometry(assetId).map { it.toGeoPoint() }
 
     /**
+     * Every asset's vertices, keyed by asset id, in one query.
+     *
+     * The two whole-farm documents the desk reads both need this: the GeoJSON is the geometry, and
+     * the state document needs it to say which version of a line a card was handed. An asset with no
+     * geometry simply has no key, which the callers read as "nothing drawn" - the same as an empty
+     * list from [getAssetGeometry].
+     */
+    suspend fun allAssetGeometry(): Map<Long, List<GeoPoint>> =
+        assetDao.allGeometry()
+            .groupBy(keySelector = { it.assetId }, valueTransform = { it.toGeoPoint() })
+
+    /** How many recordings name this asset. Part of what a delete would take with it. */
+    suspend fun recordingCountFor(assetId: Long): Int = recordingDao.countForAsset(assetId)
+
+    /**
+     * How many recordings name each asset, for the whole farm at once.
+     *
+     * The document's own version of [recordingCountFor]: every asset on the desk carries a sentence
+     * about what deleting it would take, and one read of the recordings says that for all of them.
+     * Assets nothing is recorded against are simply absent, which the caller reads as none - the same
+     * as a zero from the single-asset count.
+     */
+    suspend fun recordingCounts(): Map<Long, Int> =
+        recordingDao.assetIds().groupingBy { it }.eachCount()
+
+    /**
      * The box containing every planned asset, if there is any geometry yet. Used to
      * centre things on the operator's own work rather than a guessed location.
      */
@@ -168,21 +194,44 @@ class AssetRepository(
         notes: String? = null,
         intervalDays: Int = AssetEntity.DEFAULT_INTERVAL_DAYS,
         swathWidthM: Double? = null,
+        passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
+        passSeparationM: Double? = null,
         createdAtEpochMs: Long = System.currentTimeMillis()
+    ): Long = insertAsset(
+        asset = AssetEntity(
+            name = name,
+            kind = kind.name,
+            shape = shape.name,
+            method = method.name,
+            notes = notes,
+            intervalDays = intervalDays,
+            swathWidthM = swathWidthM,
+            passesRequired = passesRequired,
+            passSeparationM = passSeparationM,
+            createdAtEpochMs = createdAtEpochMs
+        ),
+        geometry = geometry,
+        groupName = groupName
+    )
+
+    /**
+     * Inserts an asset that has already been built, with its geometry, in one transaction.
+     *
+     * Here for the desk's new track, which arrives as a row [nz.mckenzie.sprayday.ui.AssetEdits] has
+     * already judged rather than as nine loose arguments - and it is the better home for the id, the
+     * group and the length anyway: one place issues an id, and one place writes a new asset's geometry
+     * and its cached length together, so a row and the length the lists read can never disagree.
+     *
+     * Any id on the row is dropped: a new asset's number is the database's to give, and a caller that
+     * passed one - a page, or a desk building its body from a record it read - must not be able to
+     * choose it.
+     */
+    suspend fun insertAsset(
+        asset: AssetEntity,
+        geometry: List<GeoPoint>,
+        groupName: String?
     ): Long = db.withTransaction {
-        val assetId = assetDao.insert(
-            AssetEntity(
-                name = name,
-                kind = kind.name,
-                shape = shape.name,
-                method = method.name,
-                groupId = groupIdFor(groupName),
-                notes = notes,
-                intervalDays = intervalDays,
-                swathWidthM = swathWidthM,
-                createdAtEpochMs = createdAtEpochMs
-            )
-        )
+        val assetId = assetDao.insert(asset.copy(id = 0L, groupId = groupIdFor(groupName)))
         storeGeometry(assetId, geometry)
         assetId
     }
@@ -193,9 +242,19 @@ class AssetRepository(
      * Kept apart from [updateAsset] on purpose: this one is allowed to move an asset
      * between groups (including out of one, when the name is blank), while the plain
      * update must leave the grouping exactly as it found it.
+     *
+     * A geometry is written *with* the row rather than as a second call, because a desk moving a
+     * vertex sends the whole line and the details it is looking at in one write: done in two, a failure
+     * between them would leave an asset whose name and whose length disagree about which shape it is,
+     * and nothing would ever say so.
      */
-    suspend fun saveAssetEdits(asset: AssetEntity, groupName: String?) = db.withTransaction {
+    suspend fun saveAssetEdits(
+        asset: AssetEntity,
+        groupName: String?,
+        geometry: List<GeoPoint>? = null
+    ) = db.withTransaction {
         assetDao.update(asset.copy(groupId = groupIdFor(groupName)))
+        if (geometry != null) storeGeometry(asset.id, geometry)
     }
 
     suspend fun updateAsset(asset: AssetEntity) = assetDao.update(asset)

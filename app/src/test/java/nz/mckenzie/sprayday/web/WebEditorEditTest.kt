@@ -1,8 +1,11 @@
 package nz.mckenzie.sprayday.web
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -38,9 +41,21 @@ class WebEditorEditTest {
 
     private val blockName = "Estuary"
 
-    /** The body a page sends back after opening this asset and changing one or two things. */
+    /** The line as the phone holds it, which is half of what the version the desk quotes is made of. */
+    private val path = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9))
+
+    private fun pointJson(points: List<GeoPoint>): String =
+        points.joinToString(prefix = "[", postfix = "]") { """{"lat":${it.lat},"lng":${it.lng}}""" }
+
+    /**
+     * The body a page sends back after opening this asset and changing one or two things.
+     *
+     * [points] is whatever the desk has drawn, as JSON written by hand rather than built from
+     * [WebEditorPoint]: a test that built its body from the class would keep passing after somebody
+     * renamed a field, which is exactly the failure a page would see as "nothing saved".
+     */
     private fun body(
-        version: String = WebEditorVersion.of(asset, blockName),
+        version: String = WebEditorVersion.of(asset, blockName, path),
         name: String = asset.name,
         kind: String = asset.kind,
         shape: String = asset.shape,
@@ -50,25 +65,53 @@ class WebEditorEditTest {
         swathWidthM: String = asset.swathWidthM.toString(),
         passes: Int = asset.passesRequired,
         separation: String = asset.passSeparationM.toString(),
-        notes: String? = asset.notes
+        notes: String? = asset.notes,
+        points: List<GeoPoint>? = null
     ): String = buildString {
         append("""{"name":"$name","kind":"$kind","shape":"$shape","method":"$method",""")
         append(""""blockName":${if (block == null) "null" else "\"$block\""},""")
         append(""""intervalDays":"$intervalDays","swathWidthM":"$swathWidthM",""")
         append(""""passesRequired":$passes,"passSeparationM":"$separation",""")
-        append(""""notes":${if (notes == null) "null" else "\"$notes\""},"version":"$version"}""")
+        append(""""notes":${if (notes == null) "null" else "\"$notes\""},""")
+        if (points != null) append(""""points":${pointJson(points)},""")
+        append(""""version":"$version"}""")
     }
 
     private fun ok(editBody: String?): WebEditorEditResult.Ok {
-        val result = WebEditorEdits.apply(asset, blockName, editBody)
+        val result = WebEditorEdits.apply(asset, blockName, path, editBody)
         assertTrue("expected this to be taken: $result", result is WebEditorEditResult.Ok)
         return result as WebEditorEditResult.Ok
     }
 
     private fun refused(editBody: String?): WebEditorEditResult.Refused {
-        val result = WebEditorEdits.apply(asset, blockName, editBody)
+        val result = WebEditorEdits.apply(asset, blockName, path, editBody)
         assertTrue("expected this to be refused: $result", result is WebEditorEditResult.Refused)
         return result as WebEditorEditResult.Refused
+    }
+
+    /** A new asset, as the desk's drawing mode sends one: no version, because there is no row yet. */
+    private fun draftBody(
+        name: String = "New track",
+        shape: String = asset.shape,
+        points: List<GeoPoint>? = path
+    ): String = buildString {
+        append("""{"name":"$name","kind":"TRACK","shape":"$shape","method":"UNSET",""")
+        append(""""blockName":null,"intervalDays":"120","swathWidthM":"",""")
+        append(""""passesRequired":1,"passSeparationM":"","notes":null""")
+        if (points != null) append(""","points":${pointJson(points)}""")
+        append("}")
+    }
+
+    private fun drafted(createBody: String?): WebEditorDraft {
+        val result = WebEditorEdits.create(createBody, nowEpochMs = 1_790_000_000_000L)
+        assertTrue("expected this to be taken: $result", result is WebEditorCreateResult.Ok)
+        return (result as WebEditorCreateResult.Ok).draft
+    }
+
+    private fun createRefused(createBody: String?): WebEditorCreateResult.Refused {
+        val result = WebEditorEdits.create(createBody, nowEpochMs = 1_790_000_000_000L)
+        assertTrue("expected this to be refused: $result", result is WebEditorCreateResult.Refused)
+        return result as WebEditorCreateResult.Refused
     }
 
     @Test
@@ -175,7 +218,139 @@ class WebEditorEditTest {
         assertEquals("not-found", WebEditorRefusal.MISSING.reason)
         assertEquals(409, WebEditorRefusal.STALE.status)
         assertEquals("stale", WebEditorRefusal.STALE.reason)
+        assertEquals(409, WebEditorRefusal.IN_USE.status)
+        assertEquals("in-use", WebEditorRefusal.IN_USE.reason)
         assertEquals(400, WebEditorRefusal.INVALID.status)
         assertEquals("invalid", WebEditorRefusal.INVALID.reason)
+    }
+
+    @Test
+    fun `a path the desk drew is taken, and comes back as the points to store`() {
+        val drawn = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.55, 173.85), GeoPoint(-41.6, 173.9))
+
+        val result = ok(body(points = drawn, intervalDays = "90"))
+
+        assertEquals("the line is stored with the row", drawn, result.points)
+        assertEquals("and the details in the same body came along with it", 90, result.asset.intervalDays)
+    }
+
+    @Test
+    fun `a body that says nothing about the drawing leaves the line exactly as it is`() {
+        // Which is what the details form sends: the same body, one key shorter. Null rather than an
+        // empty list, so the difference between "nothing has moved" and "nothing is drawn" survives
+        // all the way to the repository.
+        assertNull(ok(body()).points)
+    }
+
+    @Test
+    fun `a place drawn as a path is refused in the path rules' words`() {
+        val place = asset.copy(shape = "POINT")
+
+        val result = WebEditorEdits.apply(
+            current = place,
+            blockName = blockName,
+            path = path,
+            // The version the place's own card would carry: a place and a line with the same fields
+            // hash differently, which is the point of the shape being in the hash at all.
+            body = body(
+                version = WebEditorVersion.of(place, blockName, path),
+                shape = "POINT",
+                points = path
+            )
+        )
+
+        assertTrue("expected a refusal: $result", result is WebEditorEditResult.Refused)
+        assertTrue(
+            "counts the points it was sent: ${(result as WebEditorEditResult.Refused).message}",
+            result.message.contains("2 points")
+        )
+    }
+
+    @Test
+    fun `a version quoted against the line as it was is refused once a vertex has moved`() {
+        val quoted = WebEditorVersion.of(asset, blockName, path)
+        val moved = path + GeoPoint(-41.7, 174.1)
+
+        val refused = WebEditorEdits.apply(asset, blockName, moved, body(version = quoted))
+
+        assertEquals(WebEditorRefusal.STALE, (refused as WebEditorEditResult.Refused).refusal)
+    }
+
+    @Test
+    fun `the version covers the line, so a card cannot undo a move somebody else made`() {
+        assertNotEquals(
+            WebEditorVersion.of(asset, blockName, path),
+            WebEditorVersion.of(asset, blockName, path.dropLast(1) + GeoPoint(-41.7, 174.1))
+        )
+        assertNotEquals(
+            "a vertex added is a change",
+            WebEditorVersion.of(asset, blockName, path),
+            WebEditorVersion.of(asset, blockName, path + GeoPoint(-41.7, 174.1))
+        )
+        assertEquals(
+            "and the same points hash the same whatever else was read with them",
+            WebEditorVersion.of(asset, blockName, path),
+            WebEditorVersion.of(asset, blockName, path)
+        )
+    }
+
+    @Test
+    fun `a new track comes back as a row the database will number, with its line`() {
+        val draft = drafted(draftBody(name = "Gully track"))
+
+        assertEquals("Gully track", draft.asset.name)
+        assertEquals("TRACK", draft.asset.kind)
+        assertEquals(120, draft.asset.intervalDays)
+        assertTrue("a new asset is active", draft.asset.active)
+        assertEquals("the id is the database's to issue", 0L, draft.asset.id)
+        assertEquals(
+            "and the date is the phone's clock, not the laptop's",
+            1_790_000_000_000L,
+            draft.asset.createdAtEpochMs
+        )
+        assertEquals(path, draft.points)
+        assertNull("no block unless the form named one", draft.blockName)
+    }
+
+    @Test
+    fun `a new place is one point, and the shape decides which rules judge it`() {
+        val draft = drafted(draftBody(name = "Trough", shape = "POINT", points = listOf(path.first())))
+
+        assertEquals("POINT", draft.asset.shape)
+        assertEquals(1, draft.points.size)
+    }
+
+    @Test
+    fun `a new asset with no drawing is refused, because there is nowhere for it to be`() {
+        assertTrue(
+            "a path that was never drawn: ${createRefused(draftBody(points = null)).message}",
+            createRefused(draftBody(points = null)).message.contains("draw it on the map")
+        )
+        assertTrue(
+            "an empty path is the same thing said a different way: " +
+                createRefused(draftBody(points = emptyList())).message,
+            createRefused(draftBody(points = emptyList())).message.contains("A line needs at least two points")
+        )
+    }
+
+    @Test
+    fun `a new asset is judged by the same rules, so an unnamed one is refused in the app's words`() {
+        assertEquals("Give it a name so it can be found later", createRefused(draftBody(name = "  ")).message)
+        assertTrue(
+            "and a kind this build does not know is still a refusal: " +
+                createRefused("""{"name":"X","kind":"PADDOCK","shape":"LINE","method":"UNSET","intervalDays":"120","points":[]}""").message,
+            createRefused("""{"name":"X","kind":"PADDOCK","shape":"LINE","method":"UNSET","intervalDays":"120","points":[]}""")
+                .message.contains("PADDOCK")
+        )
+    }
+
+    @Test
+    fun `a new asset ignores a version, because it has nothing to be stale against`() {
+        // The page builds both bodies with one function, so a create arrives carrying the version of
+        // whatever card the operator had been looking at. There is no row to compare it with: the
+        // only thing that version could refuse is the making of a new track, which is nobody's intent.
+        val withVersion = draftBody().dropLast(1) + ""","version":"a-card-from-before"}"""
+
+        assertEquals(path, drafted(withVersion).points)
     }
 }

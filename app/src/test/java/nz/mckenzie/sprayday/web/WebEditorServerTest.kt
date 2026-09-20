@@ -36,6 +36,14 @@ class WebEditorServerTest {
     /** The text of a write. What belongs in it is [WebEditorEditTest]'s business; that it arrives whole, and what comes back, is here. */
     private val writeBody = """{"name":"Estuary road","version":"v1"}"""
 
+    /**
+     * The body a drawing mode sends: the details the desk is looking at and the line it has drawn, and
+     * no version, because a new asset has nothing to be stale against.
+     */
+    private val newBody =
+        """{"name":"Gully track","kind":"TRACK","shape":"LINE","method":"UNSET","intervalDays":"120",""" +
+            """"points":[{"lat":-41.5,"lng":173.8},{"lat":-41.6,"lng":173.9}]}"""
+
     private lateinit var server: WebEditorServer
     private var port: Int = 0
 
@@ -92,13 +100,15 @@ class WebEditorServerTest {
     private fun send(
         path: String,
         method: String,
-        body: String,
+        body: String = "",
         withToken: Boolean = true
     ): Response {
         val bytes = body.toByteArray(Charsets.UTF_8)
         val head = buildString {
             append("$method $path")
-            if (withToken) append("?k=$token")
+            // A path that already carries a query - a delete, whose version travels in one - gets the
+            // token joined onto it rather than asked for twice.
+            if (withToken) append(if (path.contains('?')) "&k=$token" else "?k=$token")
             append(" HTTP/1.1\r\n")
             append("Host: 127.0.0.1:$port\r\n")
             append("Content-Type: application/json\r\n")
@@ -132,6 +142,12 @@ class WebEditorServerTest {
         /** What a write was asked to do, so a route is held to handing the id and the body over. */
         var lastWrite: Pair<Long, String?>? = null
 
+        /** The body a new asset was made from. */
+        var lastCreate: String? = null
+
+        /** The id and the version a delete was asked for, version and all. */
+        var lastRemove: Pair<Long, String?>? = null
+
         override suspend fun state(authority: String) = document(authority, "state")
 
         override suspend fun assets() = """{"what":"assets"}"""
@@ -149,18 +165,32 @@ class WebEditorServerTest {
             return when (id) {
                 STALE_ID -> WebEditorWrite.Refused(WebEditorRefusal.STALE, "somebody changed it")
                 MISSING_ID -> WebEditorWrite.Refused(WebEditorRefusal.MISSING, "no such track")
-                else -> WebEditorWrite.Saved(
-                    WebEditorAssetRecord(
-                        asset = AssetRecord(
-                            id = id,
-                            name = "Estuary road",
-                            intervalDays = 120,
-                            createdAtEpochMs = 1_700_000_000_000L
-                        ),
-                        dueStatus = "DUE_SOON",
-                        version = "version-$id"
-                    )
+                else -> WebEditorWrite.Saved(record(id))
+            }
+        }
+
+        /** A new asset, refused for one body so a create's own refusal has a route to travel. */
+        override suspend fun create(body: String?): WebEditorWrite {
+            lastCreate = body
+            return if (body.isNullOrBlank()) {
+                WebEditorWrite.Refused(
+                    WebEditorRefusal.INVALID,
+                    "Give it a name so it can be found later"
                 )
+            } else {
+                WebEditorWrite.Created(record(7L))
+            }
+        }
+
+        override suspend fun remove(id: Long, version: String?): WebEditorWrite {
+            lastRemove = id to version
+            return when (id) {
+                IN_USE_ID -> WebEditorWrite.Refused(
+                    WebEditorRefusal.IN_USE,
+                    "\"Estuary road\" has 3 sprays on the phone, so it is not deleted from here."
+                )
+                MISSING_ID -> WebEditorWrite.Refused(WebEditorRefusal.MISSING, "no such track")
+                else -> WebEditorWrite.Removed("Estuary road is gone from the phone.")
             }
         }
 
@@ -176,12 +206,32 @@ class WebEditorServerTest {
             return """{"what":"$what","authority":"$authority"}"""
         }
 
+        /** The record a save, a create or a delete answers with, as the phone would build it. */
+        private fun record(id: Long) = WebEditorAssetRecord(
+            asset = AssetRecord(
+                id = id,
+                name = "Estuary road",
+                intervalDays = 120,
+                createdAtEpochMs = 1_700_000_000_000L
+            ),
+            dueStatus = "DUE_SOON",
+            version = "version-$id",
+            removal = WebEditorRemoval(
+                allowed = true,
+                sentence = "Nothing is recorded against \"Estuary road\", so deleting it here takes " +
+                    "nothing else with it."
+            )
+        )
+
         companion object {
             const val PAGE = "<html><body>the editor</body></html>"
 
             /** The id the fake refuses as stale, and the one it has never heard of. */
             const val STALE_ID = 409L
             const val MISSING_ID = 404L
+
+            /** The id the fake will not delete, because there are sprays on it. */
+            const val IN_USE_ID = 423L
         }
     }
 
@@ -382,5 +432,106 @@ class WebEditorServerTest {
         assertNull(WebEditorServer.assetId("/api/state"))
         // Longer than a Long is not an id either, rather than a number that wrapped into one.
         assertNull(WebEditorServer.assetId("/api/assets/99999999999999999999"))
+    }
+
+    @Test
+    fun `a new asset is made at the collection's path and answered with a 201, not a 200`() {
+        start()
+
+        val response = send(WebEditorServer.COLLECTION_PATH, "POST", newBody)
+
+        // 201 rather than 200: a page that made something and a page that changed something are doing
+        // different things, and a person reading the answer off a command line can tell them apart.
+        assertEquals(201, response.code)
+        assertEquals("application/json; charset=utf-8", response.contentType)
+        assertEquals("the body arrived whole", newBody, data.lastCreate)
+        assertTrue("the answer is the new record: ${response.body}", response.body.contains("\"Estuary road\""))
+        assertTrue(
+            "with the version the next edit has to quote: ${response.body}",
+            response.body.contains("\"version-7\"")
+        )
+    }
+
+    @Test
+    fun `making a new asset needs the token, and its own refusal keeps its status`() {
+        start()
+
+        assertEquals(403, send(WebEditorServer.COLLECTION_PATH, "POST", newBody, withToken = false).code)
+        assertNull("a refused create never reached the data", data.lastCreate)
+
+        val refused = send(WebEditorServer.COLLECTION_PATH, "POST", "")
+        assertEquals(400, refused.code)
+        assertEquals(
+            """{"reason":"invalid","message":"Give it a name so it can be found later"}""",
+            refused.body
+        )
+    }
+
+    @Test
+    fun `making one is not saving one, so an id on the end of the path is a 404`() {
+        start()
+
+        // `/api/assets/7` is an asset, and a POST to it would be asking the phone to make a second
+        // asset numbered 7. Nothing serves that, so nothing answers it.
+        assertEquals(404, send("/api/assets/7", "POST", newBody).code)
+        assertNull(data.lastCreate)
+    }
+
+    @Test
+    fun `a delete reaches the data with the id from the path and the version from the query`() {
+        start()
+
+        val response = send("/api/assets/7?version=v7", "DELETE")
+
+        assertEquals(200, response.code)
+        assertEquals("application/json; charset=utf-8", response.contentType)
+        assertEquals(7L to "v7", data.lastRemove)
+        assertEquals("""{"message":"Estuary road is gone from the phone."}""", response.body)
+    }
+
+    @Test
+    fun `a delete that says no version is the data's to refuse, not the route's to invent`() {
+        start()
+
+        assertEquals(200, send("/api/assets/7", "DELETE").code)
+        // Null rather than an empty string: "the request did not say which track it read" is one thing,
+        // and a route that filled the gap in would be making up the answer to the only question that
+        // protects a season's record.
+        assertEquals(7L to null, data.lastRemove)
+    }
+
+    @Test
+    fun `a delete the phone will not take keeps its own status and its numbers`() {
+        start()
+
+        val inUse = send("/api/assets/${FakeData.IN_USE_ID}?version=v1", "DELETE")
+
+        // 409 with a reason of its own: a page that reloaded the work on every 409 would reload it for
+        // a refusal that says nothing has moved.
+        assertEquals(409, inUse.code)
+        assertTrue("the reason is the delete's own: ${inUse.body}", inUse.body.contains("\"reason\":\"in-use\""))
+        assertTrue("and the count is in the words: ${inUse.body}", inUse.body.contains("3 sprays"))
+    }
+
+    @Test
+    fun `a delete needs the token as surely as a read does`() {
+        start()
+
+        assertEquals(403, send("/api/assets/7?version=v7", "DELETE", withToken = false).code)
+        assertNull("a refused delete never reached the data", data.lastRemove)
+    }
+
+    @Test
+    fun `a path that does not name an asset is a 404 for a delete too`() {
+        start()
+
+        assertEquals(404, send("/api/assets/seven", "DELETE").code)
+        assertEquals(404, send("/api/assets/", "DELETE").code)
+        assertEquals(404, send("/api/assets/0", "DELETE").code)
+        // The collection is where a new asset is made, not an asset in itself: a delete there names
+        // nothing, and a route that guessed would be guessing with a season's record.
+        assertEquals(404, send(WebEditorServer.COLLECTION_PATH, "DELETE").code)
+
+        assertNull("nothing was deleted", data.lastRemove)
     }
 }

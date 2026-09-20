@@ -133,16 +133,37 @@ vocabulary invented by the page. The form's choices and hints come from the phon
 reason: `WebEditorChoices` carries the kinds, shapes, methods and passes out of the phone's phrase
 tables, plus the block, swath and separation hints, inside the state document.
 
-**Still to come — v0.6.24.** Geometry (draw, drag a vertex, click a segment to insert one, ⌫ removes
-one, double-click or Enter finishes, Esc cancels, Ctrl+Z undoes with a local pure stack in `edit.js`
-tested without a browser, snapping to the first vertex and to other assets), `POST /api/assets`, and
-delete under the rule below. The phone's own map and list update as you work, because it is one
-database and Room flows already push changes.
+**Shipped as v0.6.24 — the geometry, a new track, and delete.** `POST /api/assets` makes a track from a
+line drawn on a laptop; `PUT /api/assets/<id>` grew a **`points`** field, so the row and the line travel in
+one body and are written in one transaction; `DELETE /api/assets/<id>?version=…` takes a mis-drawn track
+away. The line itself is drawn by `app/src/main/assets/web/edit.js` — handles, dragging, a click on a
+segment to insert a vertex, ⌫ to take one off, a double click or Enter to finish, Esc to give up — over
+`geometry.mjs`, which is pure and therefore runs under node: the undo stack behind Ctrl+Z, the tolerance a
+click has to be inside, and the exact numbers a snapped vertex copies are all held by
+`app/src/test/js/geometry.test.mjs`, which CI runs with `node --test`. A vertex is moved in the page's own
+memory, undone from the page's own history, and **the phone is sent the finished line once** — an hour of
+tidying a track is one write, and a drawing that is given up with Esc was never a write at all.
 
-**Delete rule.** The browser is told what is attached and shows it: *"Delete Estuary road? 3 sprays
-go with it; its recording stays."* If the phone reports sprays or recordings attached, the web may
-only **archive** (`active = false`) and the real delete stays on the phone; if nothing is attached, a
-mis-drawn track may be deleted from the desk.
+**The delete rule is not the one this plan proposed.** The plan said the desk might *archive*
+(`active = false`) a track with sprays on it. It may not: nothing in the app ever writes `active = false`
+and nothing reads it back, so an archive written from a laptop would be an asset that vanishes from every
+list with no way to bring it back — a quiet, unrecoverable removal, which is the one thing a delete is not
+allowed to be. So the desk may delete only what has **nothing recorded against it** — no sprays and no
+recordings — and is refused otherwise, in the phone's own words and in numbers: *"Track 4" has 1 spray on
+the phone, so it is not deleted from here. Delete it on the phone, where what goes with it can be seen
+first.* The card shows that sentence before the button, and the button is off when the answer is no. The
+recording is counted for a reason the schema makes sharp: `RecordedSessionEntity.assetId` has no foreign
+key, so a recording outlives the asset it names and a delete would leave it pointing at a number nothing
+answers to.
+
+**Nothing about the drawing is decided in JavaScript.** The line is judged on the phone by
+`domain/asset/AssetPathEdits` — consecutive repeats are dropped rather than refused, 2000 vertices is the
+cap, a place is one point, a path is two or more, and every vertex has to be on earth — and the sentences
+come from there. A body that says nothing about `points` leaves the line exactly as it is; a body that
+sends an empty list is refused, because "drawn nothing" is not a way to empty a track. The version the card
+quotes now covers the path as well, vertex by vertex, so a line drawn again on the phone refuses a card
+that never saw the move rather than silently undoing it.
+
 
 ## Files
 
@@ -155,9 +176,13 @@ mis-drawn track may be deleted from the desk.
 | `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21.** |
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21.** |
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, shapes, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. |
-| `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, plus the version the form was handed), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` so the phone's own rules produce the phone's own refusals, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id and the block name, so the version needs no column, no migration, and does not move when a spray is recorded. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23.** |
+| `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
+| `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
+| `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: the path and its undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the line a click belongs, the vertex to snap onto, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24.** |
+| `app/src/test/js/geometry.test.mjs` | Those claims, under node: 17 tests, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24.** |
+| `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24.** |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. |
-| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, plus `edit.js` in phase 2. Plain ES modules: the file you edit is the file that runs. **Landed in v0.6.22**, with two things worth knowing: `index.html` loads its own stylesheet, library and module **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; and the page's own code is dead simple on purpose: it draws, it does not decide. |
+| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic) beside them. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24.** |
 
 **Changed**
 
@@ -166,7 +191,11 @@ mis-drawn track may be deleted from the desk.
 | `offline/LocalTileServer.kt` | Uses the extracted `HttpServer`; its routes and its loopback-only guarantee are unchanged, word for word. Its tile route and `/status` are now factory functions a second server can be handed, so the editor serves the same tiles from the same stores. **v0.6.20 and v0.6.21.** |
 | `ui/screens/SettingsScreen.kt`, `viewmodel/SettingsViewModel.kt` | The "Draw from a computer" card: the switch, the address, Copy. No preference is stored for the switch — the address *is* the state, so a switch can never claim to be serving with nothing listening. **v0.6.21.** |
 | `AndroidManifest.xml` | `FOREGROUND_SERVICE_DATA_SYNC` and the service. `INTERNET` is already there. No other permission. |
+| `data/AssetRepository.kt` | `insertAsset(asset, geometry, groupName)` — a new asset and its line in one transaction, the id dropped so the database issues it and the length worked out from the vertices; `saveAssetEdits(asset, blockName, geometry)` gained an optional line written with the row; `allAssetGeometry()`, `recordingCountFor` and `recordingCounts()` for the documents. **v0.6.24.** |
+| `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
+| `web/WebEditorDocuments.kt` | `create` and `remove` beside `save`, the path passed into the transaction, `removal` on each record, the phone's own `newAsset` defaults in the state document, and `mjs` in the content-type table — a browser refuses a module whose type it does not read as JavaScript, and the desk's drawing module is the same file node imports, so the extension is what tells both of them. **v0.6.24.** |
 | `README.md` | A `## Drawing from a computer` section, and the vendored licence note. |
+| `.github/workflows/ci.yml` | `node --test app/src/test/js/geometry.test.mjs` beside the Gradle gate: the desk's drawing arithmetic, held by the same file the browser runs. **v0.6.24.** |
 
 ## Endpoints
 
@@ -192,7 +221,22 @@ mis-drawn track may be deleted from the desk.
   field's own sentence, **409 `stale`** when the card is out of date, **404 `not-found`** for a number
   the phone does not have, an archived asset included. **411** for `Transfer-Encoding: chunked` and
   **413** over 256 KB are the socket layer's, refused before any route sees them.
-- Still to come: `POST /api/assets`, the geometry half of `PUT`, `DELETE /api/assets/<id>`.
+- `POST /api/assets` — a new track or place, drawn on the desk. No `version`: there is no row yet for one
+  to describe, and nothing to be stale against. The body is the same shape as `PUT`'s, with `points`
+  **required** — a new asset with nothing drawn is refused by `AssetPathEdits` in its own words, and the
+  id and the date are the phone's, not the laptop's. The body's block name starts a block if it is a new
+  one, exactly as the phone's own form does. Answers **201** with the created record — 201 rather than 200
+  so a page can tell "the phone has it now" from "the phone still has it" — **400** with the sentence for
+  anything it will not take, **409** only if a block name lost a race.
+- `DELETE /api/assets/<id>?version=…` — a track or place with nothing recorded against it. The version
+  travels in the **query** because a delete has no body: a request that does not say which version it read
+  is refused as unreadable rather than taken as "delete whatever is there". Answers **200** with the
+  sentence saying what is gone, **409 `stale`** when the row moved under the page, **409 `in-use`** when
+  sprays or recordings are attached — with the counts in the message and a pointer at the phone — and
+  **404** for a number the phone does not have.
+- The geometry half of `PUT`: the body may carry `points`, a list of `{lat, lng}`, and the line is written
+  in the same transaction as the rest of the row. Absent means "the line is unchanged"; an empty list is a
+  refusal. `points` is also in each record's `version`, so a stale card about a moved line is refused.
 - **The token is required on everything**; anything without it is 403, including `/`.
 
 ## Defaults taken (overrule any of these and change this file)
@@ -313,26 +357,46 @@ style's background colour and the work draws on top of it.
       assets (`web-doze.txt`). One bug came out of it:
       `#edit-buttons button` out-specified `#edit-save`, so the Save button was white text on a white
       pill until the rule named its parent.
-- [ ] **Phase 2, the rest — v0.6.24.** Geometry (`POST /api/assets`, the vertex handles and their local
-      undo stack in `edit.js`) and delete under the archive-only rule.
-- [ ] **Phase 3** — desk conveniences: GPX drop, snapping, multi-select, tracing, show-archived.
+- [x] **Phase 2, the rest — the line and the delete. v0.6.24.** `POST /api/assets`, the geometry half of
+      `PUT`, `DELETE /api/assets/<id>?version=…`, and the desk's drawing in `edit.js` over `geometry.mjs`.
+      Proven against the phone on a seeded farm, driven with real browser input
+      (`pagedump.ps1 -Mouse`, which now sends mouse and key events through the DevTools protocol and can
+      read the drawing handles off the page's own picture): three clicks and Enter made a track — asset 5
+      `Desk drawn`, TRACK LINE UNSET, three vertices, **270.36 m** worked out by the phone; a drag moved
+      vertex 0 and the phone's own length went **683.21 → 665.27 m**; **Ctrl+Z** took the step back and the
+      phone's points were *unchanged* — the undo cost it nothing, which is the claim in the plan; a click on
+      the line inserted a vertex **between** two, and the phone then held four; a delete of a track with
+      nothing on it answered *"Desk drawn is gone from the phone."* and the pulled database showed the row
+      and its points gone; and a delete of a track with a spray on it was refused **409 `in-use`** with the
+      counts in the phone's words, the button disabled before anyone pressed it, and the asset left alone.
+      Screenshots `web-geo-draw.png`, `web-geo-drag3.png`, `web-geo-undo.png`, `web-geo-insert.png`,
+      `web-geo-delete.png`, `web-geo-refuse.png`; notes in `build/verify/web-geometry.txt`. Two real bugs
+      came out of the driving, both in the new page code: a click handler that threw
+      `Expected [x, y] or {x, y} point format` on `map.unproject(event.point)` — this MapLibre build's
+      event carries `lngLat` already, and the page now reads that instead of asking the map to work the
+      same position out twice — and a drag that had to take hold of a handle the picture had found,
+      because a press a few pixels off one pans the map and looks exactly like a drag that did nothing.
+- [ ] **Phase 3** — desk conveniences: GPX drop, multi-select, tracing, show-archived.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**v0.6.24 — geometry, then delete.** The desk can change what a track *is*; the next slice lets it
-change where the track *goes*: `POST /api/assets` for a new one, drag a vertex, click a segment to
-insert one, ⌫ to remove one, a local pure undo stack in `edit.js` so Ctrl+Z costs the phone nothing,
-snapping to the first vertex and to other assets — and then the archive-only delete rule, with the
-number of sprays that would go with it said in numbers before anything is written. Geometry goes
-through the same version check as the details do, so a track moved on the phone cannot be overwritten
-from a card that is out of date; that check is already built and tested, and the geometry slice only
-has to carry it.
+**Phase 3 — the desk conveniences.** Snapping to other assets and to a line's own first vertex is already
+in (`geometry.mjs`, with a test for the loop that closes): what is left is GPX drop, selecting more than one
+asset at once, tracing a line over imagery, and showing archived assets — the last of which now has a
+reason to exist, because *nothing* can put an asset into `active = false` from the desk and nothing on the
+phone reads it back. Either that becomes a real state with a way in and a way out, or it goes.
 
-**Nothing is owing from v0.6.22 any more.** The map regression screenshot came with this slice
-(`web-phone-map-small.jpg`), the ten-minute Doze check was done with it (`web-doze.txt`), and the
-published 0.6.23 APK was installed and driven on its own once the tag had built (`rel-save2.txt`) —
-which is the gate, because a minified build is not the debug build's claim.
+**One wart worth fixing while in there.** The desk's first fit is racy: `fitBounds` runs when the state
+document arrives, and on some loads the container has not finished settling, so the same farm opens at a
+slightly different zoom — the four bearing lines of a run are not always in the same place on the screen,
+which is what made reading a handle's position off one screenshot and clicking it in the next unreliable.
+Nothing is wrong with the farm or the write; the *view* is what moves, and it moves before the operator has
+touched anything.
+
+**Nothing is owing from v0.6.23.** The published 0.6.23 APK was installed and driven on its own once the
+tag had built (`rel-save2.txt`) — which is the gate, because a minified build is not the debug build's
+claim.
 

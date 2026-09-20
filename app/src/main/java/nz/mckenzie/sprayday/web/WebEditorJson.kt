@@ -3,13 +3,19 @@ package nz.mckenzie.sprayday.web
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetRemoval
+import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
 import nz.mckenzie.sprayday.domain.asset.PassPhrase
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueInfo
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.ui.AssetEdits
 
@@ -51,12 +57,22 @@ object WebEditorJson {
      * mapping is private, and it is pinned field by field by this file's test: a column added to
      * the asset table and forgotten here would be a column the desk never sees, which is a quiet
      * way to lose something the operator typed on the phone.
+     *
+     * [points] is the asset's own geometry, and it is here for the version rather than for the
+     * document: the geometry itself travels once, in the GeoJSON the map's own source reads, so the
+     * `points` this record carries stay empty - while the desk still has to be told which *line* it
+     * was handed, or a card would go on talking about a track that has since been moved.
+     *
+     * [recordingCount] is here for the same kind of reason: it is not shown, it is what the delete
+     * sentence counts.
      */
     fun record(
         asset: AssetEntity,
         due: DueInfo,
         sprayCount: Int,
-        groupName: String?
+        groupName: String?,
+        points: List<GeoPoint>,
+        recordingCount: Int
     ): WebEditorAssetRecord = WebEditorAssetRecord(
         asset = AssetRecord(
             id = asset.id,
@@ -83,7 +99,8 @@ object WebEditorJson {
         groupName = groupName,
         // Sent back by the desk with an edit, so a change made on the phone while the card was open
         // is refused here rather than written over. See [WebEditorVersion].
-        version = WebEditorVersion.of(asset, groupName)
+        version = WebEditorVersion.of(asset, groupName, points),
+        removal = WebEditorRemoval.of(AssetRemovalRules.of(asset.name, sprayCount, recordingCount))
     )
 
     /**
@@ -104,6 +121,15 @@ object WebEditorJson {
      */
     fun refused(refusal: WebEditorRefusal, message: String): String =
         json.encodeToString(WebEditorRefused.serializer(), WebEditorRefused(refusal.reason, message))
+
+    /**
+     * What a delete answers with.
+     *
+     * One sentence and nothing else, because there is no record left to send: the page's next move is
+     * to read the work again, which is how it learns what is on the farm now.
+     */
+    fun removed(message: String): String =
+        json.encodeToString(WebEditorRemoved.serializer(), WebEditorRemoved(message))
 }
 
 /** Everything `GET /api/state` answers with. */
@@ -128,8 +154,44 @@ data class WebEditorDocument(
      * the one that falls behind is the one nobody looks at. A kind renamed on the phone is renamed
      * on the desk the next time the page is opened.
      */
-    val choices: WebEditorChoices = WebEditorChoices.ofApp()
+    val choices: WebEditorChoices = WebEditorChoices.ofApp(),
+    /**
+     * What an asset somebody draws from scratch starts as.
+     *
+     * The phone's own defaults for a new asset - the same ones `AssetRepository.createAsset` and the
+     * phone's own drawing screen use - so a blank form on a laptop starts where a blank form on the
+     * phone starts. A "120" typed into JavaScript would be a second copy of a default, and the one that
+     * falls behind is the one nobody looks at; this way the interval the desk fills in is the interval
+     * the phone would have filled in.
+     */
+    val newAsset: WebEditorNewAsset = WebEditorNewAsset.ofApp()
 )
+
+/**
+ * What a new asset is before anybody says otherwise.
+ *
+ * Numbers as the field would hold them ("120"), because that is what the form's fields are made of: a
+ * page that did its own formatting would be a page that could send "120.0" to a rule expecting a whole
+ * number's worth of digits.
+ */
+@Serializable
+data class WebEditorNewAsset(
+    val kind: String,
+    val shape: String,
+    val method: String,
+    val intervalDays: String,
+    val passesRequired: Int
+) {
+    companion object {
+        fun ofApp() = WebEditorNewAsset(
+            kind = AssetKind.TRACK.name,
+            shape = AssetShape.LINE.name,
+            method = SprayMethod.UNSET.name,
+            intervalDays = AssetEntity.DEFAULT_INTERVAL_DAYS.toString(),
+            passesRequired = AssetEntity.DEFAULT_PASSES_REQUIRED
+        )
+    }
+}
 
 /** One asset, with the traffic light the page paints it in. */
 @Serializable
@@ -147,8 +209,36 @@ data class WebEditorAssetRecord(
      * What an edit to this asset has to quote back, so the phone can refuse one written against an
      * asset that has since changed. Opaque here on purpose: only the phone works out what it means.
      */
-    val version: String
+    val version: String,
+    /**
+     * What deleting it would take, and whether the desk may do it at all.
+     *
+     * Always present, so the page never has to work the rule out for itself: it greys the button out
+     * or it does not, and it shows [WebEditorRemoval.sentence] either way.
+     */
+    val removal: WebEditorRemoval
 )
+
+/**
+ * What deleting an asset from the desk would take with it.
+ *
+ * [allowed] is false once anything is recorded against it - a spray, a recording - and then the
+ * sentence says how much and where the delete belongs instead. See
+ * [nz.mckenzie.sprayday.domain.asset.AssetRemovalRules] for why the desk may not put an asset away.
+ */
+@Serializable
+data class WebEditorRemoval(val allowed: Boolean, val sentence: String) {
+    companion object {
+        fun of(removal: AssetRemoval) = WebEditorRemoval(
+            allowed = removal.allowed,
+            sentence = removal.sentence
+        )
+    }
+}
+
+/** What a delete answers with: the phone's own sentence about what happened. */
+@Serializable
+data class WebEditorRemoved(val message: String)
 
 /** A box on the ground, in the order a person would say it. */
 @Serializable

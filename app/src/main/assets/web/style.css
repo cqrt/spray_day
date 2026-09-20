@@ -68,6 +68,34 @@ main { flex: 1; display: flex; min-height: 0; }
   font: inherit;
 }
 
+/* Drawing a new track: the way in, above the list, where the work is. */
+#side-actions { padding: 10px 10px 0; }
+
+#draw {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  font: inherit;
+  cursor: pointer;
+}
+
+#draw:hover:not(:disabled) { background: var(--shade); }
+#draw:disabled { color: var(--quiet); background: var(--shade); cursor: default; }
+
+/*
+ * What the drawing mode is doing: the page's own instructions, so it reads as furniture rather than as
+ * a warning - which is what the notice above it is for.
+ */
+#drawing {
+  margin: 0;
+  padding: 10px 16px;
+  background: #eef3ee;
+  border-bottom: 1px solid #d6e0d4;
+  font-size: 14px;
+}
+
 #list { overflow: auto; padding: 0 0 12px; }
 
 #list h3 {
@@ -160,6 +188,35 @@ main { flex: 1; display: flex; min-height: 0; }
 
 #card-actions button:hover,
 #edit-buttons button:hover { background: var(--shade); }
+
+/* The two buttons sit in a row, and the row wraps on a narrow card rather than squashing them. */
+#card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/*
+ * Deleting, kept apart from the two buttons above it and behind its own sentence. The sentence is the
+ * phone's - what is on the track, in numbers, and whether the desk may take it away at all - so it is
+ * never a surprise, and the button is off when the answer is no.
+ */
+#card-remove-row {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+#card-remove-words { margin: 0 0 8px; font-size: 13px; color: var(--quiet); }
+
+#card-remove {
+  padding: 8px 12px;
+  border: 1px solid #e0b4ae;
+  border-radius: 6px;
+  background: var(--paper);
+  color: #8c2f22;
+  font: inherit;
+  cursor: pointer;
+}
+
+#card-remove:hover { background: #fdecea; }
+#card-remove:disabled { color: var(--quiet); border-color: var(--line); background: var(--shade); cursor: default; }
 
 /*
  * The details form: the same panel in the same place as the card, because it is about the same

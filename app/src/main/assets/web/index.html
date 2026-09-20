@@ -25,8 +25,18 @@
 
   <p id="notice" hidden></p>
 
+  <!--
+    What the drawing mode is doing, in the page's own words, because it is the page's own furniture:
+    the phone's words are for what the phone decided, and this is only how to work the map.
+  -->
+  <p id="drawing" hidden><span id="drawing-words"></span></p>
+
   <main>
     <aside id="side">
+      <div id="side-actions">
+        <!-- Off until the map has its style: a drawing needs somewhere to be drawn. -->
+        <button id="draw" type="button" disabled>Draw a new track</button>
+      </div>
       <input id="search" type="search" placeholder="Find a track or block" autocomplete="off">
       <div id="list" aria-live="polite"></div>
     </aside>
@@ -40,6 +50,17 @@
     <dl id="card-facts"></dl>
     <div id="card-actions">
       <button id="card-edit" type="button">Change the details</button>
+      <button id="card-shape" type="button">Change the shape</button>
+    </div>
+
+    <!--
+      Deleting from the desk, with the phone's own sentence about what is on the track shown first: the
+      count, and whether this is even something the desk may do. The button is off when the phone says
+      the delete belongs there, so the operator is told why before pressing anything rather than after.
+    -->
+    <div id="card-remove-row">
+      <p id="card-remove-words"></p>
+      <button id="card-remove" type="button">Delete it</button>
     </div>
   </section>
 

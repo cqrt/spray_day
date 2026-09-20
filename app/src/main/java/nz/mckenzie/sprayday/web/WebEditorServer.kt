@@ -97,12 +97,30 @@ class WebEditorServer(
         ),
         jsonRoute(STYLE_PATH) { authority -> data.style(authority) },
         HttpRoute(
+            claims = { it.method == POST && it.path == COLLECTION_PATH },
+            // A new asset: the only write whose path is not an asset's own, because the id it gets is
+            // the phone's to issue. The answer is the record, so the page can open the card on it
+            // without asking again.
+            handler = { request -> write(data.create(request.body)) }
+        ),
+        HttpRoute(
             claims = { it.method == PUT && assetId(it.path) != null },
             // The id is asked for twice, once to decide whether this route answers at all and once
             // to answer with - so a route can never answer for a path it did not claim, and there is
             // no ignoring of a null that the claim above already ruled out.
             handler = { request ->
                 assetId(request.path)?.let { id -> write(data.save(id, request.body)) }
+                    ?: HttpServer.NOT_FOUND
+            }
+        ),
+        HttpRoute(
+            claims = { it.method == DELETE && assetId(it.path) != null },
+            // The version travels in the query rather than in a body: a DELETE carrying one is a thing
+            // the way between a browser and an HttpURLConnection is entitled to drop, and the token is
+            // already travelling in that query. A delete without one is refused by the data, in words,
+            // rather than by this route: what a missing version means is the same verdict an edit gets.
+            handler = { request ->
+                assetId(request.path)?.let { id -> write(data.remove(id, request.query[VERSION_PARAM])) }
                     ?: HttpServer.NOT_FOUND
             }
         ),
@@ -127,17 +145,23 @@ class WebEditorServer(
         handler = { request -> json(body(authorityFor(request))) }
     )
 
-    private fun json(body: String): HttpResponse =
-        HttpResponse.bytes(200, JSON, body.toByteArray(Charsets.UTF_8))
+    private fun json(body: String, status: Int = 200): HttpResponse =
+        HttpResponse.bytes(status, JSON, body.toByteArray(Charsets.UTF_8))
 
     /**
-     * A write's outcome as an answer: the new record, or the refusal with its own status.
+     * A write's outcome as an answer: the new record, the sentence about what is gone, or the refusal
+     * with its own status.
      *
-     * The status is [WebEditorRefusal]'s, not this class's guess, so what a page is told when a save
-     * is refused is decided where the refusal is decided.
+     * The status is [WebEditorRefusal]'s and [WebEditorWrite]'s, not this class's guess, so what a page
+     * is told when a save is refused is decided where the refusal is decided - and a new asset is told
+     * apart from an edited one by the shape of the answer rather than by the route it arrived on. The
+     * three successes are 200, 201 and 200: a made thing and a changed thing are not the same event,
+     * while a delete has nothing left to describe.
      */
     private fun write(result: WebEditorWrite): HttpResponse = when (result) {
         is WebEditorWrite.Saved -> json(WebEditorJson.saved(result.record))
+        is WebEditorWrite.Created -> json(WebEditorJson.saved(result.record), status = 201)
+        is WebEditorWrite.Removed -> json(WebEditorJson.removed(result.message))
         is WebEditorWrite.Refused -> HttpResponse.bytes(
             result.refusal.status,
             JSON,
@@ -172,8 +196,20 @@ class WebEditorServer(
         const val ASSETS_PATH = "/api/assets.geojson"
         const val STYLE_PATH = "/api/style"
 
+        /** Where a new asset is made: `/api/assets`, with no id on the end of it. */
+        const val COLLECTION_PATH = "/api/assets"
+
         /** What the token is called in a URL, e.g. `/api/state?k=7f3a…`. */
         const val TOKEN_PARAM = "k"
+
+        /**
+         * What a delete says it is deleting, e.g. `/api/assets/7?k=…&version=9b1c…`.
+         *
+         * Named `version` rather than `v`, unlike the token's `k`: this one is written by a page's own
+         * code and read by a person with a command line when something goes wrong, and a name costs
+         * nothing in a URL that already carries a token.
+         */
+        const val VERSION_PARAM = "version"
 
         /**
          * Every interface the phone has.
@@ -190,8 +226,14 @@ class WebEditorServer(
 
         private const val GET = "GET"
 
-        /** The one write the web is allowed: an asset's own details, at the asset's own path. */
+        /** A new asset, at the collection's own path. */
+        private const val POST = "POST"
+
+        /** An asset's own details, and its line, at the asset's own path. */
         private const val PUT = "PUT"
+
+        /** Taking an asset away, at the asset's own path. */
+        private const val DELETE = "DELETE"
 
         /**
          * The id in a path like `/api/assets/7`, or null when the path is not one of those.
@@ -248,6 +290,24 @@ interface WebEditorData {
      * not be read, which is a refusal with a sentence in it like any other.
      */
     suspend fun save(id: Long, body: String?): WebEditorWrite
+
+    /**
+     * `POST /api/assets`: a new track or place, drawn and described on a computer.
+     *
+     * No id and no version anywhere in it: the id is the database's to issue, and there is no row yet
+     * for a version to describe. The body is the page's JSON, judged by the same rules an edit goes
+     * through - a blank row is handed to them where an edit's own row would be.
+     */
+    suspend fun create(body: String?): WebEditorWrite
+
+    /**
+     * `DELETE /api/assets/<id>`: taking a track away, when there is nothing on it to lose.
+     *
+     * [version] is the fingerprint the card was handed, read out of the query. Null when the request
+     * carried none, which is a refusal with a sentence in it rather than a crash: a delete that cannot
+     * say which track it read is a delete nobody can be held to.
+     */
+    suspend fun remove(id: Long, version: String?): WebEditorWrite
 
     /**
      * The page and the files it asks for, from `app/src/main/assets/web`.

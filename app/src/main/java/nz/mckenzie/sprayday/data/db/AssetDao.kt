@@ -104,6 +104,17 @@ abstract class AssetDao {
     abstract suspend fun getGeometry(assetId: Long): List<AssetPointEntity>
 
     /**
+     * Every vertex of every asset, in one query, grouped by the caller.
+     *
+     * For the two documents that are built for the whole farm at once - the GeoJSON the map draws and
+     * the state document, which needs each asset's points to say which version of the line a desk was
+     * handed. One query rather than one per asset: the desk asks for both documents on opening, and a
+     * per-asset read would be a query per track for points the map is about to ask for anyway.
+     */
+    @Query("SELECT * FROM asset_points ORDER BY assetId, sequence")
+    abstract suspend fun allGeometry(): List<AssetPointEntity>
+
+    /**
      * The box containing every planned asset, for answering "where is the work?" with
      * one query rather than loading every point.
      */

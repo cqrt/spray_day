@@ -37,6 +37,13 @@ jobs:
           LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lint
 
+      # The desk's own drawing code, tested without a browser. `geometry.mjs` is pure so that it can be:
+      # the undo stack behind Ctrl+Z, the tolerance a click has to be inside, and the exact numbers a
+      # snapped vertex takes are all arithmetic, and node runs the very file the browser does. Any more
+      # of those files belong on this line.
+      - name: Unit test the desk's own drawing
+        run: node --test app/src/test/js/geometry.test.mjs
+
       - name: Upload test and lint reports
         if: always()
         uses: actions/upload-artifact@v4

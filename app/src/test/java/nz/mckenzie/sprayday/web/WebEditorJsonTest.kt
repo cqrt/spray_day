@@ -2,7 +2,9 @@ package nz.mckenzie.sprayday.web
 
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
 import nz.mckenzie.sprayday.domain.asset.PassPhrase
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
@@ -10,9 +12,11 @@ import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.ui.AssetEdits
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,9 +67,26 @@ class WebEditorJsonTest {
     private fun roundTrip(document: WebEditorDocument): WebEditorDocument =
         json.decodeFromString(WebEditorDocument.serializer(), WebEditorJson.build(document))
 
-    private fun documentWith(asset: AssetEntity, groupName: String? = "Estuary") = WebEditorDocument(
+    /** The line the phone holds for this asset, which the version the desk quotes is hashed over. */
+    private val path = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9))
+
+    private fun documentWith(
+        asset: AssetEntity,
+        groupName: String? = "Estuary",
+        recordings: Int = 0,
+        sprays: Int = 4
+    ) = WebEditorDocument(
         nowEpochMs = now,
-        assets = listOf(WebEditorJson.record(asset, dueOf(asset), sprayCount = 4, groupName = groupName))
+        assets = listOf(
+            WebEditorJson.record(
+                asset = asset,
+                due = dueOf(asset),
+                sprayCount = sprays,
+                groupName = groupName,
+                points = path,
+                recordingCount = recordings
+            )
+        )
     )
 
     @Test
@@ -158,10 +179,37 @@ class WebEditorJsonTest {
     fun `the record carries the version an edit has to quote back`() {
         val record = roundTrip(documentWith(everyField)).assets.single()
 
-        // Worked out here from the row and the block, exactly as the phone will work it out again
-        // when the edit comes back: a desk quoting this cannot have been reading another version of
-        // the asset, and the version survives the trip to the page as the rest of the record does.
-        assertEquals(WebEditorVersion.of(everyField, "Estuary"), record.version)
+        // Worked out here from the row, the block and the line, exactly as the phone will work it out
+        // again when the edit comes back: a desk quoting this cannot have been reading another version
+        // of the asset, and the version survives the trip to the page as the rest of the record does.
+        assertEquals(WebEditorVersion.of(everyField, "Estuary", path), record.version)
+    }
+
+    @Test
+    fun `the record carries what deleting it would take, in the phone's own words`() {
+        // A track nothing has ever been recorded against, which is the only kind the desk may delete.
+        val clean = roundTrip(documentWith(everyField, sprays = 0)).assets.single()
+
+        assertTrue("a track nothing is recorded against may be deleted", clean.removal.allowed)
+        assertTrue(
+            "and the sentence says so: ${clean.removal.sentence}",
+            clean.removal.sentence.contains("nothing else with it")
+        )
+
+        // The four sprays the record already carries are counted by the same rule the delete uses, so a
+        // card cannot say "4 sprays recorded" and offer to delete the track in the same breath. The
+        // recording is in there too: a recording outlives its asset, and this is the sentence that has
+        // to say so before anything goes.
+        val sprayed = roundTrip(documentWith(everyField, recordings = 1)).assets.single()
+        assertFalse(sprayed.removal.allowed)
+        assertTrue(
+            "counts both: ${sprayed.removal.sentence}",
+            sprayed.removal.sentence.contains("4 sprays and 1 recording")
+        )
+        assertTrue(
+            "and sends the operator to the phone: ${sprayed.removal.sentence}",
+            sprayed.removal.sentence.contains("Delete it on the phone")
+        )
     }
 
     @Test
@@ -188,6 +236,25 @@ class WebEditorJsonTest {
         assertEquals(AssetEdits.BLOCK_HINT, choices.blockHint)
         // A shape is offered as a sentence, because "line" and "point" mean nothing in a paddock.
         assertEquals("Follows a path", choices.shapes.first().label)
+    }
+
+    @Test
+    fun `a new asset is offered the phone's own starting point`() {
+        val fresh = roundTrip(documentWith(everyField)).newAsset
+
+        // What a track somebody draws from scratch starts as, taken from the phone's own table rather
+        // than written into the page: a default copied into JavaScript is a default that drifts, and the
+        // one that drifts is the interval.
+        assertEquals(AssetKind.TRACK.name, fresh.kind)
+        assertEquals(AssetShape.LINE.name, fresh.shape)
+        assertEquals(SprayMethod.UNSET.name, fresh.method)
+        assertEquals("120", fresh.intervalDays)
+        assertEquals(AssetEntity.DEFAULT_PASSES_REQUIRED, fresh.passesRequired)
+        assertEquals(
+            "and it is the same default `createAsset` fills in",
+            AssetEntity.DEFAULT_INTERVAL_DAYS.toString(),
+            fresh.intervalDays
+        )
     }
 
     @Test

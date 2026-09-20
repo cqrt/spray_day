@@ -187,8 +187,9 @@ choosing A.
       untouched; the app's own map still drawing imagery (screenshot). **v0.6.20.**
       Proven: 11 untouched wire tests plus 8 new `HttpServerTest` tests green, lint 0 errors with
       nothing naming the two files, the pre-change release screenshot and the new build's identical
-      pixel for pixel over the map, and tiles fetched and stored on the way through the refactored
-      plumbing. Notes in `build/verify/http-split.txt`.
+      pixel for pixel over the map, tiles fetched and stored on the way through the refactored
+      plumbing, and the **published** v0.6.20 APK installed and pixel-identical to the debug build -
+      a minified build is not the debug build's claim. Notes in `build/verify/http-split.txt`.
 - [ ] **Phase 1** — the desk view: the Wi-Fi server, the token, `/api/state`, `/api/style`, the page,
       the Settings card. Verified by the list above. Tagged **v0.6.21**.
 - [ ] **Phase 2** — editing through `AssetRepository`, the 409 version check, the archive-only delete

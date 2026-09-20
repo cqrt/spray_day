@@ -20,7 +20,7 @@
 <body>
   <header id="bar">
     <span id="title">Spray Day - the work</span>
-    <span id="subtitle">Served by the phone. This page only reads; nothing here can change the farm.</span>
+    <span id="subtitle">Served by the phone. The details you save here are saved on the phone.</span>
   </header>
 
   <p id="notice" hidden></p>
@@ -38,7 +38,66 @@
     <h2 id="card-name"></h2>
     <p id="card-due"></p>
     <dl id="card-facts"></dl>
-    <p id="card-notes"></p>
+    <div id="card-actions">
+      <button id="card-edit" type="button">Change the details</button>
+    </div>
+  </section>
+
+  <!--
+    The details form: the phone's own edit form, field for field. Its options and the sentences under
+    them arrive in the state document, from the phone's phrase tables, so the desk offers the words
+    the phone offers and cannot offer a choice the phone would refuse. The block field offers the
+    blocks that exist, because typing a block's name again is how a misspelling becomes a new block.
+  -->
+  <section id="edit" hidden>
+    <form id="edit-form">
+      <button id="edit-close" type="button" aria-label="Close">&times;</button>
+      <h2 id="edit-title">Change the details</h2>
+
+      <label for="edit-name">Name</label>
+      <input id="edit-name" type="text" autocomplete="off">
+
+      <label for="edit-block">Block or group</label>
+      <input id="edit-block" type="text" autocomplete="off" list="edit-blocks">
+      <datalist id="edit-blocks"></datalist>
+      <p class="hint" id="edit-block-hint"></p>
+
+      <span class="label">What it is</span>
+      <div class="choices" id="edit-kind" role="radiogroup" aria-label="What it is"></div>
+
+      <div id="edit-shape-row" hidden>
+        <span class="label">Shape</span>
+        <div class="choices" id="edit-shape" role="radiogroup" aria-label="Shape"></div>
+      </div>
+
+      <label for="edit-interval">Days between sprays</label>
+      <input id="edit-interval" type="text" inputmode="numeric" autocomplete="off">
+
+      <span class="label">Spray method</span>
+      <div class="choices" id="edit-method" role="radiogroup" aria-label="Spray method"></div>
+
+      <label for="edit-swath">Swath width (m)</label>
+      <input id="edit-swath" type="text" inputmode="decimal" autocomplete="off">
+      <p class="hint" id="edit-swath-hint"></p>
+
+      <span class="label">Passes to finish it</span>
+      <div class="choices" id="edit-passes" role="radiogroup" aria-label="Passes to finish it"></div>
+
+      <div id="edit-separation-row" hidden>
+        <label for="edit-separation">Two passes about (m) apart</label>
+        <input id="edit-separation" type="text" inputmode="decimal" autocomplete="off">
+        <p class="hint" id="edit-separation-hint"></p>
+      </div>
+
+      <label for="edit-notes">Notes</label>
+      <textarea id="edit-notes" rows="3"></textarea>
+
+      <p id="edit-words" hidden></p>
+      <div id="edit-buttons">
+        <button id="edit-save" type="submit">Save to the phone</button>
+        <button id="edit-cancel" type="button">Cancel</button>
+      </div>
+    </form>
   </section>
 
   <button id="locate" type="button" title="Ask the phone where it is">Where is the phone?</button>

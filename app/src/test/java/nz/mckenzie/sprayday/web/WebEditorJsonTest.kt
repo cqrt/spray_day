@@ -2,11 +2,16 @@ package nz.mckenzie.sprayday.web
 
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetPhrase
+import nz.mckenzie.sprayday.domain.asset.MethodPhrase
+import nz.mckenzie.sprayday.domain.asset.PassPhrase
+import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
+import nz.mckenzie.sprayday.ui.AssetEdits
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -147,6 +152,55 @@ class WebEditorJsonTest {
 
         assertEquals(WebEditorBounds(-41.6, 173.8, -41.4, 174.1), restored.bounds)
         assertEquals(WebEditorPosition(-41.5, 173.9), restored.position)
+    }
+
+    @Test
+    fun `the record carries the version an edit has to quote back`() {
+        val record = roundTrip(documentWith(everyField)).assets.single()
+
+        // Worked out here from the row and the block, exactly as the phone will work it out again
+        // when the edit comes back: a desk quoting this cannot have been reading another version of
+        // the asset, and the version survives the trip to the page as the rest of the record does.
+        assertEquals(WebEditorVersion.of(everyField, "Estuary"), record.version)
+    }
+
+    @Test
+    fun `the desk's form is offered the phone's own words`() {
+        val choices = roundTrip(documentWith(everyField)).choices
+
+        // Not a second copy of the vocabulary: the phone's own phrase tables, value and label, so a
+        // kind added on the phone appears on the desk with nothing to remember here.
+        assertEquals(
+            AssetPhrase.kinds.map { it.name to AssetPhrase.kind(it) },
+            choices.kinds.map { it.value to it.label }
+        )
+        assertEquals(
+            MethodPhrase.choices.map { it.name to MethodPhrase.choice(it) },
+            choices.methods.map { it.value to it.label }
+        )
+        assertEquals(
+            PassPhrase.choices.map { it.toString() to PassPhrase.choice(it) },
+            choices.passes.map { it.value to it.label }
+        )
+        // And the sentences under the fields, which are the phone's own.
+        assertEquals(PassPhrase.SEPARATION_HINT, choices.separationHint)
+        assertEquals(AssetEdits.SWATH_HINT, choices.swathHint)
+        assertEquals(AssetEdits.BLOCK_HINT, choices.blockHint)
+        // A shape is offered as a sentence, because "line" and "point" mean nothing in a paddock.
+        assertEquals("Follows a path", choices.shapes.first().label)
+    }
+
+    @Test
+    fun `a spray method carries the swath width picking it implies`() {
+        val methods = WebEditorChoices.ofApp().methods.associateBy { it.value }
+
+        // The phone's own table, so the desk can move the field the way the phone's form does when a
+        // boom becomes a knapsack.
+        assertEquals("3", methods.getValue(SprayMethod.BOOM.name).swathM)
+        assertEquals("1", methods.getValue(SprayMethod.KNAPSACK.name).swathM)
+        assertNull("a method nobody has recorded implies no width", methods.getValue(SprayMethod.UNSET.name).swathM)
+        // Nothing else carries one: picking a kind does not imply a width.
+        assertNull(WebEditorChoices.ofApp().kinds.first().swathM)
     }
 
     @Test

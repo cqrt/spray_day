@@ -97,6 +97,16 @@ class WebEditorServer(
         ),
         jsonRoute(STYLE_PATH) { authority -> data.style(authority) },
         HttpRoute(
+            claims = { it.method == PUT && assetId(it.path) != null },
+            // The id is asked for twice, once to decide whether this route answers at all and once
+            // to answer with - so a route can never answer for a path it did not claim, and there is
+            // no ignoring of a null that the claim above already ruled out.
+            handler = { request ->
+                assetId(request.path)?.let { id -> write(data.save(id, request.body)) }
+                    ?: HttpServer.NOT_FOUND
+            }
+        ),
+        HttpRoute(
             claims = { it.method == GET && tileRoute.claims(it) },
             // The browser's tile URLs carry the token in the query, and the tile route judges the
             // whole target - query and all - because that is what it has always done for the map.
@@ -119,6 +129,21 @@ class WebEditorServer(
 
     private fun json(body: String): HttpResponse =
         HttpResponse.bytes(200, JSON, body.toByteArray(Charsets.UTF_8))
+
+    /**
+     * A write's outcome as an answer: the new record, or the refusal with its own status.
+     *
+     * The status is [WebEditorRefusal]'s, not this class's guess, so what a page is told when a save
+     * is refused is decided where the refusal is decided.
+     */
+    private fun write(result: WebEditorWrite): HttpResponse = when (result) {
+        is WebEditorWrite.Saved -> json(WebEditorJson.saved(result.record))
+        is WebEditorWrite.Refused -> HttpResponse.bytes(
+            result.refusal.status,
+            JSON,
+            WebEditorJson.refused(result.refusal, result.message).toByteArray(Charsets.UTF_8)
+        )
+    }
 
     /**
      * Whether the request carries this run's token.
@@ -160,8 +185,28 @@ class WebEditorServer(
          */
         const val ANY_ADDRESS = "0.0.0.0"
 
-        /** Only reads are served in this phase: the web may not change anything yet. */
+        /** What an asset's own path starts with, e.g. `/api/assets/7`. */
+        const val ASSET_PATH_PREFIX = "/api/assets/"
+
         private const val GET = "GET"
+
+        /** The one write the web is allowed: an asset's own details, at the asset's own path. */
+        private const val PUT = "PUT"
+
+        /**
+         * The id in a path like `/api/assets/7`, or null when the path is not one of those.
+         *
+         * The only part of a write that arrives as text, and it is parsed strictly for the same
+         * reason the tile path is: `/api/assets/seven`, `/api/assets/7/geometry` and `/api/assets/`
+         * have to be paths nothing serves rather than asset 0, or asset 7 with something attached.
+         * The digits are checked before the number, so a path cannot become an id through a `toLong`
+         * that quietly ignored what it did not understand.
+         */
+        fun assetId(path: String): Long? {
+            val tail = path.removePrefix(ASSET_PATH_PREFIX)
+            if (tail == path || tail.isEmpty() || tail.any { !it.isDigit() }) return null
+            return tail.toLongOrNull()?.takeIf { it > 0L }
+        }
 
         private const val JSON = "application/json; charset=utf-8"
 
@@ -171,7 +216,7 @@ class WebEditorServer(
 }
 
 /**
- * What the editor's routes read, and the only place the repository is reached for.
+ * What the editor's routes read and write, and the only place the repository is reached for.
  *
  * An interface rather than the repository itself for two reasons. The routes can then be tested
  * over a real socket with a fake standing in for the database, which is the only way to prove the
@@ -193,6 +238,16 @@ interface WebEditorData {
 
     /** `GET /api/style`: the style, built from the app's own layer tables. */
     suspend fun style(authority: String): String
+
+    /**
+     * `PUT /api/assets/<id>`: the details the desk changed, and what the phone made of them.
+     *
+     * The body is the page's JSON and it is judged here rather than in the route, so what a write
+     * may change - and what it is refused for - is decided in one place ([WebEditorEdits]) and the
+     * route stays a route. A null body is not an error to be thrown about: it is an edit that could
+     * not be read, which is a refusal with a sentence in it like any other.
+     */
+    suspend fun save(id: Long, body: String?): WebEditorWrite
 
     /**
      * The page and the files it asks for, from `app/src/main/assets/web`.

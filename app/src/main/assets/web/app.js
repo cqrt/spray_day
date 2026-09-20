@@ -1,14 +1,17 @@
 /*
  * The desk: the phone's own work, drawn on a computer.
  *
- * Everything this page shows comes from the phone on the same Wi-Fi, and it shows it without
- * deciding anything itself: the style is the one the phone builds (the same layer ids, the same
- * dashes, the same houses), the features are the ones the phone's own map draws, and a due colour
- * is whatever colour the phone painted that feature. So there is one place in the world that decides
- * what "due soon" looks like, and this file is not it.
+ * It draws, and it changes one thing: the details of a track or a place, saved to the phone when the
+ * operator presses Save. What those details may hold, what a refusal says, and what a block name
+ * becomes are all decided on the phone, in Kotlin, by the same rules the app's own edit screen uses.
+ * This page fills a form in and sends it.
  *
- * It reads. Nothing here writes, and phase 1 has no code that could: the endpoints it calls are
- * GETs.
+ * Everything it shows comes from the phone on the same Wi-Fi, and it shows it without deciding
+ * anything itself: the style is the one the phone builds (the same layer ids, the same dashes, the
+ * same houses), the features are the ones the phone's own map draws, a due colour is whatever colour
+ * the phone painted that feature, and the form's options are the phone's own words. So there is one
+ * place in the world that decides what "due soon" looks like and what a track may be called, and this
+ * file is not it.
  */
 
 const params = new URLSearchParams(location.search);
@@ -25,16 +28,41 @@ function showNotice(text) {
   notice.hidden = false;
 }
 
+/** The one thing worth saying when the phone says no: the token, and how to get a fresh address. */
+function tokenRefused() {
+  return new Error('The phone refused that address. Turn the switch off and on again in Settings, ' +
+    'then open the new address - the old one stops working when the phone stops serving.');
+}
+
 async function getJson(path) {
   const response = await fetch(withToken(path));
-  if (response.status === 403) {
-    throw new Error('The phone refused that address. Turn the switch off and on again in Settings, ' +
-      'then open the new address - the old one stops working when the phone stops serving.');
-  }
+  if (response.status === 403) throw tokenRefused();
   if (!response.ok) {
     throw new Error(`The phone answered ${response.status} for ${path}.`);
   }
   return response.json();
+}
+
+/**
+ * A save: one asset's details, sent to the phone.
+ *
+ * A refusal is not an exception here. A 400 and a 409 arrive with a document the phone wrote - the
+ * words to show the operator, and whether the card is out of date - and both are things to be said
+ * in those words rather than in a stack trace. What is thrown is a failure of the arrangement rather
+ * than of the edit: no token, a refused address, or an answer that is not a document at all.
+ */
+async function putJson(path, body) {
+  const response = await fetch(withToken(path), {
+    method: 'PUT',
+    // Both are served from the phone's own origin, so there is no preflight in the way; the content
+    // type is here because the phone refuses a body it was not told was JSON.
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (response.status === 403) throw tokenRefused();
+  const answer = await response.json().catch(() => null);
+  if (!answer) throw new Error(`The phone answered ${response.status} for ${path}, and not with a document.`);
+  return { status: response.status, answer };
 }
 
 /**
@@ -134,6 +162,9 @@ let strokeById = new Map();
 let phoneMarker = null;
 let selectedId = null;
 
+/** The map's own source for the work, found from the phone's own layer names - see `assetsSourceId`. */
+let workSource = null;
+
 async function boot() {
   if (!TOKEN) {
     showNotice('There is no token in this address. Open the address from Settings on the phone - ' +
@@ -200,6 +231,10 @@ function onStyleLoaded(style) {
     }
   }
 
+  // Where the work is drawn from, so a save can hand the map the phone's new features without asking
+  // for the style again.
+  workSource = assetsSourceId(style);
+
   // A click on any of the work's own layers opens that asset, whichever layer drew it.
   for (const layer of (style.layers || []).map((l) => l.id)) {
     if (!layer.startsWith('sprayday-assets-')) continue;
@@ -219,6 +254,18 @@ function onStyleLoaded(style) {
     );
   }
   placePhone(state.position);
+}
+
+/**
+ * The map's own source for the work.
+ *
+ * Found from the phone's own layer names rather than written down here: the phone names every layer
+ * of its work `sprayday-assets-...` (`AssetLayerIds`), each of those layers says which source it
+ * draws, and that is the source a save hands the phone's new features to.
+ */
+function assetsSourceId(style) {
+  const layer = (style.layers || []).find((one) => one.id.startsWith('sprayday-assets-'));
+  return layer ? layer.source : null;
 }
 
 /** The phone's own dot, so "where is the phone?" has something to look at. */
@@ -348,10 +395,10 @@ function flyToAsset(id) {
 }
 
 /**
- * The card: what the asset is and when it is next due.
+ * The card: what the asset is and when it is next due, and the way into changing its details.
  *
- * Read-only, and it says so by having nothing on it to press - phase 2 is where this page starts
- * changing things, and it starts on the phone first.
+ * Everything on it is the phone's own: the due date and the count of sprays are worked out on the
+ * phone, so a card that says "3 sprays" says what the phone would say.
  */
 function showCard(item) {
   document.getElementById('card-name').textContent = item.asset.name;
@@ -383,6 +430,10 @@ function showCard(item) {
   fact('Notes', item.asset.notes);
 
   document.getElementById('card').hidden = false;
+
+  // The way into the form. Assigned rather than added, because the card is redrawn on every save and
+  // a listener added again on each one would save the asset twice.
+  document.getElementById('card-edit').onclick = () => openEdit(item);
 }
 
 function closeCard() {
@@ -393,10 +444,278 @@ function closeCard() {
   }
 }
 
+/* ---- Changing the details of one track or place ------------------------------------- */
+
+/** The asset the form is open on, or null when it is shut. */
+let editingId = null;
+
+/** The swath width the method in the form came with, so a change of method can move the field. */
+let methodSwath = '';
+
+const field = (id) => document.getElementById(id);
+const textOf = (id) => field(id).value.trim();
+
+/** The value of a radio row: the choice the phone's own vocabulary named. */
+function selectedValue(id) {
+  const chosen = document.querySelector(`#${id} input:checked`);
+  return chosen ? chosen.value : '';
+}
+
+function setSelected(id, value) {
+  for (const input of document.querySelectorAll(`#${id} input`)) {
+    input.checked = input.value === value;
+  }
+}
+
+/**
+ * One choice row, from the phone's own vocabulary and worded with the phone's own labels.
+ *
+ * Built every time the form opens, because the vocabulary can change under it: a kind added to the
+ * phone is in the next document the desk is handed, and the row follows with nothing to change here.
+ */
+function fillChoices(id, choices, chosen) {
+  const row = field(id);
+  row.textContent = '';
+  for (const choice of choices) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = id;
+    input.value = choice.value;
+    input.checked = choice.value === chosen;
+    label.append(input, document.createTextNode(choice.label));
+    row.append(label);
+  }
+}
+
+/** Opens the form on an asset, filled with what the phone says it holds. */
+function openEdit(item) {
+  editingId = item.asset.id;
+
+  field('edit-title').textContent = `Change ${item.asset.name}`;
+  field('edit-name').value = item.asset.name;
+  field('edit-block').value = item.groupName || '';
+  field('edit-interval').value = String(item.asset.intervalDays);
+  field('edit-swath').value = item.asset.swathWidthM === null ? '' : String(item.asset.swathWidthM);
+  field('edit-separation').value =
+    item.asset.passSeparationM === null ? '' : String(item.asset.passSeparationM);
+  field('edit-notes').value = item.asset.notes || '';
+
+  fillChoices('edit-kind', state.choices.kinds, item.asset.kind);
+  fillChoices('edit-shape', state.choices.shapes, item.asset.shape);
+  fillChoices('edit-method', state.choices.methods, item.asset.method);
+  fillChoices('edit-passes', state.choices.passes, String(item.asset.passesRequired));
+
+  const method = state.choices.methods.find((one) => one.value === item.asset.method);
+  methodSwath = (method && method.swathM) || '';
+
+  field('edit-swath-hint').textContent = state.choices.swathHint;
+  field('edit-separation-hint').textContent = state.choices.separationHint;
+
+  // The blocks that exist, so a name can be picked rather than typed again: a typed block is how a
+  // misspelling becomes a second block with one asset in it.
+  const blocks = field('edit-blocks');
+  blocks.textContent = '';
+  for (const block of state.groups) {
+    const option = document.createElement('option');
+    option.value = block.name;
+    blocks.append(option);
+  }
+
+  showShapeRow();
+  showSeparationRow();
+  updateBlockHint();
+
+  field('edit-words').hidden = true;
+  field('edit').hidden = false;
+  field('card').hidden = true;
+  field('edit-name').focus();
+}
+
+/**
+ * The shape is offered only for infrastructure, and moving to another kind puts it back to a line -
+ * a picnic table's shape has no business sitting on a road. The phone's own rule: see
+ * `AssetEditScreen`.
+ */
+function showShapeRow() {
+  const kind = selectedValue('edit-kind');
+  field('edit-shape-row').hidden = kind !== 'INFRASTRUCTURE';
+  if (kind !== 'INFRASTRUCTURE') setSelected('edit-shape', 'LINE');
+}
+
+/**
+ * One pass has nothing to be apart from, so the separation field goes with it.
+ *
+ * The number would be cleared by the phone anyway (`AssetEdits` keeps no separation for a one-pass
+ * job); clearing it here means the operator is not shown a field that would be thrown away.
+ */
+function showSeparationRow() {
+  const two = Number(selectedValue('edit-passes')) >= 2;
+  field('edit-separation-row').hidden = !two;
+  if (!two) field('edit-separation').value = '';
+}
+
+/**
+ * What the block field is about to do, in the phone's own words.
+ *
+ * The rule is `AssetEdits.blockHint`'s, written out here because it depends on every keystroke - a
+ * sentence fetched from the phone could be no fresher than the last request. What it decides is a
+ * hint and nothing else: the block is resolved by the phone, in the same transaction as the save,
+ * and a name that matches nothing yet starts one.
+ */
+function updateBlockHint() {
+  const typed = textOf('edit-block');
+  const hint = field('edit-block-hint');
+  if (!typed) {
+    hint.textContent = state.choices.blockHint;
+    return;
+  }
+  const match = state.groups.find((block) => block.name.toLowerCase() === typed.toLowerCase());
+  hint.textContent = match
+    ? `In the block "${match.name}"`
+    : `Starts a new block called "${typed}"`;
+}
+
+/**
+ * A change of spray method moves the swath field when the width in it is nobody's own.
+ *
+ * `AssetEdits.swathAfterMethodChange`'s rule, with the widths out of the phone's own table: a blank
+ * field, or one still holding the previous method's default, moves with the choice; a width the
+ * operator typed does not. Without this, choosing "Knapsack" here would leave a boom's three metres
+ * on a backpack.
+ */
+function onMethodChange() {
+  const chosen = state.choices.methods.find((one) => one.value === selectedValue('edit-method'));
+  const width = field('edit-swath');
+  const current = width.value.trim();
+  if (current === '' || current === methodSwath) width.value = (chosen && chosen.swathM) || '';
+  methodSwath = (chosen && chosen.swathM) || '';
+}
+
+function closeEdit() {
+  editingId = null;
+  field('edit').hidden = true;
+  field('edit-words').hidden = true;
+}
+
+/** The phone's own words about what it refused, where the operator is looking when it happens. */
+function showEditProblem(message) {
+  const words = field('edit-words');
+  words.textContent = message;
+  words.hidden = false;
+}
+
+/** The record the phone sent back, in place of the one the page was holding. */
+function replaceAsset(record) {
+  const at = state.assets.findIndex((one) => one.asset.id === record.asset.id);
+  if (at >= 0) state.assets[at] = record; else state.assets.push(record);
+}
+
+/**
+ * The work's features, re-read and handed to the map.
+ *
+ * A save can move a due date, and a due date is a colour, so the map's own source is given the
+ * phone's new features rather than being left drawing the picture it had a moment ago.
+ */
+async function reloadFeatures() {
+  const features = await getJson('/api/assets.geojson');
+  strokeById = new Map(features.features.map((f) => [f.properties.id, f.properties.stroke]));
+  featuresById = new Map(features.features.map((f) => [f.properties.id, f]));
+  if (map && workSource && map.getSource(workSource)) map.getSource(workSource).setData(features);
+}
+
+/** The work as the phone holds it now: the document, the features, the list and the card. */
+async function reloadWork() {
+  state = await getJson('/api/state');
+  await reloadFeatures();
+  drawList();
+  const item = state.assets.find((one) => one.asset.id === selectedId);
+  if (item) showCard(item);
+}
+
+/**
+ * Saves the form to the phone.
+ *
+ * The phone judges every field - the ranges, the blank-means-unknown rules, the block name - and its
+ * words are what the operator is shown, because they are the words the phone's own edit screen would
+ * use. What this function decides is only what to do with the answer: a save closes the form and
+ * redraws the work from what came back, a refusal the operator can fix leaves the form open with the
+ * phone's sentence under it, and a refusal because the asset moved under the page closes the form
+ * and reloads the lot, because the page's copy is the thing that is wrong.
+ */
+async function saveEdit(event) {
+  event.preventDefault();
+  if (editingId === null) return;
+
+  const item = state.assets.find((one) => one.asset.id === editingId);
+  if (!item) return;
+
+  const body = {
+    name: textOf('edit-name'),
+    kind: selectedValue('edit-kind'),
+    shape: selectedValue('edit-shape'),
+    method: selectedValue('edit-method'),
+    blockName: textOf('edit-block'),
+    intervalDays: textOf('edit-interval'),
+    swathWidthM: textOf('edit-swath'),
+    passesRequired: Number(selectedValue('edit-passes')),
+    passSeparationM: textOf('edit-separation'),
+    notes: textOf('edit-notes'),
+    // What the phone handed this card, so an edit written against an asset that has since changed is
+    // refused rather than written over. See `WebEditorVersion` on the phone.
+    version: item.version
+  };
+
+  const save = field('edit-save');
+  save.disabled = true;
+  try {
+    const { status, answer } = await putJson(`/api/assets/${editingId}`, body);
+
+    if (status !== 200) {
+      showEditProblem(answer.message || 'The phone would not save that.');
+      if (status === 409) {
+        closeEdit();
+        await reloadWork();
+        showNotice(answer.message);
+      }
+      return;
+    }
+
+    replaceAsset(answer.asset);
+    closeEdit();
+    await reloadFeatures();
+    drawList();
+    showCard(answer.asset);
+    showNotice('Saved. The phone has it.');
+  } catch (error) {
+    showEditProblem(error.message);
+  } finally {
+    save.disabled = false;
+  }
+}
+
 document.getElementById('card-close').addEventListener('click', closeCard);
+document.getElementById('edit-close').addEventListener('click', closeEdit);
+document.getElementById('edit-cancel').addEventListener('click', closeEdit);
+document.getElementById('edit-form').addEventListener('submit', saveEdit);
+document.getElementById('edit-kind').addEventListener('change', showShapeRow);
+document.getElementById('edit-passes').addEventListener('change', showSeparationRow);
+document.getElementById('edit-method').addEventListener('change', onMethodChange);
+document.getElementById('edit-block').addEventListener('input', updateBlockHint);
+
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeCard();
+  if (event.key !== 'Escape') return;
+  // Escape backs out of the form first: it is on top, and it is the one with unsaved typing in it.
+  if (!field('edit').hidden) {
+    const item = state.assets.find((one) => one.asset.id === selectedId);
+    closeEdit();
+    if (item) showCard(item);
+    return;
+  }
+  closeCard();
 });
+
+
 
 /**
  * "Where is the phone?" asks the phone, rather than the browser.

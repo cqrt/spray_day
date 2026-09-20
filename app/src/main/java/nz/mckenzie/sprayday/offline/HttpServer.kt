@@ -6,6 +6,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.OutputStream
+import java.io.Reader
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -21,10 +22,11 @@ import java.net.URLDecoder
  * generalising the tile server itself would put the imagery every map in the app depends on behind
  * the editor's switch. So the plumbing moved and the routes stayed where the knowledge is.
  *
- * Two deliberate omissions, because this is a move and not a redesign. There is **no request
- * body**: nothing either server serves carries one, and a request is answered from its method,
- * target and headers. And there is **no keep-alive**: every answer says `Connection: close`, as the
- * tile server always has. Whoever adds the first POST adds the first of those, deliberately.
+ * One deliberate omission is left, because this is a move and not a redesign: there is **no
+ * keep-alive**, so every answer says `Connection: close`, as the tile server always has. The request
+ * body arrived with the editor's first write - `PUT /api/assets/<id>` - and is read here, up to a
+ * cap and as text. A body promised in chunks is refused rather than half-read: a promise to send the
+ * length in pieces is not a length, and guessing at one is how a server hangs.
  */
 class HttpServer(
     private val host: String,
@@ -71,21 +73,49 @@ class HttpServer(
     private suspend fun handle(client: Socket) {
         client.use { connection ->
             connection.soTimeout = SOCKET_TIMEOUT_MS
-            val request = readRequest(connection) ?: return
-            writeResponse(connection.getOutputStream(), answer(request))
+            when (val reading = readRequest(connection)) {
+                // A connection that said nothing: there is nothing to answer to.
+                is Reading.Silent -> return@use
+                is Reading.Refused -> writeResponse(connection.getOutputStream(), reading.response)
+                is Reading.Read -> writeResponse(
+                    connection.getOutputStream(),
+                    answer(reading.request)
+                )
+            }
         }
     }
 
     private suspend fun answer(request: HttpRequest): HttpResponse =
         routes.firstOrNull { it.claims(request) }?.handler?.invoke(request) ?: NOT_FOUND
 
+    /** What came off the socket: a request to answer, a refusal, or nothing worth answering. */
+    private sealed interface Reading {
+
+        /** A connection that said nothing at all - no request line. There is nothing to answer. */
+        object Silent : Reading
+
+        /** A request refused before any route saw it, and what to say about that. */
+        data class Refused(val response: HttpResponse) : Reading
+
+        /** A request, with its body when it had one. */
+        data class Read(val request: HttpRequest) : Reading
+    }
+
     /**
-     * The request line and the headers, or null if there was no readable request line - such a
-     * request closes the socket without an answer, because there is nothing to answer.
+     * The request line, the headers and the body - or what to answer when there is no readable
+     * request line at all, which closes the socket because there is nothing to answer to.
+     *
+     * The body is read from the same buffered reader as the headers rather than from the socket,
+     * because that reader has already pulled part of the body into its own buffer and asking the
+     * stream for the rest would lose it. Reading it character by character is deliberate too: the
+     * declared length is in bytes, so a body with a macron in a track's name would be cut off or
+     * over-read by a character count, and over-reading means a server waiting for bytes that were
+     * never sent until the socket times out. Bodies here are a few hundred bytes of JSON, so the
+     * characters are not worth a second buffer to avoid.
      */
-    private fun readRequest(connection: Socket): HttpRequest? {
+    private fun readRequest(connection: Socket): Reading {
         val reader = connection.getInputStream().bufferedReader()
-        val requestLine = reader.readLine() ?: return null
+        val requestLine = reader.readLine() ?: return Reading.Silent
         // Drain the headers, keeping the ones a route may look at. Leaving them unread makes some
         // clients wait for a response that is never coming.
         val headers = mutableMapOf<String, String>()
@@ -97,11 +127,42 @@ class HttpServer(
             headers[name] = line.substringAfter(':', "").trim()
         }
         val parts = requestLine.split(' ')
-        return HttpRequest(
+        val request = HttpRequest(
             method = parts.getOrNull(0).orEmpty(),
             target = parts.getOrNull(1).orEmpty(),
             headers = headers
         )
+
+        // Saying "chunked" is a promise to send the length in pieces, and nothing here reads
+        // pieces. The editor's page never does it - a fetch carrying a string always says how long
+        // the string is - so the honest answer is to refuse rather than to guess.
+        if (headers["transfer-encoding"]?.contains("chunked", ignoreCase = true) == true) {
+            return Reading.Refused(CHUNKED_BODY)
+        }
+
+        val declared = headers["content-length"]?.trim() ?: return Reading.Read(request)
+        val length = declared.toIntOrNull() ?: return Reading.Refused(BAD_BODY)
+        if (length <= 0) return Reading.Read(request)
+        if (length > MAX_BODY_BYTES) return Reading.Refused(BODY_TOO_LONG)
+        val body = readBody(reader, length) ?: return Reading.Refused(BAD_BODY)
+        return Reading.Read(request.copy(body = body))
+    }
+
+    /** The body, or null when it did not arrive whole. */
+    private fun readBody(reader: Reader, length: Int): String? {
+        val text = StringBuilder(length)
+        val one = CharArray(1)
+        var read = 0
+        while (read < length) {
+            if (reader.read(one) <= 0) return null
+            val bytes = one[0].toString().toByteArray(Charsets.UTF_8).size
+            // A character that would run past the declared length is a body that was cut off
+            // mid-character, not a body this server should take a guess at.
+            if (read + bytes > length) return null
+            text.append(one[0])
+            read += bytes
+        }
+        return text.toString()
     }
 
     private fun writeResponse(out: OutputStream, response: HttpResponse) {
@@ -131,6 +192,19 @@ class HttpServer(
 
         private const val BACKLOG = 16
         private const val SOCKET_TIMEOUT_MS = 20_000
+
+        /**
+         * The longest body this server will read.
+         *
+         * One asset's details are a few hundred bytes; a quarter of a megabyte is room for fields
+         * nobody has written yet many times over, and small enough that a request claiming to carry
+         * a gigabyte is refused before anything is read into memory.
+         */
+        private const val MAX_BODY_BYTES = 256 * 1024
+
+        private val BAD_BODY = HttpResponse.text(400, "the body did not arrive whole")
+        private val BODY_TOO_LONG = HttpResponse.text(413, "that body is too long")
+        private val CHUNKED_BODY = HttpResponse.text(411, "that body did not say how long it is")
     }
 }
 
@@ -159,7 +233,16 @@ class HttpRoute(
 data class HttpRequest(
     val method: String,
     val target: String,
-    val headers: Map<String, String>
+    val headers: Map<String, String>,
+    /**
+     * The body, decoded, or null when the request carried none.
+     *
+     * Text rather than bytes because the only body either server takes is a JSON document from the
+     * editor's page, and because bytes and characters part company the moment an operator types a
+     * macron into a track's name - which is why the declared length is counted in one of them and
+     * the reading is counted in the other, down in `readBody`.
+     */
+    val body: String? = null
 ) {
 
     /** The target without its query, e.g. `/api/state`. */

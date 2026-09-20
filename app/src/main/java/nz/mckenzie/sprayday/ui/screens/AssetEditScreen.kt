@@ -225,7 +225,7 @@ fun AssetEditScreen(
                 value = swathWidth,
                 onValueChange = { swathWidth = it; problem = null },
                 label = { Text("Swath width (m)") },
-                supportingText = { Text("Used for the treated-area estimate; leave empty if unknown") },
+                supportingText = { Text(AssetEdits.SWATH_HINT) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()

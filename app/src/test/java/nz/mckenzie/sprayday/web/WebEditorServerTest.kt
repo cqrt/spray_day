@@ -1,11 +1,13 @@
 package nz.mckenzie.sprayday.web
 
+import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.offline.HttpRequest
 import nz.mckenzie.sprayday.offline.HttpResponse
 import nz.mckenzie.sprayday.offline.HttpRoute
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -30,6 +32,9 @@ class WebEditorServerTest {
 
     private val data = FakeData()
     private val tiles = FakeTileRoute()
+
+    /** The text of a write. What belongs in it is [WebEditorEditTest]'s business; that it arrives whole, and what comes back, is here. */
+    private val writeBody = """{"name":"Estuary road","version":"v1"}"""
 
     private lateinit var server: WebEditorServer
     private var port: Int = 0
@@ -83,14 +88,81 @@ class WebEditorServerTest {
         }
     }
 
+    /** A request with a body, written by hand: the shape a browser sends, body and all. */
+    private fun send(
+        path: String,
+        method: String,
+        body: String,
+        withToken: Boolean = true
+    ): Response {
+        val bytes = body.toByteArray(Charsets.UTF_8)
+        val head = buildString {
+            append("$method $path")
+            if (withToken) append("?k=$token")
+            append(" HTTP/1.1\r\n")
+            append("Host: 127.0.0.1:$port\r\n")
+            append("Content-Type: application/json\r\n")
+            append("Content-Length: ${bytes.size}\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        Socket("127.0.0.1", port).use { socket ->
+            socket.getOutputStream().write(head.toByteArray(Charsets.UTF_8))
+            socket.getOutputStream().write(bytes)
+            socket.getOutputStream().flush()
+            return split(socket.getInputStream().readBytes().toString(Charsets.UTF_8))
+        }
+    }
+
+    /** An answer read back as it arrived, so a test can hold the code, the type and the document. */
+    private fun split(response: String): Response {
+        val head = response.substringBefore("\r\n\r\n")
+        return Response(
+            code = head.substringAfter("HTTP/1.1 ").substringBefore(' ').toInt(),
+            body = response.substringAfter("\r\n\r\n"),
+            contentType = head.lineSequence()
+                .firstOrNull { it.startsWith("Content-Type:", ignoreCase = true) }
+                ?.substringAfter(":")?.trim()
+        )
+    }
+
+    /** Stands in for the database: the documents are [WebEditorJsonTest]'s business. */
     private class FakeData : WebEditorData {
         var lastAuthority: String? = null
+
+        /** What a write was asked to do, so a route is held to handing the id and the body over. */
+        var lastWrite: Pair<Long, String?>? = null
 
         override suspend fun state(authority: String) = document(authority, "state")
 
         override suspend fun assets() = """{"what":"assets"}"""
 
         override suspend fun style(authority: String) = document(authority, "style")
+
+        /**
+         * The three outcomes a write route has to pass on, told apart by the id it was asked for -
+         * so one fake covers a save, a stale card and an asset that is not there. What makes an edit
+         * one of those is [WebEditorEditTest]'s business; what a route does with the answer is this
+         * file's.
+         */
+        override suspend fun save(id: Long, body: String?): WebEditorWrite {
+            lastWrite = id to body
+            return when (id) {
+                STALE_ID -> WebEditorWrite.Refused(WebEditorRefusal.STALE, "somebody changed it")
+                MISSING_ID -> WebEditorWrite.Refused(WebEditorRefusal.MISSING, "no such track")
+                else -> WebEditorWrite.Saved(
+                    WebEditorAssetRecord(
+                        asset = AssetRecord(
+                            id = id,
+                            name = "Estuary road",
+                            intervalDays = 120,
+                            createdAtEpochMs = 1_700_000_000_000L
+                        ),
+                        dueStatus = "DUE_SOON",
+                        version = "version-$id"
+                    )
+                )
+            }
+        }
 
         override fun page(path: String): HttpResponse? =
             if (path == "/" || path == "/index.html" || path == "/app.js") {
@@ -106,6 +178,10 @@ class WebEditorServerTest {
 
         companion object {
             const val PAGE = "<html><body>the editor</body></html>"
+
+            /** The id the fake refuses as stale, and the one it has never heard of. */
+            const val STALE_ID = 409L
+            const val MISSING_ID = 404L
         }
     }
 
@@ -234,5 +310,77 @@ class WebEditorServerTest {
         } catch (expected: IOException) {
             // Nothing is listening any more, which is what the switch being off means.
         }
+    }
+
+    @Test
+    fun `a write needs the token as surely as a read does`() {
+        start()
+
+        assertEquals(403, send("/api/assets/7", "PUT", writeBody, withToken = false).code)
+        assertNull("a refused write never reached the data", data.lastWrite)
+    }
+
+    @Test
+    fun `a write reaches the data with the id from the path and the body as it arrived`() {
+        start()
+
+        val response = send("/api/assets/7", "PUT", writeBody)
+
+        assertEquals(200, response.code)
+        assertEquals("application/json; charset=utf-8", response.contentType)
+        assertEquals(7L to writeBody, data.lastWrite)
+        // The answer is the asset, because that is what lets the page update its own copy at once.
+        assertTrue("the answer is the asset: ${response.body}", response.body.contains("\"Estuary road\""))
+        assertTrue(
+            "and the version the next edit must quote: ${response.body}",
+            response.body.contains("\"version-7\"")
+        )
+    }
+
+    @Test
+    fun `a refusal keeps its own status and carries the words for the operator`() {
+        start()
+
+        val stale = send("/api/assets/${FakeData.STALE_ID}", "PUT", writeBody)
+        assertEquals(409, stale.code)
+        assertEquals("""{"reason":"stale","message":"somebody changed it"}""", stale.body)
+
+        val missing = send("/api/assets/${FakeData.MISSING_ID}", "PUT", writeBody)
+        assertEquals(404, missing.code)
+        assertEquals("""{"reason":"not-found","message":"no such track"}""", missing.body)
+    }
+
+    @Test
+    fun `a path that does not name an asset is a 404, not an asset`() {
+        start()
+
+        // Every one of these would become an id to a parser that took what it was given - and an id
+        // is the one thing a write cannot be allowed to invent.
+        assertEquals(404, send("/api/assets/seven", "PUT", writeBody).code)
+        assertEquals(404, send("/api/assets/7/geometry", "PUT", writeBody).code)
+        assertEquals(404, send("/api/assets/", "PUT", writeBody).code)
+        assertEquals(404, send("/api/assets/0", "PUT", writeBody).code)
+        // The GeoJSON document is not an asset's path: its own route answers a GET from it, and a
+        // write to it is a path nothing here serves.
+        assertEquals(200, get(WebEditorServer.ASSETS_PATH).code)
+        assertEquals(404, send("/api/assets.geojson", "PUT", writeBody).code)
+
+        assertNull("nothing was written", data.lastWrite)
+    }
+
+    @Test
+    fun `the id parser takes digits and nothing else`() {
+        assertEquals(7L, WebEditorServer.assetId("/api/assets/7"))
+        assertEquals(123456L, WebEditorServer.assetId("/api/assets/123456"))
+        assertNull(WebEditorServer.assetId("/api/assets/"))
+        assertNull(WebEditorServer.assetId("/api/assets/seven"))
+        assertNull(WebEditorServer.assetId("/api/assets/7/geometry"))
+        assertNull(WebEditorServer.assetId("/api/assets/0"))
+        assertNull(WebEditorServer.assetId("/api/assets/-1"))
+        assertNull(WebEditorServer.assetId("/api/assets.geojson"))
+        assertNull(WebEditorServer.assetId("/api/assets"))
+        assertNull(WebEditorServer.assetId("/api/state"))
+        // Longer than a Long is not an id either, rather than a number that wrapped into one.
+        assertNull(WebEditorServer.assetId("/api/assets/99999999999999999999"))
     }
 }

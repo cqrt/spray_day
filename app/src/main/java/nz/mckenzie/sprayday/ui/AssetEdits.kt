@@ -76,6 +76,24 @@ object AssetEdits {
     const val MAX_PASS_SEPARATION_M = 50.0
 
     /**
+     * What the block field says when nothing has been typed.
+     *
+     * A constant rather than a literal inside the branching below, because the desk's form says the
+     * same sentence under the same field - the web editor is handed this and the two dynamic ones,
+     * so a block field on a laptop explains itself in the phone's own words.
+     */
+    const val BLOCK_HINT = "Type a block, or leave it empty for an asset on its own"
+
+    /**
+     * What the swath field says under itself.
+     *
+     * The field is only used to estimate a treated area, so this sentence is the only thing that
+     * says it may be left blank - which is why it belongs with the rule rather than with a screen,
+     * and why the web editor is handed it rather than inventing its own.
+     */
+    const val SWATH_HINT = "Used for the treated-area estimate; leave empty if unknown"
+
+    /**
      * The swath width the field should hold after the operator picks a method.
      *
      * Two things make this more than "fill in the default". The operator's boom is
@@ -169,7 +187,7 @@ object AssetEdits {
      */
     fun blockHint(typed: String, existing: List<String>): String {
         val name = typed.trim()
-        if (name.isEmpty()) return "Type a block, or leave it empty for an asset on its own"
+        if (name.isEmpty()) return BLOCK_HINT
         val match = existing.firstOrNull { it.equals(name, ignoreCase = true) }
         return if (match != null) "In the block \"$match\"" else "Starts a new block called \"$name\""
     }

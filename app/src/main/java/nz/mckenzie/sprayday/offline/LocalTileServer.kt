@@ -1,15 +1,5 @@
 package nz.mckenzie.sprayday.offline
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import java.io.OutputStream
-import java.net.InetAddress
-import java.net.ServerSocket
-import java.net.Socket
-
 /**
  * A tiny HTTP tile server on loopback, so the map has **one** tile path whether or not there is
  * a network - and, since there is more than one basemap, so that each source's tiles are served
@@ -28,39 +18,40 @@ import java.net.Socket
  * at - the app must never fetch them ahead of time, which is why nothing but the map itself ever
  * asks this server for them.
  *
- * Bound to loopback only, so nothing is exposed to the network. This replaces MapLibre's own
- * offline storage for imagery, whose hosted-style download we measured pulling ~10x the tiles
- * actually needed.
+ * Bound to loopback only, so nothing is exposed to the network - which is also why it built its own
+ * socket, and why the editor's server, which is deliberately *not* loopback, was given a separate
+ * one rather than a second binding here. The socket, the accept loop, the parsing and the response
+ * writing now live in [HttpServer], shared by both; what stays in this file is the part that knows
+ * what a tile is. This replaces MapLibre's own offline storage for imagery, whose hosted-style
+ * download we measured pulling ~10x the tiles actually needed.
  */
 class LocalTileServer(
     /** Every source this server can serve; the path names one of them. */
     private val sources: List<TileSource>,
-    private val host: String = LOOPBACK
+    host: String = LOOPBACK
 ) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var socket: ServerSocket? = null
+    private val http = HttpServer(
+        host = host,
+        routes = listOf(
+            HttpRoute(claims = { it.target == STATUS_PATH }, handler = { HttpResponse.text(200, "ok") }),
+            // A tile path is claimed by its prefix and judged inside [tile] rather than matched by
+            // the tile pattern here: a path that begins like a tile but is not one has always been
+            // answered with the same 404 as a path that is nothing at all, so claiming it earlier
+            // would say the same thing twice.
+            HttpRoute(claims = { it.path.startsWith(TILES_PREFIX) }, handler = { tile(it) })
+        )
+    )
 
-    var port: Int = 0
-        private set
+    /** The port it bound, or 0 before it starts. */
+    val port: Int get() = http.port
 
-    val isRunning: Boolean get() = socket?.isClosed == false
+    val isRunning: Boolean get() = http.isRunning
 
     /** Binds to an ephemeral loopback port. Returns the port. */
-    fun start(): Int {
-        check(socket == null) { "the tile server is already running" }
-        val server = ServerSocket(0, BACKLOG, InetAddress.getByName(host))
-        socket = server
-        port = server.localPort
-        scope.launch { acceptLoop(server) }
-        return port
-    }
+    fun start(): Int = http.start()
 
-    fun stop() {
-        runCatching { socket?.close() }
-        socket = null
-        scope.cancel()
-    }
+    fun stop() = http.stop()
 
     /**
      * The XYZ template to put in a style for [sourceId], e.g.
@@ -68,94 +59,46 @@ class LocalTileServer(
      */
     fun tileUrlTemplate(sourceId: String): String {
         val source = sourceFor(sourceId) ?: error("no tile source called \"$sourceId\"")
-        return "http://$host:$port/tiles/$sourceId/{z}/{x}/{y}${source.suffix}"
+        return "http://${http.authority}/tiles/$sourceId/{z}/{x}/{y}${source.suffix}"
     }
 
     private fun sourceFor(id: String): TileSource? = sources.firstOrNull { it.id == id }
 
-    private fun acceptLoop(server: ServerSocket) {
-        while (!server.isClosed) {
-            val client = runCatching { server.accept() }.getOrNull() ?: break
-            scope.launch { runCatching { handle(client) } }
-        }
-    }
-
-    private suspend fun handle(client: Socket) {
-        client.use { connection ->
-            connection.soTimeout = SOCKET_TIMEOUT_MS
-            val reader = connection.getInputStream().bufferedReader()
-            val requestLine = reader.readLine() ?: return
-            // Drain the headers; leaving them unread makes some clients wait.
-            while (true) {
-                val line = reader.readLine() ?: break
-                if (line.isEmpty()) break
-            }
-            val path = requestLine.split(' ').getOrNull(1) ?: ""
-            serve(path, connection.getOutputStream())
-        }
-    }
-
-    private suspend fun serve(path: String, out: OutputStream) {
-        if (path == STATUS_PATH) {
-            respondText(out, 200, "ok")
-            return
-        }
-
-        val request = parseTilePath(path)
-        val source = request?.let { sourceFor(it.source) }
-        if (request == null || source == null || request.suffix != source.suffix) {
-            respondText(out, 404, "not found")
-            return
-        }
-        val tile = request.tile
+    /**
+     * Answers one tile path.
+     *
+     * The whole target is judged, not [HttpRequest.path]: the pattern is anchored, and a tile URL
+     * with a query on the end was never a tile URL here, so it still is not one.
+     */
+    private suspend fun tile(request: HttpRequest): HttpResponse {
+        val parsed = parseTilePath(request.target) ?: return HttpServer.NOT_FOUND
+        val source = sourceFor(parsed.source)
+        if (source == null || parsed.suffix != source.suffix) return HttpServer.NOT_FOUND
+        val tile = parsed.tile
 
         source.store.read(tile.zoom, tile.x, tile.y)?.let { bytes ->
-            respondTile(out, 200, source.contentType, bytes)
-            return
+            return HttpResponse.bytes(200, source.contentType, bytes)
         }
 
-        when (val fetched = source.upstream()?.fetch(tile.zoom, tile.x, tile.y)) {
+        return when (val fetched = source.upstream()?.fetch(tile.zoom, tile.x, tile.y)) {
             is TileFetcher.Result.Tile -> {
                 // Storing on the way through is what turns browsing into an offline pack for
                 // imagery, and what keeps a browsed map from being downloaded twice.
                 source.store.write(tile.zoom, tile.x, tile.y, fetched.bytes)
-                respondTile(out, 200, source.contentType, fetched.bytes)
+                HttpResponse.bytes(200, source.contentType, fetched.bytes)
             }
 
-            TileFetcher.Result.NotFound, null -> respondText(out, 404, "no imagery")
-            is TileFetcher.Result.Failed -> respondText(out, 502, "upstream failed")
+            TileFetcher.Result.NotFound, null -> HttpResponse.text(404, "no imagery")
+            is TileFetcher.Result.Failed -> HttpResponse.text(502, "upstream failed")
         }
-    }
-
-    private fun respondTile(out: OutputStream, code: Int, contentType: String, bytes: ByteArray) {
-        writeResponse(out, code, contentType, bytes)
-    }
-
-    private fun respondText(out: OutputStream, code: Int, body: String) {
-        writeResponse(out, code, "text/plain; charset=utf-8", body.toByteArray())
-    }
-
-    private fun writeResponse(out: OutputStream, code: Int, contentType: String, body: ByteArray) {
-        val status = if (code == 200) "200 OK" else "$code Error"
-        out.write(
-            (
-                "HTTP/1.1 $status\r\n" +
-                    "Content-Type: $contentType\r\n" +
-                    "Content-Length: ${body.size}\r\n" +
-                    "Connection: close\r\n" +
-                    "\r\n"
-                ).toByteArray(Charsets.US_ASCII)
-        )
-        out.write(body)
-        out.flush()
     }
 
     companion object {
         const val LOOPBACK = "127.0.0.1"
         const val STATUS_PATH = "/status"
 
-        private const val BACKLOG = 16
-        private const val SOCKET_TIMEOUT_MS = 20_000
+        /** Every tile path starts here; [parseTilePath] is what says whether one really is a tile. */
+        private const val TILES_PREFIX = "/tiles/"
 
         /** `/tiles/{source}/{z}/{x}/{y}<suffix>` - the suffix is checked against the source. */
         private val TILE_PATH = Regex(

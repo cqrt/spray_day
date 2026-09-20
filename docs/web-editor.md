@@ -9,12 +9,15 @@ away.
 
 ## Where this stands
 
-- **Nothing is built yet.** The plan was agreed and written down; no code for it exists.
-- The last shipped work is **v0.6.19** (map layer switches); CI and Release are green. The state
-  written here was true when the file was written — **check it rather than trust it**
-  (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan
-  document that claims a clean tree is a plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.19 → **v0.6.20**.
+- **Step 0 is built and shipped; the editor itself does not exist yet.** `offline/HttpServer.kt`
+  holds the HTTP plumbing both servers use, `LocalTileServer` sits on it, and nothing an operator
+  can see changed (`build/verify/http-split.txt` is the evidence).
+- The last shipped work is **v0.6.20** (the HTTP split, step 0 below); before it v0.6.19 (map layer
+  switches). The state written here was true when the file was written — **check it rather than
+  trust it** (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a
+  plan document that claims a clean tree is a plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.20 → **v0.6.21**, which is
+  Phase 1.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -58,23 +61,30 @@ later: the same editor would sit behind a second storage adapter.
 
 | Phase | What | Version |
 | --- | --- | --- |
-| **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | with P1 |
-| **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.20** |
-| **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | v0.6.21 |
-| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, tracing, show-archived. | v0.6.22+ |
+| **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | **v0.6.20 — shipped** |
+| **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.21** |
+| **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | v0.6.22 |
+| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, tracing, show-archived. | v0.6.23+ |
 
-### Step 0 — the HTTP split
+### Step 0 — the HTTP split (v0.6.20, shipped)
 
-`LocalTileServer` today owns its socket, accept loop, request-line parse and response writing. Move
-those into `offline/HttpServer.kt` with a small route table; `LocalTileServer` keeps its routes and
-its loopback-only guarantee; `web/WebEditorServer.kt` becomes a second instance, bound to the Wi-Fi
-address, sharing the tile handler and `TileSource` list.
+`LocalTileServer` owned its socket, accept loop, request-line parse and response writing. Those are
+now `offline/HttpServer.kt` with a small route table; `LocalTileServer` keeps its routes and its
+loopback-only guarantee; the coming `web/WebEditorServer.kt` becomes a second instance, bound to the
+Wi-Fi address, sharing the tile handler and `TileSource` list.
 
-**This is the riskiest edit in the plan** — it touches the tiles every map in the app depends on —
-so it lands first, alone, with `offline/LocalTileServerTest` untouched and green, and with an
-emulator screenshot proving the app's own map still draws imagery before anything is built on top.
+**This was the riskiest edit in the plan** — it touches the tiles every map in the app depends on —
+so it landed first, alone, with `offline/LocalTileServerTest` untouched and green (11 tests, not a
+character changed) and with the app's own map proven by screenshot: the pre-change release shot and
+the new build's shot are the same map, pixel for pixel.
 
-### Phase 1 — the desk view (v0.6.20)
+Two things this step deliberately did *not* do, for whoever builds on it: there is no request body
+and no keep-alive in `HttpServer` (whoever adds the first POST adds the body), and the route table
+has no opinion about methods — a route judges the whole request, so a method check goes in that
+route's `claims`. A route that wants a path without its query asks `HttpRequest.path`; an anchored
+parser like the tile one judges `HttpRequest.target`.
+
+### Phase 1 — the desk view (v0.6.21)
 
 From the operator's side: Settings gains one card, **"Draw from a computer"**, with a switch, the
 address (`http://192.168.1.23:8799/?k=7f3a…`), a Copy button, and one line: *"Your computer must be
@@ -83,7 +93,7 @@ key in the browser, offline areas included), every asset in its due colour and i
 style, places as houses, the list grouped by block, a read-only card per asset, and a locate button
 that asks **the phone** where it is.
 
-### Phase 2 — editing (v0.6.21)
+### Phase 2 — editing (v0.6.22)
 
 `POST /api/assets`, `PUT /api/assets/<id>` (metadata and geometry), `DELETE /api/assets/<id>`, each
 calling the repository, so `polylineLengthMeters`, `groupIdFor` and the transactions stay Kotlin's.
@@ -107,7 +117,7 @@ mis-drawn track may be deleted from the desk.
 
 | File | What it does |
 | --- | --- |
-| `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. |
+| `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. **Landed in v0.6.20.** |
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. |
 | `web/WebEditorServer.kt` | The routes, bound to the Wi-Fi address, alive only while the switch is on. Fixed port 8799, next free port if taken. |
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. |
@@ -173,12 +183,16 @@ choosing A.
 
 ## Progress
 
-- [ ] **Step 0** — `HttpServer` split out of `LocalTileServer`; `LocalTileServerTest` green and
-      untouched; the app's own map still drawing imagery (screenshot).
+- [x] **Step 0** — `HttpServer` split out of `LocalTileServer`; `LocalTileServerTest` green and
+      untouched; the app's own map still drawing imagery (screenshot). **v0.6.20.**
+      Proven: 11 untouched wire tests plus 8 new `HttpServerTest` tests green, lint 0 errors with
+      nothing naming the two files, the pre-change release screenshot and the new build's identical
+      pixel for pixel over the map, and tiles fetched and stored on the way through the refactored
+      plumbing. Notes in `build/verify/http-split.txt`.
 - [ ] **Phase 1** — the desk view: the Wi-Fi server, the token, `/api/state`, `/api/style`, the page,
-      the Settings card. Verified by the list above. Tagged **v0.6.20**.
+      the Settings card. Verified by the list above. Tagged **v0.6.21**.
 - [ ] **Phase 2** — editing through `AssetRepository`, the 409 version check, the archive-only delete
-      rule. Tagged **v0.6.21**.
+      rule. Tagged **v0.6.22**.
 - [ ] **Phase 3** — desk conveniences: GPX drop, snapping, multi-select, tracing, show-archived.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
@@ -186,6 +200,14 @@ summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Step 0**: split `HttpServer` out of `LocalTileServer`, keep `LocalTileServerTest` green and
-untouched, and screenshot the app's own map still drawing imagery — before any of the editor exists.
+**Phase 1, in this order**: `web/WebEditorLink.kt` and its test first — the LAN addresses from
+`NetworkInterface` and the per-session token decide what the Settings switch will say, and the
+address picking is pure, so it is worth pinning before any socket exists. Then `web/WebEditorServer.kt`
+as a second `HttpServer` on the Wi-Fi address, with the token gate in front of **everything**
+including `/`; then `/api/state`, `/api/style` and the tile route sharing the app's own stores; then
+the page under `app/src/main/assets/web/` with MapLibre GL JS vendored; then the Settings card and
+the foreground service. Proof is the list under *How to verify (phase 1)* — 403 without a token,
+403 with the wrong one, the page's assets and due colours matching the app's own map, and `netstat`
+showing the loopback listener and the LAN listener as two separate sockets. Tag it **v0.6.21** and
+tick the box above with how it was proven.
 

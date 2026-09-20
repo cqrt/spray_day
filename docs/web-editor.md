@@ -389,6 +389,18 @@ asset at once, tracing a line over imagery, and showing archived assets — the 
 reason to exist, because *nothing* can put an asset into `active = false` from the desk and nothing on the
 phone reads it back. Either that becomes a real state with a way in and a way out, or it goes.
 
+**Two small things found while reviewing v0.6.24's own page code**, neither of which is worth retagging a
+release for, and both of which are one line:
+
+1. **The Draw button is enabled a moment too early.** `boot()` enables it as soon as `edit.js` has been
+   imported, which is not the same as the map's style being loaded — `edit.js`'s `ready()` calls
+   `map.addSource`, which throws until the style is there. The failure is mild (the first press does
+   nothing, and the second works, because by then the style has arrived) and it is unlikely (the import is
+   a network round trip and the style usually wins), but the button belongs in `onStyleLoaded` where its
+   comment already claims it is, with a guard in `ready()` beside it.
+2. **`editor.points()` has no caller.** The finished line is handed to `onFinish` and read from there, so
+   the accessor is dead code and should go.
+
 **One wart worth fixing while in there.** The desk's first fit is racy: `fitBounds` runs when the state
 document arrives, and on some loads the container has not finished settling, so the same farm opens at a
 slightly different zoom — the four bearing lines of a run are not always in the same place on the screen,

@@ -37,7 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
@@ -83,6 +85,7 @@ fun SettingsScreen(
     }
     val activeKeyLabel by viewModel.activeKeyLabel.collectAsStateWithLifecycle()
     val basemap by viewModel.basemap.collectAsStateWithLifecycle()
+    val webEditorUrl by viewModel.webEditorUrl.collectAsStateWithLifecycle()
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val storedTiles by viewModel.storedTiles.collectAsStateWithLifecycle()
@@ -126,6 +129,7 @@ fun SettingsScreen(
 
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
 
     var notificationsAllowed by remember {
         mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
@@ -244,6 +248,49 @@ fun SettingsScreen(
                     if (basemap == Basemap.OPENSTREETMAP) {
                         TextButton(onClick = { uriHandler.openUri(Basemap.OSM_REPORT_LINK) }) {
                             Text("Report a map issue to OpenStreetMap")
+                        }
+                    }
+                }
+            }
+
+            // Drawing with a mouse instead of tapping a phone. The switch is the whole of the
+            // feature's control: on is a foreground service serving this phone on the Wi-Fi, and
+            // the address under it is the one to open on the computer - token and all, because the
+            // address is the password. Nothing is stored for it, so a phone that has been restarted
+            // is a phone that is not serving.
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Draw from a computer", style = MaterialTheme.typography.titleMedium)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Serve the editor to a computer on this Wi-Fi",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = webEditorUrl != null,
+                            onCheckedChange = viewModel::setWebEditor
+                        )
+                    }
+
+                    Text(
+                        "Your computer must be on the same Wi-Fi.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    val address = webEditorUrl
+                    if (address != null) {
+                        Text(address, style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { clipboard.setText(AnnotatedString(address)) }) {
+                            Text("Copy the address")
                         }
                     }
                 }

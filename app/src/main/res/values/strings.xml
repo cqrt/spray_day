@@ -14,6 +14,11 @@
     <string name="recording_notification_title">Recording spray track</string>
     <string name="recording_notification_text">%1$s \u00b7 %2$d points</string>
     <string name="recording_paused_text">Paused</string>
+    <!-- The editor served to a computer on the same Wi-Fi -->
+    <string name="web_editor_channel_name">Drawing from a computer</string>
+    <string name="web_editor_channel_description">Shown while the phone is serving the track editor to a computer on the same Wi-Fi</string>
+    <string name="web_editor_notification_title">Drawing from a computer</string>
+    <string name="web_editor_notification_text">Open %1$s on a computer on the same Wi-Fi</string>
     <!-- Due reminders -->
     <string name="due_channel_name">Spray reminders</string>
     <string name="due_channel_description">Tells you when planned tracks are due for spraying</string>

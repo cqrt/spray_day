@@ -34,12 +34,12 @@ class LocalTileServer(
     private val http = HttpServer(
         host = host,
         routes = listOf(
-            HttpRoute(claims = { it.target == STATUS_PATH }, handler = { HttpResponse.text(200, "ok") }),
-            // A tile path is claimed by its prefix and judged inside [tile] rather than matched by
-            // the tile pattern here: a path that begins like a tile but is not one has always been
-            // answered with the same 404 as a path that is nothing at all, so claiming it earlier
-            // would say the same thing twice.
-            HttpRoute(claims = { it.path.startsWith(TILES_PREFIX) }, handler = { tile(it) })
+            statusRoute(),
+            // A tile path is claimed by its prefix and judged inside the route rather than matched
+            // by the tile pattern here: a path that begins like a tile but is not one has always
+            // been answered with the same 404 as a path that is nothing at all, so claiming it
+            // earlier would say the same thing twice.
+            tileRoute(sources)
         )
     )
 
@@ -64,35 +64,6 @@ class LocalTileServer(
 
     private fun sourceFor(id: String): TileSource? = sources.firstOrNull { it.id == id }
 
-    /**
-     * Answers one tile path.
-     *
-     * The whole target is judged, not [HttpRequest.path]: the pattern is anchored, and a tile URL
-     * with a query on the end was never a tile URL here, so it still is not one.
-     */
-    private suspend fun tile(request: HttpRequest): HttpResponse {
-        val parsed = parseTilePath(request.target) ?: return HttpServer.NOT_FOUND
-        val source = sourceFor(parsed.source)
-        if (source == null || parsed.suffix != source.suffix) return HttpServer.NOT_FOUND
-        val tile = parsed.tile
-
-        source.store.read(tile.zoom, tile.x, tile.y)?.let { bytes ->
-            return HttpResponse.bytes(200, source.contentType, bytes)
-        }
-
-        return when (val fetched = source.upstream()?.fetch(tile.zoom, tile.x, tile.y)) {
-            is TileFetcher.Result.Tile -> {
-                // Storing on the way through is what turns browsing into an offline pack for
-                // imagery, and what keeps a browsed map from being downloaded twice.
-                source.store.write(tile.zoom, tile.x, tile.y, fetched.bytes)
-                HttpResponse.bytes(200, source.contentType, fetched.bytes)
-            }
-
-            TileFetcher.Result.NotFound, null -> HttpResponse.text(404, "no imagery")
-            is TileFetcher.Result.Failed -> HttpResponse.text(502, "upstream failed")
-        }
-    }
-
     companion object {
         const val LOOPBACK = "127.0.0.1"
         const val STATUS_PATH = "/status"
@@ -104,6 +75,51 @@ class LocalTileServer(
         private val TILE_PATH = Regex(
             "^/tiles/([a-z0-9][a-z0-9-]{0,30})/(\\d{1,2})/(\\d{1,7})/(\\d{1,7})(\\.[a-z0-9]{2,5})$"
         )
+
+        /** The route that says the server is alive, unchanged since the day it was the only one. */
+        fun statusRoute(): HttpRoute =
+            HttpRoute(claims = { it.target == STATUS_PATH }, handler = { HttpResponse.text(200, "ok") })
+
+        /**
+         * The route that answers tiles, so a second server can serve the same tiles from the same
+         * stores rather than growing a copy of this judgement.
+         *
+         * What a tile path is, which source it names, what a miss answers and what is stored on the
+         * way through are one decision, and the editor's server is only a different door into the
+         * same room: the tiles a laptop draws are the tiles already downloaded for the tractor, and
+         * anything browsed on the desk is in the offline store for the next trip.
+         *
+         * The whole *target* is judged, query and all, exactly as it always has been. The editor's
+         * server hands this route the path on its own, because its URLs carry the token in the
+         * query - and by the time it does that, the token has been checked.
+         */
+        fun tileRoute(sources: List<TileSource>): HttpRoute = HttpRoute(
+            claims = { it.path.startsWith(TILES_PREFIX) },
+            handler = { request -> answerTile(sources, request) }
+        )
+
+        private suspend fun answerTile(sources: List<TileSource>, request: HttpRequest): HttpResponse {
+            val parsed = parseTilePath(request.target) ?: return HttpServer.NOT_FOUND
+            val source = sources.firstOrNull { it.id == parsed.source }
+            if (source == null || parsed.suffix != source.suffix) return HttpServer.NOT_FOUND
+            val tile = parsed.tile
+
+            source.store.read(tile.zoom, tile.x, tile.y)?.let { bytes ->
+                return HttpResponse.bytes(200, source.contentType, bytes)
+            }
+
+            return when (val fetched = source.upstream()?.fetch(tile.zoom, tile.x, tile.y)) {
+                is TileFetcher.Result.Tile -> {
+                    // Storing on the way through is what turns browsing into an offline pack for
+                    // imagery, and what keeps a browsed map from being downloaded twice.
+                    source.store.write(tile.zoom, tile.x, tile.y, fetched.bytes)
+                    HttpResponse.bytes(200, source.contentType, fetched.bytes)
+                }
+
+                TileFetcher.Result.NotFound, null -> HttpResponse.text(404, "no imagery")
+                is TileFetcher.Result.Failed -> HttpResponse.text(502, "upstream failed")
+            }
+        }
 
         /**
          * `/tiles/{source}/{z}/{x}/{y}<suffix>` to a request, or null if it is not a tile path.

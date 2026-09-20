@@ -42,6 +42,8 @@ import nz.mckenzie.sprayday.offline.maskKey
 import nz.mckenzie.sprayday.reminders.DueReminderCheck
 import nz.mckenzie.sprayday.reminders.ReminderNotifier
 import nz.mckenzie.sprayday.reminders.ReminderOutcome
+import nz.mckenzie.sprayday.web.WebEditorService
+import nz.mckenzie.sprayday.web.WebEditorState
 
 /** Where the key currently in use came from. */
 enum class KeySource { BUILT_IN, ENTERED, NONE }
@@ -52,6 +54,16 @@ sealed interface KeyCheckState {
     data object Checking : KeyCheckState
     data object Worked : KeyCheckState
     data class Failed(val message: String) : KeyCheckState
+}
+
+/**
+ * The editor's switch: the two things throwing it does.
+ *
+ * Injected like the other effects on this screen, so the view model itself needs no Android
+ * service and a test can watch the switch without one.
+ */
+fun interface WebEditorSwitch {
+    fun setEnabled(enabled: Boolean)
 }
 
 /** What the off-site "Test" button found. */
@@ -100,7 +112,9 @@ class SettingsViewModel(
     /** Takes a lasting permission on the file the operator chose, so it survives a restart. */
     private val keepFileAccess: (Uri) -> Unit = {},
     /** The chosen file's name, for the screen to say where the copy goes. */
-    private val fileLabel: (Uri) -> String = { uri -> uri.lastPathSegment.orEmpty() }
+    private val fileLabel: (Uri) -> String = { uri -> uri.lastPathSegment.orEmpty() },
+    /** Serving the editor to a computer on the Wi-Fi: see [WebEditorState]. */
+    private val webEditor: WebEditorSwitch? = null
 ) : ViewModel() {
 
     /** The key as typed, seeded from what is stored rather than from the default. */
@@ -147,6 +161,26 @@ class SettingsViewModel(
     /** Chooses a basemap. Every map reads the same preference, so this is visible at once. */
     fun setBasemap(value: Basemap) {
         viewModelScope.launch { settings.setBasemap(value) }
+    }
+
+    /**
+     * Whether the editor is being served, and at what address; null while it is off.
+     *
+     * Read from the holder rather than kept here, because the address *is* the state: a screen
+     * rebuilt while the editor is running still shows the truth, and a switch that says on with
+     * nothing listening is not a state this can get into.
+     */
+    val webEditorUrl: StateFlow<String?> = WebEditorState.url
+
+    /**
+     * The switch.
+     *
+     * Turning it on starts a foreground service, which Android only allows from an app the operator
+     * is actually looking at - which is here, and is the reason the editor is not started from
+     * anywhere else in the app.
+     */
+    fun setWebEditor(enabled: Boolean) {
+        webEditor?.setEnabled(enabled)
     }
 
     private val _check = MutableStateFlow<KeyCheckState>(KeyCheckState.Idle)
@@ -736,6 +770,15 @@ class SettingsViewModel(
                     SettingsViewModel(
                         settings = settings,
                         store = TileServerHolder.imageryStore(appContext),
+                        // The editor's service, started from the screen that has the switch:
+                        // Android only lets a visible app start a foreground service.
+                        webEditor = { enabled ->
+                            if (enabled) {
+                                WebEditorService.start(appContext)
+                            } else {
+                                WebEditorService.stop(appContext)
+                            }
+                        },
                         runReminderCheck = {
                             DueReminderCheck(
                                 assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),

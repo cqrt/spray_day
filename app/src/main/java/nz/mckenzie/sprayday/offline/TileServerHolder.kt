@@ -45,26 +45,7 @@ object TileServerHolder {
         val appContext = context.applicationContext
         currentKey = initialKey
 
-        // One source per basemap, so each is cached and named where its own licence wants it.
-        val sources = Basemap.entries.map { basemap ->
-            TileSource(
-                id = basemap.id,
-                store = store(appContext, basemap),
-                suffix = basemap.tileSuffix,
-                contentType = basemap.contentType,
-                // Read per request, so a key pasted into Settings takes effect at once.
-                upstream = {
-                    when (basemap) {
-                        Basemap.LINZ_AERIAL ->
-                            currentKey.takeIf { it.isNotBlank() }?.let { key -> LinzTileFetcher(key) }
-
-                        Basemap.OPENSTREETMAP -> OsmTileFetcher()
-                    }
-                }
-            )
-        }
-
-        val started = LocalTileServer(sources)
+        val started = LocalTileServer(sources(appContext))
         started.start()
         server = started
 
@@ -72,6 +53,32 @@ object TileServerHolder {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             SettingsRepository(appContext).linzApiKey.collect { currentKey = it }
         }
+    }
+
+    /**
+     * One source per basemap, so each is cached and named where its own licence wants it.
+     *
+     * Shared rather than built twice: the editor's server serves the tiles the app's own map has
+     * already fetched, from the same stores on disk, which is what makes a block downloaded for a
+     * trip with no reception draw on the desk as well. A second list would be a second store, and
+     * the two would fill up with the same tiles.
+     */
+    fun sources(context: Context): List<TileSource> = Basemap.entries.map { basemap ->
+        TileSource(
+            id = basemap.id,
+            store = store(context, basemap),
+            suffix = basemap.tileSuffix,
+            contentType = basemap.contentType,
+            // Read per request, so a key pasted into Settings takes effect at once.
+            upstream = {
+                when (basemap) {
+                    Basemap.LINZ_AERIAL ->
+                        currentKey.takeIf { it.isNotBlank() }?.let { key -> LinzTileFetcher(key) }
+
+                    Basemap.OPENSTREETMAP -> OsmTileFetcher()
+                }
+            }
+        )
     }
 
     /**

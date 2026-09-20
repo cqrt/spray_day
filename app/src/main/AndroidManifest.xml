@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Serving the track editor over the farm's Wi-Fi, while its switch is on -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
@@ -50,6 +52,16 @@
             android:name=".tracking.TrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!--
+            The editor, served to a computer on the same Wi-Fi. Data-sync typed because what it
+            does is serve data, and only ever started from the switch on the Settings screen - so
+            the phone is listening on the farm's network only while somebody has asked it to.
+        -->
+        <service
+            android:name=".web.WebEditorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!--
             Receives the installer's answer to a committed update session. Declared here

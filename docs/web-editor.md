@@ -13,7 +13,8 @@ away.
   holds `index.html`, `app.js` and `style.css`, with MapLibre GL JS vendored (pinned 5.24.0, licence
   beside it, no CDN). The desk draws the phone's own imagery, the work in its due colours and its
   kinds' dash patterns, places as houses, the list grouped by block, a card per asset, and "Where is
-  the phone?". What is left of Phase 1 is the ten-minute Doze check on a real phone.
+  the phone?". Phase 1 is complete: the ten-minute Doze check was done with v0.6.23 — screen
+  genuinely off, the phone held in deep idle (`mState=IDLE`), and the page still loading the work.
 - **Phase 2 has begun: the desk writes, metadata first.** v0.6.23 ships `PUT /api/assets/<id>` — the
   card's details form, the version fingerprint, and the phone's own rules and sentences doing the
   judging. Geometry, making a track and deleting one are not in it yet.
@@ -301,7 +302,15 @@ style's background colour and the work draws on top of it.
       — `assets` id 3, `intervalDays` 120 → 1 — with every other field, every other row, the points, the
       blocks, the sprays and Room's own bookkeeping identical to the seed. Screenshots `web-desk.png`,
       `web-form.png`, `web-saved.png`, `web-refused.png`, `web-stale.png`, `web-place.png`,
-      `web-phone-map-small.jpg`; notes in `build/verify/web-write.txt`. One bug came out of it:
+      `web-phone-map-small.jpg`; notes in `build/verify/web-write.txt`. The **published** 0.6.23 APK
+      was then verified on its own, over a clean install — the debug build is signed differently, so
+      the seeded farm went with it and the release install was left empty, and nothing was pushed
+      into it: a track drawn by hand on the phone, the desk served by the minified build, a save from
+      its form answering "Saved. The phone has it.", and the phone's own detail screen then reading
+      *0 sprays recorded · every 7 days* — so R8 keeps the serializers, the new fields and the write
+      path (`rel-save-small.jpg`, `rel-save2.txt`). The ten-minute Doze check v0.6.22 left owing was
+      done in the same sitting: screen off, `mState=IDLE`, and the page still loading all four
+      assets (`web-doze.txt`). One bug came out of it:
       `#edit-buttons button` out-specified `#edit-save`, so the Save button was white text on a white
       pill until the rule named its parent.
 - [ ] **Phase 2, the rest — v0.6.24.** Geometry (`POST /api/assets`, the vertex handles and their local
@@ -322,9 +331,8 @@ through the same version check as the details do, so a track moved on the phone 
 from a card that is out of date; that check is already built and tested, and the geometry slice only
 has to carry it.
 
-**Still owing from v0.6.22**, and not made better by this slice: the ten-minute Doze check with the
-switch on, and the **published** APK driven on the device after the next release — a minified build is
-not the debug build's claim. The map regression screenshot v0.6.22 was waiting for came with this
-slice (`web-phone-map-small.jpg`), which is the same claim: the app's own map still draws its own
-tiles and its own due colours after the refactor.
+**Nothing is owing from v0.6.22 any more.** The map regression screenshot came with this slice
+(`web-phone-map-small.jpg`), the ten-minute Doze check was done with it (`web-doze.txt`), and the
+published 0.6.23 APK was installed and driven on its own once the tag had built (`rel-save2.txt`) —
+which is the gate, because a minified build is not the debug build's claim.
 

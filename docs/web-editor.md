@@ -9,16 +9,18 @@ away.
 
 ## Where this stands
 
-- **The phone half of Phase 1 is built and shipped; the page itself does not exist yet.** The phone
-  serves `/api/state`, `/api/style`, `/api/assets.geojson` and its own tiles behind a per-session
-  token, and Settings has the switch that turns it on. What is missing is the page a browser loads
-  (`app/src/main/assets/web/`), which is the next commit.
-- The last shipped work is **v0.6.21** (the phone side of the desk view); before it v0.6.20 (the
-  HTTP split) and v0.6.19 (map layer switches). The state written here was true when the file was
-  written — **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
-  `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document
-  that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.21 → **v0.6.22**, the page.
+- **Phase 1 is built and shipped: the phone serves it, and the page exists.** `app/src/main/assets/web/`
+  holds `index.html`, `app.js` and `style.css`, with MapLibre GL JS vendored (pinned 5.24.0, licence
+  beside it, no CDN). The desk draws the phone's own imagery, the work in its due colours and its
+  kinds' dash patterns, places as houses, the list grouped by block, a read-only card per asset, and
+  "Where is the phone?". What is left of Phase 1 is the ten-minute Doze check on a real phone.
+- The last shipped work is **v0.6.22** (the page); before it v0.6.21 (the phone side of the desk
+  view), v0.6.20 (the HTTP split) and v0.6.19 (map layer switches). The state written here was true
+  when the file was written — **check it rather than trust it** (`git status`, `HEAD` against
+  `origin/main`, `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a
+  plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.22 → **v0.6.23**, Phase 2's first
+  slice.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -102,7 +104,7 @@ key in the browser, offline areas included), every asset in its due colour and i
 style, places as houses, the list grouped by block, a read-only card per asset, and a locate button
 that asks **the phone** where it is.
 
-### Phase 2 — editing (v0.6.22)
+### Phase 2 — editing (v0.6.23)
 
 `POST /api/assets`, `PUT /api/assets/<id>` (metadata and geometry), `DELETE /api/assets/<id>`, each
 calling the repository, so `polylineLengthMeters`, `groupIdFor` and the transactions stay Kotlin's.
@@ -132,7 +134,7 @@ mis-drawn track may be deleted from the desk.
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21.** |
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21.** |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. |
-| `app/src/main/assets/web/` | `index.html`, `app.js`, `edit.js` (phase 2), `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`. Plain ES modules: the file you edit is the file that runs. |
+| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, plus `edit.js` in phase 2. Plain ES modules: the file you edit is the file that runs. **Landed in v0.6.22**, with two things worth knowing: `index.html` loads its own stylesheet, library and module **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; and the page's own code is dead simple on purpose: it draws, it does not decide. |
 
 **Changed**
 
@@ -193,6 +195,17 @@ choosing A.
 5. Screen off for ten minutes → the page still loads (foreground service, Doze).
 6. Re-run the step-0 proof: the app's own map still draws its tiles.
 
+The page-side checks are driven, not eyeballed. `build/verify/db/pagedump.ps1 -Url <address> -Name <shot>`
+opens a headless browser at the address, waits until the page has the work on it (a plain
+`--screenshot` photographs the page before the phone has answered, and `--virtual-time-budget` is
+ignored by this Edge), then writes the picture **and** the text of the list, the notice, the probes and
+the browser's console beside the picture. `-Then "<javascript>"` does something to the page first —
+clicking a row, clicking the locate button — and a run's `.txt` is often the faster read.
+`build/verify/db/pageserve.ps1 -Port 8877` serves the real files out of `app/src/main/assets/web` with a
+fixture farm behind them (`build/verify/db/page-fixture/`), for the corners a four-asset, block-less,
+phone-less desk cannot reach. What it is not is the phone: its tiles are missing, so the imagery is the
+style's background colour and the work draws on top of it.
+
 ## Progress
 
 - [x] **Step 0** — `HttpServer` split out of `LocalTileServer`; `LocalTileServerTest` green and
@@ -214,9 +227,23 @@ choosing A.
             the port and a request with the right token failed; the token was a different one after
             the switch was thrown off and on. Screenshots `web-card-off/-on2/-served.png`, notes in
             `build/verify/web-editor.txt`.
-      - [ ] **the page — v0.6.22.** `app/src/main/assets/web/`: `index.html`, `app.js`, `style.css`,
-            MapLibre GL JS vendored with its licence beside it, the house drawn on a canvas — and
-            then the page-side checks in the list above.
+      - [x] **the page — v0.6.22.** `app/src/main/assets/web/`: `index.html`, `app.js`, `style.css`,
+            MapLibre GL JS 5.24.0 vendored with its licence beside it, the house drawn on a canvas.
+            Proven against the phone by pixel and by payload: the imagery drawn from the phone's own
+            tile store, the same four assets with the same due colours the app's own map shows
+            (amber `Due in 3 days`, red `Never sprayed` ×2, green `Due in 110 days`), the three line
+            kinds in their own dash patterns, the place drawn as a red house by the page's canvas
+            port of `HouseMarker.kt`, and the empty-farm list drawn from the phone's own state.
+            Two bugs came out of it and both are fixed with a test or a border: the page's own files
+            were being refused (403) because a browser asks for a stylesheet without the token, and
+            `WebStyleJson` put `line-cap`/`line-join` in `paint`, which the Android SDK tolerated and
+            MapLibre GL JS refuses outright — the whole style thrown away, a blank desk, and no tile
+            ever requested. Blocks, the card after the map has opened, and "Where is the phone?" were
+            driven against a fixture (`build/verify/db/pageserve.ps1`), because the seeded farm has no
+            blocks and the emulator's System UI gave up ANR-ing before those two could be run against
+            the phone. Screenshots `page-desk.png`, `page-card.png`, `fx-desk.png`, `fx-card.png`,
+            `fx-locate.png`; notes in `build/verify/web-editor-page.txt`, which also says what was
+            *not* verified and why.
 - [ ] **Phase 2** — editing through `AssetRepository`, the 409 version check, the archive-only delete
       rule. Tagged **v0.6.23**.
 - [ ] **Phase 3** — desk conveniences: GPX drop, snapping, multi-select, tracing, show-archived.
@@ -226,13 +253,11 @@ summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**The page — v0.6.22.** Everything behind it answers already: flip the switch on the Settings screen
-and `adb forward tcp:8799 tcp:8799` reaches `/api/state`, `/api/style`, `/api/assets.geojson` and the
-tiles with the token in the URL. What is left is `app/src/main/assets/web/`: `index.html`, `app.js`
-(the map, the list grouped by block, the read-only card, the locate button asking the phone),
-`style.css`, and MapLibre GL JS **vendored** into `vendor/` with its licence file beside it (pinned
-v5.x, no CDN). The page paints the houses itself — a canvas port of `map/HouseMarker.kt` — for the
-names `placeIcons` lists. Then the page-side checks: the same assets, due colours and geometry the
-app's own map shows, and the app's own map still drawing its tiles. Tag it **v0.6.22** and tick the
-box above with how it was proven.
+**Phase 2 — editing, v0.6.23.** The desk reads; the next slice makes it write, through
+`AssetRepository` on the phone so the length calculation, the block resolution and the transactions
+stay Kotlin's, with the 409 version check and the archive-only delete rule above. Start narrow —
+metadata (`PUT /api/assets/<id>`) before geometry — because the point of the whole arrangement is that
+a change made on the desk appears on the phone in the same breath, and that is worth proving on its
+own before the vertex handles arrive. `edit.js` lands with it, and its pure parts (the undo stack, the
+snapping, the vertex maths) are testable without a browser, which is where they belong.
 

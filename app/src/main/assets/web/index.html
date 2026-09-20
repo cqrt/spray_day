@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spray Day - the work</title>
+  <!--
+    The page's own files are loaded by the script at the end of the body, not by tags written here,
+    because every request the phone answers needs the token and the token is in the address the
+    operator opened. A browser asks for a stylesheet or a script with no query unless it is told
+    otherwise, and a request without the token is a 403 - which looks like a page of unstyled text
+    with nothing on it, the exact failure the script exists to prevent.
+
+    MapLibre GL JS is vendored rather than pulled from a CDN: the page is served by the phone over
+    the farm's own Wi-Fi, so it has to work with the internet down, and nothing from a third party
+    should be running inside a page that can see the operator's own database. The version is pinned
+    in vendor/, with its licence beside it.
+  -->
+</head>
+<body>
+  <header id="bar">
+    <span id="title">Spray Day - the work</span>
+    <span id="subtitle">Served by the phone. This page only reads; nothing here can change the farm.</span>
+  </header>
+
+  <p id="notice" hidden></p>
+
+  <main>
+    <aside id="side">
+      <input id="search" type="search" placeholder="Find a track or block" autocomplete="off">
+      <div id="list" aria-live="polite"></div>
+    </aside>
+    <div id="map"></div>
+  </main>
+
+  <section id="card" hidden>
+    <button id="card-close" type="button" aria-label="Close">&times;</button>
+    <h2 id="card-name"></h2>
+    <p id="card-due"></p>
+    <dl id="card-facts"></dl>
+    <p id="card-notes"></p>
+  </section>
+
+  <button id="locate" type="button" title="Ask the phone where it is">Where is the phone?</button>
+
+  <script>
+    (function () {
+      var token = new URLSearchParams(location.search).get('k') || '';
+      var notice = document.getElementById('notice');
+
+      if (!token) {
+        // Nothing can be loaded without it, so say the one thing that explains a blank page.
+        notice.textContent = 'There is no token in this address. Open the address from Settings on ' +
+          'the phone - the token is part of it, and it is what the phone checks.';
+        notice.hidden = false;
+        return;
+      }
+
+      var suffix = '?k=' + encodeURIComponent(token);
+      var head = document.head;
+
+      function stylesheet(href) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href + suffix;
+        head.appendChild(link);
+      }
+
+      function script(src, onload) {
+        var element = document.createElement('script');
+        element.src = src + suffix;
+        if (onload) element.onload = onload;
+        head.appendChild(element);
+      }
+
+      stylesheet('vendor/maplibre-gl.css');
+      stylesheet('style.css');
+
+      // The page's own module runs once the map library is there, because it uses it.
+      script('vendor/maplibre-gl.js', function () {
+        var app = document.createElement('script');
+        app.type = 'module';
+        app.src = 'app.js' + suffix;
+        head.appendChild(app);
+      });
+    })();
+  </script>
+</body>
+</html>

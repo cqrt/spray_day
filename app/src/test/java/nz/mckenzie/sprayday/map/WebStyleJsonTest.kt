@@ -110,6 +110,23 @@ class WebStyleJsonTest {
     }
 
     @Test
+    fun `the line caps and joins are where a browser will accept them`() {
+        val lines = listOf(AssetLayerIds.TRACKS, AssetLayerIds.ROADS, AssetLayerIds.FENCELINES)
+
+        lines.forEach { id ->
+            val layout = layer(id)["layout"]!!.jsonObject
+            assertEquals("round", layout["line-cap"]!!.jsonPrimitive.content)
+            assertEquals("round", layout["line-join"]!!.jsonPrimitive.content)
+
+            // A paint property the spec does not know is not a warning to MapLibre GL JS: it refuses
+            // the style, and the desk shows a blank rectangle where the farm should be. The app's own
+            // map is an Android SDK, which is how this went unnoticed until a browser saw it.
+            assertTrue("$id must not carry line-cap in paint", paint(id)["line-cap"] == null)
+            assertTrue("$id must not carry line-join in paint", paint(id)["line-join"] == null)
+        }
+    }
+
+    @Test
     fun `a place asks for the house the feature names, and falls back to the grey one`() {
         val places = layer(AssetLayerIds.PLACES)
 
@@ -125,6 +142,19 @@ class WebStyleJsonTest {
         assertEquals(
             PlaceIcons.IMAGE_NAMES,
             style["placeIcons"]!!.jsonArray.map { it.jsonPrimitive.content }
+        )
+    }
+
+    @Test
+    fun `with nothing drawn yet, the page opens where the phone's map opens`() {
+        assertEquals(
+            "[${DEFAULT_CAMERA_TARGET.longitude},${DEFAULT_CAMERA_TARGET.latitude}]",
+            style["center"].toString()
+        )
+        assertEquals(
+            DEFAULT_CAMERA_ZOOM,
+            style["zoom"]!!.jsonPrimitive.content.toDouble(),
+            1e-6
         )
     }
 

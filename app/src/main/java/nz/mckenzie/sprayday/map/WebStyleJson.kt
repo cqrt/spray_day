@@ -51,6 +51,13 @@ object WebStyleJson {
     fun build(basemap: Basemap, tileUrlTemplate: String, assetsUrl: String): String = buildJsonObject {
         put("version", 8)
         put("name", "Spray Day - the work")
+        // Where the phone's own map opens, so a page with nothing drawn on it yet opens there too
+        // rather than on the Atlantic: the app's default camera, from the app's own constant.
+        put("center", buildJsonArray {
+            add(DEFAULT_CAMERA_TARGET.longitude)
+            add(DEFAULT_CAMERA_TARGET.latitude)
+        })
+        put("zoom", DEFAULT_CAMERA_ZOOM)
         // A root key MapLibre does not know is ignored by it and read by the page.
         put("placeIcons", buildJsonArray { placeIcons.forEach { add(it) } })
         put("sources", sources(basemap, tileUrlTemplate, assetsUrl))
@@ -117,6 +124,16 @@ object WebStyleJson {
             put("source", ASSETS_SOURCE)
             put("filter", lineFilter(kind))
             put(
+                "layout",
+                buildJsonObject {
+                    // In `layout`, not `paint`. The two look interchangeable and are not: MapLibre GL
+                    // JS throws a whole style away over a property in the wrong place, and throws it
+                    // away quietly - which is a blank desk with no line on it and nothing to read.
+                    put("line-cap", "round")
+                    put("line-join", "round")
+                }
+            )
+            put(
                 "paint",
                 buildJsonObject {
                     // The colour is the feature's own, so a track half sprayed is two colours in
@@ -124,8 +141,6 @@ object WebStyleJson {
                     put("line-color", dataProperty("stroke"))
                     put("line-width", LINE_WIDTH)
                     put("line-opacity", LINE_OPACITY)
-                    put("line-cap", "round")
-                    put("line-join", "round")
                     AssetLineStyles.forKind(kind)?.let { dash ->
                         // Multiples of the line width, which is what a dasharray is: the same
                         // numbers the app hands its own map, so a dash reads at the same spacing.

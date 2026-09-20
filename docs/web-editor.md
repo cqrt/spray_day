@@ -376,6 +376,14 @@ style's background colour and the work draws on top of it.
       event carries `lngLat` already, and the page now reads that instead of asking the map to work the
       same position out twice — and a drag that had to take hold of a handle the picture had found,
       because a press a few pixels off one pans the map and looks exactly like a drag that did nothing.
+      The **published** 0.6.24 APK was then verified on its own, over a clean install (the debug build is
+      signed differently, so nothing was carried over and nothing was pushed in): a track drawn by hand on
+      the phone, the desk served by the minified build drawing a new track from scratch (*"Saved. The phone
+      has it."*), dragging a vertex of the hand-drawn line — RelGeo's first vertex moved 90 km south-east on
+      the laptop and the phone's own screen then read **Length 146.40 km** where it had read 198.93 km, with
+      its own map drawing the bend — and deleting a track with nothing on it. The state document from the
+      shipped artifact carried `removal` and `newAsset`, so R8 keeps the new fields and serializers
+      (`rel-geo-draw.png`, `rel-geo-drag2.png`, `rel-geo-delete.png`, `rel-geo-phone-small.jpg`).
 - [ ] **Phase 3** — desk conveniences: GPX drop, multi-select, tracing, show-archived.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a

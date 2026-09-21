@@ -66,6 +66,10 @@ fun AssetDetailScreen(
     onRecordSpray: () -> Unit,
     // Editing happens on a screen of its own, so this screen only has to say where to go.
     onEdit: () -> Unit,
+    // Changing the geometry is the same screen again, opened on this track rather than on nothing:
+    // the phone had no way to change a line that was already drawn, which is what a side track off a
+    // track drawn months ago needs.
+    onChangeLine: () -> Unit,
     onOpenRecording: (Long) -> Unit = {}
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
@@ -391,10 +395,23 @@ fun AssetDetailScreen(
                 ListItem(
                     modifier = Modifier.clickable {
                         actionsOpen = false
+                        onChangeLine()
+                    },
+                    headlineContent = { Text("Change the line") },
+                    supportingContent = {
+                        Text("Move it, redraw it, or add a side track off it")
+                    },
+                    leadingContent = { AppIcon(IconGlyph.EDIT) }
+                )
+                ListItem(
+                    modifier = Modifier.clickable {
+                        actionsOpen = false
                         exportLauncher.launch("${track?.name ?: "asset"}.gpx")
                     },
                     headlineContent = { Text("Export GPX") },
-                    supportingContent = { Text("The line on its own, for another device") },
+                    supportingContent = {
+                        Text("The line and its side tracks, for another device")
+                    },
                     leadingContent = { AppIcon(IconGlyph.EXPORT) }
                 )
                 ListItem(

@@ -339,4 +339,90 @@ class TwoPassesTest {
             TwoPasses.split(listOf(GeoPoint(lat, 173.9), GeoPoint(lat, 173.9)), emptyList())
         )
     }
+
+    /* ---- A track with a side track off it ------------------------------------------------ */
+
+    /** A 200 m side track south off the far end of the line, and fixes up it one-way. */
+    private fun spur(lengthM: Double = 200.0) = listOf(
+        lineEast().last(),
+        GeoPoint(lat - lengthM / METRES_PER_DEG_LAT, 173.9 + 1_000.0 / lngPerM)
+    )
+
+    /** A drive up the spur: from the junction out to its end, ten metres and ten seconds apart. */
+    private fun upTheSpur(lengthM: Double = 200.0, seconds: Long = 0): List<GeoPoint> = buildList {
+        var travelled = 0.0
+        while (travelled <= lengthM) {
+            add(
+                GeoPoint(
+                    lat = lat - travelled / METRES_PER_DEG_LAT,
+                    lng = 173.9 + 1_000.0 / lngPerM,
+                    timeMs = at(seconds + travelled.toLong())
+                )
+            )
+            travelled += 10.0
+        }
+    }
+
+    @Test
+    fun `a side track driven once is done, so it owes nothing to the two-pass reading`() {
+        // The mistake this rule replaces: a side track was asked the line's question, and its own
+        // out-and-back doubling read as "both sides done" - so a dead end looked finished after one
+        // trip up it, for a reason that had nothing to do with the spur. A side track is a strip you
+        // drive up and back, so the first trip is the whole job and the second side is nobody's.
+        val result = TwoPasses.splitPaths(
+            planned = listOf(lineEast(), spur()),
+            passes = listOf(RecordedPass(at(0), upTheSpur())),
+            separationM = 3.0
+        )!!
+
+        assertFalse(
+            "the line has not been done, and the answer says so",
+            result.isComplete
+        )
+        assertEquals(
+            "but the spur's own metres are not counted as outstanding: " +
+                "${result.doneM} done of ${result.totalM}",
+            200.0,
+            result.doneM,
+            15.0
+        )
+    }
+
+    @Test
+    fun `a side track nobody has driven is part of what the job owes`() {
+        val line = lineEast()
+        val result = TwoPasses.splitPaths(
+            planned = listOf(line, spur()),
+            passes = listOf(
+                RecordedPass(at(0), walk(0.0, 1_000.0, offsetM = -0.8)),
+                RecordedPass(at(1_000), walkBack(1_000.0, 1_000.0, offsetM = 0.8))
+            ),
+            separationM = 3.0
+        )!!
+
+        assertTrue("the line is done", result.isComplete == false || result.doneM > 0.0)
+        assertEquals(
+            "and the spur's 200 m are still missing, which is what the card must not hide",
+            200.0,
+            result.missingM,
+            15.0
+        )
+    }
+
+    @Test
+    fun `a track with no side tracks reads exactly as one path always did`() {
+        val passes = listOf(RecordedPass(at(0), walk(0.0, 1_000.0, offsetM = -0.8)))
+        val onePath = TwoPasses.split(planned = lineEast(), passes = passes, separationM = 3.0)!!
+        val asPaths = TwoPasses.splitPaths(
+            planned = listOf(lineEast()),
+            passes = passes,
+            separationM = 3.0
+        )!!
+
+        assertEquals(onePath.doneM, asPaths.doneM, 1e-9)
+        assertEquals(onePath.onePassM, asPaths.onePassM, 1e-9)
+        assertEquals(onePath.totalM, asPaths.totalM, 1e-9)
+        assertEquals(onePath.isComplete, asPaths.isComplete)
+    }
 }
+

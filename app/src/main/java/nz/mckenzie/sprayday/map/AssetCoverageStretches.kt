@@ -64,13 +64,14 @@ object AssetCoverageStretches {
         passesRequired: Int = 1,
         separationM: Double? = null
     ): List<AssetStretch> =
-        planned.flatMap { path ->
+        planned.flatMapIndexed { pathIndex, path ->
             dated(
                 planned = path,
                 passes = passes,
                 lastWithoutRecordingAtEpochMs = lastWithoutRecordingAtEpochMs,
                 toleranceM = toleranceM,
-                passesRequired = passesRequired,
+                // The line is read as the job the asset says it is; a side track never is. See below.
+                passesRequired = if (pathIndex == 0) passesRequired else 1,
                 separationM = separationM
             ).map { stretch ->
                 AssetStretch(
@@ -95,6 +96,13 @@ object AssetCoverageStretches {
      * a line sprayed twice by the two passes that made it done. The two-pass reading is asked for
      * first when the asset says it needs two passes, and it falls back to the single-pass one
      * when there is no line to walk at all.
+     *
+     * **A side track is never the two-pass reading**, and that is the one thing this module has to say
+     * about paths. A job with two sides is a *line*: you drive up one side and back down the other, and
+     * the two passes are the two sides. A side track is a strip you drive up and **back** - one trip,
+     * out and home - so reading its own doubling as "both sides done" was the accident that made a
+     * dead end look finished after one pass. [of] therefore hands the line the asset's own
+     * [passesRequired] and hands every side track a job of one pass, whatever the line takes.
      */
     private fun dated(
         planned: List<GeoPoint>,

@@ -34,23 +34,28 @@ the same metres is what "two sides" used to mean.
 - The desk: the version fingerprint covers every path with its boundaries marked, and a PUT that
   carries a line is refused on a track with side tracks (the wire has no field for them yet).
 
+## Shipped: v0.6.28 - changing a track that is already drawn
+
+The phone could draw a new track and nothing else, so a track drawn months ago could not be given a
+side track, and a track drawn the old way (doubled line, overstated length) could not be re-drawn -
+which the v0.6.27 note promised as the fix.
+
+- **Change the line** on a track's own page opens the drawing screen on its stored geometry. The
+  camera opens on the track rather than the phone (the operator is usually nowhere near it); the name,
+  kind and block are not on that screen, because they are the details form's; Save is *Save changes*
+  and writes the whole geometry with `replaceGeometry`, so the vertices and the length go in together.
+  Back without saving writes nothing.
+- **The dead-end rule** that v0.6.27 left open. A job with two sides is a *line*; a side track is a
+  strip you drive up and back in one trip, so it is never the two-pass reading: on the map
+  (`AssetCoverageStretches.of`) each side track gets a job of one pass, and on the card
+  (`TwoPasses.splitPaths`) a side track counts as done when **every stretch of it** carries a date -
+  because the junction is shared with the line, so "any part covered" would call a spur driven the
+  moment a pass went by its mouth.
+- The wording decision: buttons say **Side track**, code says spur/`pathIndex`. (Alternatives
+  considered and dropped: *tangent*, *branch*, *arm* - none of them is what an operator calls it, and
+  "side track" is what the job sheet says.)
+
 ## Next
-
-### v0.6.28 - changing a track that is already drawn
-
-The phone has **no way to change an existing track's geometry at all**: `DrawAssetViewModel` only
-creates, and the detail screen offers spray, history, details, GPX export and delete. So a track drawn
-months ago cannot be given a spur, and a track drawn the old way (doubled line, overstated length)
-cannot be re-drawn - which the README promises as the fix.
-
-- A geometry-edit entry point on the asset detail screen, opening the drawing screen on the stored
-  paths, with the whole geometry written atomically (`replaceGeometry`) and the length recomputed.
-- The dead-end rule that the accidental reading used to get right for the wrong reason: a side track
-  is dated by a **single** pass - a strip you drive up and back, not two sides. It belongs in
-  `AssetCoverageStretches.dated`, where the choice of reading is made, and it needs its own tests.
-- The wording decision made here: buttons say **Side track**, code says spur/`pathIndex`.
-  (Alternatives considered and dropped: *tangent*, *branch*, *arm* - none of them is what an operator
-  calls it, and "side track" is what the job sheet says.)
 
 ### v0.6.29 - the desk draws and tidies side tracks
 

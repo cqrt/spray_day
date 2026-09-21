@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LAT
 import nz.mckenzie.sprayday.domain.geo.METRES_PER_DEG_LNG_AT_EQUATOR
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import java.time.Instant
@@ -206,4 +207,117 @@ class AssetCoverageStretchesTest {
             ).distinct()
         )
     }
+
+
+    /* ---- Side tracks: a strip you drive up and back ------------------------------------- */
+
+    /**
+     * A 500 m side track south off the far end of the line.
+     *
+     * Off the **end** so that the junction is a vertex of the line rather than a point on it: that is
+     * what the drawing screen produces, and it keeps these tests about the reading rather than about
+     * geometry the app cannot draw.
+     */
+    private fun spurSouth(lengthM: Double = 500.0): List<GeoPoint> = listOf(
+        lineEast().last(),
+        GeoPoint(-41.5 - lengthM / METRES_PER_DEG_LAT, 173.9 + 1_000.0 / METRES_PER_DEG_LNG_AT_EQUATOR)
+    )
+
+    /** Fixes along a straight drive from [from] to [to], ten metres apart at this scale. */
+    private fun drive(from: GeoPoint, to: GeoPoint, atMs: Long = 0L): List<GeoPoint> {
+        val steps = 50
+        return (0..steps).map { index ->
+            val t = index.toDouble() / steps
+            GeoPoint(
+                lat = from.lat + (to.lat - from.lat) * t,
+                lng = from.lng + (to.lng - from.lng) * t,
+                timeMs = atMs + index * 10L
+            )
+        }
+    }
+
+    private fun stretchesOf(
+        planned: List<List<GeoPoint>>,
+        passes: List<RecordedPass>,
+        passesRequired: Int = 1,
+        separationM: Double? = null
+    ): List<AssetStretch> = AssetCoverageStretches.of(
+        planned = planned,
+        passes = passes,
+        lastWithoutRecordingAtEpochMs = null,
+        intervalDays = intervalDays,
+        leadDays = leadDays,
+        nowEpochMs = now,
+        zoneId = zone,
+        passesRequired = passesRequired,
+        separationM = separationM
+    )
+
+    /** The colour of the stretch that holds [point], which is how the map's answer reads on the ground. */
+    private fun colourAt(stretches: List<AssetStretch>, point: GeoPoint): String =
+        stretches.first { stretch -> point in stretch.points }.colorHex
+
+    @Test
+    fun `a side track driven once is done, even when the line takes two passes`() {
+        // The report this rule comes from: a dead end read as "both sides done" after one trip, for a
+        // reason that had nothing to do with the spur. Driving a side track **is** up it and back down
+        // the same strip, so one trip is the whole job - while the line itself still owes its second.
+        val spur = spurSouth()
+        val line = lineEast()
+        val stretches = stretchesOf(
+            planned = listOf(line, spur),
+            passes = listOf(RecordedPass(now, drive(spur.first(), spur.last()))),
+            passesRequired = 2,
+            separationM = 3.0
+        )
+
+        assertEquals(
+            "the far end of the spur is done after one trip up it",
+            AssetColors.GREEN,
+            colourAt(stretches, spur.last())
+        )
+        assertEquals(
+            "and the line is not, because it still owes its other side",
+            AssetColors.RED,
+            colourAt(stretches, line.first())
+        )
+    }
+
+    @Test
+    fun `a side track on a one-pass line reads exactly as it did before paths`() {
+        // The same trip, on a track whose job is one pass: the spur is done and the line is not.
+        val spur = spurSouth()
+        val line = lineEast()
+        val stretches = stretchesOf(
+            planned = listOf(line, spur),
+            passes = listOf(RecordedPass(now, drive(spur.first(), spur.last())))
+        )
+
+        assertEquals(AssetColors.GREEN, colourAt(stretches, spur.last()))
+        assertEquals(AssetColors.RED, colourAt(stretches, line.first()))
+    }
+
+    @Test
+    fun `a side track nobody has driven is red, however often the line has been done`() {
+        // Two passes over the line - whatever TwoPasses makes of them, and whether they count as the
+        // line's other side or not - are not a trip up the spur. The spur is its own ground.
+        val line = lineEast()
+        val spur = spurSouth()
+        val stretches = stretchesOf(
+            planned = listOf(line, spur),
+            passes = listOf(
+                RecordedPass(daysAgo(1), drive(line.first(), line.last())),
+                RecordedPass(now, drive(line.last(), line.first()))
+            ),
+            passesRequired = 2,
+            separationM = 3.0
+        )
+
+        assertEquals(
+            "the line driven twice is not a pass up the spur",
+            AssetColors.RED,
+            colourAt(stretches, spur.last())
+        )
+    }
 }
+

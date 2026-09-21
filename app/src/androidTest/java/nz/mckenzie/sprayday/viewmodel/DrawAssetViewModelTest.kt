@@ -386,4 +386,136 @@ class DrawAssetViewModelTest {
             withTimeout(5_000) { viewModel.canSave.first() }
         )
     }
+
+    /* ---- Changing a track that is already drawn ---------------------------------------- */
+
+    /**
+     * A track at the equator: 111 m east, in three vertices.
+     *
+     * Nowhere near the phone these tests stand in for, because that is the case this exists for: the
+     * operator is changing a track they drew weeks ago, from somewhere else entirely.
+     */
+    private suspend fun aDrawnTrack(repository: AssetRepository): Long {
+        val junction = GeoPoint(0.0, 0.0005)
+        return repository.createAsset(
+            name = "Gully track",
+            geometry = listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001)),
+            groupName = "Home block"
+        )
+    }
+
+    private fun changing(repository: AssetRepository, assetId: Long) = DrawAssetViewModel(
+        assetRepository = repository,
+        settingsRepository = SettingsRepository(context),
+        locationSource = FixedLocation(GeoPoint(-41.5, 173.9)),
+        editingAssetId = assetId
+    )
+
+    @Test
+    fun changingATrackOpensOnItsOwnGeometryAndSavesItBack() = runBlocking {
+        val repository = AssetRepository(db)
+        val id = aDrawnTrack(repository)
+        val viewModel = changing(repository, id)
+
+        assertTrue("the stored line is what the taps start from", pointsBecome(viewModel, 3))
+        assertEquals(
+            "and the track's own name is what the screen is titled with",
+            "Gully track",
+            withTimeout(5_000) { viewModel.trackName.first { it != null } }
+        )
+        assertTrue("the screen knows it is changing rather than drawing", viewModel.editing.value)
+
+        // A side track off the far end of the line, which is where one leaves a track.
+        viewModel.startSideTrack()
+        viewModel.addPoint(0.001, 0.001)
+        viewModel.saveChanges()
+
+        val saved = withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }
+        assertEquals("the same track, not a new one", id, saved)
+        assertEquals(
+            "and the list still holds the one row",
+            1,
+            repository.observeAssetsWithDue().first().size
+        )
+
+        val stored = repository.getAssetGeometry(id)
+        assertEquals("the line it was, and the side track it now has", 2, stored.paths.size)
+        assertEquals(3, stored.line.size)
+        assertEquals(
+            "the join is the line's own vertex",
+            stored.line.last(),
+            stored.sideTracks.first().first()
+        )
+        assertEquals(
+            "and the cached length moved with the geometry, which is what the lists read",
+            222.3,
+            repository.getAsset(id)!!.lengthM,
+            1.0
+        )
+        assertEquals(
+            "while the name, which this screen never asked about, is untouched",
+            "Gully track",
+            repository.getAsset(id)!!.name
+        )
+    }
+
+    @Test
+    fun changingATrackOpensTheMapOnTheTrackRatherThanThePhone() = runBlocking {
+        val repository = AssetRepository(db)
+        val id = aDrawnTrack(repository)
+        val viewModel = changing(repository, id)
+
+        val frame = withTimeout(5_000) { viewModel.initialFrame.first { it != null } }!!
+
+        assertTrue(
+            "the frame holds the track, which is on the equator: $frame",
+            frame.minLat < 0.0 && frame.maxLat > 0.0
+        )
+        assertTrue(
+            "and it is not the phone's own frame, 41 degrees to the south: $frame",
+            frame.maxLat > -1.0
+        )
+    }
+
+    @Test
+    fun clearingATrackAndSavingChangesIsRefusedRatherThanEmptyingIt() = runBlocking {
+        val repository = AssetRepository(db)
+        val id = aDrawnTrack(repository)
+        val viewModel = changing(repository, id)
+        assertTrue(pointsBecome(viewModel, 3))
+
+        viewModel.clear()
+        viewModel.saveChanges()
+
+        assertNull("nothing was written", viewModel.savedAssetId.value)
+        assertNotNull("and it says why: ${viewModel.message.value}", viewModel.message.value)
+        assertEquals(
+            "the track on the phone is the one it was",
+            3,
+            repository.getAssetGeometry(id).pointCount
+        )
+    }
+
+    @Test
+    fun drawingANewTrackStillMakesANewOne() = runBlocking {
+        // The two modes share a view model, so the one thing that must not leak is which is in force:
+        // a screen opened to draw makes a new row, and writes over nothing.
+        val repository = AssetRepository(db)
+        val existing = aDrawnTrack(repository)
+        val viewModel = viewModel()
+
+        viewModel.addPoint(0.0, 0.0)
+        viewModel.addPoint(0.0, 0.001)
+        viewModel.save("New track")
+
+        val saved = withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }!!
+        assertTrue("a new row, not the track that exists", saved != existing)
+        assertEquals(2, repository.observeAssetsWithDue().first().size)
+        assertEquals(
+            "and the track that exists was not written to",
+            3,
+            repository.getAssetGeometry(existing).pointCount
+        )
+    }
 }
+

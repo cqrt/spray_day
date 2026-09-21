@@ -57,6 +57,8 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val kind by viewModel.kind.collectAsStateWithLifecycle()
     val shape by viewModel.shape.collectAsStateWithLifecycle()
+    val editing by viewModel.editing.collectAsStateWithLifecycle()
+    val trackName by viewModel.trackName.collectAsStateWithLifecycle()
 
     val isSpot = shape == AssetShape.POINT
 
@@ -74,7 +76,15 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isSpot) "Add a spot" else "Draw a line") },
+                title = {
+                    Text(
+                        when {
+                            editing -> trackName ?: "Change the line"
+                            isSpot -> "Add a spot"
+                            else -> "Draw a line"
+                        }
+                    )
+                },
                 navigationIcon = { IconButton(onClick = onBack) { AppIcon(IconGlyph.BACK, contentDescription = "Back") } }
             )
         }
@@ -111,21 +121,26 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ChoiceRow(
-                        label = "What it is",
-                        choices = AssetPhrase.kinds,
-                        selected = kind,
-                        onChoose = viewModel::chooseKind,
-                        text = AssetPhrase::kind
-                    )
-                    if (kind == AssetKind.INFRASTRUCTURE) {
+                    // What it is, and whether it is a line or a spot, belong to the details form while
+                    // a track that already exists is being changed: this screen moves ground, and a
+                    // picker here would be a second way to change the same field.
+                    if (!editing) {
                         ChoiceRow(
-                            label = "Shape",
-                            choices = AssetPhrase.shapes,
-                            selected = shape,
-                            onChoose = viewModel::chooseShape,
-                            text = AssetPhrase::shapeChoice
+                            label = "What it is",
+                            choices = AssetPhrase.kinds,
+                            selected = kind,
+                            onChoose = viewModel::chooseKind,
+                            text = AssetPhrase::kind
                         )
+                        if (kind == AssetKind.INFRASTRUCTURE) {
+                            ChoiceRow(
+                                label = "Shape",
+                                choices = AssetPhrase.shapes,
+                                selected = shape,
+                                onChoose = viewModel::chooseShape,
+                                text = AssetPhrase::shapeChoice
+                            )
+                        }
                     }
                     Text(
                         text = if (isSpot) {
@@ -144,7 +159,9 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                         text = message ?: when {
                             isSpot -> "Tap the map where it is."
                             drawingSideTrack -> "Tap along the side track, then press \u201cBack to the track\u201d."
+                            editing && pointCount == 0 -> "No line on this track yet - tap the map to draw one."
                             pointCount == 0 -> "Tap the map to add points."
+                            editing -> "Tap to add a point, or press \u201cSide track\u201d to add one off the track."
                             else -> "Keep tapping to extend the line."
                         },
                         style = MaterialTheme.typography.bodySmall
@@ -158,7 +175,15 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                             onClick = viewModel::clear,
                             enabled = pointCount > 0
                         ) { Text("Clear") }
-                        Button(onClick = { naming = true }, enabled = canSave) { Text("Save") }
+                        // Changing a track that exists has a name already, so Save is the whole of it:
+                        // the dialog is for naming a new one, and it has nothing to ask here.
+                        if (editing) {
+                            Button(onClick = viewModel::saveChanges, enabled = canSave) {
+                                Text("Save changes")
+                            }
+                        } else {
+                            Button(onClick = { naming = true }, enabled = canSave) { Text("Save") }
+                        }
                     }
 
                     // A track with a side track off it: the side track leaves the line where the line

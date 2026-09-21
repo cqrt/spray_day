@@ -413,18 +413,31 @@ rest are side tracks in the order they were drawn, which is the order the databa
   out path by path.
 - **A tap on the spur opens the track it hangs off.** The map draws one feature per path and both
   carry the asset's id.
+- **A side track is one trip, not two sides.** A job with two sides is a *line*: up one side and back
+  down the other. A side track is a strip you drive up and back in one go, so one trip up it dates it,
+  and it never owes a second pass - which is the rule that stops a dead end reading as finished for a
+  reason that has nothing to do with the spur. On the card, a side track counts as done once every
+  stretch of it carries a date: the junction is shared with the line, so a pass along the line is
+  always within tolerance of the first few metres of a spur leaving it.
 - **One level only.** A side track hangs off the line; it has no side tracks of its own.
 
-Tracks drawn before this existed are exactly the line they were - the migration puts every vertex on
-path 0 and changes nothing else - and a track that was drawn the old way with an up-and-back spur
-stays a doubled line with an overstated length until somebody re-draws it. The app does not go
-looking for the shape of one: that would be guessing at ground the operator knows better.
+**Changing a track that is already drawn** is *Change the line* on the track's own page, which opens
+the same drawing screen on the stored geometry. The camera opens on the **track** rather than on the
+phone, because an operator changing a track is usually nowhere near it; the name, kind and block are
+not on that screen at all, since those are the details form's; and Save writes the whole geometry at
+once with the length it adds up to. Back without saving leaves the track exactly as it was.
 
-The desk can read a track's side tracks, because the drawing it fetches has one feature per path,
-but it cannot draw one yet, so a line edit from the browser on a track that has side tracks is
-refused in the phone's words rather than written: the wire still carries one line per track, and a
-write that dropped every spur would be exactly the quiet loss the whole app is built to avoid.
-Changing the details of such a track still saves.
+Tracks drawn before any of this existed are exactly the line they were - the migration puts every
+vertex on path 0 and changes nothing else - and a track that was drawn the old way with an up-and-back
+spur stays a doubled line with an overstated length until somebody re-draws it with *Change the line*.
+The app does not go looking for the shape of one: that would be guessing at ground the operator knows
+better.
+
+The desk can read a track's side tracks, because the drawing it fetches has one feature per path, but
+it cannot draw one yet, so a line edit from the browser on a track that has side tracks is refused in
+the phone's words rather than written: the wire still carries one line per track, and a write that
+dropped every spur would be exactly the quiet loss the whole app is built to avoid. Changing the
+details of such a track still saves.
 
 ## Backup files
 

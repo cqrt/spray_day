@@ -160,19 +160,26 @@ object TwoPasses {
      * [MIN_RESOLVABLE_SEPARATION_M] for what happens when they have not.
      */
     /**
-     * The same question asked of a whole track: every path walked on its own, and the answers added up.
+     * The same question asked of a whole track: the line's own passes, and the side tracks' ground.
      *
-     * Per path rather than over one joined list of points, because everything here is about distance
-     * *along* a line and which side of it a pass was: joining a side track onto the end of the line
-     * would make a pass up the spur read as a pass along the line's last metres. The four lengths add
-     * up across the paths - they are disjoint ground - and the passes still owed are the union of what
-     * each path owes, so the card's sentence covers the side tracks as much as the line.
+     * **The two-pass reading is the line's**, because that is what a two-pass job is: you drive up one
+     * side and back down the other, and whether both sides are done is a question about the line. A
+     * side track is a strip you drive up and back in one trip - see
+     * [nz.mckenzie.sprayday.map.AssetCoverageStretches] for the same rule on the map - so a side track
+     * is **done the first time it is driven**, and it owes no second pass to anybody. Asking the
+     * two-pass reading about a spur is what made a dead end read as finished after one trip, for a
+     * reason that had nothing to do with the spur.
+     *
+     * So: the line is judged as it always was, and each side track adds its own metres to the total,
+     * to [doneM] if any pass covered it at all, or to [missingM] if nothing ever has. Everything a
+     * caller reads off the answer - is the job complete, what is still owed, how far along it is - then
+     * means what the operator means by it.
      *
      * Named `splitPaths` rather than an overload of [split]: `List<List<GeoPoint>>` and
      * `List<GeoPoint>` are the same `List` once compiled.
      *
-     * Null when there is no path with a reading of its own, which callers read as "there is nothing to
-     * say about two passes on this one" - the same as a null from [split].
+     * Null when there is no line to walk, which callers read as "there is nothing to say about two
+     * passes on this one" - the same as a null from [split].
      */
     fun splitPaths(
         planned: List<List<GeoPoint>>,
@@ -181,27 +188,39 @@ object TwoPasses {
         separationM: Double? = null,
         toleranceM: Double = Coverage.DEFAULT_TOLERANCE_M
     ): Result? {
-        val results = planned.mapNotNull { path ->
-            split(
-                planned = path,
+        val line = planned.firstOrNull().orEmpty()
+        val read = split(
+            planned = line,
+            passes = passes,
+            handSprayedAtEpochMs = handSprayedAtEpochMs,
+            separationM = separationM,
+            toleranceM = toleranceM
+        ) ?: return null
+
+        var doneM = read.doneM
+        var missingM = read.missingM
+        var totalM = read.totalM
+
+        for (side in planned.drop(1)) {
+            if (side.size < 2) continue
+            val metres = polylineLengthMeters(side)
+            // **The whole strip, not a touch of it.** The junction is shared with the line, so a pass
+            // along the line is always within tolerance of the first dozen metres of a side track that
+            // leaves it - which would make every spur "driven" the moment anybody drove past it. A side
+            // track is done when every stretch of it carries a date: driven all the way up it, by a
+            // pass or by a spray logged by hand.
+            val stretches = Coverage.splitByCoverage(
+                planned = side,
                 passes = passes,
-                handSprayedAtEpochMs = handSprayedAtEpochMs,
-                separationM = separationM,
+                assetSprayedAtEpochMs = handSprayedAtEpochMs,
                 toleranceM = toleranceM
             )
+            val covered = stretches.isNotEmpty() && stretches.all { it.lastSprayedAtEpochMs != null }
+            if (covered) doneM += metres else missingM += metres
+            totalM += metres
         }
-        if (results.isEmpty()) return null
-        if (results.size == 1) return results.first()
 
-        return Result(
-            stretches = results.flatMap { it.stretches },
-            doneM = results.sumOf { it.doneM },
-            onePassM = results.sumOf { it.onePassM },
-            ambiguousM = results.sumOf { it.ambiguousM },
-            missingM = results.sumOf { it.missingM },
-            totalM = results.sumOf { it.totalM },
-            pending = results.flatMap { it.pending }.distinct()
-        )
+        return read.copy(doneM = doneM, missingM = missingM, totalM = totalM)
     }
 
     fun split(

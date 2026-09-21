@@ -44,7 +44,7 @@ import nz.mckenzie.sprayday.viewmodel.BlockEditViewModel
 import nz.mckenzie.sprayday.viewmodel.BlocksViewModel
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, ASSETS, DRAW, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
+private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -145,6 +145,10 @@ class MainActivity : ComponentActivity() {
                                     destination = Destination.SPRAY_ENTRY
                                 },
                                 onEdit = { destination = Destination.ASSET_EDIT },
+                                onChangeLine = {
+                                    drawVisit++
+                                    destination = Destination.CHANGE_LINE
+                                },
                                 onOpenRecording = { sessionId ->
                                     selectedSessionId = sessionId
                                     destination = Destination.RECORDING_DETAIL
@@ -255,6 +259,25 @@ class MainActivity : ComponentActivity() {
                             viewModel = drawViewModel,
                             onBack = { destination = Destination.ASSETS }
                         )
+                    }
+
+                    // The same screen, opened on a track that exists: its geometry is what the taps
+                    // start from, and Save replaces it rather than making a new row. Back without
+                    // saving leaves the track exactly as it was, because nothing is written until then.
+                    Destination.CHANGE_LINE -> {
+                        val assetId = selectedAssetId
+                        if (assetId == null) {
+                            destination = Destination.ASSETS
+                        } else {
+                            val changeViewModel: DrawAssetViewModel = viewModel(
+                                key = "change-$assetId-$drawVisit",
+                                factory = DrawAssetViewModel.factory(applicationContext, assetId)
+                            )
+                            DrawAssetScreen(
+                                viewModel = changeViewModel,
+                                onBack = { destination = Destination.ASSET_DETAIL }
+                            )
+                        }
                     }
 
                     Destination.RECORDINGS -> {

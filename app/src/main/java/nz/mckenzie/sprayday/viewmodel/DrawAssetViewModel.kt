@@ -49,7 +49,15 @@ class DrawAssetViewModel(
      * Where the phone is, for the first frame: drawing happens where you are standing,
      * so opening on a neutral view of the country would be twenty minutes of panning.
      */
-    private val locationSource: LocationSource
+    private val locationSource: LocationSource,
+    /**
+     * The track being **changed**, or null when a new one is being drawn.
+     *
+     * The same screen does both because the work is the same: tapping vertices onto a map. What differs
+     * is where the taps start from (the stored geometry, not nothing) and what Save does (replace this
+     * track's geometry, not make a new one).
+     */
+    private val editingAssetId: Long? = null
 ) : ViewModel() {
 
     /** Needed to render the basemap behind the drawing. */
@@ -65,10 +73,67 @@ class DrawAssetViewModel(
     /** The frame for the camera when the map opens: around the phone, if it knows. */
     val initialFrame: StateFlow<LatLngBounds?> = _initialFrame
 
+    /** True when an existing track is being changed rather than a new one drawn. */
+    val editing: StateFlow<Boolean> = MutableStateFlow(editingAssetId != null)
+
+    /**
+     * The name of the track being changed, for the screen's own title.
+     *
+     * Null while a new one is being drawn: that name is asked for at Save, and nowhere else.
+     */
+    private val _trackName = MutableStateFlow<String?>(null)
+    val trackName: StateFlow<String?> = _trackName
+
     init {
         viewModelScope.launch {
-            _initialFrame.value = locationSource.frameOnDevice()
+            val editing = editingAssetId
+            if (editing == null) {
+                _initialFrame.value = locationSource.frameOnDevice()
+            } else {
+                openForEditing(editing)
+            }
         }
+    }
+
+    /**
+     * Opens a track that is already drawn: its geometry, what it is, and a frame around it.
+     *
+     * The frame is the **track**, not the phone. Changing a line is not drawing where you are standing:
+     * the operator is looking at a track drawn weeks ago, and may be nowhere near it - which is the
+     * whole reason this screen can now be opened from the track's own page.
+     */
+    private suspend fun openForEditing(assetId: Long) {
+        val asset = runCatching { assetRepository.getAsset(assetId) }.getOrNull()
+        if (asset == null) {
+            _message.value = "That track is not on the phone any more."
+            return
+        }
+        _trackName.value = asset.name
+        _kind.value = AssetKind.fromStorage(asset.kind)
+        _shape.value = AssetShape.fromStorage(asset.shape)
+
+        val geometry = runCatching { assetRepository.getAssetGeometry(assetId) }
+            .getOrDefault(AssetGeometry.NONE)
+        _paths.value = geometry.paths
+        _initialFrame.value = frameAround(geometry.points)
+    }
+
+    /**
+     * A box to open the camera on, wide enough to be a frame rather than a point of maximum zoom.
+     *
+     * A place is one coordinate and a two-vertex line is a straight edge, so the box is widened by the
+     * same 0.01° the phone's own frame uses - about a kilometre each way. Opening the map onto a
+     * zero-area box would drop the operator at the deepest zoom the tiles have, looking at one pixel.
+     */
+    private fun frameAround(points: List<GeoPoint>): LatLngBounds? {
+        if (points.isEmpty()) return null
+        val pad = FRAME_PAD_DEGREES
+        return LatLngBounds(
+            minLat = points.minOf { it.lat } - pad,
+            minLng = points.minOf { it.lng } - pad,
+            maxLat = points.maxOf { it.lat } + pad,
+            maxLng = points.maxOf { it.lng } + pad
+        )
     }
 
     /**
@@ -283,20 +348,28 @@ class DrawAssetViewModel(
         _drawing.value = 0
     }
 
+    /**
+     * What is saved is the track as it stands: the line, and every side track that got far enough
+     * to be one. A side track still being drawn is dropped rather than refused - a single tap on
+     * the map is not something the operator meant to keep, and the line is what they came to save.
+     */
+    private fun normalisedPaths(): List<List<GeoPoint>> =
+        _paths.value.filterIndexed { index, path -> index == 0 || path.size >= 2 }
+
+    private fun refuseToSave(): Boolean {
+        if (canSave(normalisedPaths(), _shape.value)) return false
+        _message.value = when (_shape.value) {
+            AssetShape.POINT -> "Tap the map where it is, then save"
+            AssetShape.LINE -> "Tap the map at least twice to draw a line"
+        }
+        return true
+    }
+
     fun save(name: String) {
         val shape = _shape.value
         val kind = _kind.value
-        // What is saved is the track as it stands: the line, and every side track that got far enough
-        // to be one. A side track still being drawn is dropped rather than refused - a single tap on
-        // the map is not something the operator meant to keep, and the line is what they came to save.
-        val paths = _paths.value.filterIndexed { index, path -> index == 0 || path.size >= 2 }
-        if (!canSave(paths, shape)) {
-            _message.value = when (shape) {
-                AssetShape.POINT -> "Tap the map where it is, then save"
-                AssetShape.LINE -> "Tap the map at least twice to draw a line"
-            }
-            return
-        }
+        if (refuseToSave()) return
+        val paths = normalisedPaths()
         viewModelScope.launch {
             runCatching {
                 assetRepository.createAsset(
@@ -313,18 +386,55 @@ class DrawAssetViewModel(
         }
     }
 
+    /**
+     * Writes a changed track back, and nothing else.
+     *
+     * The geometry is **replaced**, the whole of it, because that is what the operator has just been
+     * looking at: the paths they moved and the spurs they added are the track now. One write means a
+     * length can never belong to a shape it did not come from - `replaceGeometry` stores the vertices
+     * and the length they add up to in one transaction, exactly as it does for a track drawn from
+     * scratch.
+     *
+     * The name, the kind and the block are not touched here: those are the details form's, and a screen
+     * that draws lines has no business rewriting a name nobody typed on it.
+     */
+    fun saveChanges() {
+        val assetId = editingAssetId ?: return
+        if (refuseToSave()) return
+        val paths = normalisedPaths()
+        viewModelScope.launch {
+            runCatching {
+                assetRepository.replaceGeometry(assetId, AssetGeometry(paths))
+            }.onSuccess {
+                _savedAssetId.value = assetId
+            }.onFailure { failure ->
+                _message.value = failure.message ?: "Could not save the change"
+            }
+        }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val DRAFT_ID = -1L
 
-        fun factory(context: Context): ViewModelProvider.Factory {
+        /** The same widening [nz.mckenzie.sprayday.tracking.frameOnDevice] uses, in degrees. */
+        private const val FRAME_PAD_DEGREES = 0.01
+
+        /**
+         * [editingAssetId] opens an existing track to change it rather than a blank map to draw on.
+         *
+         * One factory for both because the screen is one screen; the difference is what it is handed to
+         * start from, and the view model keeps it apart from there.
+         */
+        fun factory(context: Context, editingAssetId: Long? = null): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
                     DrawAssetViewModel(
                         assetRepository = AssetRepository(SprayDayDatabase.get(appContext)),
                         settingsRepository = SettingsRepository(appContext),
-                        locationSource = FusedLocationSource(appContext)
+                        locationSource = FusedLocationSource(appContext),
+                        editingAssetId = editingAssetId
                     )
                 }
             }

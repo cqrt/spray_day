@@ -484,7 +484,11 @@ style's background colour and the work draws on top of it.
       node tests (26 in all) pin the sampling, the simplification, the corner at full sharpness, the
       one-step history, the press that is not a trace and the loop that closes. Screenshots `trace-a.png`
       (the line), `trace-b.png` (after one Ctrl+Z), `trace-c.png` (saved), `trace-phone.png` (the phone's
-      own list); notes in `build/verify/web-trace.txt`.
+      own list); notes in `build/verify/web-trace.txt`. The **published** 0.6.26 APK was then installed
+      clean and driven on its own: the editor on (token switch on, as a fresh install has it), *Draw a new
+      track*, a fence traced through five waypoints - 41 mouse samples arriving as **4 stored vertices** -
+      saved, and the phone's own screen reading *Published trace · 481.95 km · never sprayed*, the same
+      number the API answered (`rel-trace-desk.png`, `rel-trace-phone-small.jpg`).
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

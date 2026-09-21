@@ -20,12 +20,13 @@ away.
   geometry (`POST /api/assets` for a new track, the line through `PUT`) and `DELETE
   /api/assets/<id>?version=…`, with the desk's drawing in `edit.js` over `geometry.mjs`. What a desk
   still cannot do: put an asset into `active = false` — see *Next action*.
-- The last shipped work is **v0.6.24** (the line and the delete); before it v0.6.23 (the desk's first
-  write), v0.6.22 (the page), v0.6.21 (the phone side of the desk view), v0.6.20 (the HTTP split) and
-  v0.6.19 (map layer switches). The state written here was true when the file was written — **check it
-  rather than trust it** (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`),
-  because a plan document that claims a clean tree is a plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.24 → **v0.6.25**, Phase 3's first
+- The last shipped work is **v0.6.25** (the token becomes a switch), before it v0.6.24 (the line and
+  the delete), v0.6.23 (the desk's first write), v0.6.22 (the page), v0.6.21 (the phone side of the
+  desk view), v0.6.20 (the HTTP split) and v0.6.19 (map layer switches). The state written here was
+  true when the file was written — **check it rather than trust it** (`git status`, `HEAD` against
+  `origin/main`, `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a
+  plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.25 → **v0.6.26**, Phase 3's first
   slice.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
@@ -431,7 +432,13 @@ style's background colour and the work draws on top of it.
       not), `SettingsViewModelTest` (the switch is written and only serves again while it is serving).
       585 unit tests, 169 instrumented, lint 0 errors. Screenshots `token-card-off.png`,
       `token-on.png`, `token-bare.png`, `token-bare2.png`, `bare-door-phone.png`, `bare-door-desk3.png`,
-      `guarded-bare.png`, `guarded-token.png`; notes in `build/verify/web-token.txt`.
+      `guarded-bare.png`, `guarded-token.png`; notes in `build/verify/web-token.txt`. The **published**
+      0.6.25 APK was then installed clean and driven on its own: a fresh install showed the switch on
+      by default, 403 without the token and 200 with it, the bare address in place when it was turned
+      off, a track POSTed with no token appearing on the phone's own screen (*Published bare track ·
+      1.39 km · never sprayed*), the minified desk drawn over the bare address, the delete answered,
+      and a new secret when it was turned back on (`rel-token-on`, `rel-token-bare`, `rel-token-back-on`,
+      `rel-bare-desk.png`, `rel-bare-phone-small.jpg`).
 - [ ] **Phase 3** — desk conveniences: GPX drop, multi-select, tracing, show-archived.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a

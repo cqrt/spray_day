@@ -420,6 +420,11 @@ rest are side tracks in the order they were drawn, which is the order the databa
   stretch of it carries a date: the junction is shared with the line, so a pass along the line is
   always within tolerance of the first few metres of a spur leaving it.
 - **One level only.** A side track hangs off the line; it has no side tracks of its own.
+- **A GPX file carries them both ways.** A track with a spur is written as one `<trkseg>` per path -
+  which is what a GPX track's segments are for - and a file whose segments each start on the first is
+  read back as a track with that many side tracks. A file whose segments do not meet (a tool that cuts a
+  line up for its own reasons) is read the old way, every point joined into one line, and the sentence
+  says so rather than the import failing or the difference going unmentioned.
 
 **Changing a track that is already drawn** is *Change the line* on the track's own page, which opens
 the same drawing screen on the stored geometry. The camera opens on the **track** rather than on the

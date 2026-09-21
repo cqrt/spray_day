@@ -392,12 +392,51 @@ class AssetRepository(
         name: String,
         gpx: String,
         createdAtEpochMs: Long = System.currentTimeMillis()
-    ): Long {
+    ): GpxImportResult {
+        val segments = GpxParser.parseSegments(gpx)
+        val line = segments.firstOrNull().orEmpty()
+        val sideTracks = segments.drop(1)
+
+        // A file whose later segments each start on the first is a track with side tracks, which is
+        // what a GPX with several `<trkseg>` is for - a fence and the spur into the gully, exported
+        // from a tool that knows about both. The join has to be exact, because that is what the app's
+        // own drawing produces and what its rules ask for.
+        val joined = sideTracks.isNotEmpty() &&
+            sideTracks.all { side -> side.size >= 2 && line.any { vertex -> vertex == side.first() } }
+
+        if (joined) {
+            val id = createAsset(
+                name = name,
+                geometry = AssetGeometry.of(line, sideTracks),
+                createdAtEpochMs = createdAtEpochMs
+            )
+            return GpxImportResult(id, sideTracks = sideTracks.size, segmentsDidNotJoin = false)
+        }
+
+        // Otherwise the file is read the way this app has always read one: every track point in
+        // document order, joined up, as a single line. A file whose segments do not meet is not a
+        // refusal - it is a file from a tool that cuts a line up for its own reasons - but the answer
+        // says so, because a track with a jump in it is worth knowing about.
         val geometry = GpxParser.parse(gpx)
         require(geometry.size >= 2) { "A line needs at least two points" }
-        return createAsset(name = name, geometry = geometry, createdAtEpochMs = createdAtEpochMs)
+        val id = createAsset(name = name, geometry = geometry, createdAtEpochMs = createdAtEpochMs)
+        return GpxImportResult(id, sideTracks = 0, segmentsDidNotJoin = segments.size > 1)
     }
 }
+
+/**
+ * What an imported GPX file turned out to hold.
+ *
+ * [sideTracks] is how many of the file's own track segments became side tracks on the one track it
+ * made, and [segmentsDidNotJoin] is true when they could not - in which case the file was read the way
+ * this app has always read one, every point joined into a single line, and the sentence the operator
+ * gets says so rather than the import failing or the difference going unmentioned.
+ */
+data class GpxImportResult(
+    val assetId: Long,
+    val sideTracks: Int = 0,
+    val segmentsDidNotJoin: Boolean = false
+)
 
 private fun AssetPointEntity.toGeoPoint() = GeoPoint(lat = lat, lng = lng)
 

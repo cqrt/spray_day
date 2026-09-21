@@ -55,6 +55,33 @@ which the v0.6.27 note promised as the fix.
   considered and dropped: *tangent*, *branch*, *arm* - none of them is what an operator calls it, and
   "side track" is what the job sheet says.)
 
+## Shipped: v0.6.30 - GPX carries a track with side tracks, both ways
+
+Out was already right - one `<trkseg>` per path, which is what a GPX track's segments are for - but it
+had never been checked on a device or on a shipped APK, and reading still flattened every `trkpt` in a
+file into one line. So a file exported for a track with a spur came back as a line with a jump in it.
+
+- **The reader reads segments** (`GpxParser.parseSegments`), in the order the file has them, and drops
+  a `<trkseg>` with nothing in it. A file that never says where one segment ends - every point loose
+  under its `<trk>` - is one path, which is what the app has always read those as. `parse` is now the
+  flattened form of the same walk, so nothing about the old behaviour moved.
+- **An import decides what the file is**: if every segment after the first starts **exactly** on a vertex
+  of the first, the file becomes one track with that many side tracks (the rule the app's own drawing
+  keeps, applied to a file). Otherwise it is read the old way - one line, every point - and the answer
+  says so, because a track with a jump in it is worth knowing about rather than worth refusing.
+- **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
+  `... as one line: the file's own track segments do not meet, so they were joined up.`
+
+## Next
+
+### v0.6.31 - the desk draws side tracks
+
+Start a side track from a vertex of the traced line on the desk, and take one off again. The wire
+carries them (v0.6.29) and the phone's rules judge them; what is missing is the page's own state holding
+more than one path - `geometry.mjs` and `edit.js` are single-path today, and their 26 node tests are the
+shape that changes with them. Phase 3 of `web-editor.md` also still has GPX drag-and-drop and working on
+more than one asset at once.
+
 ## Shipped: v0.6.29 - the drawer carries the paths, so the line can be changed from a computer
 
 v0.6.27 shipped side tracks with one refusal standing: a line write from the browser carried a single

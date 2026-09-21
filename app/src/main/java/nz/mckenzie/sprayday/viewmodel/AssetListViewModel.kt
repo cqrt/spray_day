@@ -81,9 +81,19 @@ class AssetListViewModel(
                     ?.takeIf { it.isNotBlank() }
                     ?: "Imported track"
 
-                val assetId = assetRepository.importAssetGpx(name = name, gpx = text)
-                val points = assetRepository.getAssetGeometry(assetId).pointCount
-                _message.value = "Imported \"$name\" with $points points"
+                val imported = assetRepository.importAssetGpx(name = name, gpx = text)
+                val points = assetRepository.getAssetGeometry(imported.assetId).pointCount
+                _message.value = when {
+                    imported.segmentsDidNotJoin ->
+                        "Imported \"$name\" with $points points as one line: the file's own track " +
+                            "segments do not meet, so they were joined up."
+                    imported.sideTracks == 1 ->
+                        "Imported \"$name\" with $points points: the line and 1 side track."
+                    imported.sideTracks > 1 ->
+                        "Imported \"$name\" with $points points: the line and " +
+                            "${imported.sideTracks} side tracks."
+                    else -> "Imported \"$name\" with $points points"
+                }
             } catch (failure: Throwable) {
                 _message.value = failure.message ?: "Import failed"
             } finally {

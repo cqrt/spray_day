@@ -133,4 +133,95 @@ class GpxTest {
             GpxParser.parse("<gpx version=\"1.1\"><trk><trkseg></gpx>")
         }
     }
+
+    /* ---- A track with a side track, which is what several segments are for --------------- */
+
+    /** A line, and a spur hanging off its far end - the shape the app draws and writes. */
+    private val line = listOf(GeoPoint(lat = -41.50, lng = 174.90), GeoPoint(lat = -41.51, lng = 174.91))
+    private val spur = listOf(line.last(), GeoPoint(lat = -41.52, lng = 174.91))
+
+    @Test
+    fun `writer writes one segment per path, which is what a gpx track's segments are for`() {
+        val xml = GpxWriter.write("Gully track", listOf(line, spur))
+
+        assertEquals("the line and its side track", 2, Regex("<trkseg>").findAll(xml).count())
+        assertEquals("and every vertex of both", 4, Regex("<trkpt ").findAll(xml).count())
+        assertEquals(
+            "with the junction in both paths, so a reader sees a track with a spur on it",
+            2,
+            Regex(Regex.escape("lat=\"-41.5100000\" lon=\"174.9100000\"")).findAll(xml).count()
+        )
+    }
+
+    @Test
+    fun `a written track with a side track reads back as the same two paths`() {
+        val xml = GpxWriter.write("Gully track", listOf(line, spur))
+
+        val read = GpxParser.parseSegments(xml)
+
+        assertEquals(2, read.size)
+        listOf(line, spur).forEachIndexed { pathIndex, expected ->
+            assertEquals("path $pathIndex has the same vertices", expected.size, read[pathIndex].size)
+            expected.forEachIndexed { index, vertex ->
+                assertEquals(vertex.lat, read[pathIndex][index].lat, 1e-7)
+                assertEquals(vertex.lng, read[pathIndex][index].lng, 1e-7)
+            }
+        }
+        assertEquals(
+            "and the junction is the same two numbers in both, which is what the rules check",
+            read[1].first(),
+            read[0].last()
+        )
+    }
+
+    @Test
+    fun `the segments of a gpx are read as paths, in the order the file has them`() {
+        val xml = """
+            <?xml version="1.0"?>
+            <gpx version="1.1"><trk>
+              <trkseg><trkpt lat="-41.0" lon="174.0"/><trkpt lat="-41.1" lon="174.1"/></trkseg>
+              <trkseg><trkpt lat="-41.1" lon="174.1"/><trkpt lat="-41.2" lon="174.1"/></trkseg>
+            </trk></gpx>
+        """.trimIndent()
+
+        val paths = GpxParser.parseSegments(xml)
+
+        assertEquals(2, paths.size)
+        assertEquals(-41.0, paths[0].first().lat, 1e-9)
+        assertEquals(-41.2, paths[1].last().lat, 1e-9)
+    }
+
+    @Test
+    fun `a file that never says where a segment ends is one path`() {
+        // Some tools write every point loose under the track, and the app has always read those as one
+        // line.
+        val xml = """
+            <?xml version="1.0"?>
+            <gpx version="1.0"><trk>
+              <trkpt lat="-41.0" lon="174.0"/><trkpt lat="-41.1" lon="174.1"/>
+            </trk></gpx>
+        """.trimIndent()
+
+        assertEquals(1, GpxParser.parseSegments(xml).size)
+    }
+
+    @Test
+    fun `an empty segment is not a path`() {
+        val xml = """
+            <?xml version="1.0"?>
+            <gpx version="1.1"><trk>
+              <trkseg><trkpt lat="-41.0" lon="174.0"/><trkpt lat="-41.1" lon="174.1"/></trkseg>
+              <trkseg></trkseg>
+            </trk></gpx>
+        """.trimIndent()
+
+        assertEquals("a segment with nothing in it is dropped rather than kept empty", 1, GpxParser.parseSegments(xml).size)
+    }
+
+    @Test
+    fun `every point still comes out as one line, which is what an import has always read`() {
+        val xml = GpxWriter.write("Gully track", listOf(line, spur))
+
+        assertEquals(4, GpxParser.parse(xml).size)
+    }
 }

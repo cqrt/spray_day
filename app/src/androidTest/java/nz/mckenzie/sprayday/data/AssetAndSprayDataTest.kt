@@ -373,10 +373,68 @@ class AssetAndSprayDataTest {
         val source = assetRepository.createAsset(name = "Planned", geometry = line)
         val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val importedId = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
+        val imported = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
 
-        assertEquals(2, assetRepository.getAssetGeometry(importedId).pointCount)
-        assertEquals(111.19, assetRepository.getAsset(importedId)!!.lengthM, 1.0)
+        assertEquals(2, assetRepository.getAssetGeometry(imported.assetId).pointCount)
+        assertEquals(111.19, assetRepository.getAsset(imported.assetId)!!.lengthM, 1.0)
+        assertEquals("one line, and nothing else was in the file", 0, imported.sideTracks)
+        assertFalse(imported.segmentsDidNotJoin)
+    }
+
+    /**
+     * The file a tool writes for a track with a side track, read back as the two paths it is.
+     *
+     * This is round trip and creation in one: the app exports a track with a spur as two `<trkseg>`s,
+     * and importing that file has to give back a track with the same two paths - the line, and a spur
+     * starting on the line's own vertex - with the length counted once, which is the whole reason paths
+     * exist.
+     */
+    @Test
+    fun importingATrackWithASideTrackGivesBackBothPaths() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val spur = listOf(junction, GeoPoint(0.001, 0.0005))
+        val source = assetRepository.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001)), listOf(spur))
+        )
+        val gpx = assetRepository.exportAssetGpx(source)!!
+
+        val imported = assetRepository.importAssetGpx(name = "Gully track again", gpx = gpx)
+
+        val stored = assetRepository.getAssetGeometry(imported.assetId)
+        assertEquals("the line and its side track", 2, stored.paths.size)
+        assertEquals(listOf(spur), stored.sideTracks)
+        assertEquals("and the side track starts on the line's own vertex", stored.line[1], stored.sideTracks[0].first())
+        assertEquals(1, imported.sideTracks)
+        assertFalse(imported.segmentsDidNotJoin)
+        assertEquals(
+            "222 m of track, each path counted once",
+            222.3,
+            assetRepository.getAsset(imported.assetId)!!.lengthM,
+            1.0
+        )
+    }
+
+    @Test
+    fun importingAFileWhoseSegmentsDoNotMeetReadsItAsOneLineAndSaysSo() = runBlocking {
+        // Two segments that never touch: a tool that cuts a line up for its own reasons. That is not a
+        // refusal - it is what this app has always imported - but the answer says what happened, because
+        // a track with a jump in it is worth knowing about.
+        val gpx = """
+            <?xml version="1.0"?>
+            <gpx version="1.1"><trk>
+              <trkseg><trkpt lat="-41.0" lon="174.0"/><trkpt lat="-41.1" lon="174.1"/></trkseg>
+              <trkseg><trkpt lat="-42.0" lon="175.0"/><trkpt lat="-42.1" lon="175.1"/></trkseg>
+            </trk></gpx>
+        """.trimIndent()
+
+        val imported = assetRepository.importAssetGpx(name = "Two fences", gpx = gpx)
+
+        val stored = assetRepository.getAssetGeometry(imported.assetId)
+        assertEquals("one line, every point in it", 1, stored.paths.size)
+        assertEquals(4, stored.pointCount)
+        assertEquals(0, imported.sideTracks)
+        assertTrue("and the answer says the file's segments did not meet", imported.segmentsDidNotJoin)
     }
 
     @Test

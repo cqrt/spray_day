@@ -15,16 +15,18 @@ away.
   kinds' dash patterns, places as houses, the list grouped by block, a card per asset, and "Where is
   the phone?". Phase 1 is complete: the ten-minute Doze check was done with v0.6.23 — screen
   genuinely off, the phone held in deep idle (`mState=IDLE`), and the page still loading the work.
-- **Phase 2 has begun: the desk writes, metadata first.** v0.6.23 ships `PUT /api/assets/<id>` — the
-  card's details form, the version fingerprint, and the phone's own rules and sentences doing the
-  judging. Geometry, making a track and deleting one are not in it yet.
-- The last shipped work is **v0.6.23** (the desk's first write); before it v0.6.22 (the page), v0.6.21
-  (the phone side of the desk view), v0.6.20 (the HTTP split) and v0.6.19 (map layer switches). The
-  state written here was true when the file was written — **check it rather than trust it**
-  (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan document
-  that claims a clean tree is a plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.23 → **v0.6.24**, Phase 2's
-  geometry and delete.
+- **Phase 2 is complete and shipped.** v0.6.23 was the desk's first write — the card's details form,
+  the version fingerprint, the phone's own rules and sentences doing the judging. v0.6.24 added the
+  geometry (`POST /api/assets` for a new track, the line through `PUT`) and `DELETE
+  /api/assets/<id>?version=…`, with the desk's drawing in `edit.js` over `geometry.mjs`. What a desk
+  still cannot do: put an asset into `active = false` — see *Next action*.
+- The last shipped work is **v0.6.24** (the line and the delete); before it v0.6.23 (the desk's first
+  write), v0.6.22 (the page), v0.6.21 (the phone side of the desk view), v0.6.20 (the HTTP split) and
+  v0.6.19 (map layer switches). The state written here was true when the file was written — **check it
+  rather than trust it** (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`),
+  because a plan document that claims a clean tree is a plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.24 → **v0.6.25**, Phase 3's first
+  slice.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -70,8 +72,8 @@ later: the same editor would sit behind a second storage adapter.
 | --- | --- | --- |
 | **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | **v0.6.20 — shipped** |
 | **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.21 (the phone) + v0.6.22 (the page)** |
-| **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | v0.6.23 |
-| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, tracing, show-archived. | v0.6.24+ |
+| **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | **v0.6.23 (metadata) + v0.6.24 (the line, a new track, the delete)** |
+| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, tracing, show-archived. | v0.6.25+ |
 
 ### Step 0 — the HTTP split (v0.6.20, shipped)
 
@@ -108,7 +110,11 @@ key in the browser, offline areas included), every asset in its due colour and i
 style, places as houses, the list grouped by block, a read-only card per asset, and a locate button
 that asks **the phone** where it is.
 
-### Phase 2 — editing (v0.6.23 the desk's first write)
+### Phase 2 — editing (v0.6.23 the desk's first write, v0.6.24 the line and the delete)
+
+**Read this as the history of two releases**: the paragraphs below were written for v0.6.23 and describe
+what that release did and did not reach; v0.6.24 added `POST /api/assets`, the geometry half of `PUT` and
+`DELETE /api/assets/<id>` — the *Progress* section at the bottom has the shipped account of both.
 
 **What shipped as v0.6.23 is `PUT /api/assets/<id>` and nothing else**: one asset's own details, sent
 from the card's form and written through `AssetRepository`. `POST /api/assets` and the geometry half
@@ -304,7 +310,7 @@ style's background colour and the work draws on top of it.
       pixel for pixel over the map, tiles fetched and stored on the way through the refactored
       plumbing, and the **published** v0.6.20 APK installed and pixel-identical to the debug build -
       a minified build is not the debug build's claim. Notes in `build/verify/http-split.txt`.
-- [ ] **Phase 1** — the desk view: the Wi-Fi server, the token, `/api/state`, `/api/style`, the page,
+- [x] **Phase 1** — the desk view: the Wi-Fi server, the token, `/api/state`, `/api/style`, the page,
       the Settings card. Verified by the list above.
       - [x] **the phone side — v0.6.21.** Proven by payload: 403 with no token, 403 with a
             thirty-one-character prefix of the right one, 200 with it — `/api/state` (four assets

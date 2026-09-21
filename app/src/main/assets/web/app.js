@@ -23,12 +23,16 @@ const params = new URLSearchParams(location.search);
 const TOKEN = params.get('k') || '';
 
 /**
- * Everything the phone serves is behind the token, and the token is in the address.
+ * Everything the phone serves is behind the token, and the token is in the address - except when the
+ * operator has turned the token off on the phone, in which case the address has none and there is
+ * nothing to add.
  *
  * A path that already carries a query - a delete, whose version travels in one - gets the token joined
  * onto it rather than asked for twice.
  */
-const withToken = (path) => `${path}${path.includes('?') ? '&' : '?'}k=${encodeURIComponent(TOKEN)}`;
+const withToken = (path) => TOKEN
+  ? `${path}${path.includes('?') ? '&' : '?'}k=${encodeURIComponent(TOKEN)}`
+  : path;
 
 const notice = document.getElementById('notice');
 
@@ -191,12 +195,10 @@ let editor = null;
 let draftPoints = null;
 
 async function boot() {
-  if (!TOKEN) {
-    showNotice('There is no token in this address. Open the address from Settings on the phone - ' +
-      'the token is part of it, and it is what the phone checks.');
-    return;
-  }
-
+  // Nothing checks for a missing token here any more, and that is deliberate: the phone's gate hands
+  // this page to a request that carried the token, or to a run that asks for none - so a page that
+  // has loaded has already been let in. The 403 the documents below can still get is answered in the
+  // phone's own words, which is where the operator should be told about it.
   try {
     // The three documents the page needs, asked for at once: the work, its features, and the style
     // the phone builds for it.

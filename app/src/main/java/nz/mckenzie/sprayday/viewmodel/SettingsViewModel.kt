@@ -57,13 +57,21 @@ sealed interface KeyCheckState {
 }
 
 /**
- * The editor's switch: the two things throwing it does.
+ * The editor's switch: the two things it does.
  *
- * Injected like the other effects on this screen, so the view model itself needs no Android
- * service and a test can watch the switch without one.
+ * `restart` rather than a stop followed by a start from the screen: the editor is a foreground
+ * service, and asking it to go and then asking it to come back is a race - the second ask can arrive
+ * before the first has been carried out, and the run it builds is then torn down by the stop that is
+ * still in flight. One ask that means "serve again, from what the settings say now" leaves no window
+ * for that, and it keeps the knowledge of what a run is in the service.
  */
-fun interface WebEditorSwitch {
+interface WebEditorSwitch {
+
+    /** Turns the editor on, or off. */
     fun setEnabled(enabled: Boolean)
+
+    /** Serves it again from scratch, for a setting a run was built from having changed. */
+    fun restart()
 }
 
 /** What the off-site "Test" button found. */
@@ -114,7 +122,14 @@ class SettingsViewModel(
     /** The chosen file's name, for the screen to say where the copy goes. */
     private val fileLabel: (Uri) -> String = { uri -> uri.lastPathSegment.orEmpty() },
     /** Serving the editor to a computer on the Wi-Fi: see [WebEditorState]. */
-    private val webEditor: WebEditorSwitch? = null
+    private val webEditor: WebEditorSwitch? = null,
+    /**
+     * Whether the editor is being served at this moment.
+     *
+     * Injected for the same reason the switch is: a setting a run is built from has to serve the
+     * editor again when it changes, and that decision is worth a test without a service behind it.
+     */
+    private val isEditorServing: () -> Boolean = { WebEditorState.isOn }
 ) : ViewModel() {
 
     /** The key as typed, seeded from what is stored rather than from the default. */
@@ -181,6 +196,31 @@ class SettingsViewModel(
      */
     fun setWebEditor(enabled: Boolean) {
         webEditor?.setEnabled(enabled)
+    }
+
+    /**
+     * Whether a computer has to bring the token to reach the editor.
+     *
+     * Seeded with `true` rather than left to DataStore's first answer, like the basemap above: the
+     * card shows the default an untouched install has - a token is asked for - instead of a switch
+     * that sits blank for a frame and then moves.
+     */
+    val webEditorTokenRequired: StateFlow<Boolean> = settings.webEditorTokenRequired
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+
+    /**
+     * The token switch.
+     *
+     * Writes the setting, and then serves the editor again if it is being served: a run is built
+     * with the answer it started from, so the one already going has to be built again for this to
+     * mean anything. The address on the card changes with it - a run with no token is a bare address
+     * - which is the honest way to show what has just been chosen, including that it is now open.
+     */
+    fun setWebEditorTokenRequired(required: Boolean) {
+        viewModelScope.launch {
+            settings.setWebEditorTokenRequired(required)
+            if (isEditorServing()) webEditor?.restart()
+        }
     }
 
     private val _check = MutableStateFlow<KeyCheckState>(KeyCheckState.Idle)
@@ -772,11 +812,17 @@ class SettingsViewModel(
                         store = TileServerHolder.imageryStore(appContext),
                         // The editor's service, started from the screen that has the switch:
                         // Android only lets a visible app start a foreground service.
-                        webEditor = { enabled ->
-                            if (enabled) {
-                                WebEditorService.start(appContext)
-                            } else {
-                                WebEditorService.stop(appContext)
+                        webEditor = object : WebEditorSwitch {
+                            override fun setEnabled(enabled: Boolean) {
+                                if (enabled) {
+                                    WebEditorService.start(appContext)
+                                } else {
+                                    WebEditorService.stop(appContext)
+                                }
+                            }
+
+                            override fun restart() {
+                                WebEditorService.refresh(appContext)
                             }
                         },
                         runReminderCheck = {

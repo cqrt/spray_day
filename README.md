@@ -36,7 +36,10 @@ sprayed).
   Enter; a whole new track can be drawn from scratch; and a mis-drawn one that has nothing recorded
   against it can be deleted, while one with sprays on it says so in numbers and sends you to the
   phone. Everything is judged by the phone's own rules and written to the phone's own database, so
-  the laptop and the phone cannot disagree about what is on the farm.
+  the laptop and the phone cannot disagree about what is on the farm. The address the card shows
+  carries a secret code that the phone checks, and **"Only this address can open it"** turns that
+  off for a network you own — with it off the address is a plain one and anyone on the Wi-Fi can
+  open the editor and change your tracks, so the card says that in as many words.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
   only the default), its **kind** (track, road or infrastructure), whether it is a
   line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the

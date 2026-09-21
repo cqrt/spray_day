@@ -45,9 +45,12 @@ import nz.mckenzie.sprayday.tracking.DevicePosition
  * Everything it needs it takes from where the app already keeps it: the database through
  * `SprayDayDatabase`, the basemap from the settings the operator chose, the tiles from
  * [TileServerHolder] - so the tiles a laptop draws are the tiles already downloaded for the
- * tractor - and the fix from [DevicePosition]. The token is made here, once, and lives only here
- * and in the running server: turning the switch off ends it, as it should for something that is
- * opened by its own address.
+ * tractor - and the fix from [DevicePosition]. The token is made here, once per run, and lives only
+ * here and in the running server: turning the switch off ends it, as it should for something that
+ * is opened by its own address. A run may also be served with **no** token, which is a choice the
+ * operator makes on the Settings card and which is read here, at the start of a run - so a run that
+ * is already going is built again when that choice changes, rather than left claiming an answer it
+ * was not built with.
  */
 class WebEditorService : Service() {
 
@@ -69,6 +72,11 @@ class WebEditorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> start()
+            // The same run, built again - for a setting it is built from having changed. One intent
+            // rather than a stop and a start from the screen, because those two racing is a real
+            // thing: the second ask can arrive before the service has gone, and the run it builds is
+            // then torn down by the stop that is still in flight.
+            ACTION_REFRESH -> if (server != null) start() else stopSelf()
             ACTION_STOP -> stopSelf()
         }
         // Not sticky: a service that resurrected itself would put the phone back on the farm's
@@ -77,16 +85,45 @@ class WebEditorService : Service() {
     }
 
     override fun onDestroy() {
-        server?.stop()
-        server = null
-        positionJob?.cancel()
+        stopRun()
         scope.cancel()
         WebEditorState.off()
         super.onDestroy()
     }
 
+    /**
+     * Ends the run in place, leaving the Settings card alone.
+     *
+     * The card's address is not taken away here because a replacement run sets a new one a moment
+     * later, in the same trip through the main thread - so the switch cannot blink off and on while
+     * the operator watches it. [onDestroy] is where the address goes, because that is the one case
+     * where nothing is being served.
+     */
+    private fun stopRun() {
+        server?.stop()
+        server = null
+        positionJob?.cancel()
+        positionJob = null
+    }
+
+    /**
+     * Builds the run, on the main thread where the intents are handled.
+     *
+     * A coroutine because reading a setting is a suspend call, and `Dispatchers.Main` because
+     * everything it touches - the server, the fix, the foreground notification - is this service's
+     * own state, and one thread is the cheapest way to keep it consistent. The suspension is over
+     * before any of that state is touched, so a command that never gets this far has nothing to
+     * undo.
+     */
     private fun start() {
-        if (server != null) return
+        scope.launch(Dispatchers.Main) { serve() }
+    }
+
+    private suspend fun serve() {
+        // A run already going is replaced rather than added to. This is reached again when a setting
+        // the run was built from has changed, and there is one editor, one address and one run by
+        // design - so it is torn down first and built again below from what the settings say now.
+        stopRun()
 
         // The address the laptop will reach, which is one specific address on the Wi-Fi rather than
         // every interface the phone has: binding to all of them would put the editor on mobile data
@@ -100,9 +137,12 @@ class WebEditorService : Service() {
             return
         }
 
-        val token = WebEditorLink.newToken()
         val database = SprayDayDatabase.get(this)
         val settings = SettingsRepository(this)
+
+        // A run either has a token or asks for none, and which one it is is the operator's choice
+        // made on the Settings card: null here is that second answer, not a missing value.
+        val token = if (settings.webEditorTokenRequired.first()) WebEditorLink.newToken() else null
 
         val documents = WebEditorDocuments(
             assets = AssetRepository(database),
@@ -205,6 +245,9 @@ class WebEditorService : Service() {
         private const val ACTION_START = "nz.mckenzie.sprayday.action.START_WEB_EDITOR"
         private const val ACTION_STOP = "nz.mckenzie.sprayday.action.STOP_WEB_EDITOR"
 
+        /** Serves the same editor again, from whatever the settings say now. */
+        private const val ACTION_REFRESH = "nz.mckenzie.sprayday.action.REFRESH_WEB_EDITOR"
+
         private const val TAG = "SprayDayWebEditor"
 
         /** Turns the editor on, and leaves it on until [stop] - the switch on the Settings screen. */
@@ -217,6 +260,19 @@ class WebEditorService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, WebEditorService::class.java).setAction(ACTION_STOP))
+        }
+
+        /**
+         * Builds the run again, for a setting a run is built from having changed - the token, so far.
+         *
+         * Only for a run that is already going: a refresh is not a way to turn the editor on, and the
+         * service treats one that arrives with nothing being served as nothing to do.
+         */
+        fun refresh(context: Context) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, WebEditorService::class.java).setAction(ACTION_REFRESH)
+            )
         }
     }
 }

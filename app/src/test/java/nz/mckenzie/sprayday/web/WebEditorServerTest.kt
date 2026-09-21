@@ -47,10 +47,10 @@ class WebEditorServerTest {
     private lateinit var server: WebEditorServer
     private var port: Int = 0
 
-    private fun start(requestedPort: Int = 0) {
+    private fun start(requestedPort: Int = 0, withToken: Boolean = true) {
         server = WebEditorServer(
             host = "127.0.0.1",
-            token = token,
+            token = if (withToken) token else null,
             data = data,
             tileRoute = tiles.route,
             requestedPort = requestedPort
@@ -267,6 +267,38 @@ class WebEditorServerTest {
         // The first thirty-one characters are not the token: no prefix is a token.
         assertEquals(403, get("/api/state?k=${token.dropLast(1)}", withToken = false).code)
         assertEquals(403, get("/api/state?k=${token}x", withToken = false).code)
+    }
+
+    /**
+     * A run with no token is the operator's own choice, and this is what it means: the gate claims
+     * nothing, so everything is served to anything that can reach the port - a token left over from
+     * an earlier run included, because a bookmark from yesterday is not a reason to refuse a door
+     * that is not locked.
+     */
+    @Test
+    fun `a run with no token serves everything, and asks for nothing`() {
+        start(withToken = false)
+
+        assertEquals(200, get("/", withToken = false).code)
+        assertEquals(200, get(WebEditorServer.STATE_PATH, withToken = false).code)
+        assertEquals(200, get(WebEditorServer.STYLE_PATH, withToken = false).code)
+        assertEquals(200, get(WebEditorServer.ASSETS_PATH, withToken = false).code)
+        assertEquals(200, get("/tiles/osm/7/125/80.png", withToken = false).code)
+        assertEquals(200, get("/api/state?k=nonsense", withToken = false).code)
+
+        // And the writes, which are the reason the token exists at all: all three of them, through
+        // the same open door.
+        val changed = send("${WebEditorServer.ASSET_PATH_PREFIX}7", "PUT", writeBody)
+        assertEquals(200, changed.code)
+        assertEquals(7L to writeBody, data.lastWrite)
+
+        val made = send(WebEditorServer.COLLECTION_PATH, "POST", newBody)
+        assertEquals(201, made.code)
+        assertEquals(newBody, data.lastCreate)
+
+        val gone = send("${WebEditorServer.ASSET_PATH_PREFIX}7?version=v1", "DELETE")
+        assertEquals(200, gone.code)
+        assertEquals(7L to "v1", data.lastRemove)
     }
 
     @Test

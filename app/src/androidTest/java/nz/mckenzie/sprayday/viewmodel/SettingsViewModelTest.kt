@@ -21,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -51,6 +52,9 @@ class SettingsViewModelTest {
     @After
     fun tearDown(): Unit = runBlocking {
         SettingsRepository(context).setLinzApiKey("")
+        // And the token switch goes back to asking for one, which is the default an untouched install
+        // has: a test that left it off would leave the next one reading somebody else's decision.
+        SettingsRepository(context).setWebEditorTokenRequired(true)
         store.deleteAll()
     }
 
@@ -225,6 +229,52 @@ class SettingsViewModelTest {
             "and should be named as rejected: ${(bogus as KeyCheck.Failed).message}",
             bogus.message.contains("400")
         )
+    }
+
+    /**
+     * The token switch: the setting, and the run that has to be built again for it to mean anything.
+     *
+     * Two claims in one test because they are the two halves of the same tap - and the second is the
+     * one worth having, because a run is built with the answer it started from. Leaving the setting
+     * on `true` at the end is deliberate: it is the default an untouched install has, and the next
+     * test in this suite should not inherit a decision made here.
+     */
+    @Test
+    fun theTokenSwitchIsWrittenAndServesTheEditorAgainOnlyWhileItIsServing(): Unit = runBlocking {
+        val settings = SettingsRepository(context)
+        settings.setWebEditorTokenRequired(true)
+
+        val asked = Collections.synchronizedList(mutableListOf<String>())
+        var serving = true
+        val viewModel = SettingsViewModel(
+            settings = settings,
+            store = store,
+            webEditor = object : WebEditorSwitch {
+                override fun setEnabled(enabled: Boolean) {
+                    asked += if (enabled) "turned on" else "turned off"
+                }
+
+                override fun restart() {
+                    asked += "served again"
+                }
+            },
+            isEditorServing = { serving }
+        )
+
+        viewModel.setWebEditorTokenRequired(false)
+
+        awaitValue("the switch written", false, { settings.webEditorTokenRequired.first() })
+        awaitValue("the run served again", listOf("served again"), { asked.toList() })
+
+        // With the editor off there is nothing to serve again: the setting is written, and the
+        // service is left alone - which is also why the pause is here, so a late call would be seen.
+        asked.clear()
+        serving = false
+        viewModel.setWebEditorTokenRequired(true)
+
+        awaitValue("the switch written back", true, { settings.webEditorTokenRequired.first() })
+        delay(500)
+        assertEquals("nothing to serve again when nothing is being served", emptyList<String>(), asked.toList())
     }
 
     private companion object {

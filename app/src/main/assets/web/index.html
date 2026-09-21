@@ -126,18 +126,17 @@
   <script>
     (function () {
       var token = new URLSearchParams(location.search).get('k') || '';
-      var notice = document.getElementById('notice');
-
-      if (!token) {
-        // Nothing can be loaded without it, so say the one thing that explains a blank page.
-        notice.textContent = 'There is no token in this address. Open the address from Settings on ' +
-          'the phone - the token is part of it, and it is what the phone checks.';
-        notice.hidden = false;
-        return;
-      }
-
-      var suffix = '?k=' + encodeURIComponent(token);
       var head = document.head;
+
+      // The token goes onto every URL this page asks for, because a browser asks for a stylesheet or a
+      // script with no query unless it is told otherwise and the phone's gate answers nothing without
+      // one. A phone that is serving with **no** token asks for nothing, so the suffix is empty and
+      // every URL is the plain one.
+      //
+      // Nothing here checks for a missing token any more, and that is deliberate: the gate is
+      // upstream, so a page that was served at all was either carrying the right token or asking a
+      // phone that wants none. A check here could only be wrong about one of those two.
+      var suffix = token ? '?k=' + encodeURIComponent(token) : '';
 
       function stylesheet(href) {
         var link = document.createElement('link');

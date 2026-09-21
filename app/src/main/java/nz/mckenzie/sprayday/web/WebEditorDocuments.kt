@@ -44,8 +44,11 @@ import nz.mckenzie.sprayday.offline.HttpResponse
 class WebEditorDocuments(
     private val assets: AssetRepository,
     private val sprays: SprayRepository,
-    /** The token, because the documents contain URLs and those have to carry it too. */
-    private val token: String,
+    /**
+     * The token, because the documents contain URLs and those have to carry it too - or null when
+     * this run asks for none, in which case the URLs it hands out carry nothing.
+     */
+    private val token: String?,
     private val basemap: suspend () -> Basemap,
     private val position: suspend () -> GeoPoint?,
     /** One file of the page, from the APK's own assets, or null when it ships no such file. */
@@ -254,11 +257,16 @@ class WebEditorDocuments(
             // The page's own requests carry the token in the URL, and MapLibre's requests do not go
             // through the page, so the style hands the map the token too. That is also part of why
             // the token belongs to the run of the switch rather than to the install: off ends it.
+            // A run with no token hands out the bare URLs, which is the same statement as the bare
+            // address on the card: nothing here is holding a key back.
             tileUrlTemplate = "http://$authority/tiles/${chosen.id}/{z}/{x}/{y}" +
-                "${chosen.tileSuffix}?$TOKEN_PARAM=$token",
-            assetsUrl = "http://$authority${WebEditorServer.ASSETS_PATH}?$TOKEN_PARAM=$token"
+                "${chosen.tileSuffix}$tokenQuery",
+            assetsUrl = "http://$authority${WebEditorServer.ASSETS_PATH}$tokenQuery"
         )
     }
+
+    /** `?k=…` for a run with a token, nothing at all for one without. */
+    private val tokenQuery: String get() = token?.let { "?$TOKEN_PARAM=$it" }.orEmpty()
 
     override fun page(path: String): HttpResponse? {
         val name = if (path == "/") INDEX else path.removePrefix("/")

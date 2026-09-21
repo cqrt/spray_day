@@ -16,6 +16,16 @@ import java.security.MessageDigest
  * shut unless somebody turns the switch on, it says no without the token, and it never outlives the
  * switch.
  *
+ * **The token is a setting rather than a law.** It is what stops the other devices on the Wi-Fi -
+ * a visitor's phone, a tablet in the ute, a printer - and, more to the point, any web page open on
+ * the operator's own computer from reaching this door; a router keeps the internet out and does
+ * nothing at all about either of those. That is what lets the switch be thrown on a network nobody
+ * vouches for. On a network the operator owns, where every device on it is theirs, the secret buys
+ * them little and costs them a paste, so a run may be served with no token at all: [token] is then
+ * null, the gate below claims nothing, and the address on the Settings card is the bare one that
+ * says so. What is *not* offered is an empty token, or a default that turns this off - an install
+ * that never touches the switch asks for a token exactly as it always has.
+ *
  * Everything it serves it serves from the phone: the documents, the page, and the tiles - the very
  * store the app's own map draws from, through the very route, so what a laptop draws is what has
  * already been downloaded for a trip with no reception.
@@ -26,7 +36,8 @@ import java.security.MessageDigest
  */
 class WebEditorServer(
     private val host: String,
-    private val token: String,
+    /** This run's token, or null when this run does not ask for one - see the class comment. */
+    private val token: String?,
     private val data: WebEditorData,
     /** The tile route the app's own map uses, so the desk draws the phone's own tiles. */
     private val tileRoute: HttpRoute,
@@ -83,11 +94,12 @@ class WebEditorServer(
      * The gate is a route rather than a check inside each answer on purpose: it claims **everything**
      * that does not carry the token, so a route added later cannot be served by forgetting one line -
      * the page included, which is why opening the address without the token is a refusal rather than
-     * a login screen. Nothing here is reachable without it.
+     * a login screen. Nothing here is reachable without it - and when this run asks for no token at
+     * all, the gate claims nothing, which is the whole of what that setting does.
      */
     private fun routes(): List<HttpRoute> = listOf(
         HttpRoute(
-            claims = { !authorised(it) },
+            claims = { token != null && !authorised(it) },
             handler = { HttpResponse.text(403, "no token") }
         ),
         jsonRoute(STATE_PATH) { authority -> data.state(authority) },
@@ -174,11 +186,13 @@ class WebEditorServer(
      *
      * Compared without an early exit, so how long the answer takes says nothing about how much of
      * the token was right. It is a LAN secret rather than a password, but a comparison that leaks
-     * its prefix is the one habit not worth keeping.
+     * its prefix is the one habit not worth keeping. A run with no token accepts everything, and
+     * the gate above is what decides whether this is asked at all.
      */
     private fun authorised(request: HttpRequest): Boolean {
+        val wanted = token ?: return true
         val given = request.query[TOKEN_PARAM] ?: return false
-        return MessageDigest.isEqual(given.toByteArray(Charsets.UTF_8), token.toByteArray(Charsets.UTF_8))
+        return MessageDigest.isEqual(given.toByteArray(Charsets.UTF_8), wanted.toByteArray(Charsets.UTF_8))
     }
 
     /**

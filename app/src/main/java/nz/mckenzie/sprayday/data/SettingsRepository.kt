@@ -37,6 +37,7 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
     private val linzKeyPref = stringPreferencesKey("linz_api_key")
     private val basemapPref = stringPreferencesKey("basemap")
     private val hiddenMapLayersPref = stringSetPreferencesKey("hidden_map_layers")
+    private val webEditorTokenRequiredPref = booleanPreferencesKey("web_editor_token_required")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
     private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
     private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
@@ -118,6 +119,28 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
             val ids = (if (hidden) now + layer else now - layer).mapTo(mutableSetOf()) { it.id }
             if (ids.isEmpty()) prefs.remove(hiddenMapLayersPref) else prefs[hiddenMapLayersPref] = ids
         }
+    }
+
+    /**
+     * Whether a computer has to bring the token to reach the editor.
+     *
+     * **On**, and that default is a promise: an install that never touches the switch asks for a
+     * token exactly as every install has since the editor shipped.
+     *
+     * The token is what stops the other devices on the Wi-Fi - a visitor's phone, a tablet in the
+     * ute, a printer - and, more to the point, any web page open on the operator's own computer,
+     * from reaching a door that can change and delete the work. None of that is a router's business,
+     * which is why the token is what makes the switch safe to throw on a network nobody vouches for.
+     * On a network the operator owns, where every device on it is theirs, the secret buys them
+     * little and costs them a paste, so it can be turned off - and what they get then is a bare
+     * address that anybody on the Wi-Fi can open, which is exactly what the card shows them.
+     */
+    val webEditorTokenRequired: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[webEditorTokenRequiredPref] ?: true
+    }
+
+    suspend fun setWebEditorTokenRequired(required: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[webEditorTokenRequiredPref] = required }
     }
 
     /**

@@ -86,6 +86,7 @@ fun SettingsScreen(
     val activeKeyLabel by viewModel.activeKeyLabel.collectAsStateWithLifecycle()
     val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val webEditorUrl by viewModel.webEditorUrl.collectAsStateWithLifecycle()
+    val webEditorTokenRequired by viewModel.webEditorTokenRequired.collectAsStateWithLifecycle()
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val storedTiles by viewModel.storedTiles.collectAsStateWithLifecycle()
@@ -293,6 +294,39 @@ fun SettingsScreen(
                             Text("Copy the address")
                         }
                     }
+
+                    // The token is what makes the switch above safe to throw on a network nobody
+                    // vouches for, so turning it off is offered in the operator's own terms and with
+                    // what it gives away said out loud - not as a word like "token" on its own.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Only this address can open it",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = webEditorTokenRequired,
+                            onCheckedChange = viewModel::setWebEditorTokenRequired
+                        )
+                    }
+
+                    Text(
+                        text = if (webEditorTokenRequired) {
+                            "The address ends in a secret code, made fresh every time this is " +
+                                "turned on. Without it the phone says no - which is what stops " +
+                                "someone else's device on the Wi-Fi, and a web page open on this " +
+                                "computer, from changing your tracks."
+                        } else {
+                            "Anyone on this Wi-Fi can open the editor, change your tracks and " +
+                                "delete them, without needing the address above. That is fine on " +
+                                "your own home network and not on anyone else's."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
 

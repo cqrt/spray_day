@@ -12,8 +12,10 @@ import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.Basemap
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -427,6 +429,44 @@ class WebEditorSaveTest {
         assertNull(
             "and a path that walks out of the page's own directory is a path nothing ships",
             serving.page("/../../databases/spray_day.db")
+        )
+    }
+
+    /**
+     * What the documents say about the token, in the one place the token can be seen from outside.
+     *
+     * The style is where it matters: MapLibre asks for tiles and features itself, so the token has to
+     * be in the URLs the style hands over or the map is blank - and a run with no token must hand
+     * over URLs with no token in them, which is the same statement the bare address on the card makes.
+     */
+    @Test
+    fun theDocumentsCarryTheTokenWhenThereIsOneAndNothingWhenThereIsNot() = runBlocking {
+        fun serving(token: String?) = WebEditorDocuments(
+            assets = assets,
+            sprays = sprays,
+            token = token,
+            basemap = { Basemap.DEFAULT },
+            position = { null },
+            readPageFile = { null },
+            now = { 1_790_000_000_000L }
+        )
+
+        val guarded = serving("7f3a9c7f3a9c7f3a9c7f3a9c7f3a9c7f").style("192.168.1.23:8799")
+        assertTrue(
+            "the tiles and the features carry the token: $guarded",
+            guarded.contains("/api/assets.geojson?k=7f3a9c7f3a9c7f3a9c7f3a9c7f3a9c7f")
+        )
+        assertTrue(
+            "and the tiles, which MapLibre fetches on its own: $guarded",
+            guarded.contains("?k=7f3a9c7f3a9c7f3a9c7f3a9c7f3a9c7f")
+        )
+
+        val open = serving(null).style("192.168.1.23:8799")
+        assertFalse("a run with no token hands out no token: $open", open.contains("k="))
+        assertTrue(
+            "and still says where the work and the tiles are: $open",
+            open.contains("http://192.168.1.23:8799/api/assets.geojson") &&
+                open.contains("http://192.168.1.23:8799/tiles/")
         )
     }
 }

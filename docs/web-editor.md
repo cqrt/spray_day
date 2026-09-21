@@ -179,8 +179,8 @@ that never saw the move rather than silently undoing it.
 | --- | --- |
 | `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. **Landed in v0.6.20**; v0.6.23 gave it its first **request body** — read from the same buffered reader as the headers, `Content-Length` counted in **bytes** (counting characters would truncate a macron), 256 KB cap, `Transfer-Encoding: chunked` refused as 411, a body shorter than its own header as 400. |
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. **Landed in v0.6.21.** |
-| `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21.** |
-| `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21.** |
+| `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21**; v0.6.25 made the token **nullable**, where null is a run that asks for nothing at all: the gate route claims nothing, and it is the operator's own switch on the card that decides which of the two a run is. |
+| `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. |
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, shapes, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
@@ -195,7 +195,7 @@ that never saw the move rather than silently undoing it.
 | File | Change |
 | --- | --- |
 | `offline/LocalTileServer.kt` | Uses the extracted `HttpServer`; its routes and its loopback-only guarantee are unchanged, word for word. Its tile route and `/status` are now factory functions a second server can be handed, so the editor serves the same tiles from the same stores. **v0.6.20 and v0.6.21.** |
-| `ui/screens/SettingsScreen.kt`, `viewmodel/SettingsViewModel.kt` | The "Draw from a computer" card: the switch, the address, Copy. No preference is stored for the switch — the address *is* the state, so a switch can never claim to be serving with nothing listening. **v0.6.21.** |
+| `ui/screens/SettingsScreen.kt`, `viewmodel/SettingsViewModel.kt` | The "Draw from a computer" card: the switch, the address, Copy. No preference is stored for the switch — the address *is* the state, so a switch can never claim to be serving with nothing listening. **v0.6.21**; v0.6.25 added **"Only this address can open it"** — the token as a preference (on by default, `web_editor_token_required`), which serves the run again when it is changed while serving. |
 | `AndroidManifest.xml` | `FOREGROUND_SERVICE_DATA_SYNC` and the service. `INTERNET` is already there. No other permission. |
 | `data/AssetRepository.kt` | `insertAsset(asset, geometry, groupName)` — a new asset and its line in one transaction, the id dropped so the database issues it and the length worked out from the vertices; `saveAssetEdits(asset, blockName, geometry)` gained an optional line written with the row; `allAssetGeometry()`, `recordingCountFor` and `recordingCounts()` for the documents. **v0.6.24.** |
 | `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
@@ -243,7 +243,9 @@ that never saw the move rather than silently undoing it.
 - The geometry half of `PUT`: the body may carry `points`, a list of `{lat, lng}`, and the line is written
   in the same transaction as the rest of the row. Absent means "the line is unchanged"; an empty list is a
   refusal. `points` is also in each record's `version`, so a stale card about a moved line is refused.
-- **The token is required on everything**; anything without it is 403, including `/`.
+- **The token is required on everything**; anything without it is 403, including `/`. A run served
+  with the token switch off asks for nothing at all: no gate, no token in the address, and none in
+  the URLs the style hands to MapLibre (v0.6.25 — see *Defaults taken*, 5).
 
 ## Defaults taken (overrule any of these and change this file)
 
@@ -255,6 +257,18 @@ that never saw the move rather than silently undoing it.
 3. **Delete rule** as written under phase 2: archive-only once a spray or a recording is attached.
 4. The web may **not** touch sprays, recordings, products or anything to do with due dates. It draws
    and edits assets. It is not a management application.
+5. **The token is required, and it is a switch rather than a law** (v0.6.25). On by default, so an
+   install that never touches the card is served exactly as it always has been: the address carries
+   a per-run secret and everything without it is 403, the page included. It can be turned off, and
+   what that is *for* is worth writing down, because the argument for the token is not "the internet"
+   — a router does nothing about a visitor's phone on the same Wi-Fi, a device in the ute, or a web
+   page open on the operator's own computer reaching a port that can now draw, change and delete
+   tracks. On a home network where every device on it is the operator's own, that secret buys them
+   little and costs them a paste, so it is theirs to switch off; the card says what it gives away, in
+   words, and the address it hands out is the bare one that says the same thing. Changing it while
+   the editor is serving builds the run again, so the address on the card is always the address that
+   works. An empty token is not offered, and a run with no token is a *state* rather than a missing
+   value: `WebEditorServer`'s token is null and its gate claims nothing.
 
 ## What this does not touch
 
@@ -390,6 +404,34 @@ style's background colour and the work draws on top of it.
       its own map drawing the bend — and deleting a track with nothing on it. The state document from the
       shipped artifact carried `removal` and `newAsset`, so R8 keeps the new fields and serializers
       (`rel-geo-draw.png`, `rel-geo-drag2.png`, `rel-geo-delete.png`, `rel-geo-phone-small.jpg`).
+- [x] **The token is a switch rather than a law. v0.6.25.** The "Draw from a computer" card gained a
+      second switch — **"Only this address can open it"** — on by default, and the address itself says
+      which way it is set: with it on the address ends in a per-run secret and every request without
+      one is 403, the page included; with it off the address is bare (`http://10.0.2.16:8799/`), and
+      anything that can reach the port can read the work, draw a track, change one and delete one.
+      Turning it while the editor is serving builds the run again, so the card never shows an address
+      that does not work. Proven on the emulator by payload, screenshot and the phone's own screen:
+      with the token on, `GET /api/state` was **403 "no token"** and 200 with the secret; switching it
+      off while serving changed the address to the bare one *in place* (the run was rebuilt), answered
+      **200 with no token**, and a **POST** of a new track with no token was **201** — the phone's own
+      list then read *Bare door track · 1.39 km · never sprayed*, worked out by the phone, and the same
+      **DELETE** with no token was 200 and the list went back to *No assets yet*. Switching it back on
+      gave a **new** secret (so the run really was rebuilt) and 403 without it again, and the page
+      itself was 403 at the bare address. The desk was loaded over the bare address by
+      `pagedump.ps1 -Url "http://127.0.0.1:8799/"`: every request a plain URL with no `k=`, all 200,
+      the map drawn and the list showing the track — and over the token address with the secret. The
+      setting survived a reboot (`token-bare2.png`), and turning the editor on with it off served the
+      bare address from the first moment. **One real bug came out of this**: `index.html` had its own
+      copy of the app.js check that refuses a page with no token, so a bare address loaded a page that
+      said *"There is no token in this address"* and never booted — three files had to learn that a
+      page which was served at all has already been let in. Tests: `WebEditorServerTest` (a run with no
+      token serves the page, the documents, the tiles and all three writes, and does not care what
+      token you bring), `WebEditorLinkTest` (no token, no `k=` in the address),
+      `WebEditorSaveTest` (the style carries the token when there is one and nothing when there is
+      not), `SettingsViewModelTest` (the switch is written and only serves again while it is serving).
+      585 unit tests, 169 instrumented, lint 0 errors. Screenshots `token-card-off.png`,
+      `token-on.png`, `token-bare.png`, `token-bare2.png`, `bare-door-phone.png`, `bare-door-desk3.png`,
+      `guarded-bare.png`, `guarded-token.png`; notes in `build/verify/web-token.txt`.
 - [ ] **Phase 3** — desk conveniences: GPX drop, multi-select, tracing, show-archived.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a

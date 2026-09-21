@@ -90,6 +90,18 @@ class WebEditorLinkTest {
     }
 
     @Test
+    fun `a run with no token has no token in its address`() {
+        // What the operator reads off the card and types: no secret, and nothing left on the end
+        // that looks like one. It is the same URL either way, which is why the card's address can
+        // be copied and pasted as it stands.
+        assertEquals(
+            "http://192.168.1.23:8799/",
+            WebEditorLink.urlFor("192.168.1.23", WebEditorLink.DEFAULT_PORT, null)
+        )
+        assertEquals("http://[fd00::5]:8799/", WebEditorLink.urlFor("fd00::5", 8799, null))
+    }
+
+    @Test
     fun `a token is 32 lowercase hex characters`() {
         val token = WebEditorLink.newToken()
 

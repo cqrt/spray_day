@@ -10,7 +10,8 @@
  * **The module is imported with the token on the end of its URL**, because every request the phone
  * answers needs one and a browser asks for an `import` with no query unless it is told otherwise - the
  * same trap `index.html` documents for its own stylesheet. So this file finds the token in the address
- * the operator opened, exactly as `app.js` does, and asks for `./geometry.mjs?k=...`.
+ * the operator opened, exactly as `app.js` does, and asks for `./geometry.mjs?k=...` - or for the module
+ * with no query at all when the phone is serving with no token, which is the other kind of run.
  *
  * **Nothing here talks to the phone.** A vertex is moved in the page's own memory, undone from the
  * page's own history, and the finished line is handed to `onFinish` - which is the page's business,
@@ -19,7 +20,9 @@
 
 const TOKEN = new URLSearchParams(location.search).get('k') || '';
 
-const geometry = await import(`./geometry.mjs?k=${encodeURIComponent(TOKEN)}`);
+const geometry = await import(
+  TOKEN ? `./geometry.mjs?k=${encodeURIComponent(TOKEN)}` : './geometry.mjs'
+);
 
 const {
   add,

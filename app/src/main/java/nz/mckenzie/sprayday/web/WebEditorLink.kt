@@ -53,11 +53,18 @@ object WebEditorLink {
         .distinct()
         .sortedWith(compareBy({ rank(it) }, { it.interfaceName }, { it.address }))
 
-    /** The address to open on the computer, token and all. */
-    fun urlFor(address: String, port: Int = DEFAULT_PORT, token: String): String {
+    /**
+     * The address to open on the computer - token and all, or bare when this run asks for none.
+     *
+     * A null [token] is a run with no secret, which is a thing the operator can choose: see
+     * [WebEditorServer]. What comes back then is the plain address, so the card shows a door that
+     * anybody on the Wi-Fi can walk through as exactly that - and nothing is left on the end that
+     * looks like a key and is not being checked.
+     */
+    fun urlFor(address: String, port: Int = DEFAULT_PORT, token: String?): String {
         // A URL needs brackets around an IPv6 literal; nothing else about it changes.
         val host = if (address.contains(':')) "[$address]" else address
-        return "http://$host:$port/?k=$token"
+        return "http://$host:$port/" + if (token == null) "" else "?k=$token"
     }
 
     /**

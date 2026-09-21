@@ -64,6 +64,10 @@ one line, so a multi-segment GPX imported from another tool becomes one line wit
 segments as paths, and decide what to do with a segment that does not touch the line (probably: keep
 it as a side track only when it joins, otherwise offer to import it as its own asset).
 
+**One loose end from v0.6.27 belongs here**: `GpxWriter` writes one segment per path, and the unit
+tests that cover it all pass a single path, so the two-path case has no test of its own. Writing one
+is part of this slice, before anything else in it.
+
 ## Decided and dropped
 
 - **Archiving assets** - dropped, not deferred: nothing in the field asks for it, and a track that is

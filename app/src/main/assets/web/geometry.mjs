@@ -208,6 +208,125 @@ export function verticesOf(feature) {
   return geometry.coordinates.map((pair) => vertex({ lat: pair[1], lng: pair[0] }));
 }
 
+/* ---- Tracing: following the fence with the button held down ------------------------- */
+
+/**
+ * How far, in pixels, the pointer has to travel before a traced point is worth keeping.
+ *
+ * Four pixels is about what a hand wobbles: sample any finer and a traced fence arrives as a few
+ * hundred vertices that are noise, because the *hand* is the noise. What the pointer does between two
+ * samples is what [simplify] throws away, so the two constants are two halves of one decision - sample
+ * often enough to keep the shape, then keep only the points that made the shape.
+ */
+export const TRACE_PX = 4;
+
+/**
+ * Metres on the ground in one screen pixel, at a latitude and a zoom - the web-mercator formula the
+ * maps themselves are drawn with.
+ *
+ * This is what turns a screen measurement into a ground one, and it is the only place the page's own
+ * drawing has anything to say about the size of the earth: a traced line is simplified to what the
+ * operator could *see* while tracing, and what they could see is measured in pixels, so the tolerance
+ * has to be worked out from the view they traced in. Ported rather than imported because the phone's
+ * own maps use the same projection, so the two agree about what a pixel is worth.
+ */
+export function metresPerPixel(latitude, zoom) {
+  const EARTH_CIRCUMFERENCE_M = 40075016.686;
+  return (EARTH_CIRCUMFERENCE_M * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, zoom + 8);
+}
+
+/**
+ * A traced stroke with the pointer's new position on the end, or the stroke unchanged.
+ *
+ * What a hand dragging a mouse along a fence produces: a stream of positions, most of which are the
+ * same place as the last one to within the width of a pixel. Two things are refused here, and each of
+ * them is a way a trace would otherwise arrive as junk: a position that is the same place as the last
+ * one **to the bit**, because the phone drops consecutive repeats and there is no point sending it
+ * one; and a position within [tolerancePx] of the last one, because that is the hand rather than the
+ * fence. Nothing else is refused: snapping is the caller's, because snapping is what the *map* knows.
+ */
+export function trace(stroke, point, project, tolerancePx = TRACE_PX) {
+  const last = stroke[stroke.length - 1];
+  if (!last) return [vertex(point)];
+  if (samePlace(last, point)) return stroke;
+  const moved = distanceBetween(project(last), project(point));
+  return moved < tolerancePx ? stroke : [...stroke, vertex(point)];
+}
+
+/**
+ * The stroke as the line's own vertices: every point that carries shape, and none that does not.
+ *
+ * Ramer-Douglas-Peucker, which is the right idea here rather than a moving average: it keeps the
+ * vertices that are *far from the straight line between their neighbours*, so a corner survives at full
+ * sharpness and the wobble along a straight run disappears - including the position the run ends at.
+ * A smoothing filter would instead round the corner off, and a fenced corner is exactly what the
+ * operator was tracing.
+ *
+ * [toleranceM] is in metres on the ground - see [metresPerPixel] for where a screen measurement turns
+ * into one. Distances inside the search are measured on the plane the line is nearly flat in: over a
+ * traced fence, which is hundreds of metres, the curvature of the earth is far below the tolerance,
+ * and this is a decision about shape rather than a measurement anybody reads.
+ */
+export function simplify(points, toleranceM) {
+  if (points.length < 3) return points.map(vertex);
+
+  const origin = points[0];
+  const latRad = (origin.lat * Math.PI) / 180;
+  const toPlane = (point) => ({
+    x: (point.lng - origin.lng) * METRES_PER_DEGREE * Math.cos(latRad),
+    y: (point.lat - origin.lat) * METRES_PER_DEGREE
+  });
+
+  const keep = new Array(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+
+  // An explicit stack rather than recursion: a five-hundred-point stroke is a fence traced at speed,
+  // and what nests is the number of bends worth keeping, not the number of samples.
+  const pending = [[0, points.length - 1]];
+  while (pending.length > 0) {
+    const [first, last] = pending.pop();
+    let worst = 0;
+    let worstAt = -1;
+    for (let index = first + 1; index < last; index++) {
+      const away = distanceToSegment(toPlane(points[index]), toPlane(points[first]), toPlane(points[last]));
+      if (away > worst) {
+        worst = away;
+        worstAt = index;
+      }
+    }
+    if (worst > toleranceM && worstAt > 0) {
+      keep[worstAt] = true;
+      pending.push([first, worstAt], [worstAt, last]);
+    }
+  }
+
+  return points.filter((_, index) => keep[index]).map(vertex);
+}
+
+/** Metres in a degree of latitude: the same mean the phone's own arithmetic uses, to a metre. */
+const METRES_PER_DEGREE = 111_320;
+
+/**
+ * The line with a whole traced stroke on the end - as **one** step of the history.
+ *
+ * This is the difference between tracing and clicking, and it is the reason a stroke is gathered up
+ * before it is put on the line: an operator who has just followed a fence for a hundred metres wants
+ * Ctrl+Z to take the fence back, not to walk back along it one sample at a time. A stroke of **one**
+ * point is a press rather than a trace, so it is not a step at all - the click the browser sends after
+ * it is what adds a vertex, which is what a click has always meant here.
+ *
+ * The simplification runs over the line's own last vertex and the stroke together, so the run up to the
+ * first traced point is measured against that vertex rather than being cut off at the press.
+ */
+export function traced(state, stroke, toleranceM) {
+  if (stroke.length < 2) return state;
+  const anchor = state.points[state.points.length - 1];
+  if (!anchor) return stepped(state, simplify(stroke, toleranceM));
+  const kept = simplify([anchor, ...stroke], toleranceM);
+  return stepped(state, [...state.points.slice(0, -1), ...kept]);
+}
+
 function distanceBetween(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }

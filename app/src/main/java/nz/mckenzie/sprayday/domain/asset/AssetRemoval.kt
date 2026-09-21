@@ -30,8 +30,13 @@ data class AssetRemoval(
  *
  * So the desk deletes only what has nothing recorded against it, which is the mis-drawn track the
  * plan's other half is about, and anything with history attached is refused in numbers, with the
- * phone named as the place to do it. `active = false` waits for a screen that shows it - the plan's
- * own phase 3 lists show-archived - because "put away" is only an answer if there is a way back.
+ * phone named as the place to do it.
+ *
+ * **"Put away" was dropped rather than deferred** (the decision, taken after this shipped). The plan
+ * had it as phase 3's *show-archived* and this file said it was waiting for that screen; the operator
+ * who owns the data answered the question the other way round - there is no archive, so there is
+ * nothing for a screen to show. The column stays as the record's own field, which is what a backup
+ * carries and what the state document filters on, and no screen sets it.
  *
  * **The count is read at the moment of the delete, not quoted from the card.** A spray that lands
  * while the sheet is open is exactly the case where a desk's belief about an asset is out of date,

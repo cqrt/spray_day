@@ -18,16 +18,18 @@ away.
 - **Phase 2 is complete and shipped.** v0.6.23 was the desk's first write — the card's details form,
   the version fingerprint, the phone's own rules and sentences doing the judging. v0.6.24 added the
   geometry (`POST /api/assets` for a new track, the line through `PUT`) and `DELETE
-  /api/assets/<id>?version=…`, with the desk's drawing in `edit.js` over `geometry.mjs`. What a desk
-  still cannot do: put an asset into `active = false` — see *Next action*.
-- The last shipped work is **v0.6.25** (the token becomes a switch), before it v0.6.24 (the line and
-  the delete), v0.6.23 (the desk's first write), v0.6.22 (the page), v0.6.21 (the phone side of the
-  desk view), v0.6.20 (the HTTP split) and v0.6.19 (map layer switches). The state written here was
-  true when the file was written — **check it rather than trust it** (`git status`, `HEAD` against
-  `origin/main`, `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a
-  plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.25 → **v0.6.26**, Phase 3's first
-  slice.
+  /api/assets/<id>?version=…`, with the desk's drawing in `edit.js` over `geometry.mjs`. v0.6.26 added
+  **tracing** — a line followed with the button held down — and the first slice of Phase 3.
+- A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
+  (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
+  recorded against it, and be told the numbers when there is.
+- The last shipped work is **v0.6.26** (tracing a line over the imagery), before it v0.6.25 (the token
+  becomes a switch), v0.6.24 (the line and the delete), v0.6.23 (the desk's first write), v0.6.22 (the
+  page), v0.6.21 (the phone side of the desk view), v0.6.20 (the HTTP split) and v0.6.19 (map layer
+  switches). The state written here was true when the file was written — **check it rather than trust
+  it** (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan
+  document that claims a clean tree is a plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.26 → **v0.6.27**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -74,7 +76,7 @@ later: the same editor would sit behind a second storage adapter.
 | **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | **v0.6.20 — shipped** |
 | **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.21 (the phone) + v0.6.22 (the page)** |
 | **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | **v0.6.23 (metadata) + v0.6.24 (the line, a new track, the delete)** |
-| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, tracing, show-archived. | v0.6.25+ |
+| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, **tracing a line over the imagery**. *Show-archived was dropped* — see below. | v0.6.26+ |
 
 ### Step 0 — the HTTP split (v0.6.20, shipped)
 
@@ -185,8 +187,8 @@ that never saw the move rather than silently undoing it.
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, shapes, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
-| `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: the path and its undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the line a click belongs, the vertex to snap onto, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24.** |
-| `app/src/test/js/geometry.test.mjs` | Those claims, under node: 17 tests, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24.** |
+| `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: the path and its undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the line a click belongs, the vertex to snap onto, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history). |
+| `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
 | `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24.** |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. |
 | `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic) beside them. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24.** |
@@ -247,6 +249,33 @@ that never saw the move rather than silently undoing it.
 - **The token is required on everything**; anything without it is 403, including `/`. A run served
   with the token switch off asks for nothing at all: no gate, no token in the address, and none in
   the URLs the style hands to MapLibre (v0.6.25 — see *Defaults taken*, 5).
+
+## Phase 3 — the desk conveniences
+
+**Snapping shipped with the drawing itself** (v0.6.24, `geometry.mjs`, with a test for the loop that
+closes): a new point snaps onto the other assets' vertices and onto the line's own first, so a track
+comes back to where it started exactly rather than nearly.
+
+**Tracing shipped in v0.6.26.** Holding the mouse button down and moving follows the pointer, so a
+boundary that is *already drawn on the ground* - a fenceline, a paddock edge, a track on the imagery -
+is followed rather than guessed at one click at a time. The two ways of laying a line mix freely: click
+for the corners you know exactly, trace the runs between them, and both go onto the same line in the
+order they were said. The arithmetic is `geometry.mjs`'s and is tested under node:
+  - a point is sampled once the pointer has moved `TRACE_PX` (4) pixels - the hand's wobble is not the fence;
+  - the stroke is simplified (Ramer-Douglas-Peucker) to what the operator could *see*, the tolerance
+    being half a sample step worked out from the view they traced in (`metresPerPixel`), so a corner
+    survives at full sharpness and the wobble along a straight run goes;
+  - **the whole stroke is one step of the history**: Ctrl+Z takes the fence back, not one sample of it;
+  - a press that never moved is not a step at all, so the click that follows it still means what a click
+    has always meant.
+
+**"Put away" was dropped** (the decision). The plan had archiving as this phase's *show-archived*, and
+`AssetRemovalRules` said it was waiting for a screen that showed an archived asset. The operator owns
+the data, was asked directly, and answered the other way: there is no archive, so there is nothing for a
+screen to show. What the desk may do with a track it wants gone is unchanged - delete it if nothing is
+recorded against it, and if sprays or recordings hang off it, they are named in numbers and the phone is
+where it goes. The `active` column stays exactly as it is: it is the record's own field, a backup
+carries it, and the state document filters on it. Nothing sets it, and nothing is going to.
 
 ## Defaults taken (overrule any of these and change this file)
 
@@ -439,18 +468,40 @@ style's background colour and the work draws on top of it.
       1.39 km · never sprayed*), the minified desk drawn over the bare address, the delete answered,
       and a new secret when it was turned back on (`rel-token-on`, `rel-token-bare`, `rel-token-back-on`,
       `rel-bare-desk.png`, `rel-bare-phone-small.jpg`).
-- [ ] **Phase 3** — desk conveniences: GPX drop, multi-select, tracing, show-archived.
+- [x] **Phase 3, first slice — tracing a line over the imagery. v0.6.26.** Holding the button down and
+      moving follows the pointer, and the stroke is put on the line when the button comes up: `trace`
+      samples every four pixels of travel, `simplify` (Ramer-Douglas-Peucker, tolerance from
+      `metresPerPixel` and the zoom that was traced in) keeps the corners and drops the hand's wobble,
+      and `traced` makes the whole fence **one** step of the history. Proven against the phone by driving
+      real mouse events (`pagedump.ps1 -Mouse`, which grew a `trace` step for this): **57 mouse samples
+      along eight waypoints arrived as eight vertices**, the phone's own screen then read *Traced fence ·
+      607.13 km · never sprayed* (the length is the phone's arithmetic, and the emulator's map is zoomed
+      right out), and **one Ctrl+Z took the whole traced fence back** - 0 points, and on an asset the
+      phone already had, tracing a second fence (8 → 27 points) and pressing Ctrl+Z once left **the stored
+      line identical to the byte** after the save that followed (*"Saved. The phone has it."*, 410 bytes
+      before and after). One run in five put nothing on the line for the first trace and the identical
+      gesture worked either side of it, which is the racy first fit below costed as a wasted run. Nine new
+      node tests (26 in all) pin the sampling, the simplification, the corner at full sharpness, the
+      one-step history, the press that is not a trace and the loop that closes. Screenshots `trace-a.png`
+      (the line), `trace-b.png` (after one Ctrl+Z), `trace-c.png` (saved), `trace-phone.png` (the phone's
+      own list); notes in `build/verify/web-trace.txt`.
+- [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
+      *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Phase 3 — the desk conveniences.** Snapping to other assets and to a line's own first vertex is already
-in (`geometry.mjs`, with a test for the loop that closes): what is left is GPX drop, selecting more than one
-asset at once, tracing a line over imagery, and showing archived assets — the last of which now has a
-reason to exist, because *nothing* can put an asset into `active = false` from the desk and nothing on the
-phone reads it back. Either that becomes a real state with a way in and a way out, or it goes.
+**Phase 3 — what is left of it.** Snapping is in (with the drawing itself) and tracing is in (v0.6.26).
+What remains is **GPX drag-and-drop** — drop a GPX file on the desk and have it become a track's line —
+and **working on more than one asset at once**. *Show-archived was dropped, not deferred*: see the phase 3
+section above for the decision and what it leaves alone.
+
+**The first press after a page load can be wasted.** One run in five, the first traced stroke after the
+desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the
+same window the racy fit below moves in, and the cost is a wasted run rather than a wrong line — but two
+of these now, so it is worth doing with the fit.
 
 **Two small things found while reviewing v0.6.24's own page code**, neither of which is worth retagging a
 release for, and both of which are one line:

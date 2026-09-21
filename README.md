@@ -35,7 +35,9 @@ sprayed).
   take one off and Ctrl+Z to take a step back — none of which reaches the phone until you press
   Enter; a whole new track can be drawn from scratch; and a mis-drawn one that has nothing recorded
   against it can be deleted, while one with sprays on it says so in numbers and sends you to the
-  phone. Everything is judged by the phone's own rules and written to the phone's own database, so
+  phone. A line is laid two ways: **click** where a corner is, or **hold the button down and follow
+  the fence on the imagery** — the two mix, and a traced fence is one Ctrl+Z rather than twenty.
+  Everything is judged by the phone's own rules and written to the phone's own database, so
   the laptop and the phone cannot disagree about what is on the farm. The address the card shows
   carries a secret code that the phone checks, and **"Only this address can open it"** turns that
   off for a network you own — with it off the address is a plain one and anyone on the Wi-Fi can

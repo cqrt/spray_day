@@ -16,18 +16,23 @@ import test from 'node:test';
 
 import {
   HISTORY_LIMIT,
+  TRACE_PX,
   add,
   canRedo,
   canUndo,
   createPath,
   insert,
+  metresPerPixel,
   move,
   redo,
   remove,
   samePlace,
   segmentAt,
+  simplify,
   snap,
   toFeature,
+  trace,
+  traced,
   undo,
   vertex,
   vertexAt,
@@ -36,6 +41,9 @@ import {
 
 /** A projection with no map under it: a degree is 1000 pixels, so the arithmetic is visible. */
 const project = (point) => ({ x: point.lng * 1000, y: point.lat * 1000 });
+
+/** Metres in a degree of latitude: the page's own mean, repeated here so a test can measure in metres. */
+const METRES_PER_DEGREE_TEST = 111_320;
 
 const a = { lat: -41.5, lng: 173.8 };
 const b = { lat: -41.6, lng: 173.9 };
@@ -255,4 +263,136 @@ test('a path handed in comes back vertex by vertex, and the caller keeps its own
 
   assert.equal(original.length, 2, 'the array the operator clicked from is not written to');
   assert.deepEqual(vertex(a), a);
+});
+
+/* ---- Tracing: the line that follows the pointer -------------------------------------- */
+
+test('a traced point is kept once the pointer has moved, and dropped when it has not', () => {
+  // The projection above is a degree to a thousand pixels, so this is travel in whole pixels.
+  let stroke = trace([], a, project);
+  assert.deepEqual(stroke, [a]);
+
+  stroke = trace(stroke, { lat: a.lat, lng: a.lng + 0.0005 }, project);
+  assert.equal(stroke.length, 1, 'half a pixel of travel is the hand, not the fence');
+
+  stroke = trace(stroke, { lat: a.lat, lng: a.lng + 0.005 }, project);
+  assert.equal(stroke.length, 2, 'five pixels of travel is a point on the fence');
+
+  // Exactly the tolerance is a point: the rule is "moved at least this far", not "more than".
+  stroke = trace(stroke, { lat: a.lat, lng: a.lng + 0.005 + TRACE_PX / 1000 }, project);
+  assert.equal(stroke.length, 3);
+});
+
+test('a traced point is never a repeat of the one before it, to the bit', () => {
+  const stroke = trace([a], { lat: a.lat, lng: a.lng }, project);
+
+  assert.equal(stroke.length, 1, 'the phone drops consecutive repeats, so none are gathered here');
+});
+
+test('a straight wobble simplifies to the points that carry its shape', () => {
+  const midway = { lat: a.lat, lng: a.lng + 0.0002 };
+  const end = { lat: a.lat, lng: a.lng + 0.0004 };
+
+  const kept = simplify([a, midway, end], 1);
+
+  assert.deepEqual(kept, [a, end], 'a point on the line carries nothing');
+});
+
+test('a corner survives simplification exactly where it was traced', () => {
+  const east = { lat: a.lat, lng: a.lng + 0.001 };
+  const south = { lat: a.lat - 0.001, lng: east.lng };
+  const wobble = { lat: a.lat, lng: a.lng + 0.0005 };
+
+  const kept = simplify([a, wobble, east, south], 5);
+
+  assert.deepEqual(kept, [a, east, south], 'the corner is the shape, and it is kept');
+  assert.deepEqual(kept[1], east, 'and kept as the very vertex that was traced, not moved onto the line');
+});
+
+test('a tolerance of nothing keeps every point that deviates at all', () => {
+  const onTheLine = { lat: a.lat, lng: a.lng + 0.0002 };
+  const end = { lat: a.lat, lng: a.lng + 0.0004 };
+
+  assert.deepEqual(
+    simplify([a, onTheLine, end], 0),
+    [a, end],
+    'a point exactly on the line is not a point, whatever the tolerance'
+  );
+
+  // A tenth of a millimetre off it is: with nothing to throw away, nothing is thrown away.
+  const hair = { lat: a.lat + 0.000000001, lng: a.lng + 0.0002 };
+  assert.deepEqual(simplify([a, hair, end], 0), [a, hair, end]);
+});
+
+test('a traced fence goes onto the line as one step, and one Ctrl+Z takes it all back', () => {
+  // The view it was traced in, as ground distances: at zoom 17 over the farm a pixel is about 0.9 m, so
+  // the hand samples every 3.6 m and wobbles by about 0.9 m - both under the tolerance, which is what
+  // the fifty-two samples below are here to show.
+  const perPixel = metresPerPixel(a.lat, 17);
+  const degreesLat = (metres) => metres / METRES_PER_DEGREE_TEST;
+  const degreesLng = (metres) =>
+    metres / (METRES_PER_DEGREE_TEST * Math.cos((a.lat * Math.PI) / 180));
+
+  const stroke = [];
+  for (let sample = 1; sample <= 26; sample++) {
+    stroke.push({
+      lat: a.lat + degreesLat(sample % 2 === 0 ? perPixel : -perPixel),
+      lng: a.lng + degreesLng(sample * TRACE_PX * perPixel)
+    });
+  }
+  const corner = stroke[stroke.length - 1];
+  for (let sample = 1; sample <= 26; sample++) {
+    stroke.push({
+      lat: corner.lat - degreesLat(sample * TRACE_PX * perPixel),
+      lng: corner.lng + degreesLng(sample % 2 === 0 ? perPixel : -perPixel)
+    });
+  }
+
+  const before = add(createPath(), a);
+  const path = traced(before, stroke, perPixel * (TRACE_PX / 2));
+
+  assert.equal(path.points.length, 3, 'the fence, its corner, and where the arm stopped');
+  assert.deepEqual(path.points[1], corner, 'the corner is where it was traced');
+  assert.equal(path.past.length, before.past.length + 1, 'fifty-two samples are one thing to take back');
+  assert.deepEqual(undo(path).points, before.points, 'and Ctrl+Z leaves the line as it was before the trace');
+});
+
+test('a press that never moved is not a step at all', () => {
+  const path = add(createPath(), a);
+
+  assert.equal(traced(path, [], 1), path, 'nothing traced, nothing to take back');
+  assert.equal(traced(path, [b], 1), path, 'one point is a press: the click that follows adds it');
+  assert.equal(
+    traced(path, [b, c], 1).past.length,
+    path.past.length + 1,
+    'two points is a trace'
+  );
+});
+
+test('a trace that comes back to where it started closes on that vertex exactly', () => {
+  const path = add(createPath(), a);
+  const closed = add(path, b);
+
+  // Snapping is the page's, and what it hands over is the line's own first vertex, copied.
+  const after = traced(closed, [c, vertex(a)], 1);
+
+  assert.deepEqual(after.points[after.points.length - 1], a);
+  assert.ok(samePlace(after.points[0], after.points[after.points.length - 1]));
+});
+
+test('a traced line is simplified to the size of what the operator could see', () => {
+  // Zoom 17 over the farm: about 0.9 m to a pixel, so half the sampling step is a couple of metres of
+  // fence - the shape as it looked on the screen, and not the shape of the hand.
+  const perPixel = metresPerPixel(-41.5, 17);
+  assert.ok(perPixel > 0.85 && perPixel < 0.95, `a pixel at zoom 17 is about 0.9 m: ${perPixel}`);
+  assert.ok(
+    perPixel * (TRACE_PX / 2) > 1.5 && perPixel * (TRACE_PX / 2) < 2,
+    'and the tolerance is a metre or two of fence'
+  );
+
+  // Zooming out doubles what a pixel is worth, which is what makes the tolerance follow the view: the
+  // same wobble traced further out is a bigger wobble on the ground.
+  assert.equal(metresPerPixel(-41.5, 16), perPixel * 2);
+  assert.equal(metresPerPixel(0, 0), 40075016.686 / 256, 'a pixel at zoom 0 is the world over 256');
+  assert.ok(metresPerPixel(-41.5, 17) < metresPerPixel(0, 17), 'and a pixel shrinks towards the pole');
 });

@@ -531,7 +531,7 @@ function startShape(item) {
  * The page's own words, because none of this is a rule - it is how the map is worked. What the phone
  * will or will not take is the phone's to say, and it says it when the line is saved.
  */
-function showDrawing({ mode, points, canUndo }) {
+function showDrawing({ mode, points, canUndo, tracing }) {
   const bar = field('drawing');
   if (mode === 'off') {
     bar.hidden = true;
@@ -540,14 +540,20 @@ function showDrawing({ mode, points, canUndo }) {
 
   const count = points.length;
   const steps = [`${count} point${count === 1 ? '' : 's'}`];
-  steps.push(mode === 'new'
-    ? 'click the map to lay the track'
-    : 'drag a handle to move it, or click the line to put one in the middle');
-  steps.push('Del takes one off');
-  steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
-  steps.push(mode === 'new'
-    ? 'Enter or a double click finishes'
-    : 'Enter or a double click saves the line');
+  if (tracing) {
+    // What the hand is doing right now, and the one thing worth knowing about it: the whole fence lands
+    // at once, so letting go is not a commitment to twenty vertices.
+    steps.push('following the pointer - let go to put this fence down');
+  } else {
+    steps.push(mode === 'new'
+      ? 'click the map to lay the track, or hold the button and follow the fence'
+      : 'drag a handle, click the line to put one in the middle, or hold the button and follow it');
+    steps.push('Del takes one off');
+    steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
+    steps.push(mode === 'new'
+      ? 'Enter or a double click finishes'
+      : 'Enter or a double click saves the line');
+  }
   steps.push('Esc gives up');
 
   field('drawing-words').textContent = steps.join(' · ');

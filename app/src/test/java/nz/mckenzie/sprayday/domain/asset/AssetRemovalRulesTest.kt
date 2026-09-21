@@ -11,8 +11,8 @@ import org.junit.Test
  * The one thing being held here is that the desk never deletes something a season's record hangs off.
  * The plan said the desk should archive instead of deleting (`active = false`); the app has no screen
  * that shows an archived asset and no way to bring one back, so that would be a quiet removal - see
- * [AssetRemovalRules]. What is left is this: nothing attached, delete it; anything attached, say how
- * much and send the operator to the phone.
+ * [AssetRemovalRules]. The archive was dropped rather than waited for, so this is the whole of the rule:
+ * nothing attached, delete it; anything attached, say how much and send the operator to the phone.
  */
 class AssetRemovalRulesTest {
 

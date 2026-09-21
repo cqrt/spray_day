@@ -23,6 +23,15 @@ const params = new URLSearchParams(location.search);
 const TOKEN = params.get('k') || '';
 
 /**
+ * The one piece of the page's own logic that decides anything about a write: which of the two drawing
+ * shapes a save carries. Imported with the token on the URL, because a browser asks for a module with
+ * no query unless it is told otherwise and the phone's gate answers nothing without one.
+ */
+const { drawingBody } = await import(
+  TOKEN ? `./wire.mjs?k=${encodeURIComponent(TOKEN)}` : './wire.mjs'
+);
+
+/**
  * Everything the phone serves is behind the token, and the token is in the address - except when the
  * operator has turned the token off on the phone, in which case the address has none and there is
  * nothing to add.
@@ -679,6 +688,9 @@ function formBody({ version = null, points = null } = {}) {
  *
  * Built from the record rather than from the form's fields, because the form is not open - and the record
  * is the row the phone last handed over, so what goes back is what the operator is looking at.
+ *
+ * Which of the two drawing shapes it carries - one path, or the line with the track's side tracks - is
+ * `wire.mjs`'s decision, so that it can be tested without a browser.
  */
 function recordBody(item, points) {
   return {
@@ -693,7 +705,7 @@ function recordBody(item, points) {
     passSeparationM: item.asset.passSeparationM === null ? '' : String(item.asset.passSeparationM),
     notes: item.asset.notes || '',
     version: item.version,
-    points
+    ...drawingBody(item, points)
   };
 }
 

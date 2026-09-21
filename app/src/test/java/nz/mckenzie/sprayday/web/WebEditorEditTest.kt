@@ -66,7 +66,8 @@ class WebEditorEditTest {
         passes: Int = asset.passesRequired,
         separation: String = asset.passSeparationM.toString(),
         notes: String? = asset.notes,
-        points: List<GeoPoint>? = null
+        points: List<GeoPoint>? = null,
+        paths: List<List<GeoPoint>>? = null
     ): String = buildString {
         append("""{"name":"$name","kind":"$kind","shape":"$shape","method":"$method",""")
         append(""""blockName":${if (block == null) "null" else "\"$block\""},""")
@@ -74,6 +75,7 @@ class WebEditorEditTest {
         append(""""passesRequired":$passes,"passSeparationM":"$separation",""")
         append(""""notes":${if (notes == null) "null" else "\"$notes\""},""")
         if (points != null) append(""""points":${pointJson(points)},""")
+        if (paths != null) append(""""paths":[${paths.joinToString(",") { pointJson(it) }}],""")
         append(""""version":"$version"}""")
     }
 
@@ -225,12 +227,12 @@ class WebEditorEditTest {
     }
 
     @Test
-    fun `a path the desk drew is taken, and comes back as the points to store`() {
+    fun `a path the desk drew is taken, and comes back as the paths to store`() {
         val drawn = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.55, 173.85), GeoPoint(-41.6, 173.9))
 
         val result = ok(body(points = drawn, intervalDays = "90"))
 
-        assertEquals("the line is stored with the row", drawn, result.points)
+        assertEquals("the line is stored with the row", listOf(drawn), result.paths)
         assertEquals("and the details in the same body came along with it", 90, result.asset.intervalDays)
     }
 
@@ -239,7 +241,7 @@ class WebEditorEditTest {
         // Which is what the details form sends: the same body, one key shorter. Null rather than an
         // empty list, so the difference between "nothing has moved" and "nothing is drawn" survives
         // all the way to the repository.
-        assertNull(ok(body()).points)
+        assertNull(ok(body()).paths)
     }
 
     @Test
@@ -376,5 +378,58 @@ class WebEditorEditTest {
         val withVersion = draftBody().dropLast(1) + ""","version":"a-card-from-before"}"""
 
         assertEquals(path, drafted(withVersion).geometry.line)
+    }
+
+    /* ---- A drawing that carries side tracks -------------------------------------------- */
+
+    /** A side track off the far end of the line, which is where one leaves a track. */
+    private val spur = listOf(path.last(), GeoPoint(-41.55, 173.85))
+
+    @Test
+    fun `a body carrying paths is taken with every path in it`() {
+        val taken = ok(body(paths = listOf(path, spur)))
+
+        assertEquals("the line and its side track", 2, taken.paths!!.size)
+        assertEquals(path, taken.paths!![0])
+        assertEquals("the side track goes back exactly as it came", spur, taken.paths!![1])
+    }
+
+    @Test
+    fun `a side track that does not start on the line is refused in the app's own words`() {
+        val refused = refused(
+            body(paths = listOf(path, listOf(GeoPoint(-41.2, 173.2), GeoPoint(-41.3, 173.3))))
+        )
+
+        assertTrue("says what to do: ${refused.message}", refused.message.contains("start on the track"))
+    }
+
+    @Test
+    fun `a body carrying two drawings is refused rather than read one way or the other`() {
+        val refused = refused(body(points = path, paths = listOf(path, spur)))
+
+        assertTrue(
+            "says the page is confused: ${refused.message}",
+            refused.message.contains("two drawings")
+        )
+        assertTrue(
+            "and what to do about it: ${refused.message}",
+            refused.message.contains("Reload the page")
+        )
+    }
+
+    @Test
+    fun `a body carrying paths puts them on the version too, so a spur added since is stale`() {
+        // The version is built from the paths the phone holds, so a card that never saw the spur is
+        // refused by the same arithmetic as one that never saw a rename: this is that arithmetic, from
+        // the desk's side - the body's own paths are what a fresh card would quote.
+        val quoted = WebEditorVersion.of(asset, blockName, listOf(path))
+        val fresh = WebEditorVersion.of(asset, blockName, listOf(path, spur))
+
+        assertNotEquals(quoted, fresh)
+        assertEquals(
+            "and a body carrying the paths is taken against the version it quoted",
+            path,
+            ok(body(version = quoted, paths = listOf(path))).paths!!.first()
+        )
     }
 }

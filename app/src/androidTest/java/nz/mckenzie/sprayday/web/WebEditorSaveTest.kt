@@ -94,12 +94,14 @@ class WebEditorSaveTest {
         name: String = "Estuary road",
         block: String = "Estuary",
         intervalDays: String = "120",
-        points: List<GeoPoint>? = null
+        points: List<GeoPoint>? = null,
+        paths: List<List<GeoPoint>>? = null
     ): String =
         """{"name":"$name","kind":"ROAD","shape":"LINE","method":"BOOM","blockName":"$block",""" +
             """"intervalDays":"$intervalDays","swathWidthM":"12.5","passesRequired":2,""" +
             """"passSeparationM":"3.0","notes":"Both edges",""" +
             (if (points == null) "" else """"points":${pointsJson(points)},""") +
+            (if (paths == null) "" else """"paths":[${paths.joinToString(",") { pointsJson(it) }}],""") +
             """"version":"$version"}"""
 
     /**
@@ -336,12 +338,12 @@ class WebEditorSaveTest {
         )
 
         assertTrue(
-            "says what is in the way: ${refusal.message}",
-            refusal.message.contains("side track")
+            "says what is missing: ${refusal.message}",
+            refusal.message.contains("side tracks")
         )
         assertTrue(
-            "and where the change is made: ${refusal.message}",
-            refusal.message.contains("on the phone")
+            "and what to do about it: ${refusal.message}",
+            refusal.message.contains("Reload the page")
         )
         assertEquals(
             "the side track is still there, which is what the refusal is for",
@@ -349,6 +351,80 @@ class WebEditorSaveTest {
             assets.getAssetGeometry(id).sideTracks.size
         )
         assertEquals("and the line the desk tried to write was not written", 3, assets.getAssetGeometry(id).line.size)
+    }
+
+    /**
+     * The other half of that rule: a page that **has** been handed the side tracks can change the line.
+     *
+     * This is the write v0.6.27 had to refuse outright, and the two writes together are the whole
+     * contract: the paths travel back with the line as the page's own record holds them, and the phone
+     * writes what it is given - the side track untouched, the line as the operator tidied it, and the
+     * length worked out from both.
+     */
+    @Test
+    fun aLineWriteThatCarriesTheSideTracksChangesTheLineAndKeepsThem() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val spur = listOf(junction, GeoPoint(0.001, 0.0005))
+        val id = assets.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(listOf(line.first(), junction, line.last()), listOf(spur))
+        )
+        val version = stateRecord(id).version
+        // What the card was handed, and therefore what it sends back: the line as the phone holds it,
+        // then the untouched spur.
+        val asThePageHoldsIt = stateRecord(id).paths.map { it.map { point -> GeoPoint(point.lat, point.lng) } }
+        assertEquals("the record carries both paths, line first", 2, asThePageHoldsIt.size)
+        val tidied = listOf(line.first(), junction, GeoPoint(0.0, 0.0015))
+
+        val answer = saved(
+            documents.save(id, editBody(version, paths = listOf(tidied, asThePageHoldsIt[1])))
+        )
+
+        val stored = assets.getAssetGeometry(id)
+        assertEquals("the line as the desk drew it", tidied, stored.line)
+        assertEquals("and the side track, untouched", listOf(spur), stored.sideTracks)
+        assertEquals(
+            "with the length worked out from both, each path counted once",
+            277.9,
+            answer.record.asset.lengthM,
+            1.0
+        )
+        assertEquals("and the version the desk is told is a new one", true, answer.record.version != version)
+    }
+
+    @Test
+    fun aDrawingWithMorePathsThanTheTrackHasIsRefusedAsThePhoneChangingSideTracks() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val asThePhoneHoldsIt = listOf(line.first(), junction, line.last())
+        val id = assets.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(asThePhoneHoldsIt)
+        )
+        val version = stateRecord(id).version
+
+        // The desk trying to add a side track: every path in the body is a path the rules would take,
+        // so what refuses it is the count - the desk cannot see the whole of what it is doing yet, and a
+        // phone that shrugged at the extra path would be half-supporting a feature.
+        val refusal = refused(
+            documents.save(
+                id,
+                editBody(
+                    version,
+                    paths = listOf(asThePhoneHoldsIt, listOf(junction, GeoPoint(0.001, 0.0005)))
+                )
+            ),
+            WebEditorRefusal.INVALID
+        )
+
+        assertTrue(
+            "says where it is done: ${refusal.message}",
+            refusal.message.contains("on the phone")
+        )
+        assertEquals(
+            "and the track is the line it was",
+            1,
+            assets.getAssetGeometry(id).paths.size
+        )
     }
 
     @Test

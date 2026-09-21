@@ -37,12 +37,13 @@ jobs:
           LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lint
 
-      # The desk's own drawing code, tested without a browser. `geometry.mjs` is pure so that it can be:
-      # the undo stack behind Ctrl+Z, the tolerance a click has to be inside, and the exact numbers a
-      # snapped vertex takes are all arithmetic, and node runs the very file the browser does. Any more
-      # of those files belong on this line.
-      - name: Unit test the desk's own drawing
-        run: node --test app/src/test/js/geometry.test.mjs
+      # The desk's own pure code, tested without a browser. `geometry.mjs` and `wire.mjs` are pure so
+      # that it can be: the undo stack behind Ctrl+Z, the tolerance a click has to be inside, the exact
+      # numbers a snapped vertex takes, and which of the two drawing shapes a save carries are all
+      # arithmetic and rules, and node runs the very files the browser does. The glob is deliberate, so
+      # a new file of them is picked up by being written.
+      - name: Unit test the desk's own code
+        run: node --test app/src/test/js/*.test.mjs
 
       - name: Upload test and lint reports
         if: always()

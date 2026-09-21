@@ -433,11 +433,12 @@ spur stays a doubled line with an overstated length until somebody re-draws it w
 The app does not go looking for the shape of one: that would be guessing at ground the operator knows
 better.
 
-The desk can read a track's side tracks, because the drawing it fetches has one feature per path, but
-it cannot draw one yet, so a line edit from the browser on a track that has side tracks is refused in
-the phone's words rather than written: the wire still carries one line per track, and a write that
-dropped every spur would be exactly the quiet loss the whole app is built to avoid. Changing the
-details of such a track still saves.
+The desk can read a track's side tracks, because the drawing it fetches has one feature per path, and
+it is **handed** them as data too (the record's `paths`, line first) so it can hand them back: a line
+changed from a computer now saves on a track that has a spur, with the spur travelling back untouched.
+What the desk still cannot do is add or take off a side track, and the phone refuses a write whose
+drawing has a different number of paths than the track - in the phone's words, saying where it is done.
+Changing the details of such a track saves as it always did.
 
 ## Backup files
 

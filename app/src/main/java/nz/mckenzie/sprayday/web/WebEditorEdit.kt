@@ -74,6 +74,17 @@ data class WebEditorEdit(
      */
     val points: List<WebEditorPoint>? = null,
     /**
+     * The whole of a track's drawing, when the write carries more than one path: the line first and its
+     * side tracks after it.
+     *
+     * This is the line-write that can carry side tracks, and it exists because [points] is one path: a
+     * page that could only ever send one path could not change the line of a track that has a spur
+     * without dropping it, so that write was refused outright. A body carries **one or the other**,
+     * never both - two drawings in one write is a page that is confused, and the phone says so rather
+     * than guessing which one was meant.
+     */
+    val paths: List<List<WebEditorPoint>>? = null,
+    /**
      * What the desk read when it opened this asset: see [WebEditorVersion].
      *
      * Blank on a body that is making a new asset, the one write with nothing to be stale against. A
@@ -127,7 +138,12 @@ sealed interface WebEditorEditResult {
     data class Ok(
         val asset: AssetEntity,
         val blockName: String?,
-        val points: List<GeoPoint>? = null
+        /**
+         * The drawing to store, when the write was about where the asset goes: the line first and its
+         * side tracks after it, already judged. Null when the write said nothing about the drawing,
+         * which is what the details form sends.
+         */
+        val paths: List<List<GeoPoint>>? = null
     ) : WebEditorEditResult
 
     data class Refused(val refusal: WebEditorRefusal, val message: String) : WebEditorEditResult
@@ -296,15 +312,15 @@ object WebEditorEdits {
                 WebEditorCreateResult.Refused(judged.refusal, judged.message)
 
             is WebEditorEditResult.Ok -> {
-                val points = judged.points
+                val paths = judged.paths
                     ?: return CreateRefused("A new track needs somewhere to go: draw it on the map.")
                 WebEditorCreateResult.Ok(
                     WebEditorDraft(
                         asset = judged.asset,
                         blockName = judged.blockName,
-                        // A track drawn on the desk has one line and no side tracks: there is no way
-                        // to draw a side track here yet, so there is nothing to carry over.
-                        geometry = AssetGeometry.of(points)
+                        // A track drawn on the desk is one line: there is nothing here to draw a side
+                        // track with yet, so there is nothing else to carry over.
+                        geometry = AssetGeometry(paths)
                     )
                 )
             }
@@ -351,17 +367,16 @@ object WebEditorEdits {
             is AssetEditResult.Ok -> {
                 // The drawing, judged beside the words: a line the desk sends that its own shape
                 // cannot be - a place with five points, a path of one - is refused in
-                // `AssetPathEdits`'s words, which are the app's own.
-                when (val drawn = pathOf(shape, edit.points)) {
+                // `AssetPathEdits`'s words, which are the app's own. A track with side tracks is
+                // judged by the same rules as one drawn on the phone: every path whole, and every side
+                // track starting on the line it hangs off.
+                when (val drawn = drawingOf(shape, edit)) {
                     null -> WebEditorEditResult.Ok(result.asset, result.groupName)
                     is AssetPathResult.Invalid -> Refused(drawn.message)
-                    // The desk's body carries one line and no side tracks - the wire has no field for
-                    // them yet - so a written path is the line, and what happens to an asset that has
-                    // side tracks is the caller's decision rather than something to guess at here.
                     is AssetPathResult.Ok -> WebEditorEditResult.Ok(
                         asset = result.asset,
                         blockName = result.groupName,
-                        points = drawn.paths.first()
+                        paths = drawn.paths
                     )
                 }
             }
@@ -369,17 +384,29 @@ object WebEditorEdits {
     }
 
     /**
-     * The path a body carried, judged for the shape the row has.
+     * The drawing a body carried, judged for the shape the row has.
      *
      * Null when the body said nothing about the drawing. A body that says nothing and a body that
      * sends an empty list are told apart deliberately: the first leaves the line exactly as it is,
      * and the second is a page saying it has drawn nothing - which for either shape is a refusal
      * rather than a way to empty a track.
+     *
+     * `points` is one path and `paths` is however many the desk has, and a body carrying both is
+     * refused rather than read one way or the other: two drawings in one write is a page that has got
+     * its own state wrong, and the only honest answer to that is to say so.
      */
-    private fun pathOf(shape: AssetShape, points: List<WebEditorPoint>?): AssetPathResult? =
-        points?.let { drawn ->
-            AssetPathEdits.apply(shape, drawn.map { GeoPoint(lat = it.lat, lng = it.lng) })
+    private fun drawingOf(shape: AssetShape, edit: WebEditorEdit): AssetPathResult? {
+        if (edit.points != null && edit.paths != null) {
+            return AssetPathResult.Invalid(
+                "That write carried two drawings, so nothing was saved. Reload the page and try again."
+            )
         }
+        val paths = edit.paths ?: edit.points?.let { listOf(it) } ?: return null
+        return AssetPathEdits.applyPaths(
+            shape,
+            paths.map { path -> path.map { GeoPoint(lat = it.lat, lng = it.lng) } }
+        )
+    }
 
     /** A refusal with no opinion of its own: a field the phone will not take as it was sent. */
     private fun Refused(message: String, refusal: WebEditorRefusal = WebEditorRefusal.INVALID) =

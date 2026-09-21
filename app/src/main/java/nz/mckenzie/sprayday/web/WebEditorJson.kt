@@ -101,6 +101,7 @@ object WebEditorJson {
         // Sent back by the desk with an edit, so a change made on the phone while the card was open
         // is refused here rather than written over. See [WebEditorVersion].
         version = WebEditorVersion.of(asset, groupName, paths),
+        paths = paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
         removal = WebEditorRemoval.of(AssetRemovalRules.of(asset.name, sprayCount, recordingCount))
     )
 
@@ -194,7 +195,9 @@ data class WebEditorNewAsset(
     }
 }
 
-/** One asset, with the traffic light the page paints it in. */
+/**
+ * One asset, with the traffic light the page paints it in.
+ */
 @Serializable
 data class WebEditorAssetRecord(
     val asset: AssetRecord,
@@ -206,6 +209,19 @@ data class WebEditorAssetRecord(
     val daysUntilDue: Long? = null,
     val sprayCount: Int = 0,
     val groupName: String? = null,
+    /**
+     * The whole of the asset's drawing: the line first, its side tracks after it.
+     *
+     * The geometry a page **draws** comes from the GeoJSON, one feature per path, and it always has -
+     * but a page cannot hand back what it only ever saw as drawn lines, and a write that carried one
+     * path for a track with side tracks would drop them. So the paths a write has to carry are here,
+     * beside the version: the same half of the contract, for the same reason.
+     *
+     * Empty for an asset with nothing drawn and for a place with no spot yet. A page that ignores this
+     * field still works: its writes carry one path, and the phone refuses those for a track that has
+     * side tracks rather than writing over them.
+     */
+    val paths: List<List<WebEditorPoint>> = emptyList(),
     /**
      * What an edit to this asset has to quote back, so the phone can refuse one written against an
      * asset that has since changed. Opaque here on purpose: only the phone works out what it means.

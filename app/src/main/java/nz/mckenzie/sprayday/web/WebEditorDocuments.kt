@@ -141,23 +141,38 @@ class WebEditorDocuments(
         return when (val result = WebEditorEdits.apply(before.asset, before.groupName, geometry.paths, body)) {
             is WebEditorEditResult.Refused -> WebEditorWrite.Refused(result.refusal, result.message)
             is WebEditorEditResult.Ok -> {
-                // A body that carries a line cannot be written to a track that has side tracks: the
-                // wire has no field for them yet, so the write would drop every spur on the track -
-                // the one thing a desk must never do quietly. The details half of a card still saves
-                // as it always did; only the drawing is held back, and it says so in the phone's words.
-                if (result.points != null && geometry.hasSideTracks) {
+                // A drawing that does not carry the track's side tracks cannot be written: the write
+                // would drop every spur on it, which is the one thing a desk must never do quietly.
+                // Two shapes of that, and each says what to do next:
+                //
+                //  - fewer paths than the track has - an old page, or one that never read the record's
+                //    `paths` - so the page is out of date and a reload fixes it;
+                //  - more paths than the track has - the desk trying to *add* a side track, which only
+                //    the phone can do so far.
+                //
+                // The details half of a card is unaffected: a write that carries no drawing leaves the
+                // geometry alone.
+                val drawn = result.paths
+                if (drawn != null && drawn.size != geometry.paths.size) {
                     return refused(
                         WebEditorRefusal.INVALID,
-                        "This track has a side track, so its line is changed on the phone - " +
-                            "there is nothing here to draw one with yet. The details still save."
+                        if (drawn.size < geometry.paths.size) {
+                            "That write did not carry all of this track's side tracks, so nothing was " +
+                                "saved. Reload the page and try again."
+                        } else {
+                            "This track has ${geometry.paths.size - 1} side track" +
+                                "${if (geometry.paths.size == 2) "" else "s"} and that drawing had " +
+                                "${drawn.size - 1}: adding or taking one off is done on the phone " +
+                                "for now."
+                        }
                     )
                 }
-                // The row and, when the write carried one, the line - in one transaction. The line is
-                // wrapped as a geometry with no side tracks, which is what a desk's write is.
+                // The row and, when the write carried one, the drawing - in one transaction, with the
+                // length the paths add up to.
                 assets.saveAssetEdits(
                     result.asset,
                     result.blockName,
-                    result.points?.let { AssetGeometry.of(it) }
+                    drawn?.let { paths -> AssetGeometry(paths) }
                 )
                 // The second read is the answer, so what the desk is told is what the phone holds.
                 val after = withDue().firstOrNull { it.asset.id == id }

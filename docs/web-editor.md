@@ -20,6 +20,12 @@ away.
   geometry (`POST /api/assets` for a new track, the line through `PUT`) and `DELETE
   /api/assets/<id>?version=…`, with the desk's drawing in `edit.js` over `geometry.mjs`. v0.6.26 added
   **tracing** — a line followed with the button held down — and the first slice of Phase 3.
+- **Side tracks reached the desk in v0.6.29**, from the phone's side of the work (see
+  `side-tracks.md`): a line write may carry `paths` — the line and its side tracks after it — instead of
+  one `points`, the record hands the page the paths to bring back (`WebEditorAssetRecord.paths`), and
+  `wire.mjs` decides which of the two shapes a save has. So the refusal v0.6.27 had to make ("a line
+  with no side tracks for a track that has one") is now about what is *missing* rather than about side
+  tracks in general. The desk still cannot draw a side track: that is the next slice.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
@@ -269,6 +275,23 @@ order they were said. The arithmetic is `geometry.mjs`'s and is tested under nod
   - a press that never moved is not a step at all, so the click that follows it still means what a click
     has always meant.
 
+**Side tracks, from v0.6.29.** The phone's side of that work is `side-tracks.md`; what matters here is
+the wire and the page. A line write carries **one of two shapes**: `points` (one path, what every page
+before this sent) or `paths` (the line first, then its side tracks). The state document's record carries
+the same paths, so a page has them to hand back — the geometry it *draws* still comes from the GeoJSON,
+one feature per path. `wire.mjs` is the one function that decides which shape a save has, and it is pure
+so that node tests it (`app/src/test/js/wire.test.mjs`); `app.js` imports it with the token on the URL,
+as it does `geometry.mjs`.
+
+**A body carrying both drawings is refused**, and so is a drawing whose number of paths is not the
+track's: fewer means the page is out of date (it says "Reload the page and try again"), more means the
+desk is trying to add a side track — which is still the phone's job. Nothing about a track's side tracks
+can be lost by a page, which is what the refusals are for.
+
+**The desk draws one line at a time.** `geometry.mjs` and `edit.js` hold a single `points` array, so
+starting a side track from a vertex — and taking one off — is the next slice's work; it is where the
+wire is already waiting.
+
 **"Put away" was dropped** (the decision). The plan had archiving as this phase's *show-archived*, and
 `AssetRemovalRules` said it was waiting for a screen that showed an archived asset. The operator owns
 the data, was asked directly, and answered the other way: there is no archive, so there is nothing for a
@@ -489,17 +512,22 @@ style's background colour and the work draws on top of it.
       track*, a fence traced through five waypoints - 41 mouse samples arriving as **4 stored vertices** -
       saved, and the phone's own screen reading *Published trace · 481.95 km · never sprayed*, the same
       number the API answered (`rel-trace-desk.png`, `rel-trace-phone-small.jpg`).
-- [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
-      *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
+- [ ] **Phase 3, what is left** — GPX drag-and-drop, working on more than one asset at once, and now
+      **side tracks on the desk**: starting one from a vertex of the traced line, and taking one off.
+      The wire carries them (v0.6.29); `geometry.mjs`'s single-path state is what has to change, and its
+      26 node tests are the shape that changes with it. *Show-archived was dropped* (see the phase 3
+      section above), so the phase's own list is now this.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Phase 3 — what is left of it.** Snapping is in (with the drawing itself) and tracing is in (v0.6.26).
-What remains is **GPX drag-and-drop** — drop a GPX file on the desk and have it become a track's line —
-and **working on more than one asset at once**. *Show-archived was dropped, not deferred*: see the phase 3
+**Phase 3 — what is left of it.** Snapping is in (with the drawing itself), tracing is in (v0.6.26), and
+side tracks reached the wire in v0.6.29 (the phone's own record `side-tracks.md` for that). What remains
+is **drawing a side track on the desk** — start one from a vertex of the traced line, and take one off —
+**GPX drag-and-drop** — drop a GPX file on the desk and have it become a track's line — and **working on
+more than one asset at once**. *Show-archived was dropped, not deferred*: see the phase 3
 section above for the decision and what it leaves alone.
 
 **The first press after a page load can be wasted.** One run in five, the first traced stroke after the

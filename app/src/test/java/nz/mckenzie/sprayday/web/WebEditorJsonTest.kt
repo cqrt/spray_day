@@ -111,6 +111,51 @@ class WebEditorJsonTest {
     }
 
     @Test
+    fun `the asset the desk is handed carries the paths a write has to bring back`() {
+        // The geometry a page draws comes from the GeoJSON, but a line write has to carry every path -
+        // so the paths are in the record beside the version, and a page that ignores them still works:
+        // its writes carry one path, and the phone refuses those for a track that has side tracks
+        // rather than dropping them.
+        val spur = listOf(path.last(), GeoPoint(-41.55, 173.85))
+        val record = WebEditorDocument(
+            nowEpochMs = now,
+            assets = listOf(
+                WebEditorJson.record(
+                    asset = everyField,
+                    due = dueOf(everyField),
+                    sprayCount = 4,
+                    groupName = "Estuary",
+                    paths = listOf(path, spur),
+                    recordingCount = 0
+                )
+            )
+        ).let { roundTrip(it) }.assets.single()
+
+        assertEquals("the line first, then its side tracks", 2, record.paths.size)
+        assertEquals(path, record.paths[0].map { GeoPoint(it.lat, it.lng) })
+        assertEquals(spur, record.paths[1].map { GeoPoint(it.lat, it.lng) })
+    }
+
+    @Test
+    fun `an asset with nothing drawn carries no paths at all`() {
+        val record = WebEditorDocument(
+            nowEpochMs = now,
+            assets = listOf(
+                WebEditorJson.record(
+                    asset = everyField,
+                    due = dueOf(everyField),
+                    sprayCount = 4,
+                    groupName = "Estuary",
+                    paths = emptyList(),
+                    recordingCount = 0
+                )
+            )
+        ).let { roundTrip(it) }.assets.single()
+
+        assertTrue("the desk sees an empty list rather than a guess", record.paths.isEmpty())
+    }
+
+    @Test
     fun `the asset carries the traffic light and the day it is next due`() {
         val due = dueOf(everyField)
         val record = roundTrip(documentWith(everyField)).assets.single()

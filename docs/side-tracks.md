@@ -55,23 +55,40 @@ which the v0.6.27 note promised as the fix.
   considered and dropped: *tangent*, *branch*, *arm* - none of them is what an operator calls it, and
   "side track" is what the job sheet says.)
 
+## Shipped: v0.6.29 - the drawer carries the paths, so the line can be changed from a computer
+
+v0.6.27 shipped side tracks with one refusal standing: a line write from the browser carried a single
+path, so on a track that had a spur it would have dropped it, and the phone refused it outright. The
+desk can now carry them.
+
+- **The wire has two shapes for a line**: `points`, one path, and `paths`, the line and its side tracks
+  after it. A body carrying both is refused as a page that is confused with itself.
+- **The record carries the paths** (`WebEditorAssetRecord.paths`, line first) beside the version. The
+  geometry a page *draws* still comes from the GeoJSON, one feature per path - but a page cannot hand
+  back what it only ever saw as drawn lines.
+- **The desk sends them back**: `wire.mjs` decides which shape a save has - a pure module with its own
+  node tests, and the CI line now runs every `*.test.mjs` in that folder, so a new file of them is
+  picked up by being written.
+- **The refusal is now about what is missing**, not about side tracks in general: fewer paths than the
+  track has is a page that is out of date (*"Reload the page and try again"*), and **more** is the desk
+  trying to add a side track - still the phone's job, and it says so.
+
 ## Next
 
-### v0.6.29 - the desk draws and tidies side tracks
+### v0.6.30 - the desk draws side tracks, and GPX carries them
 
-A traced vertex on the desk's map should be able to start a side track, and the version body should
-carry the paths so the refusal in v0.6.27 can come out.
+- On the desk: start a side track from a vertex of the traced line, and take one off again. The wire is
+  ready for both; what is missing is the page's own state holding more than one path (`geometry.mjs` and
+  `edit.js` are single-path today, and their 26 node tests are the shape that would have to change with
+  them).
+- GPX out already writes one `<trkseg>` per path; reading still flattens every `trkpt` in a file into one
+  line, so a multi-segment GPX imported from another tool becomes a line with jumps in it. Read segments
+  as paths, and decide what to do with a segment that does not touch the line (probably: keep it as a
+  side track only when it joins, otherwise offer to import it as its own asset).
 
-### v0.6.30 - GPX multi-segment in and out
-
-Out is done for writing (`<trkseg>` per path); reading still flattens every `trkpt` in the file into
-one line, so a multi-segment GPX imported from another tool becomes one line with jumps in it. Read
-segments as paths, and decide what to do with a segment that does not touch the line (probably: keep
-it as a side track only when it joins, otherwise offer to import it as its own asset).
-
-**One loose end from v0.6.27 belongs here**: `GpxWriter` writes one segment per path, and the unit
-tests that cover it all pass a single path, so the two-path case has no test of its own. Writing one
-is part of this slice, before anything else in it.
+**Loose ends from v0.6.27's verification belong at the front of that slice**: the map's own drawing of a
+second path and the GPX `<trkseg>` per path were never checked on a *published* artifact, and
+`GpxWriter`'s two-path case has no test of its own (every test passes a single path).
 
 ## Decided and dropped
 

@@ -20,14 +20,18 @@ class AssetGeoJsonTest {
         name: String = "Track 4",
         color: String = AssetColors.GREEN,
         kind: AssetKind = AssetKind.TRACK,
-        shape: AssetShape = AssetShape.LINE
+        shape: AssetShape = AssetShape.LINE,
+        id: Long = 7L,
+        points: List<GeoPoint> = wellingtonLine,
+        sideTracks: List<List<GeoPoint>> = emptyList()
     ) = AssetLine(
-        assetId = 7L,
+        assetId = id,
         name = name,
         colorHex = color,
-        points = wellingtonLine,
+        points = points,
         kind = kind,
-        shape = shape
+        shape = shape,
+        sideTracks = sideTracks
     )
 
     @Test
@@ -201,5 +205,54 @@ class AssetGeoJsonTest {
         assertEquals("the track is not lost off the map", 1, Regex("\"type\":\"Feature\",").findAll(json).count())
         assertTrue(json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
         assertFalse("a dot where the line should be is worse than the line", json.contains(AssetColors.RED))
+    }
+
+    @Test
+    fun `a track with a side track is drawn as one feature per path`() {
+        // The map's own rule, and the one the drawing screen's own pixels were read against: the line is
+        // a feature, the side track is a feature, and the junction is in both - so a tap on the spur and
+        // a tap on the line open the same track.
+        val junction = GeoPoint(0.0, 0.0005)
+        val json = AssetGeoJson.build(
+            listOf(
+                line(
+                    id = 6L,
+                    points = listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001)),
+                    sideTracks = listOf(listOf(junction, GeoPoint(0.001, 0.0005)))
+                )
+            )
+        )
+
+        assertEquals("two lines drawn", 2, Regex("\"type\":\"LineString\"").findAll(json).count())
+        assertEquals(
+            "and both carry the asset's id, so a tap on either opens the track",
+            2,
+            Regex("\"id\":6").findAll(json).count()
+        )
+        assertEquals(
+            "the junction is a vertex of both features, at the same two numbers: [lng,lat]",
+            2,
+            Regex(Regex.escape("[0.0005000,0.0000000]")).findAll(json).count()
+        )
+    }
+
+    @Test
+    fun `a side track with one point is not drawn, because there is no line in it`() {
+        val junction = GeoPoint(0.0, 0.0005)
+        val json = AssetGeoJson.build(
+            listOf(
+                line(
+                    id = 6L,
+                    points = listOf(GeoPoint(0.0, 0.0), junction),
+                    sideTracks = listOf(listOf(junction))
+                )
+            )
+        )
+
+        assertEquals(
+            "one line, and the single point is not a second",
+            1,
+            Regex("\"type\":\"LineString\"").findAll(json).count()
+        )
     }
 }

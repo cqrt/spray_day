@@ -87,7 +87,8 @@ fun AssetDetailScreen(
                     assetId = track?.id ?: 0L,
                     name = track?.name.orEmpty(),
                     colorHex = AssetColors.forStatus(due?.status ?: DueStatus.NEVER_SPRAYED),
-                    points = geometry,
+                    points = geometry.line,
+                    sideTracks = geometry.sideTracks,
                     kind = AssetKind.fromStorage(track?.kind),
                     shape = AssetShape.fromStorage(track?.shape)
                 )

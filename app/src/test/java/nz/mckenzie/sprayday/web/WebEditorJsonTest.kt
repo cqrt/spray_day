@@ -83,7 +83,7 @@ class WebEditorJsonTest {
                 due = dueOf(asset),
                 sprayCount = sprays,
                 groupName = groupName,
-                points = path,
+                paths = listOf(path),
                 recordingCount = recordings
             )
         )
@@ -182,7 +182,7 @@ class WebEditorJsonTest {
         // Worked out here from the row, the block and the line, exactly as the phone will work it out
         // again when the edit comes back: a desk quoting this cannot have been reading another version
         // of the asset, and the version survives the trip to the page as the rest of the record does.
-        assertEquals(WebEditorVersion.of(everyField, "Estuary", path), record.version)
+        assertEquals(WebEditorVersion.of(everyField, "Estuary", listOf(path)), record.version)
     }
 
     @Test

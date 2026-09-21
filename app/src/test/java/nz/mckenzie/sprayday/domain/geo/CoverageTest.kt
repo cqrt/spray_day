@@ -571,4 +571,82 @@ class CoverageTest {
         assertEquals(1, pieces.size)
         assertEquals(points, pieces.single())
     }
+
+    /* ---- A track is a line and its side tracks ----------------------------------------- */
+
+    @Test
+    fun `how much of a track a pass covered is asked of the side tracks too`() {
+        // A line 111 m long with a 111 m side track off its middle: 222 m of track, half of it the spur.
+        val origin = GeoPoint(0.0, 0.0)
+        val junction = GeoPoint(0.0, 0.0005)
+        val east = GeoPoint(0.0, 0.001)
+        val spurEnd = GeoPoint(0.001, 0.0005)
+        val track = AssetGeometry.of(listOf(origin, junction, east), listOf(listOf(junction, spurEnd)))
+
+        // Driving the line and never going up the spur is **not** the whole track, which is the answer
+        // this exists to give. It is a little over half: the tolerance around the junction reaches a
+        // dozen metres up the spur, and that dozen metres was driven.
+        val alongTheLine = (0..10).map { step -> GeoPoint(0.0, step * 0.0001) }
+        val lineDone = Coverage.coveredFraction(track, alongTheLine)
+        assertTrue("a little over half: $lineDone", lineDone > 0.5 && lineDone < 0.6)
+
+        // And driving only the spur is not the whole track either.
+        val upTheSpur = listOf(junction, spurEnd)
+        val spurDone = Coverage.coveredFraction(track, upTheSpur)
+        assertTrue("the spur's half, and the junction: $spurDone", spurDone > 0.5 && spurDone < 0.7)
+
+        // Both: all of it.
+        assertEquals(1.0, Coverage.coveredFraction(track, alongTheLine + upTheSpur), 0.02)
+    }
+
+    @Test
+    fun `a track with no side tracks reads exactly as one path always did`() {
+        val origin = GeoPoint(0.0, 0.0)
+        val east = GeoPoint(0.0, 0.001)
+        val recorded = (0..10).map { step -> GeoPoint(0.0, step * 0.0001) }
+
+        assertEquals(
+            Coverage.coveredFraction(listOf(origin, east), recorded),
+            Coverage.coveredFraction(AssetGeometry.of(listOf(origin, east)), recorded),
+            0.0
+        )
+    }
+
+    @Test
+    fun `the stretches of a track come back per path, so a spur keeps its own date`() {
+        val origin = GeoPoint(0.0, 0.0)
+        val junction = GeoPoint(0.0, 0.0005)
+        val east = GeoPoint(0.0, 0.001)
+        val spurEnd = GeoPoint(0.001, 0.0005)
+        val track = AssetGeometry.of(listOf(origin, junction, east), listOf(listOf(junction, spurEnd)))
+
+        // The line sprayed at nine and the spur at ten. Each path is cut on its own, so the part of the
+        // track that only got the second pass carries the second date - rather than the spur's metres
+        // being read as the far end of the line.
+        val stretches = Coverage.splitByCoverage(
+            planned = track,
+            passes = listOf(
+                RecordedPass(atEpochMs = 9_000L, points = listOf(origin, junction, east)),
+                RecordedPass(atEpochMs = 10_000L, points = listOf(junction, spurEnd))
+            )
+        )
+
+        val fromTheSpurPass = stretches.filter { it.lastSprayedAtEpochMs == 10_000L }
+        assertTrue(
+            "the spur's own pass is on the map: ${stretches.map { it.lastSprayedAtEpochMs }}",
+            fromTheSpurPass.isNotEmpty()
+        )
+        val spurMetres = fromTheSpurPass.sumOf { it.lengthM }
+        assertTrue(
+            "and it accounts for the spur: $spurMetres m of a 222 m track, which is the spur " +
+                "plus what the tolerance reaches either side of the junction",
+            spurMetres > 111.0 && spurMetres < 145.0
+        )
+        assertEquals(
+            "every metre of the track is in exactly one stretch",
+            track.lengthM,
+            stretches.sumOf { it.lengthM },
+            0.2
+        )
+    }
 }

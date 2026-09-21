@@ -34,6 +34,7 @@ import nz.mckenzie.sprayday.data.AssetSprayCoverage
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
@@ -235,7 +236,7 @@ class RecordingViewModel(
     /** A pass that has been saved: what it was for, what was driven, and what that covered. */
     data class FinishedPass(
         val trackName: String?,
-        val planned: List<GeoPoint>,
+        val planned: AssetGeometry,
         val recorded: List<GeoPoint>,
         /** The stretches of it that were paused for, so the colours and the line stay honest. */
         val breaks: List<RecordingBreak> = emptyList(),
@@ -316,13 +317,13 @@ class RecordingViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, RecordedPass(0L, emptyList()))
 
-    private val plannedGeometry = MutableStateFlow<List<GeoPoint>>(emptyList())
+    private val plannedGeometry = MutableStateFlow(AssetGeometry.NONE)
 
     /**
-     * What the map draws: the planned line, cut into the part this pass has sprayed and the
+     * What the map draws: the planned track, cut into the part this pass has sprayed and the
      * part still to do, in the colours the rest of the app uses for those two states.
      *
-     * The line carries the answer, not only a percentage beside it - and the two come from
+     * The track carries the answer, not only a percentage beside it - and the two come from
      * the same [Coverage.splitByCoverage] call, so the screen cannot say one thing and draw
      * another. Reading *this* pass is the point: a track half sprayed a fortnight ago is not
      * this run's business, and the coverage beside these colours is this run's too.
@@ -339,11 +340,11 @@ class RecordingViewModel(
             when {
                 // A pass being driven, or a track chosen and waiting for one: the plan is the
                 // thing on the screen, in the colours of how much of it is done.
-                pass.points.isNotEmpty() || planned.isNotEmpty() -> planned to pass
+                pass.points.isNotEmpty() || planned.isLine -> planned to pass
                 // Nothing live. The pass that has just been saved stays where it was, rather
                 // than the map going blank the moment Save is pressed.
                 done != null -> done.planned to done.toPass()
-                else -> emptyList<GeoPoint>() to RecordedPass(0L, emptyList())
+                else -> AssetGeometry.NONE to RecordedPass(0L, emptyList())
             }
         }
             .map { (planned, pass) -> routeGeoJson(planned, pass) }
@@ -357,11 +358,12 @@ class RecordingViewModel(
      * The planned track in the colours of the job: green for the part this pass has sprayed,
      * red for the part still waiting for a tank.
      *
-     * The pass is dated from its newest fix rather than from the session row, so this stays a
-     * pure function of the two lists it is given.
+     * Every path of it, so a side track is drawn and coloured with the line it leaves: the pass
+     * either went up it or it did not. The pass is dated from its newest fix rather than from the
+     * session row, so this stays a pure function of what it is given.
      */
-    private fun routeGeoJson(planned: List<GeoPoint>, pass: RecordedPass): String {
-        if (planned.size >= 2) {
+    private fun routeGeoJson(planned: AssetGeometry, pass: RecordedPass): String {
+        if (planned.isLine) {
             val stretches = Coverage.splitByCoverage(planned, listOf(pass))
                 .map { stretch ->
                     AssetStretch(
@@ -379,7 +381,8 @@ class RecordingViewModel(
                         assetId = PLANNED_ID,
                         name = "Planned",
                         colorHex = AssetColors.RED,
-                        points = planned,
+                        points = planned.line,
+                        sideTracks = planned.sideTracks,
                         stretches = stretches
                     )
                 )
@@ -416,8 +419,8 @@ class RecordingViewModel(
      */
     val trackLengthM: StateFlow<Double?> = combine(plannedGeometry, _finished) { planned, done ->
         when {
-            planned.size >= 2 -> polylineLengthMeters(planned)
-            done != null && done.planned.size >= 2 -> polylineLengthMeters(done.planned)
+            planned.isLine -> planned.lengthM
+            done != null && done.planned.isLine -> done.planned.lengthM
             else -> null
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
@@ -469,7 +472,7 @@ class RecordingViewModel(
                 Triple(planned, pass, done)
             }
                 .collectLatest { (planned, pass, done) ->
-                    if (planned.size < 2 || pass.points.isEmpty()) {
+                    if (!planned.isLine || pass.points.isEmpty()) {
                         // Nothing to measure: no track chosen yet, or the track has just been
                         // sprayed and saved, in which case the number that belongs on the
                         // screen is the one the saved pass came to.
@@ -536,7 +539,7 @@ class RecordingViewModel(
         if (assetId != null) _finished.value = null
         viewModelScope.launch {
             if (assetId == null) {
-                plannedGeometry.value = emptyList()
+                plannedGeometry.value = AssetGeometry.NONE
                 _twoPasses.value = null
                 return@launch
             }
@@ -586,17 +589,17 @@ class RecordingViewModel(
             _twoPasses.value = null
             return
         }
-        val planned = plannedGeometry.value.takeIf { it.size >= 2 }
-            ?: runCatching { assetRepository.getAssetGeometry(id) }.getOrDefault(emptyList())
-        if (planned.size < 2) {
+        val planned = plannedGeometry.value.takeIf { it.isLine }
+            ?: runCatching { assetRepository.getAssetGeometry(id) }.getOrDefault(AssetGeometry.NONE)
+        if (!planned.isLine) {
             _twoPasses.value = null
             return
         }
 
         val coverage = runCatching { assetRepository.getSprayCoverage(id) }
             .getOrDefault(AssetSprayCoverage.NONE)
-        _twoPasses.value = TwoPasses.split(
-            planned = planned,
+        _twoPasses.value = TwoPasses.splitPaths(
+            planned = planned.paths,
             passes = coverage.passes,
             handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
             separationM = asset.passSeparationM
@@ -650,14 +653,14 @@ class RecordingViewModel(
         // The plan the screen is drawing, or - if Finish has been pressed before it got there, which
         // is a database read away - the plan as it is stored. Reading one pass over a line that
         // takes two as a whole job is the one mistake this must not make.
-        val planned = plannedGeometry.value.takeIf { it.size >= 2 }
-            ?: runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(emptyList())
-        if (planned.size < 2 || geometry.isEmpty()) return null
+        val planned = plannedGeometry.value.takeIf { it.isLine }
+            ?: runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(AssetGeometry.NONE)
+        if (!planned.isLine || geometry.isEmpty()) return null
 
         val coverage = runCatching { assetRepository.getSprayCoverage(assetId) }
             .getOrDefault(AssetSprayCoverage.NONE)
-        val before = TwoPasses.split(
-            planned = planned,
+        val before = TwoPasses.splitPaths(
+            planned = planned.paths,
             passes = coverage.passes,
             handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
             separationM = asset.passSeparationM
@@ -670,8 +673,8 @@ class RecordingViewModel(
             breaks = breaks,
             bothSidesClaimed = bothSides
         )
-        val after = TwoPasses.split(
-            planned = planned,
+        val after = TwoPasses.splitPaths(
+            planned = planned.paths,
             passes = coverage.passes + pass,
             handSprayedAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
             separationM = asset.passSeparationM
@@ -888,7 +891,7 @@ class RecordingViewModel(
             // Clearing the tracking state is what empties the drawing and stops the coverage:
             // these are the running session's fixes, and there is no longer one running.
             TrackingState.clear()
-            plannedGeometry.value = emptyList()
+            plannedGeometry.value = AssetGeometry.NONE
 
             var message = "Saved $points ${if (points == 1) "point" else "points"}"
             message += when {

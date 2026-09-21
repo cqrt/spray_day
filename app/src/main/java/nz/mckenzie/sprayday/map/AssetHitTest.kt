@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.map
 
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.distanceToPolylineMeters
 
@@ -39,7 +40,7 @@ object AssetHitTest {
 
     /** The id of the nearest track to the tap, or null if the tap was not on one. */
     fun nearest(
-        geometryByTrack: Map<Long, List<GeoPoint>>,
+        geometryByTrack: Map<Long, AssetGeometry>,
         lat: Double,
         lng: Double,
         toleranceM: Double = DEFAULT_TOLERANCE_M
@@ -53,11 +54,13 @@ object AssetHitTest {
         // Sorted so that two equally close tracks always resolve the same way, rather
         // than however the map happened to be built.
         for (assetId in geometryByTrack.keys.sorted()) {
-            val points = geometryByTrack.getValue(assetId)
-            if (points.isEmpty()) continue
-
-            val distance = distanceToPolylineMeters(tap, points)
-            if (distance.isNaN()) continue
+            val geometry = geometryByTrack.getValue(assetId)
+            // Every path of the asset, and the nearest of them: a tap on a side track is a tap on the
+            // track it hangs off, which is the whole point of drawing it there.
+            val distance = geometry.paths
+                .map { path -> distanceToPolylineMeters(tap, path) }
+                .filter { value -> !value.isNaN() }
+                .minOrNull() ?: continue
 
             if (distance < bestDistance) {
                 bestDistance = distance

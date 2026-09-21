@@ -82,7 +82,7 @@ class AssetListViewModel(
                     ?: "Imported track"
 
                 val assetId = assetRepository.importAssetGpx(name = name, gpx = text)
-                val points = assetRepository.getAssetGeometry(assetId).size
+                val points = assetRepository.getAssetGeometry(assetId).pointCount
                 _message.value = "Imported \"$name\" with $points points"
             } catch (failure: Throwable) {
                 _message.value = failure.message ?: "Import failed"

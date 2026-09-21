@@ -223,7 +223,7 @@ class BackupRoundTripTest {
         val track = AssetRepository(db).getAsset(assetId)
         assertNotNull("and still point at a track that exists", track)
         assertEquals("Winter block", track!!.name)
-        assertEquals(3, AssetRepository(db).getAssetGeometry(assetId).size)
+        assertEquals(3, AssetRepository(db).getAssetGeometry(assetId).pointCount)
         assertEquals(
             "and its group should have come back with it",
             "Home",

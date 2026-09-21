@@ -383,3 +383,31 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * Gives every vertex a path to belong to, so a track can be a line with side tracks.
+ *
+ * The column is added with a SQL default of 0 and that default is the whole of the carrying over:
+ * every vertex in the database already belongs to the one line its asset is, so every existing track
+ * comes through this migration as exactly the line it was. That is the promise a migration has to
+ * keep - an install nobody touches behaves as it did - and here it is kept by the default rather than
+ * by a single row being copied.
+ *
+ * The unique index moves with it: `(assetId, sequence)` says a path has one vertex per position, and
+ * `(assetId, pathIndex, sequence)` says the same thing per path. Two side tracks leaving the same
+ * junction vertex are two paths starting at the same place, which the old index - had the paths
+ * shared one sequence - could not have expressed.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v5
+ * database, and the schema it produces is the one Room exports for v6.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `asset_points` ADD COLUMN `pathIndex` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("DROP INDEX IF EXISTS `index_asset_points_assetId_sequence`")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_asset_points_assetId_pathIndex_sequence` " +
+                "ON `asset_points` (`assetId`, `pathIndex`, `sequence`)"
+        )
+    }
+}

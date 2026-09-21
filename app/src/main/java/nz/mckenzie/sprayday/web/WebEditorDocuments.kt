@@ -12,6 +12,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.AssetColors
@@ -76,7 +77,7 @@ class WebEditorDocuments(
                         due = item.due,
                         sprayCount = item.sprayCount,
                         groupName = item.groupName,
-                        points = paths[item.asset.id].orEmpty(),
+                        paths = paths[item.asset.id]?.paths.orEmpty(),
                         recordingCount = recordings[item.asset.id] ?: 0
                     )
                 },
@@ -102,11 +103,13 @@ class WebEditorDocuments(
         // and a line drawn whole in its traffic light's colour is what the map showed before that
         // feature existed.
         val lines = work.map { item ->
+            val geometry = paths[item.asset.id] ?: AssetGeometry.NONE
             AssetLine(
                 assetId = item.asset.id,
                 name = item.asset.name,
                 colorHex = AssetColors.forStatus(item.due.status),
-                points = paths[item.asset.id].orEmpty(),
+                points = geometry.line,
+                sideTracks = geometry.sideTracks,
                 kind = AssetKind.fromStorage(item.asset.kind),
                 shape = AssetShape.fromStorage(item.asset.shape)
             )
@@ -130,15 +133,32 @@ class WebEditorDocuments(
     override suspend fun save(id: Long, body: String?): WebEditorWrite {
         val before = withDue().firstOrNull { it.asset.id == id }
             ?: return missing("There is no track or place with that number on the phone.")
-        // Read once and handed to the rules: the same list is half of the version the desk quoted, so
-        // a vertex moved since the card was opened is caught there rather than written over.
-        val path = assets.getAssetGeometry(id)
+        // Read once and handed to the rules: the same paths are half of the version the desk quoted, so
+        // a vertex moved - on the line **or on a side track** - since the card was opened is caught
+        // there rather than written over.
+        val geometry = assets.getAssetGeometry(id)
 
-        return when (val result = WebEditorEdits.apply(before.asset, before.groupName, path, body)) {
+        return when (val result = WebEditorEdits.apply(before.asset, before.groupName, geometry.paths, body)) {
             is WebEditorEditResult.Refused -> WebEditorWrite.Refused(result.refusal, result.message)
             is WebEditorEditResult.Ok -> {
-                // The row and, when the write carried one, the line - in one transaction.
-                assets.saveAssetEdits(result.asset, result.blockName, result.points)
+                // A body that carries a line cannot be written to a track that has side tracks: the
+                // wire has no field for them yet, so the write would drop every spur on the track -
+                // the one thing a desk must never do quietly. The details half of a card still saves
+                // as it always did; only the drawing is held back, and it says so in the phone's words.
+                if (result.points != null && geometry.hasSideTracks) {
+                    return refused(
+                        WebEditorRefusal.INVALID,
+                        "This track has a side track, so its line is changed on the phone - " +
+                            "there is nothing here to draw one with yet. The details still save."
+                    )
+                }
+                // The row and, when the write carried one, the line - in one transaction. The line is
+                // wrapped as a geometry with no side tracks, which is what a desk's write is.
+                assets.saveAssetEdits(
+                    result.asset,
+                    result.blockName,
+                    result.points?.let { AssetGeometry.of(it) }
+                )
                 // The second read is the answer, so what the desk is told is what the phone holds.
                 val after = withDue().firstOrNull { it.asset.id == id }
                     ?: return missing("That track is not on the phone any more.")
@@ -163,7 +183,7 @@ class WebEditorDocuments(
                 val draft = result.draft
                 val id = assets.insertAsset(
                     asset = draft.asset,
-                    geometry = draft.points,
+                    geometry = draft.geometry,
                     groupName = draft.blockName
                 )
                 val created = withDue().firstOrNull { it.asset.id == id }
@@ -195,7 +215,7 @@ class WebEditorDocuments(
             WebEditorRefusal.INVALID,
             "That delete did not say which version of the track it was for, so nothing was deleted."
         )
-        if (version != WebEditorVersion.of(item.asset, item.groupName, assets.getAssetGeometry(id))) {
+        if (version != WebEditorVersion.of(item.asset, item.groupName, assets.getAssetGeometry(id).paths)) {
             return refused(
                 WebEditorRefusal.STALE,
                 "This was changed on the phone while it was open here, so nothing was deleted. " +
@@ -229,7 +249,7 @@ class WebEditorDocuments(
             due = item.due,
             sprayCount = item.sprayCount,
             groupName = item.groupName,
-            points = assets.getAssetGeometry(item.asset.id),
+            paths = assets.getAssetGeometry(item.asset.id).paths,
             recordingCount = assets.recordingCountFor(item.asset.id)
         )
 

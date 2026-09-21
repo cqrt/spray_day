@@ -229,7 +229,7 @@ fun RecordingDetailScreen(
 
 /** Camera bounds covering both the driven and the planned line. */
 private fun boundsOf(detail: RecordingDetail?): LatLngBounds? {
-    val points: List<GeoPoint> = detail?.let { it.points + it.plannedGeometry }.orEmpty()
+    val points: List<GeoPoint> = detail?.let { it.points + it.plannedGeometry.points }.orEmpty()
     if (points.size < 2) return null
     return LatLngBounds(
         minLat = points.minOf { it.lat },

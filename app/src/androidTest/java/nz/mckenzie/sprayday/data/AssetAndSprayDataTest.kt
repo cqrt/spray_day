@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.due.DueStatus
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.gpx.GpxParser
 import org.junit.After
@@ -52,13 +53,54 @@ class AssetAndSprayDataTest {
         .first()
         .first { it.asset.id == assetId }
 
+    /**
+     * A track with a side track off it, stored and read back as the two paths it is.
+     *
+     * The claim this pins is the length: **each path counted once**. The same ground drawn the old way
+     * - up the spur and back down it as part of the line - is a whole spur too long, and the length is
+     * what the handover and the coverage percentage are worked out against.
+     */
+    @Test
+    fun aTrackWithASideTrackIsStoredAsPathsAndItsLengthCountedOnce() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val spurEnd = GeoPoint(0.001, 0.0005)
+        val lineWithSpur = listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001))
+        val spur = listOf(junction, spurEnd)
+
+        val id = assetRepository.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(lineWithSpur, listOf(spur))
+        )
+
+        val stored = assetRepository.getAssetGeometry(id)
+        assertEquals("the line and its side track", 2, stored.paths.size)
+        assertEquals(lineWithSpur, stored.line)
+        assertEquals(listOf(spur), stored.sideTracks)
+        assertEquals(
+            "the junction is in both paths, at the same two numbers",
+            stored.line[1],
+            stored.sideTracks[0].first()
+        )
+        assertEquals("every vertex of every path", 5, stored.pointCount)
+        assertEquals(
+            "222 m of track, not the 333 m walking the spur twice would read as",
+            222.4,
+            assetRepository.getAsset(id)!!.lengthM,
+            0.5
+        )
+
+        // And the map reads the same thing: one asset, both of its paths, so a tap on the spur opens
+        // the track it hangs off.
+        assertEquals(2, assetRepository.allAssetGeometry()[id]!!.paths.size)
+    }
+
     @Test
     fun createAssetStoresGeometryAndLength() = runBlocking {
         val id = assetRepository.createAsset(name = "Track 4", geometry = line)
 
         val geometry = assetRepository.getAssetGeometry(id)
-        assertEquals(2, geometry.size)
-        assertEquals(0.001, geometry[1].lng, 1e-9)
+        assertEquals(2, geometry.pointCount)
+        assertEquals(0.001, geometry.line[1].lng, 1e-9)
         assertEquals(111.19, assetRepository.getAsset(id)!!.lengthM, 1.0)
     }
 
@@ -69,7 +111,7 @@ class AssetAndSprayDataTest {
         assetRepository.deleteAsset(id)
 
         assertNull(assetRepository.getAsset(id))
-        assertTrue(assetRepository.getAssetGeometry(id).isEmpty())
+        assertTrue(assetRepository.getAssetGeometry(id).paths.isEmpty())
     }
 
     @Test
@@ -242,7 +284,7 @@ class AssetAndSprayDataTest {
         assertEquals(
             "the line is still planned",
             2,
-            assetRepository.getAssetGeometry(assetId).size
+            assetRepository.getAssetGeometry(assetId).pointCount
         )
         assertNotNull(
             "and the recording is evidence of a pass, not history of a spray",
@@ -333,7 +375,7 @@ class AssetAndSprayDataTest {
 
         val importedId = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
 
-        assertEquals(2, assetRepository.getAssetGeometry(importedId).size)
+        assertEquals(2, assetRepository.getAssetGeometry(importedId).pointCount)
         assertEquals(111.19, assetRepository.getAsset(importedId)!!.lengthM, 1.0)
     }
 

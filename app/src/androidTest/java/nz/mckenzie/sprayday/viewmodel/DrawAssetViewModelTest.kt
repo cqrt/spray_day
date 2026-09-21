@@ -55,6 +55,23 @@ class DrawAssetViewModelTest {
         locationSource = FixedLocation(at)
     )
 
+    /**
+     * The live state of a drawing session, waited for the way the screen waits for it.
+     *
+     * The card's numbers are `WhileSubscribed` flows, so a test that reaches for `.value` without
+     * collecting gets the initial value and asserts about a number the operator never sees - the flows
+     * only run while somebody is watching, which on the phone is the screen itself. Waiting for the
+     * value is therefore both the honest reading and the race-free one.
+     */
+    private suspend fun pointsBecome(viewModel: DrawAssetViewModel, count: Int): Boolean =
+        runCatching { withTimeout(5_000) { viewModel.pointCount.first { it == count } } }.isSuccess
+
+    private suspend fun sideTracksBecome(viewModel: DrawAssetViewModel, count: Int): Boolean =
+        runCatching { withTimeout(5_000) { viewModel.sideTrackCount.first { it == count } } }.isSuccess
+
+    private suspend fun drawingBecome(viewModel: DrawAssetViewModel, drawing: Boolean): Boolean =
+        runCatching { withTimeout(5_000) { viewModel.drawingSideTrack.first { it == drawing } } }.isSuccess
+
     /** A phone that knows where it is, or one that cannot say. */
     private class FixedLocation(private val fix: GeoPoint?) : LocationSource {
         override fun updates(): Flow<GeoPoint> = emptyFlow()
@@ -119,20 +136,20 @@ class DrawAssetViewModelTest {
     }
 
     @Test
-    fun theDraftStartsEmptyAndUndoAndClearWork() {
+    fun theDraftStartsEmptyAndUndoAndClearWork() = runBlocking {
         val viewModel = viewModel()
 
-        assertTrue("a new drawing session starts with no draft", viewModel.points.value.isEmpty())
+        assertTrue("a new drawing session starts with no draft", viewModel.paths.value.isEmpty())
 
         viewModel.addPoint(-41.5100, 173.9600)
         viewModel.addPoint(-41.5150, 173.9700)
-        assertEquals(2, viewModel.points.value.size)
+        assertTrue("the card counts two points", pointsBecome(viewModel, 2))
 
         viewModel.undo()
-        assertEquals(1, viewModel.points.value.size)
+        assertTrue("the card counts one point", pointsBecome(viewModel, 1))
 
         viewModel.clear()
-        assertTrue(viewModel.points.value.isEmpty())
+        assertTrue(viewModel.paths.value.isEmpty())
     }
 
     @Test
@@ -180,11 +197,11 @@ class DrawAssetViewModelTest {
         assertEquals(AssetKind.INFRASTRUCTURE, AssetKind.fromStorage(asset.kind))
         assertEquals(AssetShape.POINT, AssetShape.fromStorage(asset.shape))
         assertEquals("a place has no length", 0.0, asset.lengthM, 1e-9)
-        assertEquals(1, repository.getAssetGeometry(saved).size)
+        assertEquals(1, repository.getAssetGeometry(saved).pointCount)
     }
 
     @Test
-    fun tappingAgainMovesTheSpotRatherThanGrowingALine() {
+    fun tappingAgainMovesTheSpotRatherThanGrowingALine() = runBlocking {
         val viewModel = viewModel()
         viewModel.chooseKind(AssetKind.INFRASTRUCTURE)
         viewModel.chooseShape(AssetShape.POINT)
@@ -192,12 +209,12 @@ class DrawAssetViewModelTest {
         viewModel.addPoint(-41.5100, 173.9600)
         viewModel.addPoint(-41.5200, 173.9800)
 
-        assertEquals("a place is one coordinate", 1, viewModel.points.value.size)
-        assertEquals(-41.5200, viewModel.points.value.single().lat, 1e-9)
+        assertTrue("a place is one coordinate", pointsBecome(viewModel, 1))
+        assertEquals(-41.5200, viewModel.paths.value.first().single().lat, 1e-9)
     }
 
     @Test
-    fun switchingToASpotKeepsTheLastTapAndDropsTheRest() {
+    fun switchingToASpotKeepsTheLastTapAndDropsTheRest() = runBlocking {
         val viewModel = viewModel()
         viewModel.addPoint(-41.5100, 173.9600)
         viewModel.addPoint(-41.5150, 173.9700)
@@ -205,8 +222,153 @@ class DrawAssetViewModelTest {
         viewModel.chooseKind(AssetKind.INFRASTRUCTURE)
         viewModel.chooseShape(AssetShape.POINT)
 
-        assertEquals("the most recent tap is the one that was meant", 1, viewModel.points.value.size)
-        assertEquals(-41.5150, viewModel.points.value.single().lat, 1e-9)
+        assertTrue("the most recent tap is the one that was meant", pointsBecome(viewModel, 1))
+        assertEquals(-41.5150, viewModel.paths.value.first().single().lat, 1e-9)
+    }
+
+
+    /* ---- A track with a side track off it ---------------------------------------------- */
+
+    /**
+     * The gesture: draw the line as far as the junction, press *Side track*, tap the spur, press
+     * *Back to the track*, carry on.
+     *
+     * What matters is the join. The side track's first vertex is the line's own last vertex, which is
+     * what makes it a side track rather than a line that happens to be near one - and it is why the
+     * drawing has to happen in that order.
+     */
+    @Test
+    fun aSideTrackStartsAtTheEndOfTheLineAndJoinsItExactly() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5150, 173.9700)
+        val junction = viewModel.paths.value.first().last()
+
+        viewModel.startSideTrack()
+        assertTrue("the screen offers the way back", drawingBecome(viewModel, true))
+        assertTrue("and the track has one side track now", sideTracksBecome(viewModel, 1))
+
+        viewModel.addPoint(-41.5300, 173.9800)
+
+        val spur = viewModel.paths.value[1]
+        assertEquals("the join is the line's own vertex", junction, spur.first())
+        assertEquals(2, spur.size)
+        assertEquals("the line itself is untouched", 2, viewModel.paths.value.first().size)
+        assertTrue("and every vertex is counted", pointsBecome(viewModel, 4))
+    }
+
+    @Test
+    fun theLineCarriesOnAfterTheSideTrackIsFinished() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5150, 173.9700)
+        viewModel.startSideTrack()
+        viewModel.addPoint(-41.5300, 173.9800)
+        viewModel.backToTheLine()
+
+        viewModel.addPoint(-41.5200, 173.9900)
+
+        assertTrue("back to drawing the line", drawingBecome(viewModel, false))
+        assertEquals(2, viewModel.paths.value.size)
+        assertEquals("the line grew by the tap after the side track", 3, viewModel.paths.value.first().size)
+        assertEquals("and the side track kept what it had", 2, viewModel.paths.value[1].size)
+    }
+
+    @Test
+    fun aSideTrackWithOnePointIsTakenOffByBackToTheTrackAndByUndo() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5150, 173.9700)
+
+        // Pressed, then thought better of: nothing was drawn on it, so nothing is kept.
+        viewModel.startSideTrack()
+        assertTrue("the side track was started", drawingBecome(viewModel, true))
+        viewModel.backToTheLine()
+        assertEquals("one tap is not a side track", 1, viewModel.paths.value.size)
+        assertTrue(drawingBecome(viewModel, false))
+
+        // And the same by undoing the tap that started it.
+        viewModel.startSideTrack()
+        assertTrue("started again, to undo it this time", drawingBecome(viewModel, true))
+        viewModel.undo()
+        assertEquals("undo takes the side track with the junction tap", 1, viewModel.paths.value.size)
+        assertTrue("and hands the operator back to the line", pointsBecome(viewModel, 2))
+        assertTrue(drawingBecome(viewModel, false))
+    }
+
+    @Test
+    fun undoingAtapOffTheSideTrackLeavesTheSideTrackInPlace() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5150, 173.9700)
+        viewModel.startSideTrack()
+        viewModel.addPoint(-41.5300, 173.9800)
+        viewModel.addPoint(-41.5350, 173.9850)
+
+        viewModel.undo()
+
+        assertEquals("the side track loses its last tap", 2, viewModel.paths.value[1].size)
+        assertTrue("and stays the path being drawn", drawingBecome(viewModel, true))
+    }
+
+    @Test
+    fun aSideTrackIsNotOfferedUntilThereIsALineToLeave() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+
+        viewModel.startSideTrack()
+
+        assertEquals("one point is not a track yet", 1, viewModel.paths.value.size)
+        assertTrue(drawingBecome(viewModel, false))
+        assertNotNull("and the card says so", viewModel.message.value)
+    }
+
+    @Test
+    fun savingATrackWithASideTrackStoresBothPathsAndCountsTheLengthOnce() = runBlocking {
+        val repository = AssetRepository(db)
+        val viewModel = DrawAssetViewModel(
+            assetRepository = repository,
+            settingsRepository = SettingsRepository(context),
+            locationSource = FixedLocation(null)
+        )
+        // A line 0.001 degrees along the equator (111 m) with a 0.001-degree side track off its end.
+        viewModel.addPoint(0.0, 0.0)
+        viewModel.addPoint(0.0, 0.001)
+        viewModel.startSideTrack()
+        viewModel.addPoint(0.001, 0.001)
+
+        viewModel.save("Gully track")
+        val saved = withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }!!
+        assertEquals("the save raised the signal the screen acts on", saved, viewModel.savedAssetId.value)
+
+        val stored = repository.getAssetGeometry(saved)
+        assertEquals(2, stored.paths.size)
+        assertEquals("the side track is stored as a path of its own", 2, stored.sideTracks.first().size)
+        assertEquals(
+            "222 m of track, not the 333 m of walking the spur twice",
+            222.4,
+            repository.getAsset(saved)!!.lengthM,
+            0.5
+        )
+    }
+
+    @Test
+    fun savingWhileMidSideTrackDropsTheOneTapAndKeepsTheLine() = runBlocking {
+        val repository = AssetRepository(db)
+        val viewModel = DrawAssetViewModel(
+            assetRepository = repository,
+            settingsRepository = SettingsRepository(context),
+            locationSource = FixedLocation(null)
+        )
+        viewModel.addPoint(0.0, 0.0)
+        viewModel.addPoint(0.0, 0.001)
+        viewModel.startSideTrack()
+
+        viewModel.save("Gully track")
+
+        val stored = repository.getAssetGeometry(withTimeout(5_000) { viewModel.savedAssetId.first { it != null } }!!)
+        assertEquals("the line is saved", 2, stored.line.size)
+        assertEquals("and the tap with nothing on it is not", 0, stored.sideTracks.size)
     }
 
     @Test

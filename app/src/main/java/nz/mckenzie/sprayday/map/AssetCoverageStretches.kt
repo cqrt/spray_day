@@ -37,7 +37,7 @@ import java.time.ZoneId
 object AssetCoverageStretches {
 
     /**
-     * The stretches to draw, or an empty list when the line is drawn in one colour.
+     * The stretches to draw, or an empty list when the track is drawn in one colour.
      *
      * [passes] are the recorded passes that could still matter, [lastWithoutRecordingAtEpochMs]
      * the last spray with no recording behind it, and [nowEpochMs] the clock the colours are
@@ -46,9 +46,14 @@ object AssetCoverageStretches {
      * [passesRequired] and [separationM] are the asset's own two-pass settings. A line sprayed
      * twice is coloured by when it was last *done* - both passes - so one pass over it leaves the
      * line as it was rather than turning it green: see [TwoPasses].
+     *
+     * **Every path is cut up on its own.** A track's side tracks are part of it - see
+     * [nz.mckenzie.sprayday.domain.geo.AssetGeometry] - so a spur driven on its own keeps its own date
+     * and is drawn in its own colour, rather than being joined onto the line where the distance along
+     * it would make no sense.
      */
     fun of(
-        planned: List<GeoPoint>,
+        planned: List<List<GeoPoint>>,
         passes: List<RecordedPass>,
         lastWithoutRecordingAtEpochMs: Long?,
         intervalDays: Int,
@@ -59,26 +64,28 @@ object AssetCoverageStretches {
         passesRequired: Int = 1,
         separationM: Double? = null
     ): List<AssetStretch> =
-        dated(
-            planned = planned,
-            passes = passes,
-            lastWithoutRecordingAtEpochMs = lastWithoutRecordingAtEpochMs,
-            toleranceM = toleranceM,
-            passesRequired = passesRequired,
-            separationM = separationM
-        ).map { stretch ->
-            AssetStretch(
-                colorHex = AssetColors.forStatus(
-                    DueCalculator.calculate(
-                        lastSprayedAtEpochMs = stretch.first,
-                        intervalDays = intervalDays,
-                        leadDays = leadDays,
-                        nowEpochMs = nowEpochMs,
-                        zoneId = zoneId
-                    ).status
-                ),
-                points = stretch.second
-            )
+        planned.flatMap { path ->
+            dated(
+                planned = path,
+                passes = passes,
+                lastWithoutRecordingAtEpochMs = lastWithoutRecordingAtEpochMs,
+                toleranceM = toleranceM,
+                passesRequired = passesRequired,
+                separationM = separationM
+            ).map { stretch ->
+                AssetStretch(
+                    colorHex = AssetColors.forStatus(
+                        DueCalculator.calculate(
+                            lastSprayedAtEpochMs = stretch.first,
+                            intervalDays = intervalDays,
+                            leadDays = leadDays,
+                            nowEpochMs = nowEpochMs,
+                            zoneId = zoneId
+                        ).status
+                    ),
+                    points = stretch.second
+                )
+            }
         }
 
     /**

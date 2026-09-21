@@ -100,7 +100,7 @@ abstract class AssetDao {
     @Query("UPDATE assets SET lengthM = :lengthM WHERE id = :assetId")
     abstract suspend fun updateLength(assetId: Long, lengthM: Double)
 
-    @Query("SELECT * FROM asset_points WHERE assetId = :assetId ORDER BY sequence")
+    @Query("SELECT * FROM asset_points WHERE assetId = :assetId ORDER BY pathIndex, sequence")
     abstract suspend fun getGeometry(assetId: Long): List<AssetPointEntity>
 
     /**
@@ -110,8 +110,11 @@ abstract class AssetDao {
      * the state document, which needs each asset's points to say which version of the line a desk was
      * handed. One query rather than one per asset: the desk asks for both documents on opening, and a
      * per-asset read would be a query per track for points the map is about to ask for anyway.
+     *
+     * Ordered by path as well as by position, so the caller can group by asset and split by path
+     * without sorting anything itself.
      */
-    @Query("SELECT * FROM asset_points ORDER BY assetId, sequence")
+    @Query("SELECT * FROM asset_points ORDER BY assetId, pathIndex, sequence")
     abstract suspend fun allGeometry(): List<AssetPointEntity>
 
     /**
@@ -124,7 +127,7 @@ abstract class AssetDao {
     )
     abstract suspend fun pointBounds(): AssetPointBounds?
 
-    @Query("SELECT * FROM asset_points WHERE assetId = :assetId ORDER BY sequence")
+    @Query("SELECT * FROM asset_points WHERE assetId = :assetId ORDER BY pathIndex, sequence")
     abstract fun observeGeometry(assetId: Long): Flow<List<AssetPointEntity>>
 
     @Insert

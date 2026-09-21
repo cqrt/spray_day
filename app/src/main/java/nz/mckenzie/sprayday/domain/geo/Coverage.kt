@@ -82,6 +82,43 @@ object Coverage {
     }
 
     /**
+     * The same question asked of a whole track: the line **and its side tracks**.
+     *
+     * The length of every path, each counted once, is the denominator - so a spur into the gully is
+     * as much a part of "did I get the whole track" as the line it leaves, and driving up it and back
+     * down does not count it twice. Weighting by length is what keeps the number an answer about the
+     * ground: a hundred-metre side track moves it as much as a hundred metres of the line.
+     */
+    fun coveredFraction(
+        planned: AssetGeometry,
+        recorded: List<GeoPoint>,
+        toleranceM: Double = DEFAULT_TOLERANCE_M,
+        breaks: List<RecordingBreak> = emptyList()
+    ): Double {
+        val total = planned.lengthM
+        if (total <= 0.0) return 0.0
+        return (planned.paths.sumOf { path ->
+            coveredFraction(path, recorded, toleranceM, breaks) * polylineLengthMeters(path)
+        } / total).coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * The same, cut into stretches: every path of the track, each cut up on its own.
+     *
+     * Per path rather than over a flattened list of points, because the walk's whole idea is distance
+     * *along* a line - and joining a spur onto the end of the line would make the first metres of the
+     * spur read as the last metres of the line, which is a stretch drawn in the wrong colour.
+     */
+    fun splitByCoverage(
+        planned: AssetGeometry,
+        passes: List<RecordedPass>,
+        assetSprayedAtEpochMs: Long? = null,
+        toleranceM: Double = DEFAULT_TOLERANCE_M
+    ): List<CoverageStretch> = planned.paths.flatMap { path ->
+        splitByCoverage(path, passes, assetSprayedAtEpochMs, toleranceM)
+    }
+
+    /**
      * The planned line cut into stretches, each carrying the date it was last sprayed, or
      * null where nothing has covered it.
      *

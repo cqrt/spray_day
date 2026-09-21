@@ -8,6 +8,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetPathEdits
 import nz.mckenzie.sprayday.domain.asset.AssetPathResult
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
@@ -137,11 +138,15 @@ data class WebEditorDraft(
     val asset: AssetEntity,
     val blockName: String?,
     /**
-     * The line to store with it, and never empty: an asset with nothing drawn is not something the
-     * desk can make, and [AssetPathEdits] refuses that for both shapes - so this type says what is
+     * The geometry to store with it, and never empty: an asset with nothing drawn is not something
+     * the desk can make, and [AssetPathEdits] refuses that for both shapes - so this type says what is
      * true rather than leaving every caller to check it.
+     *
+     * A [nz.mckenzie.sprayday.domain.geo.AssetGeometry] rather than a list of points, because that is
+     * what the repository writes: a track made here has one line and no side tracks, and saying so in
+     * the type is how the writing code holds no opinion about it.
      */
-    val points: List<GeoPoint>
+    val geometry: AssetGeometry
 )
 
 /** What making a new asset turned into. */
@@ -184,7 +189,20 @@ sealed interface WebEditorWrite {
  */
 object WebEditorVersion {
 
-    fun of(asset: AssetEntity, blockName: String?, points: List<GeoPoint> = emptyList()): String {
+    /**
+     * The fingerprint of one asset, as a desk may write it.
+     *
+     * [paths] is the whole geometry - the line first and its side tracks after it - because a side
+     * track added on the phone is a change to what the desk is holding: a card that never saw the
+     * spur is out of date in exactly the way a card that never saw a renamed track is. The paths are
+     * hashed with their boundaries marked, so the same vertices split differently are a different
+     * version rather than a collision.
+     */
+    fun of(
+        asset: AssetEntity,
+        blockName: String?,
+        paths: List<List<GeoPoint>> = emptyList()
+    ): String {
         // Named fields, one to a line. A hash of joined values would read "Estuary" and "3" the same
         // as "Estuary 3" and nothing, which is a collision an operator could type by accident.
         val fields = listOf(
@@ -199,7 +217,12 @@ object WebEditorVersion {
             "swathWidthM" to asset.swathWidthM?.toString().orEmpty(),
             "passesRequired" to asset.passesRequired.toString(),
             "passSeparationM" to asset.passSeparationM?.toString().orEmpty()
-        ) + points.mapIndexed { index, point -> "point$index" to "${point.lat},${point.lng}" }
+        ) + paths.flatMapIndexed { pathIndex, path ->
+            listOf("path$pathIndex" to path.size.toString()) +
+                path.mapIndexed { index, point ->
+                    "point$pathIndex.$index" to "${point.lat},${point.lng}"
+                }
+        }
         val canonical = fields.joinToString(separator = "") { (name, value) ->
             "$name=${value.replace("\n", "\\n")}\n"
         }
@@ -229,13 +252,13 @@ object WebEditorEdits {
     /**
      * An edit to an asset the phone already has.
      *
-     * [path] is the asset's geometry *as the phone holds it now*, which is half of what the version
-     * the desk quoted is made of.
+     * [paths] is the asset's geometry *as the phone holds it now* - the line and its side tracks -
+     * which is half of what the version the desk quoted is made of.
      */
     fun apply(
         current: AssetEntity,
         blockName: String?,
-        path: List<GeoPoint>,
+        paths: List<List<GeoPoint>>,
         body: String?
     ): WebEditorEditResult {
         val edit = parse(body) ?: return Refused(UNREADABLE)
@@ -245,7 +268,7 @@ object WebEditorEdits {
         // range would be an answer about an asset that is no longer there. A body that did not say
         // which version it was written against cannot be taken at all: there is nothing to compare.
         if (edit.version.isBlank()) return Refused(UNREADABLE)
-        if (edit.version != WebEditorVersion.of(current, blockName, path)) {
+        if (edit.version != WebEditorVersion.of(current, blockName, paths)) {
             return Refused(
                 "This was changed on the phone while it was open here, so nothing was saved. " +
                     "Close the card and open it again to see the phone's version.",
@@ -279,7 +302,9 @@ object WebEditorEdits {
                     WebEditorDraft(
                         asset = judged.asset,
                         blockName = judged.blockName,
-                        points = points
+                        // A track drawn on the desk has one line and no side tracks: there is no way
+                        // to draw a side track here yet, so there is nothing to carry over.
+                        geometry = AssetGeometry.of(points)
                     )
                 )
             }
@@ -330,10 +355,13 @@ object WebEditorEdits {
                 when (val drawn = pathOf(shape, edit.points)) {
                     null -> WebEditorEditResult.Ok(result.asset, result.groupName)
                     is AssetPathResult.Invalid -> Refused(drawn.message)
+                    // The desk's body carries one line and no side tracks - the wire has no field for
+                    // them yet - so a written path is the line, and what happens to an asset that has
+                    // side tracks is the caller's decision rather than something to guess at here.
                     is AssetPathResult.Ok -> WebEditorEditResult.Ok(
                         asset = result.asset,
                         blockName = result.groupName,
-                        points = drawn.points
+                        points = drawn.paths.first()
                     )
                 }
             }

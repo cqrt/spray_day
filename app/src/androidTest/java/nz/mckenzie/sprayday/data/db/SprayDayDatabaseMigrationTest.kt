@@ -350,6 +350,75 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The migration that gives every vertex a path to belong to.
+     *
+     * This is the one that has to be exactly right, because it runs over every track in the database
+     * and there is no way back: what it must prove is that a v5 track comes out as **exactly the line
+     * it was** - all its vertices, in order, on path 0 - so that an install nobody touches behaves as
+     * it did. The new column's default is the whole of the carrying over; this is what checks the
+     * default is doing what it says.
+     *
+     * The index moves with it, and that is checked by using it: two paths may each have a vertex in
+     * position 1, which `(assetId, sequence)` alone would have refused.
+     */
+    @Test
+    fun migrationFrom5To6PutsEveryExistingVertexOnTheLine() {
+        helper.createDatabase(TEST_DB, 5).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                    "swathWidthM, passesRequired, passSeparationM, active, createdAtEpochMs, " +
+                    "lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (3, 'Estuary road', 'TRACK', 'LINE', 'BOOM', NULL, NULL, 120, NULL, 1, " +
+                    "NULL, 1, 1000, NULL, 222.4)"
+            )
+            execSQL(
+                "INSERT INTO asset_points (assetId, sequence, lat, lng) VALUES " +
+                    "(3, 0, -41.50, 173.95), (3, 1, -41.51, 173.96), (3, 2, -41.52, 173.97)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 6, true, MIGRATION_5_6)
+
+        migrated.query(
+            "SELECT sequence, lat, lng, pathIndex FROM asset_points WHERE assetId = 3 ORDER BY sequence"
+        ).use { cursor ->
+            assertEquals("every vertex of the line survives", 3, cursor.count)
+            var index = 0
+            while (cursor.moveToNext()) {
+                assertEquals("in the order it was drawn", index, cursor.getInt(0))
+                assertEquals("on the line, which is path 0", 0, cursor.getInt(3))
+                index++
+            }
+            assertTrue("and the asset it belongs to still has it", index == 3)
+        }
+
+        // Two paths, each with a vertex in position 1: what the new index is for, and what the old one
+        // - unique on (assetId, sequence) - would have refused.
+        migrated.execSQL(
+            "INSERT INTO asset_points (assetId, pathIndex, sequence, lat, lng) VALUES " +
+                "(3, 1, 0, -41.51, 173.96), (3, 1, 1, -41.55, 173.90)"
+        )
+        migrated.query(
+            "SELECT COUNT(*) FROM asset_points WHERE assetId = 3 AND pathIndex = 1"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("a side track of the same asset is stored", 2, cursor.getInt(0))
+        }
+        migrated.query("SELECT lengthM FROM assets WHERE id = 3").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(
+                "and the length the v5 track was carrying is untouched",
+                222.4,
+                cursor.getDouble(0),
+                0.01
+            )
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

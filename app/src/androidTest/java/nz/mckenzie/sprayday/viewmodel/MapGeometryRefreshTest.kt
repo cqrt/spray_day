@@ -14,6 +14,7 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
 import org.junit.After
@@ -138,7 +139,7 @@ class MapGeometryRefreshTest {
         // A redraw: different geometry, so a different length.
         assetRepository.replaceGeometry(
             assetId,
-            listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600))
+            AssetGeometry.of(listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600)))
         )
 
         until("the redrawn geometry") { geometryReads == 2 }

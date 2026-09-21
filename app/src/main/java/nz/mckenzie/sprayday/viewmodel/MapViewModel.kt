@@ -28,6 +28,7 @@ import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
@@ -64,7 +65,7 @@ class MapViewModel(
      */
     private val dueNow: Flow<Long> = MinuteTicker.minutes(),
     /** Injected so a test can count how often a line is re-read from the database. */
-    private val loadGeometry: suspend (Long) -> List<GeoPoint> = assetRepository::getAssetGeometry,
+    private val loadGeometry: suspend (Long) -> AssetGeometry = assetRepository::getAssetGeometry,
     /** Injected for the same reason: the sprays the map reads to colour part of a line. */
     private val loadCoverage: suspend (Long) -> AssetSprayCoverage = assetRepository::getSprayCoverage
 ) : ViewModel() {
@@ -90,7 +91,7 @@ class MapViewModel(
     val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue(dueNow)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
-    private val geometryByTrack = MutableStateFlow<Map<Long, List<GeoPoint>>>(emptyMap())
+    private val geometryByTrack = MutableStateFlow<Map<Long, AssetGeometry>>(emptyMap())
 
     /** The sprays that could colour part of a line, per asset. */
     private val coverageByTrack = MutableStateFlow<Map<Long, AssetSprayCoverage>>(emptyMap())
@@ -177,16 +178,17 @@ class MapViewModel(
         val now = clock.value
         AssetGeoJson.build(
             tracks.map { item ->
-                val points = geometry[item.asset.id].orEmpty()
+                val assetGeometry = geometry[item.asset.id] ?: AssetGeometry.NONE
                 val shape = AssetShape.fromStorage(item.asset.shape)
                 AssetLine(
                     assetId = item.asset.id,
                     name = item.asset.name,
                     colorHex = AssetColors.forStatus(item.due.status),
-                    points = points,
+                    points = assetGeometry.line,
+                    sideTracks = assetGeometry.sideTracks,
                     kind = AssetKind.fromStorage(item.asset.kind),
                     shape = shape,
-                    stretches = stretchesFor(item, points, coverage[item.asset.id], shape, now)
+                    stretches = stretchesFor(item, assetGeometry.paths, coverage[item.asset.id], shape, now)
                 )
             }
         )
@@ -197,26 +199,26 @@ class MapViewModel(
     )
 
     /**
-     * The stretches a line is drawn as, or nothing at all when it is all in one state.
+     * The stretches a track is drawn as, or nothing at all when it is all in one state.
      *
      * Nothing at all is the common case and it costs nothing to detect: an asset with no
      * recent spray has no part worth walking, and the whole line is coloured by its traffic
-     * light as it always was. A place has no length to cut up, and a line needs two points
+     * light as it always was. A place has no length to cut up, and a path needs two points
      * before there is anything to walk along.
      */
     private fun stretchesFor(
         item: AssetWithDue,
-        points: List<GeoPoint>,
+        paths: List<List<GeoPoint>>,
         coverage: AssetSprayCoverage?,
         shape: AssetShape,
         nowEpochMs: Long
     ): List<AssetStretch> {
-        if (shape != AssetShape.LINE || points.size < 2) return emptyList()
+        if (shape != AssetShape.LINE || paths.none { it.size >= 2 }) return emptyList()
         if (coverage == null) return emptyList()
         if (coverage.passes.isEmpty() && coverage.lastWithoutRecordingAtEpochMs == null) return emptyList()
 
         return AssetCoverageStretches.of(
-            planned = points,
+            planned = paths,
             passes = coverage.passes,
             lastWithoutRecordingAtEpochMs = coverage.lastWithoutRecordingAtEpochMs,
             intervalDays = item.asset.intervalDays,

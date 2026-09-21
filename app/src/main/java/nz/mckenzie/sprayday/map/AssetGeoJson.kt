@@ -32,6 +32,14 @@ data class AssetLine(
     /** A line to travel along, or a single place to stop at. */
     val shape: AssetShape = AssetShape.LINE,
     /**
+     * The side tracks hanging off [points], drawn in the same colour as the line they leave.
+     *
+     * A track on the ground is not always one path - see
+     * [nz.mckenzie.sprayday.domain.geo.AssetGeometry] - so the map draws every path, and a tap on any
+     * of them opens the same asset. Empty for a place, and for the previews above.
+     */
+    val sideTracks: List<List<GeoPoint>> = emptyList(),
+    /**
      * Set when the line is not all in one state - a track half sprayed - in which case these
      * are drawn instead of the single line above, one feature each.
      *
@@ -39,7 +47,11 @@ data class AssetLine(
      * asset, and the map's layers filter on kind and shape exactly as they did before.
      */
     val stretches: List<AssetStretch> = emptyList()
-)
+) {
+
+    /** Every path to draw: the line first, then its side tracks. */
+    val paths: List<List<GeoPoint>> get() = listOf(points) + sideTracks
+}
 
 /**
  * Colours for the traffic-light system, matching the Compose theme
@@ -131,8 +143,13 @@ object AssetGeoJson {
     private const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
     fun build(lines: List<AssetLine>): String {
-        // A line needs two points to be a line; a place needs only the one it is at.
-        val drawable = lines.filter { it.points.size >= if (it.shape == AssetShape.POINT) 1 else 2 }
+        // A line needs two points to be a line; a place needs only the one it is at. Any *path* of an
+        // asset qualifies it: a track whose line is too short but whose side track is drawn is still
+        // a track with something on the map.
+        val drawable = lines.filter { line ->
+            val least = if (line.shape == AssetShape.POINT) 1 else 2
+            line.paths.any { it.size >= least }
+        }
         if (drawable.isEmpty()) return EMPTY
 
         val builder = StringBuilder(128 + drawable.size * 256)
@@ -150,8 +167,8 @@ object AssetGeoJson {
     }
 
     /**
-     * What one asset is drawn as: the whole line in its own colour, or the stretches of it
-     * that are in different states.
+     * What one asset is drawn as: every path of it in its own colour, or the stretches of those
+     * paths that are in different states.
      *
      * A stretch too short to be a line is dropped rather than drawn as a dot where the line
      * should be, and an asset whose stretches all came out that way falls back to being
@@ -159,9 +176,16 @@ object AssetGeoJson {
      * colour.
      */
     private fun stretchesOf(line: AssetLine): List<AssetStretch> {
-        val whole = AssetStretch(colorHex = line.colorHex, points = line.points)
-        if (line.shape == AssetShape.POINT) return listOf(whole)
-        return line.stretches.filter { it.points.size >= 2 }.ifEmpty { listOf(whole) }
+        if (line.shape == AssetShape.POINT) {
+            return listOf(AssetStretch(colorHex = line.colorHex, points = line.points))
+        }
+        val stretches = line.stretches.filter { it.points.size >= 2 }
+        if (stretches.isNotEmpty()) return stretches
+        // Nothing part-done: the whole track, one feature per path. A side track is drawn in the same
+        // colour as the line it leaves, because the traffic light is the whole track's answer.
+        return line.paths
+            .filter { it.size >= 2 }
+            .map { AssetStretch(colorHex = line.colorHex, points = it) }
     }
 
     private fun appendFeature(builder: StringBuilder, line: AssetLine, stretch: AssetStretch) {

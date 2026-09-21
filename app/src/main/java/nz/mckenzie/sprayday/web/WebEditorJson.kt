@@ -58,10 +58,11 @@ object WebEditorJson {
      * the asset table and forgotten here would be a column the desk never sees, which is a quiet
      * way to lose something the operator typed on the phone.
      *
-     * [points] is the asset's own geometry, and it is here for the version rather than for the
-     * document: the geometry itself travels once, in the GeoJSON the map's own source reads, so the
-     * `points` this record carries stay empty - while the desk still has to be told which *line* it
-     * was handed, or a card would go on talking about a track that has since been moved.
+     * [paths] is the asset's whole geometry - the line, and the side tracks hanging off it - and it is
+     * here for the version rather than for the document: the geometry itself travels once, in the
+     * GeoJSON the map's own source reads, so the `points` this record carries stay empty - while the
+     * desk still has to be told which *line* it was handed, or a card would go on talking about a track
+     * that has since been moved, or that has grown a spur while the card was open.
      *
      * [recordingCount] is here for the same kind of reason: it is not shown, it is what the delete
      * sentence counts.
@@ -71,7 +72,7 @@ object WebEditorJson {
         due: DueInfo,
         sprayCount: Int,
         groupName: String?,
-        points: List<GeoPoint>,
+        paths: List<List<GeoPoint>>,
         recordingCount: Int
     ): WebEditorAssetRecord = WebEditorAssetRecord(
         asset = AssetRecord(
@@ -99,7 +100,7 @@ object WebEditorJson {
         groupName = groupName,
         // Sent back by the desk with an edit, so a change made on the phone while the card was open
         // is refused here rather than written over. See [WebEditorVersion].
-        version = WebEditorVersion.of(asset, groupName, points),
+        version = WebEditorVersion.of(asset, groupName, paths),
         removal = WebEditorRemoval.of(AssetRemovalRules.of(asset.name, sprayCount, recordingCount))
     )
 

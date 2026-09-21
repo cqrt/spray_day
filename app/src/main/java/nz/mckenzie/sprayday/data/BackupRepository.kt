@@ -117,8 +117,18 @@ class BackupRepository(
         )
         dao.insertAssetPoints(
             document.assets.flatMap { asset ->
-                asset.points.mapIndexed { index, point ->
-                    AssetPointEntity(assetId = asset.id, sequence = index, lat = point.lat, lng = point.lng)
+                // The line first and the side tracks after it, which is the order `pathIndex` means -
+                // and every path numbered, so a restore puts back exactly the track that was backed up.
+                (listOf(asset.points) + asset.spurs).flatMapIndexed { pathIndex, path ->
+                    path.mapIndexed { index, point ->
+                        AssetPointEntity(
+                            assetId = asset.id,
+                            pathIndex = pathIndex,
+                            sequence = index,
+                            lat = point.lat,
+                            lng = point.lng
+                        )
+                    }
                 }
             }
         )
@@ -208,6 +218,13 @@ class BackupRepository(
  */
 private fun String?.groupKey(): String = this?.trim().orEmpty().lowercase()
 
+/**
+ * One asset as a backup carries it, its geometry split back into the paths the database stores.
+ *
+ * `pathIndex` 0 is the line and the rest are the side tracks in order, so the first path is `points`
+ * and the others are `spurs` - the same shape the file has had since before side tracks existed, with
+ * one new key beside it.
+ */
 private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
     id = id,
     name = name,
@@ -224,8 +241,24 @@ private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
     createdAtEpochMs = createdAtEpochMs,
     lastSprayedAtEpochMs = lastSprayedAtEpochMs,
     lengthM = lengthM,
-    points = points.sortedBy { it.sequence }.map { LinePointRecord(lat = it.lat, lng = it.lng) }
+    points = points.path(0),
+    spurs = points.pathsFrom(1)
 )
+
+/** One path of an asset's rows, in order, or nothing at all when the asset has no such path. */
+private fun List<AssetPointEntity>.path(pathIndex: Int): List<LinePointRecord> =
+    filter { it.pathIndex == pathIndex }
+        .sortedBy { it.sequence }
+        .map { LinePointRecord(lat = it.lat, lng = it.lng) }
+
+/** Every path from [from] up, in order: the side tracks of an asset, as the file carries them. */
+private fun List<AssetPointEntity>.pathsFrom(from: Int): List<List<LinePointRecord>> =
+    map { it.pathIndex }
+        .filter { it >= from }
+        .distinct()
+        .sorted()
+        .map { path(it) }
+        .filter { it.isNotEmpty() }
 
 private fun GroupEntity.toRecord() = GroupRecord(
     id = id,

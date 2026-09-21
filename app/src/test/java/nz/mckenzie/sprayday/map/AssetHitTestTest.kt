@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.map
 
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -15,6 +16,15 @@ import org.junit.Test
  */
 class AssetHitTestTest {
 
+    /**
+     * The map's own shape: every track's geometry, keyed by id, each a line with no side tracks.
+     *
+     * Written once here rather than at every call, so a test that wants to know about a *side track*
+     * can say so by handing in an [AssetGeometry] it built itself.
+     */
+    private fun tracksOf(vararg tracks: Pair<Long, List<GeoPoint>>): Map<Long, AssetGeometry> =
+        tracks.associate { (id, points) -> id to AssetGeometry.of(points) }
+
     // A line running east-west at 41.5S, near Nelson.
     private val homeLine = listOf(
         GeoPoint(-41.5000, 173.9500),
@@ -29,7 +39,7 @@ class AssetHitTestTest {
 
     @Test
     fun `a tap on a line picks that line`() {
-        val geometry = mapOf(7L to homeLine, 9L to riverLine)
+        val geometry = tracksOf(7L to homeLine, 9L to riverLine)
 
         assertEquals(7L, AssetHitTest.nearest(geometry, lat = -41.5000, lng = 173.9550))
         assertEquals(9L, AssetHitTest.nearest(geometry, lat = -41.4991, lng = 173.9550))
@@ -37,7 +47,7 @@ class AssetHitTestTest {
 
     @Test
     fun `a near miss still counts, because a finger is not a mouse`() {
-        val geometry = mapOf(7L to homeLine)
+        val geometry = tracksOf(7L to homeLine)
 
         // About 12 m off the line: well within a fingertip.
         assertEquals(7L, AssetHitTest.nearest(geometry, lat = -41.5001, lng = 173.9550))
@@ -45,7 +55,7 @@ class AssetHitTestTest {
 
     @Test
     fun `a tap on empty paddock opens nothing`() {
-        val geometry = mapOf(7L to homeLine)
+        val geometry = tracksOf(7L to homeLine)
 
         // About 500 m away.
         assertNull(AssetHitTest.nearest(geometry, lat = -41.5045, lng = 173.9550))
@@ -54,7 +64,7 @@ class AssetHitTestTest {
     @Test
     fun `between two tracks the nearer one wins`() {
         // About 33 m apart, as two passes on neighbouring rows would be.
-        val geometry = mapOf(
+        val geometry = tracksOf(
             7L to listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600)),
             9L to listOf(GeoPoint(-41.4997, 173.9500), GeoPoint(-41.4997, 173.9600))
         )
@@ -68,7 +78,7 @@ class AssetHitTestTest {
     fun `tracks drawn over each other always resolve the same way`() {
         // Exactly the same line under two ids, which is the only way the distances can
         // be *exactly* equal - and so the only honest way to test the tie-break.
-        val geometry = mapOf(
+        val geometry = tracksOf(
             9L to listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600)),
             7L to listOf(GeoPoint(-41.5000, 173.9500), GeoPoint(-41.5000, 173.9600))
         )
@@ -78,7 +88,7 @@ class AssetHitTestTest {
 
     @Test
     fun `the ends of a line are tappable, not just its middle`() {
-        val geometry = mapOf(7L to homeLine)
+        val geometry = tracksOf(7L to homeLine)
 
         assertEquals(7L, AssetHitTest.nearest(geometry, lat = -41.5000, lng = 173.9500))
         assertEquals(7L, AssetHitTest.nearest(geometry, lat = -41.5000, lng = 173.9600))
@@ -87,12 +97,12 @@ class AssetHitTestTest {
     @Test
     fun `an empty map, or a track with no points, opens nothing`() {
         assertNull(AssetHitTest.nearest(emptyMap(), lat = -41.5, lng = 173.95))
-        assertNull(AssetHitTest.nearest(mapOf(7L to emptyList()), lat = -41.5, lng = 173.95))
+        assertNull(AssetHitTest.nearest(tracksOf(7L to emptyList()), lat = -41.5, lng = 173.95))
     }
 
     @Test
     fun `a single-point track is still a target`() {
-        val geometry = mapOf(7L to listOf(GeoPoint(-41.5000, 173.9550)))
+        val geometry = tracksOf(7L to listOf(GeoPoint(-41.5000, 173.9550)))
 
         assertEquals(7L, AssetHitTest.nearest(geometry, lat = -41.5001, lng = 173.9550))
     }

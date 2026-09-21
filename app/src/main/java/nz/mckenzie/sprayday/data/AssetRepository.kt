@@ -16,6 +16,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueCalculator
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
@@ -84,28 +85,36 @@ class AssetRepository(
 
     fun observeAsset(assetId: Long): Flow<AssetEntity?> = assetDao.observeAsset(assetId)
 
-    fun observeAssetGeometry(assetId: Long): Flow<List<GeoPoint>> =
-        assetDao.observeGeometry(assetId).map { rows -> rows.map { it.toGeoPoint() } }
+    /**
+     * An asset's geometry as it is stored: the line, and the side tracks hanging off it.
+     *
+     * A [Flow] of the whole thing rather than of the line, because the map draws every path: a track
+     * with a spur into the gully is two lines on the screen, drawn in the one colour the asset's
+     * traffic light gives them.
+     */
+    fun observeAssetGeometry(assetId: Long): Flow<AssetGeometry> =
+        assetDao.observeGeometry(assetId).map { rows -> rows.toAssetGeometry() }
 
     /** The name of the group an asset belongs to, or null when it stands alone. */
     fun observeGroupName(assetId: Long): Flow<String?> = assetDao.observeGroupName(assetId)
 
     suspend fun getAsset(assetId: Long): AssetEntity? = assetDao.getAsset(assetId)
 
-    suspend fun getAssetGeometry(assetId: Long): List<GeoPoint> =
-        assetDao.getGeometry(assetId).map { it.toGeoPoint() }
+    suspend fun getAssetGeometry(assetId: Long): AssetGeometry =
+        assetDao.getGeometry(assetId).toAssetGeometry()
 
     /**
-     * Every asset's vertices, keyed by asset id, in one query.
+     * Every asset's geometry, keyed by asset id, in one query.
      *
      * The two whole-farm documents the desk reads both need this: the GeoJSON is the geometry, and
      * the state document needs it to say which version of a line a card was handed. An asset with no
      * geometry simply has no key, which the callers read as "nothing drawn" - the same as an empty
-     * list from [getAssetGeometry].
+     * [AssetGeometry] from [getAssetGeometry].
      */
-    suspend fun allAssetGeometry(): Map<Long, List<GeoPoint>> =
+    suspend fun allAssetGeometry(): Map<Long, AssetGeometry> =
         assetDao.allGeometry()
-            .groupBy(keySelector = { it.assetId }, valueTransform = { it.toGeoPoint() })
+            .groupBy(keySelector = { it.assetId }, valueTransform = { it })
+            .mapValues { (_, rows) -> rows.toAssetGeometry() }
 
     /** How many recordings name this asset. Part of what a delete would take with it. */
     suspend fun recordingCountFor(assetId: Long): Int = recordingDao.countForAsset(assetId)
@@ -183,6 +192,11 @@ class AssetRepository(
      * The group is given by name rather than id because that is what the operator
      * types or reads off a backup; an unknown name becomes a new group, which is what
      * "put this in the Estuary block" means when the block is new.
+     *
+     * This is the **one-line** form: a GPX file, a desk's new track and a test all have a line and
+     * nothing else. A track with side tracks goes in through the [AssetGeometry] overload below, which
+     * is the same nine arguments - the two are one door with two words for what is being carried, and
+     * they are kept next to each other so they cannot drift apart.
      */
     suspend fun createAsset(
         name: String,
@@ -190,8 +204,37 @@ class AssetRepository(
         kind: AssetKind = AssetKind.TRACK,
         shape: AssetShape = AssetShape.LINE,
         method: SprayMethod = SprayMethod.UNSET,
-        groupName: String? = null,
         notes: String? = null,
+        groupName: String? = null,
+        intervalDays: Int = AssetEntity.DEFAULT_INTERVAL_DAYS,
+        swathWidthM: Double? = null,
+        passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
+        passSeparationM: Double? = null,
+        createdAtEpochMs: Long = System.currentTimeMillis()
+    ): Long = createAsset(
+        name = name,
+        geometry = AssetGeometry.of(geometry),
+        kind = kind,
+        shape = shape,
+        method = method,
+        notes = notes,
+        groupName = groupName,
+        intervalDays = intervalDays,
+        swathWidthM = swathWidthM,
+        passesRequired = passesRequired,
+        passSeparationM = passSeparationM,
+        createdAtEpochMs = createdAtEpochMs
+    )
+
+    /** The same, for a track that is a line with side tracks hanging off it: what the drawing saves. */
+    suspend fun createAsset(
+        name: String,
+        geometry: AssetGeometry,
+        kind: AssetKind = AssetKind.TRACK,
+        shape: AssetShape = AssetShape.LINE,
+        method: SprayMethod = SprayMethod.UNSET,
+        notes: String? = null,
+        groupName: String? = null,
         intervalDays: Int = AssetEntity.DEFAULT_INTERVAL_DAYS,
         swathWidthM: Double? = null,
         passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
@@ -228,7 +271,7 @@ class AssetRepository(
      */
     suspend fun insertAsset(
         asset: AssetEntity,
-        geometry: List<GeoPoint>,
+        geometry: AssetGeometry,
         groupName: String?
     ): Long = db.withTransaction {
         val assetId = assetDao.insert(asset.copy(id = 0L, groupId = groupIdFor(groupName)))
@@ -251,7 +294,7 @@ class AssetRepository(
     suspend fun saveAssetEdits(
         asset: AssetEntity,
         groupName: String?,
-        geometry: List<GeoPoint>? = null
+        geometry: AssetGeometry? = null
     ) = db.withTransaction {
         assetDao.update(asset.copy(groupId = groupIdFor(groupName)))
         if (geometry != null) storeGeometry(asset.id, geometry)
@@ -259,7 +302,7 @@ class AssetRepository(
 
     suspend fun updateAsset(asset: AssetEntity) = assetDao.update(asset)
 
-    suspend fun replaceGeometry(assetId: Long, geometry: List<GeoPoint>) = db.withTransaction {
+    suspend fun replaceGeometry(assetId: Long, geometry: AssetGeometry) = db.withTransaction {
         storeGeometry(assetId, geometry)
     }
 
@@ -281,11 +324,26 @@ class AssetRepository(
         return if (inserted == -1L) groupDao.findByName(clean)?.id else inserted
     }
 
-    private suspend fun storeGeometry(assetId: Long, geometry: List<GeoPoint>) {
-        val rows = geometry.mapIndexed { index, point ->
-            AssetPointEntity(assetId = assetId, sequence = index, lat = point.lat, lng = point.lng)
+    /**
+     * Writes every path of an asset's geometry and the length that goes with it.
+     *
+     * The length is [AssetGeometry.lengthM] - every metre of every path, once - rather than a sum the
+     * caller worked out: a cached length that disagrees with the vertices beside it is a list that
+     * says a track is 800 m when its spur is 200 m of it.
+     */
+    private suspend fun storeGeometry(assetId: Long, geometry: AssetGeometry) {
+        val rows = geometry.paths.flatMapIndexed { pathIndex, path ->
+            path.mapIndexed { index, point ->
+                AssetPointEntity(
+                    assetId = assetId,
+                    pathIndex = pathIndex,
+                    sequence = index,
+                    lat = point.lat,
+                    lng = point.lng
+                )
+            }
         }
-        assetDao.replaceGeometry(assetId, rows, polylineLengthMeters(geometry))
+        assetDao.replaceGeometry(assetId, rows, geometry.lengthM)
     }
 
     // --- Blocks -----------------------------------------------------------------------
@@ -326,7 +384,7 @@ class AssetRepository(
     /** Exports an asset's planned geometry as GPX 1.1, or null if the asset is gone. */
     suspend fun exportAssetGpx(assetId: Long): String? {
         val asset = assetDao.getAsset(assetId) ?: return null
-        return GpxWriter.write(asset.name, getAssetGeometry(assetId))
+        return GpxWriter.write(asset.name, getAssetGeometry(assetId).paths)
     }
 
     /** Imports a GPX file as a new track. Throws if it has fewer than two points. */
@@ -342,6 +400,18 @@ class AssetRepository(
 }
 
 private fun AssetPointEntity.toGeoPoint() = GeoPoint(lat = lat, lng = lng)
+
+/**
+ * Rows back into geometry, a path at a time.
+ *
+ * The query orders by path and then by position, so this needs no sorting of its own: `groupBy` keeps
+ * the order it meets things in, which is what makes path 0 the line and path 1 the first side track
+ * rather than whichever order a map happened to iterate in.
+ */
+private fun List<AssetPointEntity>.toAssetGeometry(): AssetGeometry {
+    if (isEmpty()) return AssetGeometry.NONE
+    return AssetGeometry(groupBy { it.pathIndex }.map { (_, rows) -> rows.map { it.toGeoPoint() } })
+}
 
 /**
  * For the window of sprays the map reads. A day of exactly 24 hours is close enough for a

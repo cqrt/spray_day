@@ -143,7 +143,7 @@ class RecordingViewModelTest {
         assertEquals(
             "the track should carry the recorded line",
             line.size,
-            assetRepository.getAssetGeometry(stored.asset.id).size
+            assetRepository.getAssetGeometry(stored.asset.id).pointCount
         )
         assertTrue("its length should have been computed", stored.asset.lengthM > 0.0)
         assertEquals(

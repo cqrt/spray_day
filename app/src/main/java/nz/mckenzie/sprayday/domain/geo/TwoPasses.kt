@@ -159,6 +159,51 @@ object TwoPasses {
      * [separationM] is how far apart the two passes run, when the operator has said - see
      * [MIN_RESOLVABLE_SEPARATION_M] for what happens when they have not.
      */
+    /**
+     * The same question asked of a whole track: every path walked on its own, and the answers added up.
+     *
+     * Per path rather than over one joined list of points, because everything here is about distance
+     * *along* a line and which side of it a pass was: joining a side track onto the end of the line
+     * would make a pass up the spur read as a pass along the line's last metres. The four lengths add
+     * up across the paths - they are disjoint ground - and the passes still owed are the union of what
+     * each path owes, so the card's sentence covers the side tracks as much as the line.
+     *
+     * Named `splitPaths` rather than an overload of [split]: `List<List<GeoPoint>>` and
+     * `List<GeoPoint>` are the same `List` once compiled.
+     *
+     * Null when there is no path with a reading of its own, which callers read as "there is nothing to
+     * say about two passes on this one" - the same as a null from [split].
+     */
+    fun splitPaths(
+        planned: List<List<GeoPoint>>,
+        passes: List<RecordedPass>,
+        handSprayedAtEpochMs: Long? = null,
+        separationM: Double? = null,
+        toleranceM: Double = Coverage.DEFAULT_TOLERANCE_M
+    ): Result? {
+        val results = planned.mapNotNull { path ->
+            split(
+                planned = path,
+                passes = passes,
+                handSprayedAtEpochMs = handSprayedAtEpochMs,
+                separationM = separationM,
+                toleranceM = toleranceM
+            )
+        }
+        if (results.isEmpty()) return null
+        if (results.size == 1) return results.first()
+
+        return Result(
+            stretches = results.flatMap { it.stretches },
+            doneM = results.sumOf { it.doneM },
+            onePassM = results.sumOf { it.onePassM },
+            ambiguousM = results.sumOf { it.ambiguousM },
+            missingM = results.sumOf { it.missingM },
+            totalM = results.sumOf { it.totalM },
+            pending = results.flatMap { it.pending }.distinct()
+        )
+    }
+
     fun split(
         planned: List<GeoPoint>,
         passes: List<RecordedPass>,

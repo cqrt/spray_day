@@ -21,7 +21,19 @@ class AssetPathEditsTest {
     private fun ok(shape: AssetShape, points: List<GeoPoint>): List<GeoPoint> {
         val result = AssetPathEdits.apply(shape, points)
         assertTrue("expected these to be taken: $result", result is AssetPathResult.Ok)
-        return (result as AssetPathResult.Ok).points
+        return (result as AssetPathResult.Ok).paths.first()
+    }
+
+    private fun okPaths(shape: AssetShape, paths: List<List<GeoPoint>>): List<List<GeoPoint>> {
+        val result = AssetPathEdits.applyPaths(shape, paths)
+        assertTrue("expected these to be taken: $result", result is AssetPathResult.Ok)
+        return (result as AssetPathResult.Ok).paths
+    }
+
+    private fun refusedPaths(shape: AssetShape, paths: List<List<GeoPoint>>): String {
+        val result = AssetPathEdits.applyPaths(shape, paths)
+        assertTrue("expected these to be refused: $result", result is AssetPathResult.Invalid)
+        return (result as AssetPathResult.Invalid).message
     }
 
     private fun refused(shape: AssetShape, points: List<GeoPoint>): String {
@@ -107,6 +119,55 @@ class AssetPathEditsTest {
             "and a path at the cap is still one vertex per point, in order",
             2000,
             ok(AssetShape.LINE, (0 until 2000).map { GeoPoint(-41.5, 173.8 + it * 0.0001) }).size
+        )
+    }
+
+    @Test
+    fun `a side track has to start on the line it hangs off, and a line that carries one keeps it`() {
+        val junction = line.last()
+        val spur = listOf(junction, GeoPoint(-41.55, 173.95))
+
+        val kept = okPaths(AssetShape.LINE, listOf(line, spur))
+
+        assertEquals("the line and its side track", 2, kept.size)
+        assertEquals("the join is the very vertex that was drawn", junction, kept[1].first())
+        assertEquals("a side track is the points that were drawn for it", 2, kept[1].size)
+    }
+
+    @Test
+    fun `a side track that starts nowhere near the line is refused in the app's words`() {
+        val message = refusedPaths(
+            AssetShape.LINE,
+            listOf(line, listOf(GeoPoint(-41.2, 173.2), GeoPoint(-41.3, 173.3)))
+        )
+
+        assertTrue("says what to do about it: $message", message.contains("start on the track"))
+    }
+
+    @Test
+    fun `a side track of one point is refused, and an empty one is simply dropped`() {
+        val onePoint = refusedPaths(AssetShape.LINE, listOf(line, listOf(line.last())))
+        assertTrue("says how many points it has: $onePoint", onePoint.contains("at least two points"))
+
+        // Nothing drawn is not a mistake worth a sentence: there is nothing in it to lose.
+        val kept = okPaths(AssetShape.LINE, listOf(line, emptyList()))
+        assertEquals(1, kept.size)
+    }
+
+    @Test
+    fun `the count is the whole track's, so a side track cannot slip past the cap`() {
+        val long = (0 until AssetPathEdits.MAX_POINTS).map { index ->
+            GeoPoint(-41.5 + index * 0.0001, 173.8)
+        }
+        val message = refusedPaths(
+            AssetShape.LINE,
+            listOf(long, listOf(long.last(), GeoPoint(-41.6, 173.9)))
+        )
+
+        assertTrue(
+            "counts the side track as well as the line: $message",
+            // The line is at the cap and the side track adds the junction and one more point.
+            message.contains((AssetPathEdits.MAX_POINTS + 2).toString())
         )
     }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.tracking.LocationUnavailable
@@ -65,7 +66,7 @@ class MapPositionTest {
         settingsRepository = SettingsRepository(context),
         locationSource = source,
         dueNow = flowOf(now),
-        loadGeometry = { emptyList() }
+        loadGeometry = { AssetGeometry.NONE }
     )
 
     @Test

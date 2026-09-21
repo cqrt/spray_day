@@ -14,6 +14,7 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.tracking.LocationSource
 import org.junit.After
@@ -65,7 +66,7 @@ class MapLayersTest {
         settingsRepository = settings,
         locationSource = NoLocation,
         dueNow = flowOf(0L),
-        loadGeometry = { emptyList() }
+        loadGeometry = { AssetGeometry.NONE }
     )
 
     @Test

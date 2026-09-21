@@ -19,7 +19,7 @@ class GpxTest {
 
     @Test
     fun `writer produces a gpx 1_1 document`() {
-        val xml = GpxWriter.write("Track 4", points)
+        val xml = GpxWriter.write("Track 4", listOf(points))
         assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
         assertTrue(xml.contains("version=\"1.1\""))
         assertTrue(xml.contains("xmlns=\"http://www.topografix.com/GPX/1/1\""))
@@ -29,21 +29,21 @@ class GpxTest {
 
     @Test
     fun `writer emits coordinates with seven decimal places`() {
-        val xml = GpxWriter.write("Track", listOf(points[0]))
+        val xml = GpxWriter.write("Track", listOf(listOf(points[0])))
         assertTrue(xml.contains("lat=\"-41.2865000\""))
         assertTrue(xml.contains("lon=\"174.7762000\""))
     }
 
     @Test
     fun `writer escapes xml special characters in names`() {
-        val xml = GpxWriter.write("Block 4 & 5 <north>", points)
+        val xml = GpxWriter.write("Block 4 & 5 <north>", listOf(points))
         assertTrue(xml.contains("Block 4 &amp; 5 &lt;north&gt;"))
         assertTrue(!xml.contains("<north>"))
     }
 
     @Test
     fun `writer omits optional elements when absent`() {
-        val xml = GpxWriter.write("Track", listOf(barePoint))
+        val xml = GpxWriter.write("Track", listOf(listOf(barePoint)))
         assertTrue(xml.contains("lat=\"-41.0000000\""))
         assertTrue(!xml.contains("<ele>"))
         assertTrue(!xml.contains("<time>"))
@@ -57,7 +57,7 @@ class GpxTest {
 
     @Test
     fun `round trip preserves geometry elevation and time`() {
-        val parsed = GpxParser.parse(GpxWriter.write("Track 4", points))
+        val parsed = GpxParser.parse(GpxWriter.write("Track 4", listOf(points)))
 
         assertEquals(points.size, parsed.size)
         points.forEachIndexed { index, original ->

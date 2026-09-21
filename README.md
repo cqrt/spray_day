@@ -390,6 +390,42 @@ Four consequences worth knowing:
   metre apart, with the two passes recorded as one run, read as two passes it cannot tell apart -
   so it asks, and the answer is what counts.
 
+## A track with a side track
+
+A track on the ground is not always one path: a fenceline has a spur into a gully, a lane has a
+gateway you have to drive up and back. Drawn as one line, the only way to draw the spur was to walk
+up it and back down it inside the line - and that costs twice. The spur's metres were in the length
+twice, and the two-pass reading saw the same ground walked in opposite directions and called a dead
+end *both sides done*, which was the right answer for the wrong reason.
+
+So an asset's geometry is a **line and the side tracks hanging off it**. Path 0 is the line and the
+rest are side tracks in the order they were drawn, which is the order the database keeps them in.
+
+- **Draw the line to the junction, press *Side track*, tap along the spur, press *Back to the
+  track*, carry on.** The side track leaves the track where the track currently ends, so its first
+  vertex is the line's own last vertex - the same two numbers, not a copy, which is what makes it a
+  join rather than two lines that happen to be near each other.
+- **The length counts every path once.** A 222 m track with a 111 m spur is 333 m of ground if you
+  drive it as two paths, not the 444 m walking the spur twice reads as - and that number is the
+  handover figure and the coverage denominator.
+- **Every path is coloured by its own spray.** A pass that drove the line and never went up the spur
+  leaves the spur red, and the coverage percentage agrees with the colour, because both are worked
+  out path by path.
+- **A tap on the spur opens the track it hangs off.** The map draws one feature per path and both
+  carry the asset's id.
+- **One level only.** A side track hangs off the line; it has no side tracks of its own.
+
+Tracks drawn before this existed are exactly the line they were - the migration puts every vertex on
+path 0 and changes nothing else - and a track that was drawn the old way with an up-and-back spur
+stays a doubled line with an overstated length until somebody re-draws it. The app does not go
+looking for the shape of one: that would be guessing at ground the operator knows better.
+
+The desk can read a track's side tracks, because the drawing it fetches has one feature per path,
+but it cannot draw one yet, so a line edit from the browser on a track that has side tracks is
+refused in the phone's words rather than written: the wire still carries one line per track, and a
+write that dropped every spur would be exactly the quiet loss the whole app is built to avoid.
+Changing the details of such a track still saves.
+
 ## Backup files
 
 **Back up everything** writes one JSON file to wherever the operator chooses —

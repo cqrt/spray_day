@@ -115,7 +115,21 @@ data class AssetRecord(
     val createdAtEpochMs: Long,
     val lastSprayedAtEpochMs: Long? = null,
     val lengthM: Double = 0.0,
-    val points: List<LinePointRecord> = emptyList()
+    val points: List<LinePointRecord> = emptyList(),
+    /**
+     * The side tracks hanging off [points], in the order they were drawn.
+     *
+     * Optional and added without a version bump, like the two-pass fields and the pauses before it: a
+     * file written before side tracks existed has no such key, and an asset restored from one has one
+     * path - which is what a track was then. The first path is [points] and this holds the rest, which
+     * is the storage's own shape (`asset_points.pathIndex`), so a file and a database agree about what
+     * a track is without either having to explain itself.
+     *
+     * **A file written by a newer build and read by an older one loses these** - the format's oldest
+     * rule is that a key a build does not know is ignored, and this key is one an older build does not
+     * know. That is the trade the rule makes, and the same one v2's groups made.
+     */
+    val spurs: List<List<LinePointRecord>> = emptyList()
 )
 
 /** One vertex of a planned line. */

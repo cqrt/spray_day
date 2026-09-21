@@ -18,6 +18,7 @@ import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.Coverage
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordingBreak
@@ -46,7 +47,7 @@ data class RecordingDetail(
     val breaks: List<RecordingBreak> = emptyList(),
     val assetId: Long?,
     val assetName: String?,
-    val plannedGeometry: List<GeoPoint>,
+    val plannedGeometry: AssetGeometry,
     /** Fraction of the planned line covered, or null when there is no plan to compare. */
     val coverage: Double?
 ) {
@@ -54,7 +55,7 @@ data class RecordingDetail(
 
     val isFinished: Boolean get() = status == RecordingStatus.FINISHED
 
-    val hasPlan: Boolean get() = plannedGeometry.size >= 2
+    val hasPlan: Boolean get() = plannedGeometry.isLine
 }
 
 /**
@@ -93,7 +94,8 @@ class RecordingDetailViewModel(
                         assetId = PLANNED_ID,
                         name = detail?.assetName ?: "Planned",
                         colorHex = AssetColors.UNKNOWN,
-                        points = detail?.plannedGeometry.orEmpty()
+                        points = detail?.plannedGeometry?.line.orEmpty(),
+                        sideTracks = detail?.plannedGeometry?.sideTracks.orEmpty()
                     ),
                     AssetLine(
                         assetId = RECORDED_ID,
@@ -147,14 +149,15 @@ class RecordingDetailViewModel(
             val points = recordings.getPoints(sessionId)
             val breaks = recordings.getBreaks(sessionId)
             val planned = session.assetId?.let { assetId ->
-                runCatching { assetRepository.getAssetGeometry(assetId) }.getOrDefault(emptyList())
-            }.orEmpty()
+                runCatching { assetRepository.getAssetGeometry(assetId) }
+                    .getOrDefault(AssetGeometry.NONE)
+            } ?: AssetGeometry.NONE
             val assetName = session.assetId?.let { assetId ->
                 runCatching { assetRepository.getAsset(assetId)?.name }.getOrNull()
             }
 
             val coverage = withContext(Dispatchers.Default) {
-                if (planned.size >= 2 && points.isNotEmpty()) {
+                if (planned.isLine && points.isNotEmpty()) {
                     Coverage.coveredFraction(planned, points, breaks = breaks)
                 } else {
                     null

@@ -46,7 +46,9 @@ import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
 fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val basemap by viewModel.basemap.collectAsStateWithLifecycle()
-    val points by viewModel.points.collectAsStateWithLifecycle()
+    val pointCount by viewModel.pointCount.collectAsStateWithLifecycle()
+    val sideTrackCount by viewModel.sideTrackCount.collectAsStateWithLifecycle()
+    val drawingSideTrack by viewModel.drawingSideTrack.collectAsStateWithLifecycle()
     val lengthM by viewModel.lengthM.collectAsStateWithLifecycle()
     val geoJson by viewModel.draftGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
@@ -127,16 +129,22 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                     }
                     Text(
                         text = if (isSpot) {
-                            if (points.isEmpty()) "No spot yet" else "Spot placed"
+                            if (pointCount == 0) "No spot yet" else "Spot placed"
                         } else {
-                            "${points.size} points \u00b7 ${formatDistance(lengthM)}"
+                            val track = "$pointCount points \u00b7 ${formatDistance(lengthM)}"
+                            when (sideTrackCount) {
+                                0 -> track
+                                1 -> "$track \u00b7 1 side track"
+                                else -> "$track \u00b7 $sideTrackCount side tracks"
+                            }
                         },
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
                         text = message ?: when {
                             isSpot -> "Tap the map where it is."
-                            points.isEmpty() -> "Tap the map to add points."
+                            drawingSideTrack -> "Tap along the side track, then press \u201cBack to the track\u201d."
+                            pointCount == 0 -> "Tap the map to add points."
                             else -> "Keep tapping to extend the line."
                         },
                         style = MaterialTheme.typography.bodySmall
@@ -144,13 +152,30 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = viewModel::undo,
-                            enabled = points.isNotEmpty()
+                            enabled = pointCount > 0
                         ) { Text("Undo") }
                         OutlinedButton(
                             onClick = viewModel::clear,
-                            enabled = points.isNotEmpty()
+                            enabled = pointCount > 0
                         ) { Text("Clear") }
                         Button(onClick = { naming = true }, enabled = canSave) { Text("Save") }
+                    }
+
+                    // A track with a side track off it: the side track leaves the line where the line
+                    // currently ends, so the junction is a vertex of both and the join is exact.
+                    if (!isSpot) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (drawingSideTrack) {
+                                OutlinedButton(onClick = viewModel::backToTheLine) {
+                                    Text("Back to the track")
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = viewModel::startSideTrack,
+                                    enabled = pointCount >= 2
+                                ) { Text("Side track") }
+                            }
+                        }
                     }
                 }
             }

@@ -26,6 +26,7 @@ import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.due.DueInfo
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
 import nz.mckenzie.sprayday.domain.tiles.Basemap
@@ -107,11 +108,12 @@ class AssetDetailViewModel(
     val existingBlocks: StateFlow<List<String>> = assetRepository.observeBlockNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
-    val geometry: StateFlow<List<GeoPoint>> = assetRepository.observeAssetGeometry(assetId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+    val geometry: StateFlow<AssetGeometry> = assetRepository.observeAssetGeometry(assetId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AssetGeometry.NONE)
 
     val bounds: StateFlow<LatLngBounds?> = geometry
-        .map { points ->
+        .map { assetGeometry ->
+            val points = assetGeometry.points
             if (points.isEmpty()) {
                 null
             } else {

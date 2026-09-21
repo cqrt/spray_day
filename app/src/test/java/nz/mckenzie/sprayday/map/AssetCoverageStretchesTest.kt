@@ -71,7 +71,7 @@ class AssetCoverageStretchesTest {
         passesRequired: Int = 1,
         separationM: Double? = null
     ): List<String> = AssetCoverageStretches.of(
-        planned = planned,
+        planned = listOf(planned),
         passes = passes,
         lastWithoutRecordingAtEpochMs = lastWithoutRecordingAtEpochMs,
         intervalDays = intervalDays,

@@ -11,6 +11,7 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.RecordingRepository
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import org.junit.After
@@ -170,7 +171,7 @@ class WebEditorSaveTest {
         assertEquals(1_780_000_000_000L, stored.lastSprayedAtEpochMs)
         assertTrue(stored.active)
         assertEquals("the length is still the line's own", 111.19, stored.lengthM, 0.5)
-        assertEquals("and the line is still where it was", 2, assets.getAssetGeometry(id).size)
+        assertEquals("and the line is still where it was", 2, assets.getAssetGeometry(id).pointCount)
     }
 
     @Test
@@ -251,7 +252,7 @@ class WebEditorSaveTest {
         assertEquals(
             "the line the desk drew is the line on the phone, vertex for vertex",
             longer,
-            assets.getAssetGeometry(id)
+            assets.getAssetGeometry(id).line
         )
         assertEquals(
             "and the cached length moved with it, which is what the lists read",
@@ -270,11 +271,11 @@ class WebEditorSaveTest {
         // The phone is where a track gets drawn by hand, so this is the ordinary way a card goes stale
         // about geometry rather than an exotic one: somebody walked the line again on the phone.
         val drawnOnThePhone = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.005))
-        assets.replaceGeometry(id, drawnOnThePhone)
+        assets.replaceGeometry(id, AssetGeometry.of(drawnOnThePhone))
 
         refused(documents.save(id, editBody(version, points = line)), WebEditorRefusal.STALE)
 
-        assertEquals("the phone's line is the one that survives", drawnOnThePhone, assets.getAssetGeometry(id))
+        assertEquals("the phone's line is the one that survives", drawnOnThePhone, assets.getAssetGeometry(id).line)
     }
 
     @Test
@@ -288,7 +289,7 @@ class WebEditorSaveTest {
         assertEquals("TRACK", stored.kind)
         assertEquals("the interval the form sent, not a default", 7, stored.intervalDays)
         assertTrue("a new asset is active", stored.active)
-        assertEquals(line, assets.getAssetGeometry(id))
+        assertEquals(line, assets.getAssetGeometry(id).line)
         assertEquals(
             "the length is worked out from the line, as it is for any track drawn on the phone",
             111.19,
@@ -312,6 +313,66 @@ class WebEditorSaveTest {
         )
     }
 
+    /**
+     * A desk's line write against a track that has a side track.
+     *
+     * The wire has no field for side tracks yet, so a write carrying a line would drop every spur on
+     * the track - the one thing the desk must never do quietly. The details half of a card still saves,
+     * so this is a refusal about the drawing rather than about the card.
+     */
+    @Test
+    fun aLineWriteToATrackWithASideTrackIsRefusedRatherThanDroppingIt() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val spur = listOf(junction, GeoPoint(0.001, 0.0005))
+        val id = assets.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(listOf(line.first(), junction, line.last()), listOf(spur))
+        )
+        val version = stateRecord(id).version
+
+        val refusal = refused(
+            documents.save(id, editBody(version, points = line)),
+            WebEditorRefusal.INVALID
+        )
+
+        assertTrue(
+            "says what is in the way: ${refusal.message}",
+            refusal.message.contains("side track")
+        )
+        assertTrue(
+            "and where the change is made: ${refusal.message}",
+            refusal.message.contains("on the phone")
+        )
+        assertEquals(
+            "the side track is still there, which is what the refusal is for",
+            1,
+            assets.getAssetGeometry(id).sideTracks.size
+        )
+        assertEquals("and the line the desk tried to write was not written", 3, assets.getAssetGeometry(id).line.size)
+    }
+
+    @Test
+    fun theDetailsOfATrackWithASideTrackStillSaveFromTheDesk() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val id = assets.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(
+                listOf(line.first(), junction, line.last()),
+                listOf(listOf(junction, GeoPoint(0.001, 0.0005)))
+            )
+        )
+        val version = stateRecord(id).version
+
+        val answer = saved(documents.save(id, editBody(version, name = "Gully track east")))
+
+        assertEquals("Gully track east", answer.record.asset.name)
+        assertEquals(
+            "and the drawing is untouched by a write that carried no line",
+            1,
+            assets.getAssetGeometry(id).sideTracks.size
+        )
+    }
+
     @Test
     fun aTrackWithNothingOnItCanBeDeletedFromTheDesk() = runBlocking {
         val id = assets.createAsset(name = "Mis-drawn", geometry = line)
@@ -323,7 +384,7 @@ class WebEditorSaveTest {
         assertNull("the row is gone", assets.getAsset(id))
         assertTrue(
             "and its points went with it, because a point belongs to an asset",
-            assets.getAssetGeometry(id).isEmpty()
+            assets.getAssetGeometry(id).paths.isEmpty()
         )
     }
 

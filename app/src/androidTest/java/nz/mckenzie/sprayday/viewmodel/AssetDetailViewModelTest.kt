@@ -136,7 +136,7 @@ class AssetDetailViewModelTest {
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)
         // The geometry the map draws from must survive an edit.
-        assertEquals(1, assetRepository.observeAssetGeometry(assetId).first().size - 1)
+        assertEquals(1, assetRepository.observeAssetGeometry(assetId).first().pointCount - 1)
     }
 
     @Test

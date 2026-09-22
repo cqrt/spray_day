@@ -572,9 +572,13 @@ style's background colour and the work draws on top of it.
       left edges (12, 171, 277, 339), and per-column pixel counts in the picture said the same (the method
       column's ink starting at 172 in every row, the passes digit right against its own column's edge). The
       word over each column sits above the list rather than in it, so it stays put while the work scrolls
-      and stays out of the live region; it is hidden when nothing matches. Screenshots `cols-list.png`,
-      `cols-card.png`, `cols-search.png`, `cols-twopass.png`; notes in `build/verify/web-columns.txt`
-      (including what was **not** proven).
+      and stays out of the live region; it is hidden when nothing matches. The **published** 0.6.35 APK was
+      then driven on its own over a clean install: the minified page served `list-head` and no
+      `METHOD_TEXT`, three tracks were drawn on the desk from that artifact alone, and its rows read
+      **Boom 1**, **Knapsack 2** and **Not recorded 1**, with the phone's own Assets screen holding the
+      same three. Screenshots `cols-list.png`, `cols-card.png`, `cols-search.png`, `cols-twopass.png`,
+      `cols-rel-list.png`, `cols-rel-phone-small.jpg`; notes in `build/verify/web-columns.txt` (including
+      what was **not** proven).
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

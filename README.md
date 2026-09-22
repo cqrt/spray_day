@@ -402,9 +402,11 @@ So an asset's geometry is a **line and the side tracks hanging off it**. Path 0 
 rest are side tracks in the order they were drawn, which is the order the database keeps them in.
 
 - **Draw the line to the junction, press *Side track*, tap along the spur, press *Back to the
-  track*, carry on.** The side track leaves the track where the track currently ends, so its first
-  vertex is the line's own last vertex - the same two numbers, not a copy, which is what makes it a
-  join rather than two lines that happen to be near each other.
+  track*, carry on.** That is how a track is drawn from scratch, one point after another. **Or tap
+  the track where the spur branches off** — the point goes into the line there and the next *Side
+  track* hangs off it — which is how a side track is added to a track that already exists. The side
+  track's first point is a point of the line itself - the same two numbers, not a copy, which is what
+  makes it a join rather than two lines that happen to be near each other.
 - **The length counts every path once.** A 222 m track with a 111 m spur is 333 m of ground if you
   drive it as two paths, not the 444 m walking the spur twice reads as - and that number is the
   handover figure and the coverage denominator.

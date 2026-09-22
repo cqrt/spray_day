@@ -72,6 +72,10 @@ class DrawAssetViewModelTest {
     private suspend fun drawingBecome(viewModel: DrawAssetViewModel, drawing: Boolean): Boolean =
         runCatching { withTimeout(5_000) { viewModel.drawingSideTrack.first { it == drawing } } }.isSuccess
 
+    /** The junction pick, which is a shared flow like the others: it has to be awaited, not read. */
+    private suspend fun junctionBecomes(viewModel: DrawAssetViewModel, picked: Boolean): Boolean =
+        runCatching { withTimeout(5_000) { viewModel.junctionPicked.first { it == picked } } }.isSuccess
+
     /** A phone that knows where it is, or one that cannot say. */
     private class FixedLocation(private val fix: GeoPoint?) : LocationSource {
         override fun updates(): Flow<GeoPoint> = emptyFlow()
@@ -272,6 +276,62 @@ class DrawAssetViewModelTest {
         assertEquals(2, viewModel.paths.value.size)
         assertEquals("the line grew by the tap after the side track", 3, viewModel.paths.value.first().size)
         assertEquals("and the side track kept what it had", 2, viewModel.paths.value[1].size)
+    }
+
+    @Test
+    fun aTapOnTheTrackSaysWhereASideTrackLeavesIt() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5100, 173.9800)
+        assertEquals("a line of two points", 2, viewModel.paths.value[0].size)
+
+        // A tap **on** the track, a few metres off it and halfway along: the point goes into the line there
+        // rather than out where the finger landed, because a junction has to be a vertex of the line.
+        viewModel.addPoint(-41.5102, 173.9700, tapRadiusM = 40.0)
+
+        val line = viewModel.paths.value[0]
+        assertEquals("the line gained the point, and nothing else", 3, line.size)
+        assertEquals("halfway along, on the line", 173.9700, line[1].lng, 0.0001)
+        assertEquals("and on the line rather than where the finger was", -41.5100, line[1].lat, 0.0001)
+        assertTrue("which is where a side track will leave from", junctionBecomes(viewModel, true))
+
+        // And the side track starts there, not at the end of the track - which is the whole point.
+        viewModel.startSideTrack()
+        assertEquals("the junction is the side track's first vertex", line[1], viewModel.paths.value[1][0])
+        assertEquals("which is the whole of it so far", 1, viewModel.paths.value[1].size)
+        assertTrue("and it is off the end of the track", line[1] != line.last())
+    }
+
+    @Test
+    fun aTapOutInThePaddockStillDraws() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5100, 173.9800)
+
+        // 550 m off the track with a fingertip's tolerance: this is the operator drawing, not pointing.
+        viewModel.addPoint(-41.5150, 173.9900, tapRadiusM = 40.0)
+
+        assertEquals("the line grew", 3, viewModel.paths.value[0].size)
+        assertEquals("exactly where it was tapped", -41.5150, viewModel.paths.value[0][2].lat, 0.0)
+        assertTrue("and no junction was picked", junctionBecomes(viewModel, false))
+    }
+
+    @Test
+    fun anUndoAfterPickingAPointLeavesTheNextSideTrackAtTheEndOfTheTrack() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5100, 173.9800)
+        viewModel.addPoint(-41.5102, 173.9700, tapRadiusM = 40.0)
+        assertTrue(junctionBecomes(viewModel, true))
+
+        // The picked point is a vertex of the line, so an Undo takes it away - and a junction that is no
+        // longer a vertex of the line would hang a spur off nothing.
+        viewModel.undo()
+        assertTrue("the pick goes with the point", junctionBecomes(viewModel, false))
+
+        viewModel.startSideTrack()
+        val line = viewModel.paths.value[0]
+        assertEquals("so the side track leaves the end", line.last(), viewModel.paths.value[1][0])
     }
 
     @Test

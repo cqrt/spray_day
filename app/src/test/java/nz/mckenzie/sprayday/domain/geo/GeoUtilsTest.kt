@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.domain.geo
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -84,6 +85,51 @@ class GeoUtilsTest {
     @Test
     fun `distance to an empty polyline is not a number`() {
         assertTrue(distanceToPolylineMeters(GeoPoint(0.0, 0.0), emptyList()).isNaN())
+    }
+
+    @Test
+    fun `a tap on a line lands where it was tapped, and carries the vertex after it`() {
+        val line = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.001), GeoPoint(0.0, 0.002))
+        val tap = GeoPoint(0.0001, 0.0015)
+
+        val landed = nearestPointOnPolyline(tap, line)!!
+
+        // The foot on the second segment: the tap is 11 m off it, halfway along.
+        assertEquals(0.0, landed.point.lat, 0.00002)
+        assertEquals(0.0015, landed.point.lng, 0.00002)
+        assertEquals(11.11, landed.distanceM, 0.5)
+        assertEquals("the vertex it goes in before is the end of that segment", 2, landed.indexAfter)
+    }
+
+    @Test
+    fun `a tap beyond the end of a line lands on the end of it`() {
+        val line = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 0.001))
+
+        val landed = nearestPointOnPolyline(GeoPoint(0.0002, 0.002), line)!!
+
+        assertEquals(0.0, landed.point.lat, 0.00002)
+        assertEquals("clamped to the segment rather than out in the paddock", 0.001, landed.point.lng, 0.00002)
+        assertEquals(1, landed.indexAfter)
+    }
+
+    @Test
+    fun `a line of one point, or none, has nowhere to land`() {
+        assertNull(nearestPointOnPolyline(GeoPoint(0.0, 0.0), emptyList()))
+        assertNull(nearestPointOnPolyline(GeoPoint(0.0, 0.0), listOf(GeoPoint(0.0, 0.001))))
+    }
+
+    @Test
+    fun `the place on a segment is its own foot, and its ends when the foot is past them`() {
+        val start = GeoPoint(0.0, 0.0)
+        val end = GeoPoint(0.0, 0.001)
+        val foot = nearestPointOnSegment(GeoPoint(0.0001, 0.0004), start, end)
+
+        assertEquals(0.0, foot.lat, 0.00002)
+        assertEquals(0.0004, foot.lng, 0.00002)
+
+        val past = nearestPointOnSegment(GeoPoint(0.0, 0.002), start, end)
+        assertEquals(0.0, past.lat, 0.00002)
+        assertEquals(0.001, past.lng, 0.00002)
     }
 
     @Test

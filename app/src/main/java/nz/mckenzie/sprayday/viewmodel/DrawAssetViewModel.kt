@@ -21,10 +21,12 @@ import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.nearestPointOnPolyline
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetHitTest
 import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
@@ -150,12 +152,27 @@ class DrawAssetViewModel(
     /**
      * Which path the next tap adds to: 0 is the line, 1 and up are side tracks.
      *
-     * A side track leaves the track **where the track currently ends**, so the junction is a vertex of
-     * the line and the spur it starts is that same vertex - the join is exact, and nothing has to be
-     * snapped or projected. The order is therefore: draw the line as far as the junction, press *Side
-     * track*, tap the spur, press *Back to the track*, and carry on to the end.
+     * A side track leaves the track at **a vertex of the line**, and there are two ways to have one: draw the
+     * line as far as the junction and press *Side track* - the way a track is drawn from scratch, one point
+     * after another - or tap the track where the spur branches off, which puts a vertex in there and makes it
+     * the junction (see [addPoint]). Either way the join is exact, because the side track's first vertex is
+     * that line vertex rather than a point near it.
      */
     private val _drawing = MutableStateFlow(0)
+
+    /**
+     * The line vertex a side track will leave from, or null for the track's own end.
+     *
+     * Held as an index because a junction *is* a vertex of the line, and cleared whenever the line changes
+     * shape underneath it (undo, clear, back to the track) - a stale index would hang a spur off the wrong
+     * point, which is worse than falling back to the end.
+     */
+    private val _junction = MutableStateFlow<Int?>(null)
+
+    /** Whether a tap has picked the place a side track leaves from, for the words under the map. */
+    val junctionPicked: StateFlow<Boolean> = _junction
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     /** True while a side track is being drawn, so the screen can offer the way back to the line. */
     val drawingSideTrack: StateFlow<Boolean> = _drawing
@@ -271,7 +288,11 @@ class DrawAssetViewModel(
         _message.value = null
     }
 
-    fun addPoint(latitude: Double, longitude: Double) {
+    fun addPoint(
+        latitude: Double,
+        longitude: Double,
+        tapRadiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M
+    ) {
         val point = GeoPoint(lat = latitude, lng = longitude)
         // A spot moves to wherever it was last tapped; a line - or the side track being drawn - grows.
         if (_shape.value == AssetShape.POINT) {
@@ -281,6 +302,25 @@ class DrawAssetViewModel(
         }
 
         val paths = _paths.value
+
+        // A tap **on the track** says where a side track leaves it, rather than extending the line out to
+        // wherever the finger landed. This is what makes a junction reachable in the middle of a track: the
+        // point goes into the line there - a junction has to be a vertex of the line - and the next "Side
+        // track" hangs the spur off it. The tolerance is a fingertip's width at the zoom the operator is
+        // working at (the map's own answer, passed in), so a tap in the paddock still draws.
+        if (paths.isNotEmpty() && paths.first().size >= 2 && _drawing.value == 0) {
+            val onTheLine = nearestPointOnPolyline(point, paths.first())
+            if (onTheLine != null && onTheLine.distanceM <= tapRadiusM) {
+                _paths.value = paths.mapIndexed { at, path ->
+                    if (at != 0) path else path.toMutableList().apply { add(onTheLine.indexAfter, onTheLine.point) }
+                }
+                _junction.value = onTheLine.indexAfter
+                _message.value = "A side track will leave the track here. Press \"Side track\", " +
+                    "or keep tapping to carry the line on."
+                return
+            }
+        }
+
         if (paths.isEmpty()) {
             _paths.value = listOf(listOf(point))
         } else {
@@ -291,12 +331,12 @@ class DrawAssetViewModel(
     }
 
     /**
-     * Starts a side track where the track ends.
+     * Starts a side track from the place picked out on the line, or from where the track ends.
      *
-     * The first vertex of the side track **is** the line's last vertex, not a copy of it: the two paths
-     * meet at the same pair of numbers, which is what the storage and the rules read as a join rather
-     * than as two lines that happen to be near each other. Pressing this with no line to hang off does
-     * nothing, and the button is not offered until there is one.
+     * The first vertex of the side track **is** the chosen line vertex, not a copy of it: the two paths meet
+     * at the same pair of numbers, which is what the storage and the rules read as a join rather than as two
+     * lines that happen to be near each other. Pressing this with no line to hang off does nothing, and the
+     * button is not offered until there is one.
      */
     fun startSideTrack() {
         if (_shape.value != AssetShape.LINE || _drawing.value > 0) return
@@ -305,8 +345,12 @@ class DrawAssetViewModel(
             _message.value = "Draw the track a little further first: a side track leaves it somewhere."
             return
         }
-        _paths.value = _paths.value + listOf(listOf(line.last()))
+        // The junction the operator tapped on, or the end of the line: a junction that is no longer a vertex
+        // of the line (an Undo can take it away) falls back to the end rather than hanging a spur off nothing.
+        val at = _junction.value?.takeIf { it in line.indices } ?: line.lastIndex
+        _paths.value = _paths.value + listOf(listOf(line[at]))
         _drawing.value = _paths.value.size - 1
+        _junction.value = null
         _message.value = "Tap along the side track, then press \"Back to the track\"."
     }
 
@@ -332,6 +376,9 @@ class DrawAssetViewModel(
     fun undo() {
         val paths = _paths.value
         if (paths.isEmpty()) return
+        // A junction is an index into the line, and an Undo moves the line underneath it: rather than guess
+        // which vertex was meant, the pick goes and the next side track leaves the end again.
+        _junction.value = null
         val index = _drawing.value.coerceIn(0, paths.size - 1)
         if (paths[index].size <= 1) {
             _paths.value = paths.filterIndexed { at, _ -> at != index }
@@ -346,6 +393,7 @@ class DrawAssetViewModel(
     fun clear() {
         _paths.value = emptyList()
         _drawing.value = 0
+        _junction.value = null
     }
 
     /**

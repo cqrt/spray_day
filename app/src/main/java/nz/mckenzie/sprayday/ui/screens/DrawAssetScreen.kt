@@ -49,6 +49,7 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
     val pointCount by viewModel.pointCount.collectAsStateWithLifecycle()
     val sideTrackCount by viewModel.sideTrackCount.collectAsStateWithLifecycle()
     val drawingSideTrack by viewModel.drawingSideTrack.collectAsStateWithLifecycle()
+    val junctionPicked by viewModel.junctionPicked.collectAsStateWithLifecycle()
     val lengthM by viewModel.lengthM.collectAsStateWithLifecycle()
     val geoJson by viewModel.draftGeoJson.collectAsStateWithLifecycle()
     val initialFrame by viewModel.initialFrame.collectAsStateWithLifecycle()
@@ -100,7 +101,9 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                 assetGeoJson = geoJson,
                 // Drawing happens where the operator is standing, so that is the frame.
                 fitBounds = initialFrame,
-                onMapClick = { latitude, longitude, _ -> viewModel.addPoint(latitude, longitude) },
+                onMapClick = { latitude, longitude, radiusM ->
+                    viewModel.addPoint(latitude, longitude, radiusM)
+                },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -161,7 +164,9 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                             drawingSideTrack -> "Tap along the side track, then press \u201cBack to the track\u201d."
                             editing && pointCount == 0 -> "No line on this track yet - tap the map to draw one."
                             pointCount == 0 -> "Tap the map to add points."
-                            editing -> "Tap to add a point, or press \u201cSide track\u201d to add one off the track."
+                            junctionPicked -> "A side track will leave the track here. Press \u201cSide track\u201d, " +
+                                "or tap the track somewhere else to move it."
+                            editing -> "Tap to add a point, or tap the track where a side track should leave it."
                             else -> "Keep tapping to extend the line."
                         },
                         style = MaterialTheme.typography.bodySmall

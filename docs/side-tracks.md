@@ -72,6 +72,52 @@ file into one line. So a file exported for a track with a spur came back as a li
 - **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
   `... as one line: the file's own track segments do not meet, so they were joined up.`
 
+## Shipped: v0.6.34 - the phone's own screen leaves the track where you tap it
+
+Reported straight after the desk got it: *"I still can't create a side track from any point along the length
+of a main track, build that next."* On the phone this was true in a way that was easy to miss, because a
+*track being drawn* already worked - draw the line to the junction, press *Side track*, carry on - and what
+did not work was adding a spur to a track that already **exists**: the only junction the screen could offer
+was the far end of the line.
+
+- **A tap on the track picks the junction** (`DrawAssetViewModel.addPoint`): the tap is measured against the
+  line, and when it is within a fingertip's width - `AssetHitTest.toleranceForZoom`, which the map already
+  answers for tapping assets - the point goes **into the line there** and the next *Side track* hangs off it.
+  A junction has to be a vertex of the line, so the tap lands on the line rather than where the finger was.
+- **The tolerance is the map's, not a fixed number of metres**: a fingertip covers 40 m at spray zoom and a
+  kilometre at country scale, and the same gesture has to work at both. A tap out in the paddock is still a
+  tap that draws.
+- **The arithmetic is `domain/geo`'s** (`nearestPointOnPolyline`, `nearestPointOnSegment`): the foot on the
+  nearest segment, clamped to the segment, and the index the point goes in *before* - the same convention the
+  desk's own drawing uses, so the two screens produce the same geometry from the same intention.
+- **The screen says so**: *"A side track will leave the track here. Press "Side track", or tap the track
+  somewhere else to move it."* - which is also how the operator learns the gesture exists.
+- **Undo clears the pick**, and a pick that is no longer a vertex of the line falls back to the end: the
+  same rule the desk applies, so an Undo between picking and using cannot hang a spur off nothing.
+
+Proven on the emulator, driving the app's own screen by touch: *Draw* → two taps to make a line → a tap on
+**the middle of it** → the screen read *"3 points · A side track will leave the track here…"* → *Side track*
+→ two taps along the spur → *Back to the track* → *Save*. Then the database, pulled off the phone:
+
+    asset 1 'Juun' lengthM=847981.4 paths=2
+       path 0: 7 vertices
+       path 1: 3 vertices
+       path 1 starts on the line: True
+
+    line first:  -40.600690, 172.796861
+    line last :  -38.993006, 174.722084
+    junction   : -41.233209, 172.796861     <- where the side track starts
+    is it a vertex of the line? True
+    is it the line end?         False
+
+That last line is the whole report: the side track left the track **in the middle of it**, on a vertex of
+the line, and not at the end. Three new instrumented tests (192 in all) and four new JVM tests (623), which
+between them pin the insert, the paddock tap that still draws, and the Undo fallback.
+
+**Pulling the database needs the `-wal` file as well as the `.db`** - Room runs in WAL mode, so after a
+force-stop the main file is a 4 KB header and the track is in `spray_day.db-wal`. Pulling all three parts
+into one folder and opening the `.db` is what makes it readable; this cost a detour and is worth knowing.
+
 ## Shipped: v0.6.33 - a side track can be worked on like the line
 
 Reported from use: *"trying to delete or move points on a side track but that feature does not exist, can
@@ -201,18 +247,12 @@ a browser on the machine the desk is being used from.
 
 ## Next
 
-### v0.6.33 - a side track on the phone leaves the track where you touch it
-
-The desk's own drawing screen picks its junction by a click on the track (v0.6.32); the phone's expects the
-operator to draw *to* the junction and hangs the spur off the end of the line. The phone's rules are the
-same ones, so this is the screen catching up with the desk rather than a new rule - and after it the two
-behave identically on the same ground.
-
-### v0.6.34 - GPX drag-and-drop onto the desk, and more than one asset at a time
+### v0.6.35 - GPX drag-and-drop onto the desk, and more than one asset at a time
 
 Phase 3 of `web-editor.md` has one item left before the desk is done: dropping a GPX file onto the page.
 The desk can now draw every part of a track, so what a dropped file has to become is a drawing the page
-already knows how to hold.
+already knows how to hold. Both screens can also pick a junction where they like now (v0.6.32 for the desk,
+v0.6.34 for the phone), so the two agree about what a side track is again.
 
 ## Shipped: v0.6.29 - the drawer carries the paths, so the line can be changed from a computer
 

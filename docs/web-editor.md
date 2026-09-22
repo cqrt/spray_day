@@ -593,10 +593,14 @@ style's background colour and the work draws on top of it.
       notes. Proven on the emulator with `db/halopix.ps1` (new): the same box around a point on the track,
       in a pair of runs that differ only by the selection - the glow adds 30-55 warm pixels to a 15x15 box
       on a track, doubles the warm pixels around a house, and the band above the card is pixel-for-pixel
-      identical, so nothing else on the map moved. Screenshots `glow-19-estuary.png`,
-      `glow-21-fenceline.png`, `glow-15-trough.png` and their `-closed` pairs; notes in
-      `build/verify/web-glow.txt` - including the race this found (below), the published build's check, and
-      what is **not** proven.
+      identical, so nothing else on the map moved. The **published** 0.6.36 APK was then driven on its own
+      over a clean install (the installed `base.apk` the same sha256 as the release's): a track drawn from
+      the minified page itself, its halo measured in a pair of shots (83 → 120 and 58 → 98 warm pixels in a
+      15x15 box on the track, the band above the card pixel-for-pixel identical), and `glow.mjs` served
+      **200**, so R8's build carries the module and serves it as JavaScript. Screenshots
+      `glow-19-estuary.png`, `glow-21-fenceline.png`, `glow-15-trough.png`, `glow-24-rel-glow.png` and their
+      `-closed` pairs; notes in `build/verify/web-glow.txt` - including the race this found (below) and what
+      is **not** proven.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

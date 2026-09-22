@@ -32,6 +32,15 @@ const { drawingBody } = await import(
 );
 
 /**
+ * The glow under the picked-out track, and the one decision in the page's own drawing furniture that is
+ * worth pinning: the halo takes the *phone's* layer's shape - its filter, its width, its dashes - so a
+ * fenceline's glow is dotted. Imported the same way, for the same reason.
+ */
+const { NO_ASSET, haloId, haloLayer, pickOut } = await import(
+  TOKEN ? `./glow.mjs?k=${encodeURIComponent(TOKEN)}` : './glow.mjs'
+);
+
+/**
  * Everything the phone serves is behind the token, and the token is in the address - except when the
  * operator has turned the token off on the phone, in which case the address has none and there is
  * nothing to add.
@@ -305,6 +314,11 @@ function onStyleLoaded(style) {
   // for the style again.
   workSource = assetsSourceId(style);
 
+  // The glow under the work, and the one asset already picked out - a row can be clicked before the
+  // imagery arrives, and that click must not be lost by the style finishing afterwards.
+  addGlowLayers(style);
+  glowSelected();
+
   // A click on any of the work's own layers opens that asset, whichever layer drew it. While a line is
   // being drawn a click belongs to the drawing instead - to a handle, to a segment, or to the paddock
   // at the end of a new line - so the drawing gets it first.
@@ -347,6 +361,48 @@ function onStyleLoaded(style) {
 function assetsSourceId(style) {
   const layer = (style.layers || []).find((one) => one.id.startsWith('sprayday-assets-'));
   return layer ? layer.source : null;
+}
+
+/* ---- The glow under the picked-out track -------------------------------------------- */
+
+/*
+ * The halo the desk draws under its own work: the asset that is picked out, in the phone's own colour for
+ * it, wide and soft, so that a click says *which* of forty tracks the card is about.
+ *
+ * What the halo *is* - its shape, its width, its dashes, its colour - is `glow.mjs`, which is pure and
+ * tested under node. What is here is only the part that needs a map: one halo layer per layer of the
+ * phone's work, added once the style is there, and re-narrowed to one asset every time the selection
+ * changes.
+ */
+
+/** The halo layers the page added, and the phone's own filter each one narrows. */
+let glowFilters = new Map();
+
+/**
+ * One halo per layer of the phone's work, added once the style is there.
+ *
+ * Under all of the work rather than over it, because a halo is a light and not a lid: the phone's own line
+ * sits on top of its own glow, at full strength, with its dashes unbroken.
+ */
+function addGlowLayers(style) {
+  const phoneLayers = (style.layers || []).filter((one) => one.id.startsWith('sprayday-assets-'));
+  if (!phoneLayers.length) return;
+
+  glowFilters = new Map();
+  const underEverything = phoneLayers[0].id;
+  for (const phone of phoneLayers) {
+    const id = haloId(phone.id);
+    if (map.getLayer(id)) continue;
+    glowFilters.set(id, phone.filter);
+    map.addLayer(haloLayer(phone, NO_ASSET), underEverything);
+  }
+}
+
+/** Puts the halo on the asset that is picked out and takes it off everything else. */
+function glowSelected() {
+  for (const [layer, phoneFilter] of glowFilters) {
+    if (map.getLayer(layer)) map.setFilter(layer, pickOut(phoneFilter, selectedId ?? NO_ASSET));
+  }
 }
 
 /** The phone's own dot, so "where is the phone?" has something to look at. */
@@ -474,13 +530,14 @@ function listRow(item) {
   return button;
 }
 
-/** Opens an asset: the card, the row highlighted, and the map brought to it. */
+/** Opens an asset: the card, the row highlighted, the track glowing on the map, and the map brought to it. */
 function selectAsset(id, fromList = false) {
   const item = state.assets.find((a) => a.asset.id === id);
   if (!item) return;
 
   selectedId = id;
   showCard(item);
+  glowSelected();
   for (const button of document.querySelectorAll('#list button')) {
     button.setAttribute('aria-current', String(Number(button.dataset.id) === id));
   }
@@ -781,6 +838,7 @@ function recordBody(item, paths) {
 function closeCard() {
   document.getElementById('card').hidden = true;
   selectedId = null;
+  glowSelected();
   for (const button of document.querySelectorAll('#list button')) {
     button.setAttribute('aria-current', 'false');
   }

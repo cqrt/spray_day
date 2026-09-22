@@ -29,13 +29,12 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.35** (the list's two new columns - how it is sprayed, and how many
-  passes), and the *Progress* section below has what came before it: v0.6.33, v0.6.31, the tracing in
-  v0.6.26, and the phase 1 and 2 work before that. The state written here was true when the file was
-  written — **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
-  `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
-  can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.35 → **v0.6.36**.
+- The last shipped work is **v0.6.36** (the picked-out track glows on the map), before it v0.6.35 (the
+  list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26, and the phase 1 and 2 work before
+  that. The state written here was true when the file was written — **check it rather than trust it**
+  (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan document
+  that claims a clean tree is a plan document that can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.36 → **v0.6.37**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -579,6 +578,25 @@ style's background colour and the work draws on top of it.
       same three. Screenshots `cols-list.png`, `cols-card.png`, `cols-search.png`, `cols-twopass.png`,
       `cols-rel-list.png`, `cols-rel-phone-small.jpg`; notes in `build/verify/web-columns.txt` (including
       what was **not** proven).
+- [x] **The track that is picked out glows. v0.6.36** — asked for in one line: "when I click (select) an
+      asset, make the asset track 'glow' on the map". A click in the list (or on the track itself) now puts
+      a soft halo of the asset's own colour around it, under its own line, and closing the card takes it
+      away. **`glow.mjs`** builds it - one halo per layer of the phone's own work, from that layer's own
+      filter, width and dash pattern - and it is pure, so `glow.test.mjs` pins it under node (11 tests), the
+      way `wire.mjs` and `geometry.mjs` are pinned. What the page decides is only the glow: 7 px wider than
+      the line, blurred 5, at 0.55; a place gets a soft disc behind the house instead. No Kotlin changed -
+      the desk is the only screen with a selection, so the halo is the page's.
+      **The pixels found a real bug in it**: a dasharray is in multiples of the line's *own width*, so the
+      wider halo was drawing its dots two and a half times further apart than the line's and landing in the
+      gaps between them; the fenceline's glow read as a speckle. Scaling the dasharray by the width ratio
+      fixed it, and the before/after counts (42→78, 40→43, 40→42 against 42→78, 40→76, 40→76) are in the
+      notes. Proven on the emulator with `db/halopix.ps1` (new): the same box around a point on the track,
+      in a pair of runs that differ only by the selection - the glow adds 30-55 warm pixels to a 15x15 box
+      on a track, doubles the warm pixels around a house, and the band above the card is pixel-for-pixel
+      identical, so nothing else on the map moved. Screenshots `glow-19-estuary.png`,
+      `glow-21-fenceline.png`, `glow-15-trough.png` and their `-closed` pairs; notes in
+      `build/verify/web-glow.txt` - including the race this found (below), the published build's check, and
+      what is **not** proven.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 
@@ -597,7 +615,12 @@ phase 3 section above for the decision and what it leaves alone.
 **The first press after a page load can be wasted.** One run in five, the first traced stroke after the
 desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the
 same window the racy fit below moves in, and the cost is a wasted run rather than a wrong line — but two
-of these now, so it is worth doing with the fit.
+of these now, so it is worth doing with the fit. **v0.6.36 found a worse version of it**: a click on a row
+while the style is still arriving leaves the desk looking at the app's own default camera — the whole of
+New Zealand — because the page's own fit is skipped when something is already picked out, so the fly is
+undone rather than the press being wasted. Two of that work's first pairs landed on different cameras that
+way (see `build/verify/web-glow.txt`); clicking late, after the page has settled, is what makes the runs
+comparable in the meantime.
 
 **One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
 for and is one line:

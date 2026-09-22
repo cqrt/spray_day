@@ -557,6 +557,11 @@ class WebEditorSaveTest {
             // not read as JavaScript - which on a desk looks like a map that will not draw, with the
             // reason only in a console nobody opens.
             "geometry.mjs" to "text/javascript; charset=utf-8",
+            // The other two pure modules the page runs: what a save carries, and what the glow under the
+            // picked-out track is made of. Both are imported the same way, so a type a browser will not
+            // read as JavaScript is the same blank desk.
+            "glow.mjs" to "text/javascript; charset=utf-8",
+            "wire.mjs" to "text/javascript; charset=utf-8",
             "style.css" to "text/css; charset=utf-8",
             "vendor/maplibre-gl.js" to "text/javascript; charset=utf-8"
         )

@@ -37,7 +37,9 @@ sprayed).
   against it can be deleted, while one with sprays on it says so in numbers and sends you to the
   phone. The work is read across the list: the name, **how it is sprayed**, **how many passes** the
   job takes, and when it is next due — so a knapsack job, or a line that takes two passes, can be
-  picked out of the whole list rather than a card at a time. A line is laid two ways: **click** where
+  picked out of the whole list rather than a card at a time. Picking one out makes it **glow on the
+  map**: a soft light round it in its own due colour, so the one the card is about is the one you can
+  see, and closing the card puts the light out. A line is laid two ways: **click** where
   a corner is, or **hold the button down and follow the fence on the imagery** — the two mix, and a
   traced fence is one Ctrl+Z rather than twenty.
   Everything is judged by the phone's own rules and written to the phone's own database, so

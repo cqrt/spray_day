@@ -143,7 +143,17 @@ sealed interface WebEditorEditResult {
          * side tracks after it, already judged. Null when the write said nothing about the drawing,
          * which is what the details form sends.
          */
-        val paths: List<List<GeoPoint>>? = null
+        val paths: List<List<GeoPoint>>? = null,
+        /**
+         * Whether the body carried the drawing as `paths` rather than as a single `points`.
+         *
+         * The two are told apart by the caller because they mean different things when the count
+         * changes: a page that sends `paths` read this track's own paths and may hand back a different
+         * number of them - the desk draws and tidies side tracks now - while a page that sends `points`
+         * never saw the paths at all, so a body of one path for a track with side tracks is an out of
+         * date page rather than an edit.
+         */
+        val carriedPaths: Boolean = false
     ) : WebEditorEditResult
 
     data class Refused(val refusal: WebEditorRefusal, val message: String) : WebEditorEditResult
@@ -318,8 +328,9 @@ object WebEditorEdits {
                     WebEditorDraft(
                         asset = judged.asset,
                         blockName = judged.blockName,
-                        // A track drawn on the desk is one line: there is nothing here to draw a side
-                        // track with yet, so there is nothing else to carry over.
+                        // Every path the desk drew, which is now the line *and* any side track it put on
+                        // it: `AssetGeometry` keeps the first as the line, and the rules above have
+                        // already judged each one.
                         geometry = AssetGeometry(paths)
                     )
                 )
@@ -376,7 +387,8 @@ object WebEditorEdits {
                     is AssetPathResult.Ok -> WebEditorEditResult.Ok(
                         asset = result.asset,
                         blockName = result.groupName,
-                        paths = drawn.paths
+                        paths = drawn.paths,
+                        carriedPaths = edit.paths != null
                     )
                 }
             }

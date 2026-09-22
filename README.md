@@ -438,12 +438,17 @@ spur stays a doubled line with an overstated length until somebody re-draws it w
 The app does not go looking for the shape of one: that would be guessing at ground the operator knows
 better.
 
-The desk can read a track's side tracks, because the drawing it fetches has one feature per path, and
-it is **handed** them as data too (the record's `paths`, line first) so it can hand them back: a line
-changed from a computer now saves on a track that has a spur, with the spur travelling back untouched.
-What the desk still cannot do is add or take off a side track, and the phone refuses a write whose
-drawing has a different number of paths than the track - in the phone's words, saying where it is done.
-Changing the details of such a track saves as it always did.
+The desk can read a track's side tracks, because the drawing it fetches has one feature per path, and it
+is **handed** them as data too (the record's `paths`, line first). From v0.6.31 it can also **draw one and
+take one off**: with a track's shape open, *Side track* starts one where the track ends, the clicks and
+traces go onto it, *Back to the track* hands the line back, and *Remove this side track* takes it off
+again — the phone's own two moves, in the phone's own words. A spur drawn on a computer is a write like
+any other: the phone judges it by the same rules as one drawn on the phone, and keeps it.
+
+What cannot happen is a page losing a spur it never saw: a write carrying a **single path** for a track
+that has side tracks is refused as a page that is out of date (*"Reload the page and try again"*), and a
+write carrying `paths` is taken whatever number of them it holds. Changing the details of such a track
+saves as it always did.
 
 ## Backup files
 

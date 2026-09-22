@@ -25,9 +25,44 @@ export const HANDLE_PX = 10;
 /** How close, in pixels, the cursor has to be to something to snap onto it. */
 export const SNAP_PX = 12;
 
-/** A line being drawn: its vertices, and the two stacks either side of where it is now. */
+/**
+ * A drawing of the paths given: path 0 the line, the rest its side tracks.
+ *
+ * Paths with nothing in them are dropped rather than kept: an empty path is not a path, and it would be
+ * a row of nothing on the phone.
+ */
+export function createPaths(paths = []) {
+  return {
+    paths: paths.map((path) => path.map(vertex)).filter((path) => path.length > 0),
+    active: 0,
+    past: [],
+    future: []
+  };
+}
+
+/** A drawing that is one line and nothing else: a brand-new track, and the single-path tests here. */
 export function createPath(points = []) {
-  return { points: points.map(vertex), past: [], future: [] };
+  return createPaths([points]);
+}
+
+/** The line itself: where a track runs, and what a side track hangs off. */
+export function line(state) {
+  return state.paths[0] ?? [];
+}
+
+/** The side tracks, in the order they were drawn. */
+export function sideTrackCount(state) {
+  return Math.max(0, state.paths.length - 1);
+}
+
+/** The path the next click goes to: the line, or the side track being drawn. */
+export function activePath(state) {
+  return state.paths[state.active] ?? [];
+}
+
+/** True while a side track is being drawn, so the page can offer the way back to the line. */
+export function drawingSideTrack(state) {
+  return state.active > 0;
 }
 
 /**
@@ -45,14 +80,25 @@ export function samePlace(a, b) {
   return a.lat === b.lat && a.lng === b.lng;
 }
 
-/** One step: the line as it was, on both stacks at once. */
-function stepped(state, points) {
+/** One step: the drawing as it was, on both stacks at once. */
+function stepped(state, paths, active = state.active) {
+  const kept = paths.filter((path) => path.length > 0);
   return {
-    points: points.map(vertex),
-    past: [...state.past, state.points].slice(-HISTORY_LIMIT),
+    paths: kept.map((path) => path.map(vertex)),
+    // The path being worked on has to exist: a step that takes the active one away hands the line back.
+    active: Math.min(Math.max(active, 0), Math.max(0, kept.length - 1)),
+    past: [...state.past, { paths: state.paths, active: state.active }].slice(-HISTORY_LIMIT),
     // Anything new is a new history: what had been undone is not the future any more.
     future: []
   };
+}
+
+/** The same paths with the active one replaced, which is what every edit of one path is. */
+function withActive(state, path) {
+  return stepped(
+    state,
+    state.paths.map((other, index) => (index === state.active ? path : other))
+  );
 }
 
 export function canUndo(state) {
@@ -65,51 +111,165 @@ export function canRedo(state) {
 
 export function undo(state) {
   if (!canUndo(state)) return state;
+  const previous = state.past[state.past.length - 1];
   return {
-    points: state.past[state.past.length - 1],
+    paths: previous.paths,
+    active: Math.min(previous.active, Math.max(0, previous.paths.length - 1)),
     past: state.past.slice(0, -1),
-    future: [state.points, ...state.future]
+    future: [{ paths: state.paths, active: state.active }, ...state.future]
   };
 }
 
 export function redo(state) {
   if (!canRedo(state)) return state;
+  const next = state.future[0];
   return {
-    points: state.future[0],
-    past: [...state.past, state.points],
+    paths: next.paths,
+    active: Math.min(next.active, Math.max(0, next.paths.length - 1)),
+    past: [...state.past, { paths: state.paths, active: state.active }],
     future: state.future.slice(1)
   };
 }
 
-/** Adds a vertex to the end: what clicking the map does while a line is being drawn. */
+/** Adds a vertex to the end of the path being worked on: what clicking the map does. */
 export function add(state, point) {
-  return stepped(state, [...state.points, point]);
+  if (state.paths.length === 0) return stepped(state, [[point]], 0);
+  return withActive(state, [...activePath(state), point]);
 }
 
-/** Moves a vertex: what letting go of a dragged handle does. */
+/**
+ * Moves a vertex of the path being worked on: what letting go of a dragged handle does.
+ *
+ * Dragging a **line** vertex takes any junction on it along: a side track's first vertex is that very
+ * vertex, so the two paths stay met exactly while the corner they meet at is moved. The alternative is a
+ * drag that quietly leaves the side track hanging off nothing, which is a drawing the phone refuses - and
+ * refusing would be no good here, because an operator moving a corner has done nothing wrong.
+ */
 export function move(state, index, point) {
-  if (index < 0 || index >= state.points.length) return state;
-  const points = state.points.slice();
-  points[index] = vertex(point);
+  const path = activePath(state);
+  if (index < 0 || index >= path.length) return state;
+  const moved = path.slice();
+  moved[index] = vertex(point);
   // A drag that ends where it began is a click that went nowhere rather than a step, and a history
   // full of those would have the operator pressing Ctrl+Z twice to undo one thing.
-  if (samePlace(points[index], state.points[index])) return state;
-  return stepped(state, points);
+  if (samePlace(path[index], moved[index])) return state;
+  const was = path[index];
+  const paths = state.paths.map((other, pathIndex) => {
+    if (pathIndex === state.active) return moved;
+    if (state.active !== 0 || !startsAt(other, was)) return other;
+    return [moved[index], ...other.slice(1)];
+  });
+  return stepped(state, paths, state.active);
 }
 
-/** Removes a vertex: what the delete key does to the one the operator last touched. */
+/**
+ * Removes a vertex of the path being worked on: what the delete key does to the one last touched.
+ *
+ * A side track hangs off **a vertex of the line** - its own first vertex is that vertex - so taking that
+ * vertex off the line takes the side track with it: what is left would be a strip that starts nowhere,
+ * and the phone refuses those. Taking the whole strip is the visible half of the change, and one Ctrl+Z
+ * brings both back. The same rule from the other side: taking the junction off a side track takes the
+ * side track, since a strip with no start is not a strip.
+ */
 export function remove(state, index) {
-  if (index < 0 || index >= state.points.length) return state;
-  const points = state.points.slice();
-  points.splice(index, 1);
-  return stepped(state, points);
+  const path = activePath(state);
+  if (index < 0 || index >= path.length) return state;
+  const gone = path[index];
+  const kept = path.filter((_, at) => at !== index);
+  const junctionOfTheSideTrack = state.active > 0 && index === 0;
+  const paths = state.paths.map((other, pathIndex) => {
+    if (pathIndex !== state.active) {
+      if (state.active !== 0 || !startsAt(other, gone)) return other;
+      return [];
+    }
+    return junctionOfTheSideTrack ? [] : kept;
+  });
+  return stepped(state, paths, junctionOfTheSideTrack ? 0 : state.active);
 }
 
-/** Puts a vertex where the line was clicked, between the two it was clicked between. */
+/** Whether a path starts at [point], to the bit: how "this side track hangs off that vertex" is read. */
+function startsAt(path, point) {
+  return path.length > 0 && samePlace(path[0], point);
+}
+
+/** Puts a vertex where the path being worked on was clicked, between the two it was clicked between. */
 export function insert(state, index, point) {
-  const points = state.points.slice();
-  points.splice(index, 0, vertex(point));
-  return stepped(state, points);
+  const path = activePath(state).slice();
+  path.splice(index, 0, vertex(point));
+  return withActive(state, path);
+}
+
+/* ---- Side tracks: a line with strips hanging off it ---------------------------------- */
+
+/**
+ * Starts a side track where the track ends.
+ *
+ * The first vertex of the side track **is** the line's last vertex - the same two numbers, not a copy -
+ * which is what the phone's own drawing does and what its rules ask for: the two paths meet at a vertex,
+ * rather than being two lines that happen to be near each other. Pressing this with no line to hang off
+ * does nothing, and the page does not offer it until there is one.
+ *
+ * The side track leaves the track **where the track currently ends**, so a spur off the middle of a line
+ * is drawn by working up to that point, putting the spur in, and carrying on - the same order the phone's
+ * screen asks for, which is why the two behave identically on the same ground.
+ */
+export function startSideTrack(state) {
+  const linePoints = line(state);
+  if (drawingSideTrack(state) || linePoints.length < 2) return state;
+  return stepped(state, [...state.paths, [linePoints[linePoints.length - 1]]], state.paths.length);
+}
+
+/**
+ * Back to the line.
+ *
+ * A side track that never got a second point is taken off rather than kept: it is one click with nothing
+ * on the map, and leaving it there would be a path the phone refuses to store and the operator cannot see.
+ */
+export function backToLine(state) {
+  if (!drawingSideTrack(state)) return state;
+  return stepped(state, state.paths.filter((path, index) => index === 0 || path.length >= 2), 0);
+}
+
+/**
+ * Takes the side track being drawn off, whatever is on it.
+ *
+ * The way to have second thoughts about one that is already two points long. A side track that is *not*
+ * the one being drawn is left alone: this is about the path under the operator's hand, which is the only
+ * one the map can point at.
+ */
+export function dropSideTrack(state) {
+  if (!drawingSideTrack(state)) return state;
+  return stepped(state, state.paths.filter((_, index) => index !== state.active), 0);
+}
+
+/**
+ * The metres the whole track covers: every path's own length, each counted once.
+ *
+ * The rule the phone's own arithmetic keeps, and the number that made the old up-and-back way of drawing
+ * a spur wrong: walk up it and back down it inside the line and its metres arrive twice, while a 500 m
+ * line with a 50 m side track is 550 m of ground however it is driven.
+ */
+export function lengthMeters(paths) {
+  let total = 0;
+  for (const path of paths) {
+    for (let index = 1; index < path.length; index++) {
+      total += metresBetween(path[index - 1], path[index]);
+    }
+  }
+  return total;
+}
+
+/**
+ * Metres between two vertices, on the flat-earth approximation this file uses everywhere else.
+ *
+ * Over a fence it is exact to a metre, and over a whole farm the error is a few parts in ten thousand -
+ * which matters for a number nobody navigates by and not at all for the shape of anything.
+ */
+function metresBetween(a, b) {
+  const midLat = (((a.lat + b.lat) / 2) * Math.PI) / 180;
+  const dx = (b.lng - a.lng) * METRES_PER_DEGREE * Math.cos(midLat);
+  const dy = (b.lat - a.lat) * METRES_PER_DEGREE;
+  return Math.hypot(dx, dy);
 }
 
 /**
@@ -194,6 +354,14 @@ export function toFeature(points) {
                   : { type: 'LineString', coordinates }
             }
           ]
+  };
+}
+
+/** Every path as one FeatureCollection: the line and its side tracks, in one source. */
+export function pathsFeature(paths) {
+  return {
+    type: 'FeatureCollection',
+    features: paths.map((path) => toFeature(path).features[0]).filter(Boolean)
   };
 }
 
@@ -308,7 +476,7 @@ export function simplify(points, toleranceM) {
 const METRES_PER_DEGREE = 111_320;
 
 /**
- * The line with a whole traced stroke on the end - as **one** step of the history.
+ * The path being worked on with a whole traced stroke on the end - as **one** step of the history.
  *
  * This is the difference between tracing and clicking, and it is the reason a stroke is gathered up
  * before it is put on the line: an operator who has just followed a fence for a hundred metres wants
@@ -316,15 +484,18 @@ const METRES_PER_DEGREE = 111_320;
  * point is a press rather than a trace, so it is not a step at all - the click the browser sends after
  * it is what adds a vertex, which is what a click has always meant here.
  *
- * The simplification runs over the line's own last vertex and the stroke together, so the run up to the
- * first traced point is measured against that vertex rather than being cut off at the press.
+ * The simplification runs over the path's own last vertex and the stroke together, so the run up to the
+ * first traced point is measured against that vertex rather than being cut off at the press - which is
+ * what makes tracing a side track work: its first vertex is the junction, and tracing from there is a
+ * strip following the fence rather than a jump to where the pointer happened to be pressed.
  */
 export function traced(state, stroke, toleranceM) {
   if (stroke.length < 2) return state;
-  const anchor = state.points[state.points.length - 1];
-  if (!anchor) return stepped(state, simplify(stroke, toleranceM));
+  const path = activePath(state);
+  const anchor = path[path.length - 1];
+  if (!anchor) return withActive(state, simplify(stroke, toleranceM));
   const kept = simplify([anchor, ...stroke], toleranceM);
-  return stepped(state, [...state.points.slice(0, -1), ...kept]);
+  return withActive(state, [...path.slice(0, -1), ...kept]);
 }
 
 function distanceBetween(a, b) {

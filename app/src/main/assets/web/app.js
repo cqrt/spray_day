@@ -201,7 +201,7 @@ let editor = null;
  * it intact: a line that took twenty clicks to lay is not something a change of mind about a name ought
  * to cost.
  */
-let draftPoints = null;
+let draftPaths = null;
 
 async function boot() {
   // Nothing checks for a missing token here any more, and that is deliberate: the phone's gate hands
@@ -520,39 +520,52 @@ function showCard(item) {
 }
 
 /**
- * Tidying a track's line: its own vertices become handles on the map.
+ * Tidying a track: its own line and side tracks become the desk's drawing.
  *
- * The feature the map is already drawing is what is handed over, so what the operator takes hold of is
- * the line the phone holds - not a second copy of it that could drift.
+ * The **paths** the phone handed over are what is opened, not the feature the map is drawing: a feature
+ * is one path per asset, and a line that is changed from here has to hand every path back - a spur is not
+ * put back by a page that never held it.
  */
 function startShape(item) {
-  const feature = featuresById.get(item.asset.id);
-  if (!editor || !feature) return;
+  if (!editor) return;
   closeCard();
-  editor.startOn(item.asset.id, feature);
+  editor.startOn(item.asset.id, item.paths ?? []);
 }
 
 /* ---- Drawing a track, saving a line, taking one away -------------------------------- */
 
 /**
- * What the page says while a line is being drawn.
+ * What the page says while a track is being drawn.
  *
  * The page's own words, because none of this is a rule - it is how the map is worked. What the phone
- * will or will not take is the phone's to say, and it says it when the line is saved.
+ * will or will not take is the phone's to say, and it says it when the drawing is saved.
+ *
+ * The two side-track buttons are shown by the drawing's own state rather than by a mode of their own:
+ * *Side track* is offered while the line has two vertices to hang one off and none is being drawn, and
+ * *Back to the track* and *Remove this side track* while one is. That is the same shape the phone's own
+ * screen has, so the same gesture means the same thing in both places.
  */
-function showDrawing({ mode, points, canUndo, tracing }) {
+function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, activePoints, lengthM, canUndo, tracing }) {
   const bar = field('drawing');
   if (mode === 'off') {
     bar.hidden = true;
     return;
   }
 
-  const count = points.length;
-  const steps = [`${count} point${count === 1 ? '' : 's'}`];
+  const count = paths.reduce((total, path) => total + path.length, 0);
+  const steps = [`${count} point${count === 1 ? '' : 's'}`, metresText(lengthM)];
+  if (sideTracks > 0) {
+    steps.push(`${sideTracks} side track${sideTracks === 1 ? '' : 's'}`);
+  }
   if (tracing) {
     // What the hand is doing right now, and the one thing worth knowing about it: the whole fence lands
     // at once, so letting go is not a commitment to twenty vertices.
     steps.push('following the pointer - let go to put this fence down');
+  } else if (drawingSideTrack) {
+    steps.push('drawing a side track: click or trace along it, then go back to the track');
+    steps.push('Del takes the last one off');
+    steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
+    steps.push('Enter or a double click saves it');
   } else {
     steps.push(mode === 'new'
       ? 'click the map to lay the track, or hold the button and follow the fence'
@@ -561,27 +574,33 @@ function showDrawing({ mode, points, canUndo, tracing }) {
     steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
     steps.push(mode === 'new'
       ? 'Enter or a double click finishes'
-      : 'Enter or a double click saves the line');
+      : 'Enter or a double click saves it');
   }
   steps.push('Esc gives up');
 
   field('drawing-words').textContent = steps.join(' · ');
+
+  // The side-track furniture, in the same three states the drawing is in.
+  const line = paths[0] ?? [];
+  field('drawing-side-track').hidden = drawingSideTrack || line.length < 2;
+  field('drawing-back').hidden = !drawingSideTrack;
+  field('drawing-drop').hidden = !drawingSideTrack || activePoints < 2;
   bar.hidden = false;
 }
 
 /**
- * A finished line: a track the phone already has is saved; a new one is described first.
+ * A finished drawing: a track the phone already has is saved; a new one is described first.
  *
- * Both end with the line inside a write, but only one of them can be written straight away. An asset
- * already on the phone has a name and an interval and only its line has moved, while a new line is
- * nothing but its shape - so the form comes first and the line waits in `draftPoints`.
+ * Both end with the drawing inside a write, but only one of them can be written straight away. An asset
+ * already on the phone has a name and an interval and only its paths have moved, while a new line is
+ * nothing but its shape - so the form comes first and the drawing waits in `draftPaths`.
  */
-async function finishDrawing(points, wasEditing) {
+async function finishDrawing(paths, wasEditing) {
   if (wasEditing !== null) {
-    await savePath(wasEditing, points);
+    await savePath(wasEditing, paths);
     return;
   }
-  draftPoints = points;
+  draftPaths = paths;
   openDraft();
 }
 
@@ -593,7 +612,7 @@ async function finishDrawing(points, wasEditing) {
  * track the draft goes with it.
  */
 function abandonDrawing() {
-  draftPoints = null;
+  draftPaths = null;
 }
 
 /**
@@ -604,12 +623,12 @@ function abandonDrawing() {
  * The card's own version travels with it, so a track that has been drawn again on the phone is refused
  * rather than overwritten - the phone's line wins and the page reloads to show it.
  */
-async function savePath(assetId, points) {
+async function savePath(assetId, paths) {
   const item = state.assets.find((one) => one.asset.id === assetId);
   if (!item) return;
 
   try {
-    const { status, answer } = await sendJson(`/api/assets/${assetId}`, 'PUT', recordBody(item, points));
+    const { status, answer } = await sendJson(`/api/assets/${assetId}`, 'PUT', recordBody(item, paths));
     if (status !== 200) {
       showNotice(answer.message || 'The phone would not save that line.');
       if (status === 409 && answer.reason === 'stale') await reloadWork();
@@ -665,7 +684,7 @@ async function deleteAsset(item) {
  * that says nothing about the line leaves the line alone, which is what the details form means - and a
  * new track has no version to quote, because there is no row for one to describe.
  */
-function formBody({ version = null, points = null } = {}) {
+function formBody({ version = null, points = null, paths = null } = {}) {
   const body = {
     name: textOf('edit-name'),
     kind: selectedValue('edit-kind'),
@@ -680,6 +699,7 @@ function formBody({ version = null, points = null } = {}) {
   };
   if (version !== null) body.version = version;
   if (points !== null) body.points = points;
+  if (paths !== null) body.paths = paths;
   return body;
 }
 
@@ -692,7 +712,7 @@ function formBody({ version = null, points = null } = {}) {
  * Which of the two drawing shapes it carries - one path, or the line with the track's side tracks - is
  * `wire.mjs`'s decision, so that it can be tested without a browser.
  */
-function recordBody(item, points) {
+function recordBody(item, paths) {
   return {
     name: item.asset.name,
     kind: item.asset.kind,
@@ -705,7 +725,7 @@ function recordBody(item, points) {
     passSeparationM: item.asset.passSeparationM === null ? '' : String(item.asset.passSeparationM),
     notes: item.asset.notes || '',
     version: item.version,
-    ...drawingBody(item, points)
+    ...drawingBody(paths)
   };
 }
 
@@ -935,16 +955,16 @@ function openDraft() {
 /**
  * Backing out of the form.
  *
- * For a new track that means back to the drawing rather than back to nothing: the line is the operator's
- * work, and a change of mind about the name is not a reason to lose it. The vertices go back to the map,
- * so finishing again is one key away - and giving up altogether is the Escape that follows.
+ * For a new track that means back to the drawing rather than back to nothing: the drawing is the
+ * operator's work, and a change of mind about the name is not a reason to lose it. The paths go back to
+ * the map, so finishing again is one key away - and giving up altogether is the Escape that follows.
  */
 function cancelForm() {
-  const points = drafting ? draftPoints : null;
+  const paths = drafting ? draftPaths : null;
   closeEdit();
-  if (points && editor) {
-    draftPoints = null;
-    editor.startNew(points);
+  if (paths && editor) {
+    draftPaths = null;
+    editor.startNew(paths);
   }
 }
 
@@ -1002,7 +1022,7 @@ async function saveEdit(event) {
   const item = drafting ? null : state.assets.find((one) => one.asset.id === editingId);
   if (!drafting && !item) return;
 
-  const body = drafting ? formBody({ points: draftPoints }) : formBody({ version: item.version });
+  const body = drafting ? formBody({ paths: draftPaths }) : formBody({ version: item.version });
   const path = drafting ? '/api/assets' : `/api/assets/${editingId}`;
 
   const save = field('edit-save');
@@ -1022,7 +1042,7 @@ async function saveEdit(event) {
     }
 
     // The line is the phone's now, so nothing is waiting on it any more.
-    draftPoints = null;
+    draftPaths = null;
     replaceAsset(answer.asset);
     closeEdit();
     await reloadFeatures();
@@ -1049,8 +1069,21 @@ document.getElementById('edit-block').addEventListener('input', updateBlockHint)
 document.getElementById('draw').addEventListener('click', () => {
   if (!editor || editor.isActive()) return;
   closeCard();
-  draftPoints = null;
+  draftPaths = null;
   editor.startNew();
+});
+
+// The side-track furniture on the drawing bar. Each of these is a move the drawing makes on itself -
+// nothing here talks to the phone - so the page's buttons and the editor's own keys lead to the same
+// place, which is why neither is wired to the other.
+document.getElementById('drawing-side-track').addEventListener('click', () => {
+  if (editor) editor.startSideTrack();
+});
+document.getElementById('drawing-back').addEventListener('click', () => {
+  if (editor) editor.backToLine();
+});
+document.getElementById('drawing-drop').addEventListener('click', () => {
+  if (editor) editor.dropSideTrack();
 });
 
 window.addEventListener('keydown', (event) => {

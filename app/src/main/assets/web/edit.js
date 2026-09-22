@@ -33,18 +33,27 @@ const geometry = await import(
 
 const {
   TRACE_PX,
+  activePath,
   add,
+  backToLine,
   canRedo,
   canUndo,
-  createPath,
+  createPaths,
+  drawingSideTrack,
+  dropSideTrack,
   insert,
+  lengthMeters,
+  line,
   metresPerPixel,
   move,
+  pathsFeature,
   redo,
   remove,
   samePlace,
   segmentAt,
+  sideTrackCount,
   snap,
+  startSideTrack,
   toFeature,
   trace,
   traced,
@@ -64,9 +73,10 @@ const HANDLE_LAYER = 'sprayday-desk-drawing-handles';
 /**
  * The drawing, as a thing the page can start and stop.
  *
- * `onChange` is told what the line looks like now, so the page's bar can say how far along it is and
- * which keys do what; `onFinish` is handed the finished line and decides what happens next, because
- * whether that means a save or a form is the page's business and not the map's.
+ * `onChange` is told what the drawing looks like now - every path, which one the clicks go to, and which
+ * keys do what - so the page's bar can say how far along it is and offer the side-track buttons;
+ * `onFinish` is handed the finished paths and decides what happens next, because whether that means a
+ * save or a form is the page's business and not the map's.
  */
 export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }) {
   /** Off, drawing a new line, or editing one that is already on the phone. */
@@ -75,7 +85,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   /** The asset being edited, when the mode is `edit`; null for a new line, and when off. */
   let editingId = null;
 
-  let path = createPath();
+  let drawing = createPaths();
   let dragging = null;
 
   /**
@@ -117,29 +127,39 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   }
 
   /**
-   * The vertices worth snapping onto: the other assets', and this line's own first.
+   * The vertices worth snapping onto: the other assets', and the line's own first while it is drawn.
    *
    * `neighboursOf` hands over the phone's own features - the ones the map is already drawing - and they
    * are read here, by the module that knows GeoJSON is lng-first, so no coordinate is turned round
    * twice. A line of two or more offers its own first vertex as well, which is how a track that comes
-   * back to where it started is closed exactly rather than nearly.
+   * back to where it started is closed exactly rather than nearly - and only while the *line* is being
+   * drawn, because a side track that snapped onto the far end of the line would be a side track that
+   * closed a loop rather than one that leaves the track.
    */
   function candidates() {
     const others = neighboursOf(editingId).flatMap(verticesOf);
-    return path.points.length >= 2 ? [...others, path.points[0]] : others;
+    const linePoints = line(drawing);
+    if (drawing.active !== 0 || linePoints.length < 2) return others;
+    return [...others, linePoints[0]];
   }
 
-  /** The line as it stands, with a drag in progress drawn where the cursor has taken it. */
-  function pointsNow() {
+  /** The drawing as it stands, with a drag or a trace in progress applied to the path being worked on. */
+  function pathsNow() {
+    const active = activePath(drawing);
     if (dragging !== null && cursor !== null) {
-      const points = path.points.slice();
-      points[dragging] = spot(cursor);
-      return points;
+      const moved = active.slice();
+      moved[dragging] = spot(cursor);
+      return replaceActive(moved);
     }
     // A trace being made is drawn as the hand made it, upright and unsimplified: what shrinks is what is
     // *kept*, and that is settled a moment later, when the button comes up.
-    if (stroke !== null) return [...path.points, ...stroke];
-    return path.points;
+    if (stroke !== null) return replaceActive([...active, ...stroke]);
+    return drawing.paths;
+  }
+
+  /** The drawing's paths with the path being worked on replaced by [path]. */
+  function replaceActive(path) {
+    return drawing.paths.map((other, index) => (index === drawing.active ? path : other));
   }
 
   /**
@@ -157,12 +177,17 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   function paint() {
     const source = map.getSource(SOURCE_ID);
-    if (source) source.setData(toFeature(pointsNow()));
+    if (source) source.setData(pathsFeature(pathsNow()));
     onChange({
       mode,
-      points: pointsNow(),
-      canUndo: canUndo(path),
-      canRedo: canRedo(path),
+      paths: pathsNow(),
+      active: drawing.active,
+      sideTracks: sideTrackCount(drawing),
+      drawingSideTrack: drawingSideTrack(drawing),
+      activePoints: activePath(drawing).length,
+      lengthM: lengthMeters(drawing.paths),
+      canUndo: canUndo(drawing),
+      canRedo: canRedo(drawing),
       hovered,
       tracing: stroke !== null
     });
@@ -210,7 +235,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   map.on('mousedown', (event) => {
     if (mode === 'off') return;
     const place = placeOf(event);
-    const at = vertexAt(path.points, place.screen, project);
+    const at = vertexAt(activePath(drawing), place.screen, project);
     if (at >= 0) {
       // A handle dragged is not the map panned, so the pan is stopped here and put back on mouseup - the
       // first moment at which MapLibre will let go of it.
@@ -249,7 +274,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       paint();
       return;
     }
-    const at = vertexAt(path.points, place.screen, project);
+    const at = vertexAt(activePath(drawing), place.screen, project);
     if (at !== hovered) {
       hovered = at;
       paint();
@@ -273,7 +298,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       dragging = null;
       cursor = null;
       map.dragPan.enable();
-      path = move(path, index, point);
+      drawing = move(drawing, index, point);
       paint();
       return;
     }
@@ -284,7 +309,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     cursor = null;
     map.dragPan.enable();
     if (tracedNow.length >= 2) {
-      path = traced(path, tracedNow, toleranceM());
+      drawing = traced(drawing, tracedNow, toleranceM());
       swallowClick = true;
     }
     paint();
@@ -310,22 +335,25 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
     const place = placeOf(event);
 
-    // A click on the line splits it: the vertex goes in between the two it was clicked between.
-    const at = segmentAt(path.points, place.screen, project);
+    // A click on the path being worked on splits it: the vertex goes in between the two it was clicked
+    // between. Only that path - a click on the line while a side track is being drawn adds to the side
+    // track, because the side track is what the operator has in hand.
+    const at = segmentAt(activePath(drawing), place.screen, project);
     if (at >= 0) {
-      path = insert(path, at, spot(place.ground));
+      drawing = insert(drawing, at, spot(place.ground));
       paint();
       return;
     }
 
-    // A click on the paddock adds to the end of a line still being drawn, and does nothing to one the
-    // phone already has: a track that exists is changed by its handles, not by stray clicks.
-    if (mode !== 'new') return;
-    const end = path.points[path.points.length - 1];
-    // A click on the spot the line already ends at adds nothing. That is exactly what the second half of
+    // A click on the paddock adds to the end of a line still being drawn, and to the side track being
+    // drawn. It does nothing to a track the phone already has while its *line* is in hand: a line that
+    // exists is changed by its handles, not by stray clicks.
+    if (mode !== 'new' && !drawingSideTrack(drawing)) return;
+    const end = activePath(drawing)[activePath(drawing).length - 1];
+    // A click on the spot the path already ends at adds nothing. That is exactly what the second half of
     // a double-click is, and a repeated vertex would only be collapsed again by the phone.
     if (end && samePlace(end, place.ground)) return;
-    path = add(path, spot(place.ground));
+    drawing = add(drawing, spot(place.ground));
     paint();
   });
 
@@ -346,13 +374,13 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     const command = event.ctrlKey || event.metaKey;
     if (command && key === 'z') {
       event.preventDefault();
-      path = event.shiftKey ? redo(path) : undo(path);
+      drawing = event.shiftKey ? redo(drawing) : undo(drawing);
       paint();
       return;
     }
     if (command && key === 'y') {
       event.preventDefault();
-      path = redo(path);
+      drawing = redo(drawing);
       paint();
       return;
     }
@@ -366,12 +394,25 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       cancel();
       return;
     }
+    // `B` starts a side track where the line ends, and `L` goes back to the line: the two moves the page's
+    // own buttons make, for an operator working with one hand on the mouse.
+    if (key === 'b' && !command) {
+      event.preventDefault();
+      startFromLineEnd();
+      return;
+    }
+    if (key === 'l' && !command) {
+      event.preventDefault();
+      leaveSideTrack();
+      return;
+    }
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      // The one the operator last had hold of, or the end of a line still being drawn.
-      const which = hovered >= 0 ? hovered : path.points.length - 1;
+      // The one the operator last had hold of, or the end of the path being drawn.
+      const active = activePath(drawing);
+      const which = hovered >= 0 ? hovered : active.length - 1;
       if (which >= 0) {
         event.preventDefault();
-        path = remove(path, which);
+        drawing = remove(drawing, which);
         hovered = -1;
         paint();
       }
@@ -380,11 +421,29 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   /* ---- Starting, finishing, giving up ------------------------------------------------ */
 
-  function start(nextMode, id, points) {
+  /** Starts a side track where the line ends: what the page's button and the `B` key both do. */
+  function startFromLineEnd() {
+    drawing = startSideTrack(drawing);
+    paint();
+  }
+
+  /** Back to the line: what the page's button and the `L` key both do. */
+  function leaveSideTrack() {
+    drawing = backToLine(drawing);
+    paint();
+  }
+
+  /** Takes the side track being drawn off: what the page's tidying button does. */
+  function discardSideTrack() {
+    drawing = dropSideTrack(drawing);
+    paint();
+  }
+
+  function start(nextMode, id, paths) {
     ready();
     mode = nextMode;
     editingId = id;
-    path = createPath(points);
+    drawing = createPaths(paths);
     dragging = null;
     stroke = null;
     swallowClick = false;
@@ -406,19 +465,35 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     map.doubleClickZoom.enable();
     map.getCanvas().style.cursor = '';
     show(false);
-    onChange({ mode: 'off', points: [], canUndo: false, canRedo: false, hovered: -1, tracing: false });
+    onChange({
+      mode: 'off',
+      paths: [],
+      active: 0,
+      sideTracks: 0,
+      drawingSideTrack: false,
+      activePoints: 0,
+      lengthM: 0,
+      canUndo: false,
+      canRedo: false,
+      hovered: -1,
+      tracing: false
+    });
   }
 
   /**
-   * The operator is done: the line goes to the page, which decides what that means.
+   * The operator is done: the paths go to the page, which decides what that means.
    *
    * A new track has a form to fill in; a track already on the phone has a save to make. Either way the
-   * drawing stops here, and this is the only place a finished line leaves the map - which is why the
+   * drawing stops here, and this is the only place a finished drawing leaves the map - which is why the
    * page, and not this file, is where the phone is reached for.
+   *
+   * **A half-drawn side track is dropped rather than sent**: one click with nothing on it is not a side
+   * track, and the phone would refuse the path for it. `backToLine` is the same rule the page's own
+   * button applies, used here so that both ends of the drawing agree about what it is.
    */
   function finish() {
     if (mode === 'off') return;
-    const finished = path.points;
+    const finished = backToLine(drawing).paths;
     const wasEditing = editingId;
     stop();
     onFinish(finished, wasEditing);
@@ -440,20 +515,32 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     /**
      * A new line, starting empty: it snaps onto every asset the farm already has.
      *
-     * Points can be handed in, which is how the form's Cancel comes back to a drawing that was already
+     * Paths can be handed in, which is how the form's Cancel comes back to a drawing that was already
      * made rather than to a blank map - the line is the operator's work, and a form opened over it is
      * not a reason to lose it.
      */
-    startNew: (points = []) => start('new', null, points),
+    startNew: (paths = []) => start('new', null, paths),
 
-    /** An asset's own line, out of the feature the map is drawing for it, ready to be tidied. */
-    startOn: (assetId, feature) => start('edit', assetId, verticesOf(feature)),
+    /**
+     * A track the phone already has, opened on the whole of its drawing: the line and its side tracks.
+     *
+     * The paths come from the state document's own record rather than from the feature the map is
+     * drawing, because the feature is one path per asset and the desk has to be able to hand back every
+     * one of them - a line changed next to a spur must not be a line that lost it.
+     */
+    startOn: (assetId, paths) => start('edit', assetId, paths),
+
+    /** Starts a side track where the line ends: the page's own button. */
+    startSideTrack: () => startFromLineEnd(),
+
+    /** Back to the line, dropping a side track that never got a second point. */
+    backToLine: () => leaveSideTrack(),
+
+    /** Takes the side track being drawn off. */
+    dropSideTrack: () => discardSideTrack(),
 
     /** Whether a drawing is in progress: what the page asks before a map click means "open that". */
     isActive: () => mode !== 'off',
-
-    /** The finished line, as the phone would store it - the page's own body carries it. */
-    points: () => path.points,
 
     finish,
     cancel

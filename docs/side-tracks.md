@@ -72,15 +72,59 @@ file into one line. So a file exported for a track with a spur came back as a li
 - **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
   `... as one line: the file's own track segments do not meet, so they were joined up.`
 
+## Shipped: v0.6.31 - the desk draws side tracks
+
+The desk could carry a track's side tracks from v0.6.29 but not make one, so a spur was something only a
+phone could put on a track. It draws them now, with the phone's own two moves in the phone's own words,
+and the phone takes what it draws.
+
+- **The page's state is the paths** (`geometry.mjs`): path 0 the line and the rest its side tracks, which
+  is what the phone stores, what a backup carries and what a write has on the wire — so nothing is
+  re-interpreted at either end of a save. `active` is which path the clicks, drags and traces go to, and a
+  history snapshot carries it, so Ctrl+Z after starting a side track hands the line back.
+- **The gesture is the phone's**: `startSideTrack` puts a new path on the line's own last vertex — the same
+  two numbers, not a copy, which is what the junction rule asks for — `backToLine` drops one that never got
+  a second point, and `dropSideTrack` takes off the one being drawn. `B` and `L` on a keyboard do the same
+  as the two buttons, which is the whole of the page's own furniture for it.
+- **The junction follows the map**: dragging a line vertex carries any side track that hangs off it, and
+  taking that vertex off the line takes the strip with it (one Ctrl+Z brings both back). A strip that hangs
+  off nothing is a drawing the phone refuses, so the page never makes one by accident.
+- **The bar says the number and the metres**: *4 points · 3.89 km · 1 side track* while a track with a spur
+  is open, and *6 points · 4.28 km · 2 side tracks* after a second one is drawn — the new spur counted
+  **once**, which is the arithmetic the phone does.
+- **The wire shape follows the drawing now**, rather than merging a drawn line into a held record: one path
+  is `points` (what every page before this sent) and more is `paths`, line first.
+- **The phone's count refusal is gone; the staleness one is not.** A body carrying `paths` is taken
+  whatever number it holds — the rules (`AssetPathEdits`) judge the shape of what arrived — while a body of
+  a single `points` for a track that has side tracks is still refused, because that page never read the
+  record's `paths` and a write would drop every spur on the track.
+
+Proven in a browser driving the desk (headless Edge over the DevTools protocol, `build/verify/db/deskdrive.mjs`
+against the scratch page server): the buttons appear in the right two states, the bar's numbers above are
+what it said, and the save PUT three paths — `[line, spur, new spur]`, line first, no `points` field —
+which is the body the phone's own rules take. **Not proven**: that the map canvas paints the second path.
+The headless browser here renders the style's background and nothing else, so the screenshots are no
+evidence of a drawing; `pathsFeature` (one feature per path) is unit-tested and the pixel claim is left to
+a browser on the machine the desk is being used from.
+
+## Shipped: v0.6.30 - GPX carries the side tracks
+
+- **Out**: one `<trkseg>` per path, so a spur comes back as a spur. A track with no side tracks is written
+  exactly as it was before this slice existed.
+- **In**: a file with more than one segment is read as paths when **every** segment after the first begins
+  at the vertex the one before it ended at, which is the junction rule the app draws and edits by.
+  Otherwise it is read the old way - one line, every point - and the answer
+  says so, because a track with a jump in it is worth knowing about rather than worth refusing.
+- **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
+  `... as one line: the file's own track segments do not meet, so they were joined up.`
+
 ## Next
 
-### v0.6.31 - the desk draws side tracks
+### v0.6.32 - GPX drag-and-drop onto the desk, and more than one asset at a time
 
-Start a side track from a vertex of the traced line on the desk, and take one off again. The wire
-carries them (v0.6.29) and the phone's rules judge them; what is missing is the page's own state holding
-more than one path - `geometry.mjs` and `edit.js` are single-path today, and their 26 node tests are the
-shape that changes with them. Phase 3 of `web-editor.md` also still has GPX drag-and-drop and working on
-more than one asset at once.
+Phase 3 of `web-editor.md` has one item left before the desk is done: dropping a GPX file onto the page.
+The desk can now draw every part of a track, so what a dropped file has to become is a drawing the page
+already knows how to hold.
 
 ## Shipped: v0.6.29 - the drawer carries the paths, so the line can be changed from a computer
 
@@ -96,22 +140,9 @@ desk can now carry them.
 - **The desk sends them back**: `wire.mjs` decides which shape a save has - a pure module with its own
   node tests, and the CI line now runs every `*.test.mjs` in that folder, so a new file of them is
   picked up by being written.
-- **The refusal is now about what is missing**, not about side tracks in general: fewer paths than the
-  track has is a page that is out of date (*"Reload the page and try again"*), and **more** is the desk
-  trying to add a side track - still the phone's job, and it says so.
-
-## Next
-
-### v0.6.30 - the desk draws side tracks, and GPX carries them
-
-- On the desk: start a side track from a vertex of the traced line, and take one off again. The wire is
-  ready for both; what is missing is the page's own state holding more than one path (`geometry.mjs` and
-  `edit.js` are single-path today, and their 26 node tests are the shape that would have to change with
-  them).
-- GPX out already writes one `<trkseg>` per path; reading still flattens every `trkpt` in a file into one
-  line, so a multi-segment GPX imported from another tool becomes a line with jumps in it. Read segments
-  as paths, and decide what to do with a segment that does not touch the line (probably: keep it as a
-  side track only when it joins, otherwise offer to import it as its own asset).
+- **The refusal was about what is missing**, not about side tracks in general: fewer paths than the track
+  has was a page that is out of date (*"Reload the page and try again"*), and **more** was the desk
+  trying to add a side track — which v0.6.31 then taught it to do, so only the first half is left.
 
 **Loose ends from v0.6.27's verification belong at the front of that slice**: the map's own drawing of a
 second path and the GPX `<trkseg>` per path were never checked on a *published* artifact, and

@@ -393,7 +393,7 @@ class WebEditorSaveTest {
     }
 
     @Test
-    fun aDrawingWithMorePathsThanTheTrackHasIsRefusedAsThePhoneChangingSideTracks() = runBlocking {
+    fun aSideTrackDrawnOnTheDeskIsStoredWithTheLine() = runBlocking {
         val junction = GeoPoint(0.0, 0.0005)
         val asThePhoneHoldsIt = listOf(line.first(), junction, line.last())
         val id = assets.createAsset(
@@ -401,30 +401,48 @@ class WebEditorSaveTest {
             geometry = AssetGeometry.of(asThePhoneHoldsIt)
         )
         val version = stateRecord(id).version
+        val spur = listOf(junction, GeoPoint(0.001, 0.0005))
 
-        // The desk trying to add a side track: every path in the body is a path the rules would take,
-        // so what refuses it is the count - the desk cannot see the whole of what it is doing yet, and a
-        // phone that shrugged at the extra path would be half-supporting a feature.
-        val refusal = refused(
-            documents.save(
-                id,
-                editBody(
-                    version,
-                    paths = listOf(asThePhoneHoldsIt, listOf(junction, GeoPoint(0.001, 0.0005)))
-                )
-            ),
-            WebEditorRefusal.INVALID
+        // The desk drawing a side track where the line ends: the junction is the line's own vertex, every
+        // path is whole, and the rules take it - so this is a write like any other, not something the phone
+        // has to do for the desk.
+        val answer = saved(
+            documents.save(id, editBody(version, paths = listOf(asThePhoneHoldsIt, spur)))
         )
 
-        assertTrue(
-            "says where it is done: ${refusal.message}",
-            refusal.message.contains("on the phone")
-        )
+        val stored = assets.getAssetGeometry(id)
+        assertEquals("the line, as the desk had it", asThePhoneHoldsIt, stored.line)
+        assertEquals("and the side track it drew", listOf(spur), stored.sideTracks)
         assertEquals(
-            "and the track is the line it was",
-            1,
-            assets.getAssetGeometry(id).paths.size
+            "with the length worked out from both, each path counted once",
+            222.6,
+            answer.record.asset.lengthM,
+            1.0
         )
+        assertEquals("and a new version, so the desk can save again", true, answer.record.version != version)
+    }
+
+    @Test
+    fun aSideTrackTakenOffOnTheDeskComesOffThePhoneToo() = runBlocking {
+        val junction = GeoPoint(0.0, 0.0005)
+        val spur = listOf(junction, GeoPoint(0.001, 0.0005))
+        val id = assets.createAsset(
+            name = "Gully track",
+            geometry = AssetGeometry.of(listOf(line.first(), junction, line.last()), listOf(spur))
+        )
+        val version = stateRecord(id).version
+        val asThePageHoldsIt = stateRecord(id).paths.map { it.map { point -> GeoPoint(point.lat, point.lng) } }
+
+        // The desk tidying a spur away: a body carrying `paths` is a page that read this track's own
+        // paths, so fewer of them is a decision rather than an out of date page.
+        saved(documents.save(id, editBody(version, paths = listOf(asThePageHoldsIt[0]))))
+
+        assertEquals(
+            "the side track is off the phone, because the desk said so",
+            0,
+            assets.getAssetGeometry(id).sideTracks.size
+        )
+        assertEquals("and the line is what it was", 3, assets.getAssetGeometry(id).line.size)
     }
 
     @Test

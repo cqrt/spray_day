@@ -15,6 +15,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  activePath,
+  backToLine,
+  createPaths,
+  dropSideTrack,
+  lengthMeters,
+  pathsFeature,
+  startSideTrack,
   HISTORY_LIMIT,
   TRACE_PX,
   add,
@@ -52,7 +59,7 @@ const c = { lat: -41.7, lng: 174.0 };
 test('a line just started has nothing to undo and nothing to redo', () => {
   const path = createPath();
 
-  assert.deepEqual(path.points, []);
+  assert.deepEqual(activePath(path), []);
   assert.equal(canUndo(path), false);
   assert.equal(canRedo(path), false);
   assert.equal(undo(path), path, 'undoing nothing hands back the same line');
@@ -61,8 +68,8 @@ test('a line just started has nothing to undo and nothing to redo', () => {
 test('a vertex carries the two numbers the phone stores, and nothing a map event adds', () => {
   const path = add(createPath(), { ...a, x: 620, y: 331, bearing: 12 });
 
-  assert.deepEqual(path.points, [a]);
-  assert.equal('x' in path.points[0], false);
+  assert.deepEqual(activePath(path), [a]);
+  assert.equal('x' in activePath(path)[0], false);
 });
 
 test('every step can be walked back and forward again, exactly', () => {
@@ -70,17 +77,17 @@ test('every step can be walked back and forward again, exactly', () => {
   path = add(path, b);
   path = add(path, c);
 
-  assert.deepEqual(path.points, [a, b, c]);
+  assert.deepEqual(activePath(path), [a, b, c]);
 
   path = undo(path);
-  assert.deepEqual(path.points, [a, b]);
+  assert.deepEqual(activePath(path), [a, b]);
   path = undo(path);
-  assert.deepEqual(path.points, [a]);
+  assert.deepEqual(activePath(path), [a]);
 
   path = redo(path);
-  assert.deepEqual(path.points, [a, b]);
+  assert.deepEqual(activePath(path), [a, b]);
   path = redo(path);
-  assert.deepEqual(path.points, [a, b, c], 'and forward again to the same place, to the bit');
+  assert.deepEqual(activePath(path), [a, b, c], 'and forward again to the same place, to the bit');
 
   assert.equal(canRedo(path), false, 'nothing left to redo');
 });
@@ -91,12 +98,12 @@ test('a new step after an undo is a new history, and what was undone is gone', (
   path = add(path, b);
   path = add(path, c);
   path = undo(path);
-  assert.deepEqual(path.points, [a, b]);
+  assert.deepEqual(activePath(path), [a, b]);
   assert.equal(canRedo(path), true, 'the step that was undone is still there to go forward to');
 
   path = remove(path, 0);
 
-  assert.deepEqual(path.points, [b]);
+  assert.deepEqual(activePath(path), [b]);
   assert.equal(canRedo(path), false, 'the branch that was undone is not reachable any more');
 });
 
@@ -114,14 +121,14 @@ test('a drag that ends where it started is not a step', () => {
 test('undoing a drag puts the vertex back where it was', () => {
   const path = move(createPath([a, b]), 1, c);
 
-  assert.deepEqual(path.points, [a, c]);
-  assert.deepEqual(undo(path).points, [a, b]);
+  assert.deepEqual(activePath(path), [a, c]);
+  assert.deepEqual(activePath(undo(path)), [a, b]);
 });
 
 test('a moved vertex is where it was dropped, and a vertex off the end of the line is nothing', () => {
   const path = createPath([a, b]);
 
-  assert.deepEqual(move(path, 1, c).points, [a, c], 'the index is the vertex being dragged');
+  assert.deepEqual(activePath(move(path, 1, c)), [a, c], 'the index is the vertex being dragged');
   assert.equal(move(path, 2, c), path, 'a handle that is not there moves nothing');
   assert.equal(move(path, -1, c), path);
   assert.equal(remove(path, 5), path);
@@ -132,10 +139,10 @@ test('a vertex is inserted between the two it was clicked between', () => {
   // A click on the middle of the second segment: `segmentAt` says where it goes, `insert` puts it there.
   const click = { x: (project(b).x + project(c).x) / 2, y: (project(b).y + project(c).y) / 2 };
 
-  const at = segmentAt(path.points, click, project);
+  const at = segmentAt(activePath(path), click, project);
 
   assert.equal(at, 2);
-  assert.deepEqual(insert(path, at, { lat: -41.65, lng: 173.95 }).points, [
+  assert.deepEqual(activePath(insert(path, at, { lat: -41.65, lng: 173.95 })), [
     a,
     b,
     { lat: -41.65, lng: 173.95 },
@@ -148,11 +155,11 @@ test('a click has to be near the line to be on it, in pixels rather than degrees
 
   // The midpoint of the line, a few pixels to one side of it: near enough.
   const on = { x: (project(a).x + project(b).x) / 2, y: (project(a).y + project(b).y) / 2 + 3 };
-  assert.equal(segmentAt(path.points, on, project), 1);
+  assert.equal(segmentAt(activePath(path), on, project), 1);
 
   // Twenty pixels away is a click on the paddock, not on the track.
   const off = { x: on.x, y: on.y + 20 };
-  assert.equal(segmentAt(path.points, off, project), -1);
+  assert.equal(segmentAt(activePath(path), off, project), -1);
 
   // And a line of one vertex has no segment to click on at all.
   assert.equal(segmentAt([a], on, project), -1);
@@ -191,10 +198,10 @@ test('a snapped loop closes onto the vertex the line started at', () => {
   const path = createPath([a, b]);
   const near = { lat: a.lat + 0.000002, lng: a.lng + 0.000002 };
 
-  const snapped = snap(near, [path.points[0]], project);
+  const snapped = snap(near, [activePath(path)[0]], project);
 
   assert.deepEqual(snapped, a);
-  assert.deepEqual(add(path, snapped).points, [a, b, a]);
+  assert.deepEqual(activePath(add(path, snapped)), [a, b, a]);
 });
 
 test('the line the map draws is a point of one vertex, a string of many, and nothing of none', () => {
@@ -252,7 +259,7 @@ test('the history is capped, and the oldest step is the one forgotten', () => {
   // Six, not one: the steps that fell off the end are the empty line and the first five vertices, and
   // what is reached is the line as it stood after the sixth. The oldest step is gone, as a capped
   // history means it to be - and six is pinned here so that a change to the cap is seen here first.
-  assert.equal(path.points.length, 6, 'the line as it stood six steps in');
+  assert.equal(activePath(path).length, 6, 'the line as it stood six steps in');
 });
 
 test('a path handed in comes back vertex by vertex, and the caller keeps its own array', () => {
@@ -351,10 +358,10 @@ test('a traced fence goes onto the line as one step, and one Ctrl+Z takes it all
   const before = add(createPath(), a);
   const path = traced(before, stroke, perPixel * (TRACE_PX / 2));
 
-  assert.equal(path.points.length, 3, 'the fence, its corner, and where the arm stopped');
-  assert.deepEqual(path.points[1], corner, 'the corner is where it was traced');
+  assert.equal(activePath(path).length, 3, 'the fence, its corner, and where the arm stopped');
+  assert.deepEqual(activePath(path)[1], corner, 'the corner is where it was traced');
   assert.equal(path.past.length, before.past.length + 1, 'fifty-two samples are one thing to take back');
-  assert.deepEqual(undo(path).points, before.points, 'and Ctrl+Z leaves the line as it was before the trace');
+  assert.deepEqual(activePath(undo(path)), activePath(before), 'and Ctrl+Z leaves the line as it was before the trace');
 });
 
 test('a press that never moved is not a step at all', () => {
@@ -376,8 +383,8 @@ test('a trace that comes back to where it started closes on that vertex exactly'
   // Snapping is the page's, and what it hands over is the line's own first vertex, copied.
   const after = traced(closed, [c, vertex(a)], 1);
 
-  assert.deepEqual(after.points[after.points.length - 1], a);
-  assert.ok(samePlace(after.points[0], after.points[after.points.length - 1]));
+  assert.deepEqual(activePath(after)[activePath(after).length - 1], a);
+  assert.ok(samePlace(activePath(after)[0], activePath(after)[activePath(after).length - 1]));
 });
 
 test('a traced line is simplified to the size of what the operator could see', () => {
@@ -395,4 +402,168 @@ test('a traced line is simplified to the size of what the operator could see', (
   assert.equal(metresPerPixel(-41.5, 16), perPixel * 2);
   assert.equal(metresPerPixel(0, 0), 40075016.686 / 256, 'a pixel at zoom 0 is the world over 256');
   assert.ok(metresPerPixel(-41.5, 17) < metresPerPixel(0, 17), 'and a pixel shrinks towards the pole');
+});
+
+/* ---- Side tracks: a line with strips hanging off it ----------------------------------- */
+
+/** A side track's far end: the strip hangs off `b`, which is the far end of the line `a`-`b`. */
+const spurEnd = { lat: -41.7, lng: 173.9 };
+
+test('a side track starts at the end of the line, on the line\'s own vertex', () => {
+  const drawing = startSideTrack(createPath([a, b]));
+
+  assert.equal(drawing.paths.length, 2, 'the line and the side track');
+  assert.deepEqual(drawing.paths[1], [b], 'the side track starts as the junction, and nothing else');
+  assert.equal(drawing.active, 1, 'and the clicks go to it');
+  // The same vertex to the bit, not a place near it: that is what the phone's own rules ask for, because
+  // "these two paths meet" is a comparison of the two numbers rather than of an intention.
+  assert.deepEqual(drawing.paths[1][0], drawing.paths[0][1]);
+});
+
+test('what is drawn next goes on the side track, and the line is left alone', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+
+  assert.deepEqual(activePath(drawing), [b, spurEnd]);
+  assert.deepEqual(drawing.paths[0], [a, b], 'the line is exactly what it was');
+});
+
+test('a side track that never got a second point is taken off by going back to the line', () => {
+  const drawing = backToLine(startSideTrack(createPath([a, b])));
+
+  assert.equal(drawing.paths.length, 1, 'one click is not a side track');
+  assert.equal(drawing.active, 0, 'and the clicks are back on the line');
+});
+
+test('a side track with something on it survives going back to the line', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  assert.equal(drawing.paths.length, 2);
+  assert.deepEqual(drawing.paths[1], [b, spurEnd]);
+  assert.equal(drawing.active, 0);
+
+  // And the line carries on from the junction, which is where it ended: the spur is a strip beside it
+  // rather than a detour on it.
+  drawing = add(drawing, c);
+  assert.deepEqual(drawing.paths[0], [a, b, c]);
+  assert.deepEqual(drawing.paths[1], [b, spurEnd], 'the side track kept what it had');
+});
+
+test('Ctrl+Z after starting a side track hands the line back', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  const withSideTrack = drawing;
+
+  drawing = undo(drawing);
+
+  assert.equal(drawing.active, 0, 'the path being worked on is part of the state');
+  assert.equal(drawing.paths.length, 1);
+  assert.deepEqual(activePath(drawing), [a, b]);
+
+  drawing = redo(drawing);
+  assert.equal(redo(withSideTrack).paths.length, 2, 'and forward again is the side track');
+  assert.deepEqual(drawing.paths[1], [b]);
+});
+
+test('the side track being drawn can be taken off, line and all intact', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = dropSideTrack(drawing);
+
+  assert.equal(drawing.paths.length, 1);
+  assert.deepEqual(drawing.paths[0], [a, b]);
+  assert.equal(drawing.active, 0);
+  assert.equal(dropSideTrack(createPath([a, b])).paths.length, 1, 'and nothing to drop is nothing');
+});
+
+test('a line with nothing to hang off cannot start a side track', () => {
+  assert.equal(startSideTrack(createPath([a])).paths.length, 1);
+  assert.equal(startSideTrack(createPath([])).paths.length, 0);
+});
+
+test('a side track does not offer the line\'s first vertex to snap onto', () => {
+  // A side track that closed back onto the far end of the line would be a loop rather than a spur, and
+  // the phone's rules would refuse it: what snapping offers is the caller's, and this is the reason.
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+
+  assert.equal(drawing.paths[1].length, 2);
+  assert.notDeepEqual(drawing.paths[1][1], a);
+});
+
+test('taking the line vertex a side track hangs off takes the side track with it', () => {
+  // A side track's first vertex is the line's junction, so a line without that vertex leaves an orphan -
+  // and an orphan is a path the phone refuses rather than one it stores.
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  const after = remove(drawing, 1);
+
+  assert.equal(after.paths.length, 1, 'the strip came off with the corner it hung on');
+  assert.deepEqual(after.paths[0], [a]);
+  assert.deepEqual(undo(after).paths[1], [b, spurEnd], 'and one Ctrl+Z brings both back');
+});
+
+test('dragging the line vertex a side track hangs off takes the junction with it', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  const moved = move(drawing, 1, c);
+
+  assert.deepEqual(moved.paths[0], [a, c]);
+  assert.deepEqual(moved.paths[1], [c, spurEnd], 'the two paths still meet, exactly');
+});
+
+test('dragging a line vertex nothing hangs off leaves the side tracks alone', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  const moved = move(drawing, 0, { lat: -41.45, lng: 173.75 });
+
+  assert.deepEqual(moved.paths[0][0], { lat: -41.45, lng: 173.75 });
+  assert.deepEqual(moved.paths[1], [b, spurEnd]);
+});
+
+test('taking the junction off a side track takes the strip off', () => {
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+
+  const after = remove(drawing, 0);
+
+  assert.equal(after.paths.length, 1, 'a strip with no start is not a strip');
+  assert.deepEqual(after.paths[0], [a, b]);
+  assert.equal(after.active, 0, 'and the line is what is in hand again');
+});
+
+test('an empty path is not a path', () => {
+  assert.equal(createPaths([[], [a, b], []]).paths.length, 1);
+});
+
+test('the length counts every path once, which is the number the bar shows', () => {
+  const line = [a, b];
+  const spur = [b, spurEnd];
+  const whole = lengthMeters([line, spur]);
+  // What the old up-and-back way of drawing a spur would have produced: down it and back up it, inside
+  // the one line - the shape that made an asset's length wrong on the phone too.
+  const asOneLine = lengthMeters([[a, b, spurEnd, b]]);
+
+  assert.ok(whole < asOneLine, `${Math.round(whole)} m against ${Math.round(asOneLine)} m`);
+  assert.equal(
+    Math.round(asOneLine - whole),
+    Math.round(lengthMeters([spur])),
+    'and the difference is exactly the spur walked twice'
+  );
+  assert.equal(Math.round(whole), Math.round(lengthMeters([line]) + lengthMeters([spur])));
+});
+
+test('every path is a feature of its own, so the map draws the side tracks too', () => {
+  const feature = pathsFeature(createPath([a, b]).paths.concat([[b, spurEnd]]));
+
+  assert.equal(feature.features.length, 2);
+  assert.equal(feature.features[0].geometry.coordinates.length, 2);
+  assert.equal(feature.features[1].geometry.coordinates[1][1], spurEnd.lat);
 });

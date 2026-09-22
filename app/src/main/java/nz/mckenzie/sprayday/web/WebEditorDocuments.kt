@@ -143,28 +143,21 @@ class WebEditorDocuments(
             is WebEditorEditResult.Ok -> {
                 // A drawing that does not carry the track's side tracks cannot be written: the write
                 // would drop every spur on it, which is the one thing a desk must never do quietly.
-                // Two shapes of that, and each says what to do next:
                 //
-                //  - fewer paths than the track has - an old page, or one that never read the record's
-                //    `paths` - so the page is out of date and a reload fixes it;
-                //  - more paths than the track has - the desk trying to *add* a side track, which only
-                //    the phone can do so far.
+                // Only one shape of that is left, now that the desk draws side tracks itself: a body of
+                // a single `points` for a track that has side tracks. That page never read this track's
+                // `paths` - every page since the desk was taught to carry them sends `paths` for a track
+                // that has more than one - so it is out of date, and a reload is what fixes it.
                 //
-                // The details half of a card is unaffected: a write that carries no drawing leaves the
-                // geometry alone.
+                // A body that carries `paths` may carry a different number of them: adding a side track
+                // and taking one off are things the desk can do now, and the rules above have already
+                // judged the shape it sent - every path whole, every side track starting on the line.
                 val drawn = result.paths
-                if (drawn != null && drawn.size != geometry.paths.size) {
+                if (drawn != null && !result.carriedPaths && drawn.size != geometry.paths.size) {
                     return refused(
                         WebEditorRefusal.INVALID,
-                        if (drawn.size < geometry.paths.size) {
-                            "That write did not carry all of this track's side tracks, so nothing was " +
-                                "saved. Reload the page and try again."
-                        } else {
-                            "This track has ${geometry.paths.size - 1} side track" +
-                                "${if (geometry.paths.size == 2) "" else "s"} and that drawing had " +
-                                "${drawn.size - 1}: adding or taking one off is done on the phone " +
-                                "for now."
-                        }
+                        "That write did not carry all of this track's side tracks, so nothing was " +
+                            "saved. Reload the page and try again."
                     )
                 }
                 // The row and, when the write carried one, the drawing - in one transaction, with the

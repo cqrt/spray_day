@@ -14,16 +14,14 @@
  */
 
 /**
- * The drawing part of a line's save: the line the operator has just drawn or tidied, and the side
- * tracks the phone last handed over.
+ * What a save carries about where a track goes: the paths the desk is holding.
  *
- * `record` is the state document's own record, whose `paths` are the track's paths as the phone holds
- * them, line first. The first of them is replaced by the drawn [line] and the rest travel back
- * untouched - which is what makes changing the line of a track with a spur a change to the line rather
- * than a hole where the spur was.
+ * One path is sent as `points`, which is the body every page before this one sent, and two or more as
+ * `paths` - the line first, then its side tracks. The phone refuses a single path for a track that has
+ * side tracks (rather than silently dropping them), so which shape a save has matters: this is the one
+ * decision in the page's own logic about a write, which is why it lives in a module node can test.
  */
-export function drawingBody(record, line) {
-  const paths = record?.paths ?? [];
-  if (paths.length < 2) return { points: line };
-  return { paths: [line, ...paths.slice(1)] };
+export function drawingBody(paths) {
+  if (paths.length > 1) return { paths };
+  return { points: paths[0] ?? [] };
 }

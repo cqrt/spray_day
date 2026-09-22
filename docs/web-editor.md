@@ -23,9 +23,9 @@ away.
 - **Side tracks reached the desk in v0.6.29**, from the phone's side of the work (see
   `side-tracks.md`): a line write may carry `paths` — the line and its side tracks after it — instead of
   one `points`, the record hands the page the paths to bring back (`WebEditorAssetRecord.paths`), and
-  `wire.mjs` decides which of the two shapes a save has. So the refusal v0.6.27 had to make ("a line
-  with no side tracks for a track that has one") is now about what is *missing* rather than about side
-  tracks in general. The desk still cannot draw a side track: that is the next slice.
+  `wire.mjs` decides which of the two shapes a save has. **v0.6.31 taught the desk to draw one**, so the
+  refusal that is left is about a *stale page*: a write carrying a single `points` for a track that has
+  side tracks never read this track's paths, and a reload is what fixes it.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
@@ -193,7 +193,7 @@ that never saw the move rather than silently undoing it.
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, shapes, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
-| `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: the path and its undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the line a click belongs, the vertex to snap onto, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history). |
+| `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: **the paths** (path 0 the line, the rest its side tracks), which one is being worked on, and the undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the path a click belongs, the vertex to snap onto, the side-track moves (`startSideTrack`/`backToLine`/`dropSideTrack`), the whole track's metres, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z, the junction's exactness and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history); v0.6.31 made the state **multi-path** (`createPaths`, `active`, `activePath`) and added the side-track moves and `pathsFeature`. |
 | `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
 | `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24.** |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. |
@@ -275,22 +275,30 @@ order they were said. The arithmetic is `geometry.mjs`'s and is tested under nod
   - a press that never moved is not a step at all, so the click that follows it still means what a click
     has always meant.
 
-**Side tracks, from v0.6.29.** The phone's side of that work is `side-tracks.md`; what matters here is
-the wire and the page. A line write carries **one of two shapes**: `points` (one path, what every page
-before this sent) or `paths` (the line first, then its side tracks). The state document's record carries
-the same paths, so a page has them to hand back — the geometry it *draws* still comes from the GeoJSON,
-one feature per path. `wire.mjs` is the one function that decides which shape a save has, and it is pure
-so that node tests it (`app/src/test/js/wire.test.mjs`); `app.js` imports it with the token on the URL,
-as it does `geometry.mjs`.
+**Side tracks, from v0.6.29, drawn from v0.6.31.** The phone's side of that work is `side-tracks.md`;
+what matters here is the wire and the page. A line write carries **one of two shapes**: `points` (one
+path, what every page before this sent) or `paths` (the line first, then its side tracks). The state
+document's record carries the same paths, so a page has them to hand back — and from v0.6.31 the drawing
+the page holds *is* those paths, so what it hands back is what it drew rather than a record it merged a
+line into. `wire.mjs` is the one function that decides which shape a save has, and it is pure so that node
+tests it (`app/src/test/js/wire.test.mjs`); `app.js` imports it with the token on the URL, as it does
+`geometry.mjs`.
 
-**A body carrying both drawings is refused**, and so is a drawing whose number of paths is not the
-track's: fewer means the page is out of date (it says "Reload the page and try again"), more means the
-desk is trying to add a side track — which is still the phone's job. Nothing about a track's side tracks
-can be lost by a page, which is what the refusals are for.
+**A body carrying both drawings is refused.** A drawing whose path *count* differs from the track's is
+taken, because the desk draws side tracks itself now: the paths it sends are judged by the app's own rules
+(`AssetPathEdits` — every path whole, every side track starting on a vertex of the line), and a spur drawn
+in a browser is a write like any other. The one thing still refused is a body of a single `points` for a
+track that has side tracks: that page never read this track's `paths`, so it is out of date — and writing
+it would drop every spur. It says *"Reload the page and try again"*, which is what fixes it.
 
-**The desk draws one line at a time.** `geometry.mjs` and `edit.js` hold a single `points` array, so
-starting a side track from a vertex — and taking one off — is the next slice's work; it is where the
-wire is already waiting.
+**The page's drawing is the paths** (`geometry.mjs`), path 0 the line and the rest its side tracks, with
+`active` saying which one the clicks, drags and traces go to — the same shape the phone stores and the wire
+carries, so nothing is re-interpreted at either end of a save. The two moves the phone's own screen has are
+here too, in its words: **Side track** (`startSideTrack`, which puts a new path on the line's own last
+vertex, so the junction is that vertex to the bit) and **Back to the track** (`backToLine`, which drops one
+that never got a second point), with **Remove this side track** for second thoughts and `B`/`L` doing the
+same from the keyboard. A line vertex is dragged with any junction that hangs off it, and taking that
+vertex off the line takes the strip with it — a strip that starts nowhere is a drawing the phone refuses.
 
 **"Put away" was dropped** (the decision). The plan had archiving as this phase's *show-archived*, and
 `AssetRemovalRules` said it was waiting for a screen that showed an archived asset. The operator owns
@@ -512,31 +520,39 @@ style's background colour and the work draws on top of it.
       track*, a fence traced through five waypoints - 41 mouse samples arriving as **4 stored vertices** -
       saved, and the phone's own screen reading *Published trace · 481.95 km · never sprayed*, the same
       number the API answered (`rel-trace-desk.png`, `rel-trace-phone-small.jpg`).
-- [ ] **Phase 3, what is left** — GPX drag-and-drop, working on more than one asset at once, and now
-      **side tracks on the desk**: starting one from a vertex of the traced line, and taking one off.
-      The wire carries them (v0.6.29); `geometry.mjs`'s single-path state is what has to change, and its
-      26 node tests are the shape that changes with it. *Show-archived was dropped* (see the phase 3
-      section above), so the phase's own list is now this.
+- [x] **Phase 3's side tracks landed in v0.6.31** — *Side track* and *Back to the track* on the drawing
+      bar, the page's state holding the paths, and the phone taking a spur the desk drew. Proven by
+      driving the desk in a browser (headless Edge over the DevTools protocol,
+      `build/verify/db/deskdrive.mjs`): the bar read *4 points · 3.89 km · 1 side track* with the track's
+      shape open, *5 points · 3.89 km · 2 side tracks* the moment a side track was started, *6 points ·
+      4.28 km · 2 side tracks* after a click drew one — **the new spur counted once** — and the save PUT
+      three paths, line first, no `points` field. The buttons were in the right two states at each step.
+      What that run did **not** prove is the canvas: headless Edge here paints the style's background and
+      nothing else, so the screenshots (`desk-side-track-*.png`) are no evidence of a drawing, and that
+      claim rests on `pathsFeature`'s node test rather than on pixels. 46 node tests (15 new), 189
+      instrumented (2 new, 1 replaced), 619 JVM. Notes in `build/verify/desk-side-tracks.txt`.
+- [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
+      *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Phase 3 — what is left of it.** Snapping is in (with the drawing itself), tracing is in (v0.6.26), and
-side tracks reached the wire in v0.6.29 (the phone's own record `side-tracks.md` for that). What remains
-is **drawing a side track on the desk** — start one from a vertex of the traced line, and take one off —
-**GPX drag-and-drop** — drop a GPX file on the desk and have it become a track's line — and **working on
-more than one asset at once**. *Show-archived was dropped, not deferred*: see the phase 3
-section above for the decision and what it leaves alone.
+**Phase 3 — one item left of it.** Snapping is in (with the drawing itself), tracing is in (v0.6.26),
+side tracks reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone's own record
+is `side-tracks.md`). What remains is **GPX drag-and-drop** — drop a GPX file on the desk and have it
+become a track's line, which is now a well-defined thing to become: a drawing of paths, junction rules and
+all — and **working on more than one asset at once**. *Show-archived was dropped, not deferred*: see the
+phase 3 section above for the decision and what it leaves alone.
 
 **The first press after a page load can be wasted.** One run in five, the first traced stroke after the
 desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the
 same window the racy fit below moves in, and the cost is a wasted run rather than a wrong line — but two
 of these now, so it is worth doing with the fit.
 
-**Two small things found while reviewing v0.6.24's own page code**, neither of which is worth retagging a
-release for, and both of which are one line:
+**One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
+for and is one line:
 
 1. **The Draw button is enabled a moment too early.** `boot()` enables it as soon as `edit.js` has been
    imported, which is not the same as the map's style being loaded — `edit.js`'s `ready()` calls
@@ -544,8 +560,9 @@ release for, and both of which are one line:
    nothing, and the second works, because by then the style has arrived) and it is unlikely (the import is
    a network round trip and the style usually wins), but the button belongs in `onStyleLoaded` where its
    comment already claims it is, with a guard in `ready()` beside it.
-2. **`editor.points()` has no caller.** The finished line is handed to `onFinish` and read from there, so
-   the accessor is dead code and should go.
+
+*(The second of the two — `editor.points()` having no caller — was done in v0.6.31: the method is gone,
+and the drawing leaves the map through `onFinish` alone.)*
 
 **One wart worth fixing while in there.** The desk's first fit is racy: `fitBounds` runs when the state
 document arrives, and on some loads the container has not finished settling, so the same farm opens at a

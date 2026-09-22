@@ -202,21 +202,41 @@ export function insert(state, index, point) {
 /* ---- Side tracks: a line with strips hanging off it ---------------------------------- */
 
 /**
- * Starts a side track where the track ends.
+ * Starts a side track on the line, from the vertex given or from where the track ends.
  *
- * The first vertex of the side track **is** the line's last vertex - the same two numbers, not a copy -
- * which is what the phone's own drawing does and what its rules ask for: the two paths meet at a vertex,
- * rather than being two lines that happen to be near each other. Pressing this with no line to hang off
- * does nothing, and the page does not offer it until there is one.
+ * The first vertex of the side track **is** that line vertex - the same two numbers, not a copy - which is
+ * what the phone's own drawing does and what its rules ask for: the two paths meet at a vertex, rather than
+ * being two lines that happen to be near each other.
  *
- * The side track leaves the track **where the track currently ends**, so a spur off the middle of a line
- * is drawn by working up to that point, putting the spur in, and carrying on - the same order the phone's
- * screen asks for, which is why the two behave identically on the same ground.
+ * [junctionIndex] is the vertex the operator picked out on the line, and the fallback is the track's own
+ * end. The fallback matters twice: drawing a track from scratch has no choice to offer, and a picked vertex
+ * can stop existing (Undo, a delete) between picking it and using it - in which case hanging the side track
+ * off the end is the only honest answer, rather than a path that starts nowhere.
  */
-export function startSideTrack(state) {
+export function startSideTrack(state, junctionIndex = null) {
   const linePoints = line(state);
   if (drawingSideTrack(state) || linePoints.length < 2) return state;
-  return stepped(state, [...state.paths, [linePoints[linePoints.length - 1]]], state.paths.length);
+  const onTheLine =
+    junctionIndex !== null && junctionIndex >= 0 && junctionIndex < linePoints.length;
+  const at = onTheLine ? junctionIndex : linePoints.length - 1;
+  return stepped(state, [...state.paths, [linePoints[at]]], state.paths.length);
+}
+
+/**
+ * The junction as a feature of its own, or null when the side track would leave the track's end.
+ *
+ * The map has to be able to show which vertex a side track is about to hang off, because otherwise a
+ * picked one is invisible and the operator has no way to see that the click took. It is a Point with a
+ * property rather than a path, so the drawing's own layers can pick it out, and `[lng, lat]` - which is the
+ * one thing in this file that is not the map's problem to remember.
+ */
+export function junctionFeature(point) {
+  if (!point) return null;
+  return {
+    type: 'Feature',
+    properties: { junction: true },
+    geometry: { type: 'Point', coordinates: [point.lng, point.lat] }
+  };
 }
 
 /**

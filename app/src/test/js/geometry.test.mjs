@@ -19,6 +19,7 @@ import {
   backToLine,
   createPaths,
   dropSideTrack,
+  junctionFeature,
   lengthMeters,
   pathsFeature,
   startSideTrack,
@@ -558,6 +559,56 @@ test('the length counts every path once, which is the number the bar shows', () 
     'and the difference is exactly the spur walked twice'
   );
   assert.equal(Math.round(whole), Math.round(lengthMeters([line]) + lengthMeters([spur])));
+});
+
+test('a side track can leave the track from a point picked out on it', () => {
+  const linePoints = [a, b, c];
+  const drawing = startSideTrack(createPath(linePoints), 1);
+
+  assert.equal(drawing.paths.length, 2);
+  assert.deepEqual(drawing.paths[1], [b], 'the vertex that was picked, not the end of the track');
+  assert.deepEqual(drawing.paths[1][0], drawing.paths[0][1], 'the line\'s own vertex, to the bit');
+  assert.deepEqual(drawing.paths[0], linePoints, 'and the line is untouched, not split in two');
+  assert.equal(drawing.active, 1, 'the clicks go to the new side track');
+});
+
+test('a side track leaving from the middle leaves the rest of the line alone', () => {
+  let drawing = startSideTrack(createPath([a, b, c]), 1);
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+  drawing = add(drawing, { lat: -41.75, lng: 173.75 });
+
+  assert.deepEqual(drawing.paths[0], [a, b, c, { lat: -41.75, lng: 173.75 }]);
+  assert.deepEqual(drawing.paths[1], [b, spurEnd]);
+});
+
+test('dragging the point a side track left from takes the side track with it', () => {
+  let drawing = startSideTrack(createPath([a, b, c]), 1);
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  const moved = move(drawing, 1, { lat: -41.55, lng: 173.85 });
+
+  assert.deepEqual(moved.paths[0][1], { lat: -41.55, lng: 173.85 });
+  assert.deepEqual(moved.paths[1], [{ lat: -41.55, lng: 173.85 }, spurEnd], 'still met, exactly');
+});
+
+test('a picked point that is not there any more falls back to the end of the track', () => {
+  // What an Undo between picking a point and using it does: the index has nothing under it, and a side
+  // track that starts nowhere is not something the phone will take.
+  const drawing = startSideTrack(createPath([a, b]), 7);
+
+  assert.deepEqual(drawing.paths[1], [b]);
+  assert.deepEqual(startSideTrack(createPath([a, b]), -1).paths[1], [b]);
+});
+
+test('the junction the map is shown is a place, lng first, and nothing when there is none', () => {
+  const feature = junctionFeature(b);
+
+  assert.deepEqual(feature.geometry.coordinates, [b.lng, b.lat]);
+  assert.equal(feature.geometry.type, 'Point');
+  assert.equal(feature.properties.junction, true, 'so the drawing\'s own layers can pick it out');
+  assert.equal(junctionFeature(null), null);
 });
 
 test('every path is a feature of its own, so the map draws the side tracks too', () => {

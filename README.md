@@ -440,10 +440,15 @@ better.
 
 The desk can read a track's side tracks, because the drawing it fetches has one feature per path, and it
 is **handed** them as data too (the record's `paths`, line first). From v0.6.31 it can also **draw one and
-take one off**: with a track's shape open, *Side track* starts one where the track ends, the clicks and
-traces go onto it, *Back to the track* hands the line back, and *Remove this side track* takes it off
-again — the phone's own two moves, in the phone's own words. A spur drawn on a computer is a write like
-any other: the phone judges it by the same rules as one drawn on the phone, and keeps it.
+take one off**: with a track's shape open, *Side track* starts one, the clicks and traces go onto it, *Back
+to the track* hands the line back, and *Remove this side track* takes it off again — the phone's own two
+moves, in the phone's own words. A spur drawn on a computer is a write like any other: the phone judges it
+by the same rules as one drawn on the phone, and keeps it.
+
+From v0.6.32 it leaves the track **where you click it**: click the track at the point the spur branches
+off, and that point becomes the junction — shown as a filled dot, and said in the bar — so a fence that
+meets a track halfway along no longer waits for the far end. Clicking the track puts a point in it, which
+is what a junction has to be for the phone to take the write.
 
 What cannot happen is a page losing a spur it never saw: a write carrying a **single path** for a track
 that has side tracks is refused as a page that is out of date (*"Reload the page and try again"*), and a

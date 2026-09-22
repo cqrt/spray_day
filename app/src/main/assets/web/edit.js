@@ -42,6 +42,7 @@ const {
   drawingSideTrack,
   dropSideTrack,
   insert,
+  junctionFeature,
   lengthMeters,
   line,
   metresPerPixel,
@@ -69,6 +70,7 @@ const PAPER = '#ffffff';
 const SOURCE_ID = 'sprayday-desk-drawing';
 const LINE_LAYER = 'sprayday-desk-drawing-line';
 const HANDLE_LAYER = 'sprayday-desk-drawing-handles';
+const JUNCTION_LAYER = 'sprayday-desk-drawing-junction';
 
 /**
  * The drawing, as a thing the page can start and stop.
@@ -101,6 +103,16 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   let swallowClick = false;
 
   let hovered = -1;
+
+  /**
+   * The line vertex a side track will hang off, or null for the track's own end.
+   *
+   * Picked by clicking the line, which is where an operator standing in front of a fence that meets a track
+   * would put their finger - and it is the *index*, not the place, because a junction is a vertex of the
+   * line rather than a point near it. Cleared when the drawing starts or stops, and validated where it is
+   * used (`startSideTrack` falls back to the end), because an Undo can take the vertex away underneath it.
+   */
+  let junction = null;
 
   /** Where the cursor is in screen terms while a handle is being dragged. */
   let cursor = null;
@@ -177,7 +189,12 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   function paint() {
     const source = map.getSource(SOURCE_ID);
-    if (source) source.setData(pathsFeature(pathsNow()));
+    if (source) {
+      const data = pathsFeature(pathsNow());
+      const marker = junctionFeature(junctionPoint());
+      if (marker) data.features.push(marker);
+      source.setData(data);
+    }
     onChange({
       mode,
       paths: pathsNow(),
@@ -186,11 +203,26 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       drawingSideTrack: drawingSideTrack(drawing),
       activePoints: activePath(drawing).length,
       lengthM: lengthMeters(drawing.paths),
+      junction: junctionPoint(),
       canUndo: canUndo(drawing),
       canRedo: canRedo(drawing),
       hovered,
       tracing: stroke !== null
     });
+  }
+
+  /**
+   * The vertex a side track would hang off, or null when it would leave the track's end.
+   *
+   * Read off the line's own vertices each time rather than remembered as a place, so a junction follows the
+   * vertex it was picked on - dragged, and moved with the rest of the drawing - instead of drifting away
+   * from it. It is null while a side track is being drawn, because that one has already left.
+   */
+  function junctionPoint() {
+    if (drawingSideTrack(drawing)) return null;
+    const linePoints = line(drawing);
+    if (junction === null || junction < 0 || junction >= linePoints.length) return null;
+    return linePoints[junction];
   }
 
   /** Adds the page's own source and layers, once, and shows or hides them from then on. */
@@ -210,6 +242,9 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
         id: HANDLE_LAYER,
         type: 'circle',
         source: SOURCE_ID,
+        // The junction is drawn as a filled dot rather than an open one, so a side track about to hang off
+        // it says so: an operator who has clicked the wrong part of a line can see it before drawing.
+        filter: ['!=', ['get', 'junction'], true],
         paint: {
           'circle-radius': 6,
           'circle-color': PAPER,
@@ -217,13 +252,25 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
           'circle-stroke-width': 2
         }
       });
+      map.addLayer({
+        id: JUNCTION_LAYER,
+        type: 'circle',
+        source: SOURCE_ID,
+        filter: ['==', ['get', 'junction'], true],
+        paint: {
+          'circle-radius': 7,
+          'circle-color': INK,
+          'circle-stroke-color': PAPER,
+          'circle-stroke-width': 2
+        }
+      });
     }
     show(true);
   }
 
-  /** Shows or hides the page's own line and handles, without taking them out of the style. */
+  /** Shows or hides the page's own drawing, without taking it out of the style. */
   function show(visible) {
-    for (const layer of [LINE_LAYER, HANDLE_LAYER]) {
+    for (const layer of [LINE_LAYER, HANDLE_LAYER, JUNCTION_LAYER]) {
       if (map.getLayer(layer)) {
         map.setLayoutProperty(layer, 'visibility', visible ? 'visible' : 'none');
       }
@@ -341,6 +388,10 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     const at = segmentAt(activePath(drawing), place.screen, project);
     if (at >= 0) {
       drawing = insert(drawing, at, spot(place.ground));
+      // A vertex put into the **line** is where a side track will leave it: the operator has just pointed
+      // at that part of the track, so that is the junction rather than the far end of the line. This is the
+      // whole answer to "I clicked beside the fence I want to branch off and the spur started miles away".
+      if (!drawingSideTrack(drawing)) junction = at;
       paint();
       return;
     }
@@ -398,7 +449,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     // own buttons make, for an operator working with one hand on the mouse.
     if (key === 'b' && !command) {
       event.preventDefault();
-      startFromLineEnd();
+      startFromTheLine();
       return;
     }
     if (key === 'l' && !command) {
@@ -421,9 +472,10 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   /* ---- Starting, finishing, giving up ------------------------------------------------ */
 
-  /** Starts a side track where the line ends: what the page's button and the `B` key both do. */
-  function startFromLineEnd() {
-    drawing = startSideTrack(drawing);
+  /** Starts a side track from the vertex picked out on the line, or from where the track ends. */
+  function startFromTheLine() {
+    drawing = startSideTrack(drawing, junction);
+    junction = null;
     paint();
   }
 
@@ -448,6 +500,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     stroke = null;
     swallowClick = false;
     hovered = -1;
+    junction = null;
     // While a line is being drawn a double click finishes it, so the map's own double-click zoom is
     // out of the way - and put back the moment the drawing stops.
     map.doubleClickZoom.disable();
@@ -461,6 +514,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     stroke = null;
     swallowClick = false;
     hovered = -1;
+    junction = null;
     map.dragPan.enable();
     map.doubleClickZoom.enable();
     map.getCanvas().style.cursor = '';
@@ -531,7 +585,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     startOn: (assetId, paths) => start('edit', assetId, paths),
 
     /** Starts a side track where the line ends: the page's own button. */
-    startSideTrack: () => startFromLineEnd(),
+    startSideTrack: () => startFromTheLine(),
 
     /** Back to the line, dropping a side track that never got a second point. */
     backToLine: () => leaveSideTrack(),

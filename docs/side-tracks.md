@@ -72,6 +72,44 @@ file into one line. So a file exported for a track with a spur came back as a li
 - **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
   `... as one line: the file's own track segments do not meet, so they were joined up.`
 
+## Shipped: v0.6.32 - the side track leaves the track where you click it
+
+v0.6.31 could draw a side track, but only where the track ended: the operator clicked the fence they wanted
+to branch off, pressed *Side track*, and the spur was hung off the last point of the line - miles away, with
+a strip dragged across the paddock to prove it. Reported in those words, and this is the fix.
+
+- **Clicking the track picks the junction.** A click on the line puts a point in it (which it always did) and
+  that point becomes where a side track will leave - said in the bar (*"a side track will leave the track at
+  the point you clicked"*) and drawn as a filled dot, because on a map full of fences an invisible choice is
+  no choice.
+- **`startSideTrack(state, junctionIndex)`** takes the line vertex to hang off, or the end when there is
+  none: drawing a track from scratch has nothing to choose, and a picked point can stop existing between
+  being picked and being used (Undo, a delete) - in which case the end is the honest answer rather than a
+  path that starts nowhere.
+- **The junction is a vertex, not a place**: the spur's first vertex is the line's own, to the bit, and
+  dragging that line vertex takes the spur with it - so the two paths cannot drift apart while one of them
+  is tidied.
+- **The line is not split.** A spur off the middle leaves the rest of the line exactly as it was, and the
+  line carries on from its own end afterwards.
+- The choice is consumed by the spur that uses it, so after *Back to the track* the next side track leaves
+  the end again until the operator clicks the track once more.
+
+Proven in the browser driver (`db/deskdrive.mjs`), and the proof is in the bytes it PUT:
+
+    paths[0]   the line, with the picked point in it:  -41.5,173.9  ·  -41.499995…,173.92  ·  -41.5,173.94
+    paths[1]   the existing spur, untouched
+    paths[2]   the new spur, starting at -41.499995…,173.92  - the point that was clicked
+
+The last of those is the whole claim: the spur left the track at the point under the mouse (lng 173.92, the
+middle of the line), **not** at the track's end (lng 173.94). The bar read *5 points · 3.89 km · 1 side
+track* with the point picked and *6 points · 3.89 km · 2 side tracks* once the side track had started from
+it. Five new node tests (51 in all): the picked vertex, the line left whole, a drag carrying the spur, a
+stale index falling back to the end, and `junctionFeature`'s `[lng, lat]`.
+
+**The phone's own drawing screen still leaves the track where it ends.** It is the same limitation the desk
+had, and now the odd one out; the phone's flow is worth the same treatment, and it is on the next list rather
+than in this change.
+
 ## Shipped: v0.6.31 - the desk draws side tracks
 
 The desk could carry a track's side tracks from v0.6.29 but not make one, so a spur was something only a
@@ -120,7 +158,14 @@ a browser on the machine the desk is being used from.
 
 ## Next
 
-### v0.6.32 - GPX drag-and-drop onto the desk, and more than one asset at a time
+### v0.6.33 - a side track on the phone leaves the track where you touch it
+
+The desk's own drawing screen picks its junction by a click on the track (v0.6.32); the phone's expects the
+operator to draw *to* the junction and hangs the spur off the end of the line. The phone's rules are the
+same ones, so this is the screen catching up with the desk rather than a new rule - and after it the two
+behave identically on the same ground.
+
+### v0.6.34 - GPX drag-and-drop onto the desk, and more than one asset at a time
 
 Phase 3 of `web-editor.md` has one item left before the desk is done: dropping a GPX file onto the page.
 The desk can now draw every part of a track, so what a dropped file has to become is a drawing the page

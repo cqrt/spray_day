@@ -545,7 +545,7 @@ function startShape(item) {
  * *Back to the track* and *Remove this side track* while one is. That is the same shape the phone's own
  * screen has, so the same gesture means the same thing in both places.
  */
-function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, activePoints, lengthM, canUndo, tracing }) {
+function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, activePoints, lengthM, junction, canUndo, tracing }) {
   const bar = field('drawing');
   if (mode === 'off') {
     bar.hidden = true;
@@ -569,7 +569,12 @@ function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, active
   } else {
     steps.push(mode === 'new'
       ? 'click the map to lay the track, or hold the button and follow the fence'
-      : 'drag a handle, click the line to put one in the middle, or hold the button and follow it');
+      : 'drag a handle, click the track to put a point in, or hold the button and follow it');
+    // Where a side track would leave the track: said in the bar, because a picked point is easy to miss on
+    // a map full of fences - and it is the one thing that decides where the spur starts.
+    steps.push(junction
+      ? 'a side track will leave the track at the point you clicked'
+      : 'a side track will leave the track where it ends');
     steps.push('Del takes one off');
     steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
     steps.push(mode === 'new'

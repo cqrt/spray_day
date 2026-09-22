@@ -294,11 +294,17 @@ it would drop every spur. It says *"Reload the page and try again"*, which is wh
 **The page's drawing is the paths** (`geometry.mjs`), path 0 the line and the rest its side tracks, with
 `active` saying which one the clicks, drags and traces go to — the same shape the phone stores and the wire
 carries, so nothing is re-interpreted at either end of a save. The two moves the phone's own screen has are
-here too, in its words: **Side track** (`startSideTrack`, which puts a new path on the line's own last
-vertex, so the junction is that vertex to the bit) and **Back to the track** (`backToLine`, which drops one
-that never got a second point), with **Remove this side track** for second thoughts and `B`/`L` doing the
-same from the keyboard. A line vertex is dragged with any junction that hangs off it, and taking that
-vertex off the line takes the strip with it — a strip that starts nowhere is a drawing the phone refuses.
+here too, in its words: **Side track** (`startSideTrack`) and **Back to the track** (`backToLine`, which
+drops one that never got a second point), with **Remove this side track** for second thoughts and `B`/`L`
+doing the same from the keyboard.
+
+**The junction is picked by clicking the track** (v0.6.32). A click on the line puts a point in it — which it
+always did — and that point becomes where a side track will leave it, drawn as a filled dot and said in the
+bar. `startSideTrack(state, junctionIndex)` takes the vertex, or the line's end when there is none (a track
+being drawn has nothing to choose, and an Undo can take the picked vertex away); the junction is read off the
+line's own vertices every time, so dragging one takes any side track hanging off it, and taking the vertex
+off the line takes the strip with it. A spur off the middle does **not** split the line: it hangs off it and
+the line carries on from its own end.
 
 **"Put away" was dropped** (the decision). The plan had archiving as this phase's *show-archived*, and
 `AssetRemovalRules` said it was waiting for a screen that showed an archived asset. The operator owns
@@ -531,6 +537,12 @@ style's background colour and the work draws on top of it.
       nothing else, so the screenshots (`desk-side-track-*.png`) are no evidence of a drawing, and that
       claim rests on `pathsFeature`'s node test rather than on pixels. 46 node tests (15 new), 189
       instrumented (2 new, 1 replaced), 619 JVM. Notes in `build/verify/desk-side-tracks.txt`.
+- [x] **The junction became a choice in v0.6.32** — reported as "I click beside a section of track and the
+      spur starts from the far end, miles away". Clicking the track now picks the point the side track will
+      leave from, shown as a filled dot and said in the bar, and the spur's first vertex *is* that line vertex
+      to the bit. Proven by the saved body from the browser driver: the new path's first vertex was
+      `-41.499995…,173.92` — the point clicked, in the middle of the line — where the track's end is
+      `173.94`. 51 node tests (5 new). Notes in the same `build/verify/desk-side-tracks.txt`.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

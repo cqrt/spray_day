@@ -450,6 +450,13 @@ off, and that point becomes the junction — shown as a filled dot, and said in 
 meets a track halfway along no longer waits for the far end. Clicking the track puts a point in it, which
 is what a junction has to be for the phone to take the write.
 
+From v0.6.33 a side track can be **worked on like the line**: click it and it becomes the path in hand —
+its own points get the handles, a drag moves them, Del takes them off, and *Remove this side track* takes
+the whole strip off. The cursor says which of the two a click will do (a grab over a handle, a pointer
+over another path), and the bar says which path is in hand. Dragging the point a side track hangs off
+moves that point of the *line*, because that is what a junction is — and every side track hanging off it
+comes along.
+
 What cannot happen is a page losing a spur it never saw: a write carrying a **single path** for a track
 that has side tracks is refused as a page that is out of date (*"Reload the page and try again"*), and a
 write carrying `paths` is taken whatever number of them it holds. Changing the details of such a track

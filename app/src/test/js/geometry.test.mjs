@@ -19,9 +19,12 @@ import {
   backToLine,
   createPaths,
   dropSideTrack,
+  hold,
   junctionFeature,
   lengthMeters,
+  otherPathAt,
   pathsFeature,
+  sideTrackInHand,
   startSideTrack,
   HISTORY_LIMIT,
   TRACE_PX,
@@ -609,6 +612,101 @@ test('the junction the map is shown is a place, lng first, and nothing when ther
   assert.equal(feature.geometry.type, 'Point');
   assert.equal(feature.properties.junction, true, 'so the drawing\'s own layers can pick it out');
   assert.equal(junctionFeature(null), null);
+});
+
+test('a click on another path takes hold of it, and changes nothing about the drawing', () => {
+  // The report this answers: "can delete and move points on a main track but not on side tracks". The
+  // handles belong to the path in hand, so a side track has to be able to *become* the path in hand.
+  let drawing = startSideTrack(createPath([a, b]));
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+
+  const held = hold(drawing, 1);
+
+  assert.equal(held.active, 1, 'the side track is in hand');
+  assert.equal(sideTrackInHand(held), true);
+  assert.deepEqual(held.paths, drawing.paths, 'and the drawing is exactly what it was');
+  assert.equal(held.past.length, drawing.past.length, 'taking hold is not a step of the history');
+  assert.equal(
+    undo(held).paths.length,
+    drawing.past[drawing.past.length - 1].paths.length,
+    'so Ctrl+Z still takes back the last *change*'
+  );
+  assert.equal(hold(held, 9), held, 'and a path that is not there is not taken hold of');
+  assert.equal(hold(held, 1), held, 'nor is the one already in hand');
+});
+
+test('with a side track in hand, its own points are the ones edited', () => {
+  let drawing = startSideTrack(createPath([a, b, c]), 1);
+  drawing = add(drawing, spurEnd);
+  drawing = add(drawing, { lat: -41.72, lng: 173.92 });
+  drawing = backToLine(drawing);
+  drawing = hold(drawing, 1);
+
+  // Del takes the end of the side track off, and the line is untouched.
+  const trimmed = remove(drawing, 2);
+  assert.deepEqual(trimmed.paths[1], [b, spurEnd]);
+  assert.deepEqual(trimmed.paths[0], [a, b, c], 'the line did not move');
+
+  // And a drag moves a side track's own vertex without touching the line.
+  const moved = move(drawing, 1, { lat: -41.6, lng: 173.98 });
+
+  assert.deepEqual(moved.paths[1], [b, { lat: -41.6, lng: 173.98 }, { lat: -41.72, lng: 173.92 }]);
+  assert.deepEqual(moved.paths[0], [a, b, c]);
+  assert.equal(moved.active, 1, 'and the side track is still the path in hand');
+});
+
+test('dragging the point a side track hangs off moves the line, because that point is the line\'s', () => {
+  let drawing = startSideTrack(createPath([a, b, c]), 1);
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+  drawing = hold(drawing, 1);
+  // A second side track off the same junction, to prove everything hanging off it travels together.
+  let two = startSideTrack(drawing, 1);
+  two = add(two, { lat: -41.65, lng: 173.95 });
+  two = backToLine(two);
+  two = startSideTrack(two, 1);
+  two = add(two, { lat: -41.62, lng: 173.96 });
+  two = backToLine(two);
+  two = hold(two, 1);
+
+  const moved = move(two, 0, { lat: -41.55, lng: 173.85 });
+
+  assert.deepEqual(moved.paths[0], [a, { lat: -41.55, lng: 173.85 }, c], 'the line vertex moved');
+  assert.deepEqual(moved.paths[1][0], { lat: -41.55, lng: 173.85 }, 'and this side track with it');
+  assert.deepEqual(moved.paths[2][0], { lat: -41.55, lng: 173.85 }, 'and the other one');
+  assert.equal(moved.active, 1, 'with the side track still in hand');
+});
+
+test('a click beside the path in hand lands on the other one, and one on it does not', () => {
+  const paths = [
+    [a, b],
+    [b, spurEnd]
+  ];
+  // A pixel grid of 1000 per degree, as the other tests use: the spur runs from b south to spurEnd.
+  const onTheSpur = { x: spurEnd.lng * 1000, y: spurEnd.lat * 1000 };
+  const onTheLine = { x: b.lng * 1000, y: b.lat * 1000 };
+
+  assert.equal(otherPathAt(paths, 0, onTheSpur, project), 1, 'the side track, from the line being in hand');
+  assert.equal(otherPathAt(paths, 1, onTheSpur, project), -1, 'and nothing when it is already in hand');
+  assert.equal(otherPathAt(paths, 1, onTheLine, project), 0, 'the line, from the side track being in hand');
+  assert.equal(otherPathAt(paths, 0, { x: 9000, y: 9000 }, project), -1, 'and nothing out in the paddock');
+});
+
+test('a side track Del-ed down to one point comes off whole, and hands the line back', () => {
+  // One point is not a strip, and the phone refuses a path of one - so Del on the last point of a side track
+  // has to end the side track rather than leave the operator with a drawing that will not save.
+  let drawing = startSideTrack(createPath([a, b]), 1);
+  drawing = add(drawing, spurEnd);
+  drawing = backToLine(drawing);
+  drawing = hold(drawing, 1);
+
+  const after = remove(drawing, 1);
+
+  assert.equal(after.paths.length, 1, 'no strip left');
+  assert.deepEqual(after.paths[0], [a, b]);
+  assert.equal(after.active, 0, 'the line is in hand again');
+  assert.deepEqual(undo(after).paths[1], [b, spurEnd], 'and one Ctrl+Z brings it back');
 });
 
 test('every path is a feature of its own, so the map draws the side tracks too', () => {

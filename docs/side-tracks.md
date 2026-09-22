@@ -72,6 +72,49 @@ file into one line. So a file exported for a track with a spur came back as a li
 - **The sentence says which**: `Imported "x" with 5 points: the line and 1 side track.`, or
   `... as one line: the file's own track segments do not meet, so they were joined up.`
 
+## Shipped: v0.6.33 - a side track can be worked on like the line
+
+Reported from use: *"trying to delete or move points on a side track but that feature does not exist, can
+delete and move points on a main track but not on side tracks."* Exactly right, and for a simple reason: the
+handles, the delete key and the drags belong to **the path in hand**, and the only thing that could put a
+side track in hand was starting a new one. A side track that had been saved came back as a path with no
+gesture pointing at it.
+
+- **A click on another path takes hold of it** (`otherPathAt` + `hold`), and changes nothing about the
+  drawing — so a side track becomes the path in hand, with its own handles, and Del and the drags apply to it.
+  Taking hold is deliberately *not* a step of the history: Ctrl+Z still takes back the last change.
+- **The path in hand is what a click on it edits**: the path in hand still means "put a point in here", which
+  is why the click that *selects* is a click on a **different** path, and why a click at a junction belongs to
+  the track it is on rather than to the spur.
+- **The hand says which is which**: a *grab* over a handle (the click drags a point), a *pointer* over another
+  path (the click takes hold of it), a crosshair on bare ground (the drawing goes there).
+- **The bar says which path is in hand**, and while the line is in hand it now says *"click a side track to
+  work on it"* — because that is the gesture the report could not find.
+- **A side track Del-ed down to one point comes off whole.** One point is not a strip and the phone refuses a
+  path of one, so Del on its last point ends the side track and hands the line back, the same rule
+  `backToLine` applies to a strip that never got a second point.
+- **Dragging the point a side track hangs off moves the line**, because that point *is* a line vertex: the
+  junction rule says so, and the line's own move carries every side track hanging off it. Before this, the
+  only way to move a junction was to let go of the side track first.
+- `drawingSideTrack` became **`sideTrackInHand`**, which is what it had always meant: a side track that has
+  just been started is in hand *and* unfinished, and every side-track affordance hangs off the second half.
+
+Proven by driving the desk in a browser (`db/deskdrive.mjs`), in the bar's own words:
+
+    5 points · 3.89 km · 1 side track    the side track is what you are working on   <- taken hold of by clicking it
+    3 points · 3.34 km                   the side track Del-ed down to a point, so it came off whole
+    5 points · 3.89 km · 1 side track    after Ctrl+Z, back exactly
+    5 points · 4.35 km · 1 side track    after dragging one of its handles
+
+and the body it PUT carries the junction moved onto the line's own vertex, to the bit:
+
+    paths[0]  [-41.5,173.9] [-41.499461…,173.92] [-41.504259…,173.945624…]      the line, with the picked point
+    paths[1]  [-41.504259…,173.945624…] [-41.505,173.94]                        the side track, junction moved with it
+    paths[2]  [-41.499461…,173.92] [-41.505858…,173.930392…]                    a new side track, off the picked point
+
+`paths[1][0]` being `paths[0][2]` exactly is the junction rule surviving a drag. Five new node tests (56 in
+all), including the one that pins taking hold as *not* a history step.
+
 ## Shipped: v0.6.32 - the side track leaves the track where you click it
 
 v0.6.31 could draw a side track, but only where the track ended: the operator clicked the fence they wanted

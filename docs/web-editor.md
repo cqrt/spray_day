@@ -298,6 +298,15 @@ here too, in its words: **Side track** (`startSideTrack`) and **Back to the trac
 drops one that never got a second point), with **Remove this side track** for second thoughts and `B`/`L`
 doing the same from the keyboard.
 
+**A side track can be taken hold of, since v0.6.33.** The handles, the delete key and the drags belong to
+**the path in hand** — and the only thing that used to put a side track in hand was starting a new one, so a
+saved side track had no gesture pointing at it and its points could not be moved or deleted. Now a click on
+another path (`otherPathAt` + `hold`) takes hold of it and changes nothing about the drawing: the side track
+gets the handles, Del takes its points off, a drag moves them, and *Remove this side track* takes the whole
+strip. Taking hold is not a step of the history, so Ctrl+Z still takes back the last *change*. The cursor
+says which of the three a click will do — grab over a handle, pointer over another path, crosshair on bare
+ground — and the bar says which path is in hand, with *"click a side track to work on it"* while the line is.
+
 **The junction is picked by clicking the track** (v0.6.32). A click on the line puts a point in it — which it
 always did — and that point becomes where a side track will leave it, drawn as a filled dot and said in the
 bar. `startSideTrack(state, junctionIndex)` takes the vertex, or the line's end when there is none (a track
@@ -543,6 +552,13 @@ style's background colour and the work draws on top of it.
       to the bit. Proven by the saved body from the browser driver: the new path's first vertex was
       `-41.499995…,173.92` — the point clicked, in the middle of the line — where the track's end is
       `173.94`. 51 node tests (5 new). Notes in the same `build/verify/desk-side-tracks.txt`.
+- [x] **Editing a side track's own points landed in v0.6.33** — reported as "can delete and move points on a
+      main track but not on side tracks". A click on another path now takes hold of it (and changes nothing
+      about the drawing), so a side track gets the handles, Del, the drags and *Remove this side track*; the
+      cursor says which of the three a click will do and the bar says which path is in hand. Proven in the
+      browser driver: taken hold of by clicking it, Del-ed down to one point (where it comes off whole, as the
+      phone refuses a path of one), Ctrl+Z back exactly, and a drag that changed the length — the saved body
+      showing the junction moved onto the line's own vertex, to the bit. 56 node tests (5 new).
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

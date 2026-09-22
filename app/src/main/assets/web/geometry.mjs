@@ -60,9 +60,29 @@ export function activePath(state) {
   return state.paths[state.active] ?? [];
 }
 
-/** True while a side track is being drawn, so the page can offer the way back to the line. */
-export function drawingSideTrack(state) {
+/**
+ * True while a **side track** is the path in hand.
+ *
+ * Called "in hand" rather than "being drawn" because the two are not the same: a side track taken hold of by
+ * clicking it is the path the handles, the delete key and the drags belong to, and one that has just been
+ * started is that *and* unfinished. Everything the page offers for a side track - the way back to the line,
+ * removing it, the words in the bar - hangs off this one question.
+ */
+export function sideTrackInHand(state) {
   return state.active > 0;
+}
+
+/**
+ * Puts a path in hand, without touching the drawing.
+ *
+ * Not a step of the history, deliberately: taking hold of a side track changes nothing about the track, and
+ * an operator who has just dragged a corner wants Ctrl+Z to take *that* back rather than a click that
+ * selected something. The drawing's undo stack is snapshots of `{paths, active}`, so a selection followed by
+ * an edit is still one step, and undoing it hands back the path that was in hand when the edit was made.
+ */
+export function hold(state, index) {
+  if (index < 0 || index >= state.paths.length || index === state.active) return state;
+  return { ...state, active: index };
 }
 
 /**
@@ -153,6 +173,18 @@ export function move(state, index, point) {
   // A drag that ends where it began is a click that went nowhere rather than a step, and a history
   // full of those would have the operator pressing Ctrl+Z twice to undo one thing.
   if (samePlace(path[index], moved[index])) return state;
+
+  // The first point of a side track **is** a vertex of the line - that is what a junction is - so dragging
+  // it is dragging that line vertex, which is the only way to take a junction somewhere else without letting
+  // go of the side track first. The line's own move takes every side track hanging off it with it, this one
+  // included, and the side track goes back into the operator's hand afterwards.
+  if (state.active > 0 && index === 0) {
+    const onTheLine = line(state).findIndex((one) => samePlace(one, path[0]));
+    if (onTheLine >= 0) {
+      return hold(move(hold(state, 0), onTheLine, point), state.active);
+    }
+  }
+
   const was = path[index];
   const paths = state.paths.map((other, pathIndex) => {
     if (pathIndex === state.active) return moved;
@@ -176,15 +208,19 @@ export function remove(state, index) {
   if (index < 0 || index >= path.length) return state;
   const gone = path[index];
   const kept = path.filter((_, at) => at !== index);
-  const junctionOfTheSideTrack = state.active > 0 && index === 0;
+  // A side track left with fewer than two points is not a side track any more: one point is not a strip, and
+  // the phone refuses a path of one, so it comes off whole - the same rule `backToLine` applies. Taking the
+  // junction off a side track ends it the same way, because a strip with no start is not a strip either.
+  const inHand = sideTrackInHand(state);
+  const noLongerASideTrack = inHand && (index === 0 || kept.length < 2);
   const paths = state.paths.map((other, pathIndex) => {
     if (pathIndex !== state.active) {
-      if (state.active !== 0 || !startsAt(other, gone)) return other;
+      if (inHand || !startsAt(other, gone)) return other;
       return [];
     }
-    return junctionOfTheSideTrack ? [] : kept;
+    return noLongerASideTrack ? [] : kept;
   });
-  return stepped(state, paths, junctionOfTheSideTrack ? 0 : state.active);
+  return stepped(state, paths, noLongerASideTrack ? 0 : state.active);
 }
 
 /** Whether a path starts at [point], to the bit: how "this side track hangs off that vertex" is read. */
@@ -215,7 +251,7 @@ export function insert(state, index, point) {
  */
 export function startSideTrack(state, junctionIndex = null) {
   const linePoints = line(state);
-  if (drawingSideTrack(state) || linePoints.length < 2) return state;
+  if (sideTrackInHand(state) || linePoints.length < 2) return state;
   const onTheLine =
     junctionIndex !== null && junctionIndex >= 0 && junctionIndex < linePoints.length;
   const at = onTheLine ? junctionIndex : linePoints.length - 1;
@@ -246,7 +282,7 @@ export function junctionFeature(point) {
  * on the map, and leaving it there would be a path the phone refuses to store and the operator cannot see.
  */
 export function backToLine(state) {
-  if (!drawingSideTrack(state)) return state;
+  if (!sideTrackInHand(state)) return state;
   return stepped(state, state.paths.filter((path, index) => index === 0 || path.length >= 2), 0);
 }
 
@@ -258,7 +294,7 @@ export function backToLine(state) {
  * one the map can point at.
  */
 export function dropSideTrack(state) {
-  if (!drawingSideTrack(state)) return state;
+  if (!sideTrackInHand(state)) return state;
   return stepped(state, state.paths.filter((_, index) => index !== state.active), 0);
 }
 
@@ -383,6 +419,38 @@ export function pathsFeature(paths) {
     type: 'FeatureCollection',
     features: paths.map((path) => toFeature(path).features[0]).filter(Boolean)
   };
+}
+
+/**
+ * The path a click landed on, the one in hand aside, or -1.
+ *
+ * A click that lands on a path the operator is **not** holding takes hold of it rather than changing it, and
+ * this is how a side track's own points are reached at all: only the path in hand offers handles, so without
+ * this there is no gesture that makes a side track the path in hand. The path in hand is left out on purpose
+ * - a click on *it* means "put a point in here", which the caller asks `segmentAt` about first.
+ *
+ * The distance is to the path as drawn, in screen pixels, at the same tolerance a click on the path in hand
+ * is measured with, so the two rules feel like one.
+ */
+export function otherPathAt(paths, active, cursor, project, tolerancePx = HANDLE_PX) {
+  let best = -1;
+  let bestDistance = tolerancePx;
+  paths.forEach((path, index) => {
+    if (index === active || path.length === 0) return;
+    let distance = Infinity;
+    if (path.length === 1) {
+      distance = distanceBetween(project(path[0]), cursor);
+    } else {
+      for (let at = 0; at + 1 < path.length; at++) {
+        distance = Math.min(distance, distanceToSegment(cursor, project(path[at]), project(path[at + 1])));
+      }
+    }
+    if (distance <= bestDistance) {
+      bestDistance = distance;
+      best = index;
+    }
+  });
+  return best;
 }
 
 /** Every vertex of a feature: how the other assets' places to snap onto are gathered. */

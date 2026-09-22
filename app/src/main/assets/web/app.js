@@ -545,7 +545,7 @@ function startShape(item) {
  * *Back to the track* and *Remove this side track* while one is. That is the same shape the phone's own
  * screen has, so the same gesture means the same thing in both places.
  */
-function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, activePoints, lengthM, junction, canUndo, tracing }) {
+function showDrawing({ mode, paths, active, sideTracks, sideTrackInHand, activePoints, lengthM, junction, canUndo, tracing }) {
   const bar = field('drawing');
   if (mode === 'off') {
     bar.hidden = true;
@@ -561,9 +561,12 @@ function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, active
     // What the hand is doing right now, and the one thing worth knowing about it: the whole fence lands
     // at once, so letting go is not a commitment to twenty vertices.
     steps.push('following the pointer - let go to put this fence down');
-  } else if (drawingSideTrack) {
-    steps.push('drawing a side track: click or trace along it, then go back to the track');
+  } else if (sideTrackInHand) {
+    // A side track is the path in hand - being drawn, or one that has just been taken hold of by clicking it.
+    // The same words cover both, because the same gestures do: its handles are the ones on the map.
+    steps.push('the side track is what you are working on: drag its handles, or click it to put a point in');
     steps.push('Del takes the last one off');
+    steps.push('Back to the track puts the line back in hand');
     steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
     steps.push('Enter or a double click saves it');
   } else {
@@ -575,6 +578,11 @@ function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, active
     steps.push(junction
       ? 'a side track will leave the track at the point you clicked'
       : 'a side track will leave the track where it ends');
+    if (sideTracks > 0) {
+      // How the report "I cannot move or delete a point on a side track" is answered: the handles belong to
+      // whichever path is in hand, so this says how a side track becomes the one in hand.
+      steps.push('click a side track to work on it');
+    }
     steps.push('Del takes one off');
     steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
     steps.push(mode === 'new'
@@ -585,11 +593,12 @@ function showDrawing({ mode, paths, active, sideTracks, drawingSideTrack, active
 
   field('drawing-words').textContent = steps.join(' · ');
 
-  // The side-track furniture, in the same three states the drawing is in.
+  // The side-track furniture, in the same states the drawing is in. *Remove this side track* is offered for
+  // any side track in hand, finished or not, because that is the other half of being able to edit one.
   const line = paths[0] ?? [];
-  field('drawing-side-track').hidden = drawingSideTrack || line.length < 2;
-  field('drawing-back').hidden = !drawingSideTrack;
-  field('drawing-drop').hidden = !drawingSideTrack || activePoints < 2;
+  field('drawing-side-track').hidden = sideTrackInHand || line.length < 2;
+  field('drawing-back').hidden = !sideTrackInHand;
+  field('drawing-drop').hidden = !sideTrackInHand;
   bar.hidden = false;
 }
 

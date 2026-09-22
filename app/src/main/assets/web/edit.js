@@ -39,20 +39,22 @@ const {
   canRedo,
   canUndo,
   createPaths,
-  drawingSideTrack,
   dropSideTrack,
+  hold,
   insert,
   junctionFeature,
   lengthMeters,
   line,
   metresPerPixel,
   move,
+  otherPathAt,
   pathsFeature,
   redo,
   remove,
   samePlace,
   segmentAt,
   sideTrackCount,
+  sideTrackInHand,
   snap,
   startSideTrack,
   toFeature,
@@ -200,7 +202,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       paths: pathsNow(),
       active: drawing.active,
       sideTracks: sideTrackCount(drawing),
-      drawingSideTrack: drawingSideTrack(drawing),
+      sideTrackInHand: sideTrackInHand(drawing),
       activePoints: activePath(drawing).length,
       lengthM: lengthMeters(drawing.paths),
       junction: junctionPoint(),
@@ -219,7 +221,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
    * from it. It is null while a side track is being drawn, because that one has already left.
    */
   function junctionPoint() {
-    if (drawingSideTrack(drawing)) return null;
+    if (sideTrackInHand(drawing)) return null;
     const linePoints = line(drawing);
     if (junction === null || junction < 0 || junction >= linePoints.length) return null;
     return linePoints[junction];
@@ -326,7 +328,12 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       hovered = at;
       paint();
     }
-    map.getCanvas().style.cursor = at >= 0 ? 'grab' : 'crosshair';
+    // The hand says what a click will do, and the two are different things: a **grab** over a handle, where
+    // the click takes hold of a point and drags it, and a **pointer** over another path, where the click takes
+    // hold of that path and changes nothing. Somewhere with neither is a crosshair, which is where the drawing
+    // goes.
+    const other = otherPathAt(drawing.paths, drawing.active, place.screen, project);
+    map.getCanvas().style.cursor = at >= 0 ? 'grab' : other >= 0 ? 'pointer' : 'crosshair';
   });
 
   /**
@@ -382,24 +389,36 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
     const place = placeOf(event);
 
-    // A click on the path being worked on splits it: the vertex goes in between the two it was clicked
-    // between. Only that path - a click on the line while a side track is being drawn adds to the side
-    // track, because the side track is what the operator has in hand.
+    // A click on the path in hand splits it: the vertex goes in between the two it was clicked between. Only
+    // that path - a click on the line while a side track is in hand adds to the side track, because the side
+    // track is what the operator has hold of.
     const at = segmentAt(activePath(drawing), place.screen, project);
     if (at >= 0) {
       drawing = insert(drawing, at, spot(place.ground));
-      // A vertex put into the **line** is where a side track will leave it: the operator has just pointed
-      // at that part of the track, so that is the junction rather than the far end of the line. This is the
-      // whole answer to "I clicked beside the fence I want to branch off and the spur started miles away".
-      if (!drawingSideTrack(drawing)) junction = at;
+      // A vertex put into the **line** is where a side track will leave it: the operator has just pointed at
+      // that part of the track, so that is the junction rather than the far end of the line. This is the whole
+      // answer to "I clicked beside the fence I want to branch off and the spur started miles away".
+      if (!sideTrackInHand(drawing)) junction = at;
       paint();
       return;
     }
 
-    // A click on the paddock adds to the end of a line still being drawn, and to the side track being
-    // drawn. It does nothing to a track the phone already has while its *line* is in hand: a line that
-    // exists is changed by its handles, not by stray clicks.
-    if (mode !== 'new' && !drawingSideTrack(drawing)) return;
+    // Not on the path in hand but on another one: the click takes hold of that path instead. This is the only
+    // way a side track's own points become reachable, because the handles, the delete key and the drags all
+    // belong to whichever path is in hand - and it deliberately changes nothing about the drawing, so taking
+    // hold of a side track is not something to undo.
+    const other = otherPathAt(drawing.paths, drawing.active, place.screen, project);
+    if (other >= 0) {
+      drawing = hold(drawing, other);
+      hovered = -1;
+      paint();
+      return;
+    }
+
+    // A click on the paddock adds to the end of a line still being drawn, and to the side track in hand. It
+    // does nothing to a track the phone already has while its *line* is in hand: a line that exists is
+    // changed by its handles, not by stray clicks.
+    if (mode !== 'new' && !sideTrackInHand(drawing)) return;
     const end = activePath(drawing)[activePath(drawing).length - 1];
     // A click on the spot the path already ends at adds nothing. That is exactly what the second half of
     // a double-click is, and a repeated vertex would only be collapsed again by the phone.
@@ -524,7 +543,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       paths: [],
       active: 0,
       sideTracks: 0,
-      drawingSideTrack: false,
+      sideTrackInHand: false,
       activePoints: 0,
       lengthM: 0,
       canUndo: false,

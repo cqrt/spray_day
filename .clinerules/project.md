@@ -26,6 +26,20 @@ Rules are split by what they govern: this file is the project itself, and
   numbers, before it does it.
 - Text the operator reads is plain farm English, not developer English.
 
+## How to report back
+
+The operator reads the summary to decide what happens next, not to review the work. So:
+
+- **Say what is finished and what is next.** Nothing else, unless it was asked for.
+- **Answer the question that was asked.** "What is left?" gets the list of what is left — not a
+  recap of what is done, and not the history of how it got that way.
+- **No developer English.** No file names, class names, test counts, coverage numbers or tool
+  names. Plain farm English, the same as the app's own text.
+- **Bullets, and few of them.** A paragraph is for the one thing that genuinely needs a caveat —
+  and then it is one short sentence, not a section.
+- The evidence, the reasoning and the "not proven" list live in `build/verify/<feature>.txt` and
+  the plan documents. Point at them; never paste them into chat.
+
 ## Invariants not to break
 
 - **The backup file has one writer.** `GitHubBackupTarget.save` PUTs the whole document under

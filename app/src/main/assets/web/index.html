@@ -45,6 +45,21 @@
         <button id="draw" type="button" disabled>Draw a new track</button>
       </div>
       <input id="search" type="search" placeholder="Find a track or block" autocomplete="off">
+
+      <!--
+        The words over the list's columns: the name, how it is sprayed, how many passes that takes, and
+        when it is next due. Here rather than inside the list, because they belong to the list as a whole
+        - they stay put while the work scrolls under them, and a screen reader is told what changed on
+        the farm rather than what the columns are called on every redraw. Hidden while there is nothing
+        to name columns for.
+      -->
+      <div id="list-head" hidden>
+        <span class="name">Name</span>
+        <span class="method">Spray method</span>
+        <span class="passes">Passes</span>
+        <span class="due">Due</span>
+      </div>
+
       <div id="list" aria-live="polite"></div>
     </aside>
     <div id="map"></div>

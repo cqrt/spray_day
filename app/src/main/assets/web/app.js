@@ -151,14 +151,22 @@ function colourOfPlaceIcon(name) {
 
 /** Farm words for the phone's own names, so the desk says what the app says. */
 const KIND_TEXT = { TRACK: 'Track', ROAD: 'Road', INFRASTRUCTURE: 'Fenceline or stopbank' };
-const METHOD_TEXT = { UNSET: 'Not set', BOOM: 'Boom', KNAPSACK: 'Knapsack' };
 
 function kindText(kind) {
   return KIND_TEXT[kind] || kind.toLowerCase();
 }
 
+/**
+ * The phone's own word for a spray method: "Not recorded", "Boom" or "Knapsack".
+ *
+ * Read out of the state document rather than kept here. This page used to hold its own three words,
+ * which is a second copy of the phone's phrase table - one that said "Not set" where the phone says
+ * "Not recorded", and one that would have gone on saying it when the phone learns a method this page
+ * has never heard of. As a lookup, a method added on the phone arrives already named.
+ */
 function methodText(method) {
-  return METHOD_TEXT[method] || method.toLowerCase().replace(/_/g, ' ');
+  const spoken = (state?.choices?.methods ?? []).find((one) => one.value === method);
+  return spoken ? spoken.label : method.toLowerCase().replace(/_/g, ' ');
 }
 
 function metresText(metres) {
@@ -365,6 +373,11 @@ let featuresById = new Map();
  * three tracks - and forty names in one column is not a plan. What an asset is due is said in words
  * beside its name, and its colour is the colour the phone painted it: taken from the feature the map
  * is drawing, rather than from a second copy of the palette in this file.
+ *
+ * A row is read across: the name, how it is sprayed, how many passes that takes, and when it is next
+ * due. The method and the passes are the two the desk used to keep behind a card, and they are in the
+ * list because "which of these is a knapsack job, and which takes two passes" is a question asked of the
+ * whole list rather than of one track at a time - the two things that decide how the day is planned.
  */
 function renderList() {
   document.getElementById('search').addEventListener('input', drawList);
@@ -382,10 +395,13 @@ function drawList() {
 
   list.textContent = '';
 
+  // The words over the columns go with the work: a column of "Boom" and a column of "2" say nothing at
+  // all without the word over each, and an empty list is not a table to be given headings.
+  document.getElementById('list-head').hidden = !shown.length;
+
   if (!shown.length) {
     const empty = document.createElement('p');
-    empty.className = 'where';
-    empty.style.padding = '0 12px';
+    empty.className = 'empty';
     empty.textContent = state.assets.length
       ? 'No track or block matches that.'
       : 'There is nothing on the farm yet. Draw a track on the phone and it appears here.';
@@ -417,24 +433,43 @@ function drawList() {
   }
 }
 
+/**
+ * One row of the list: the name, how it is sprayed, how many passes that takes, and when it is next due.
+ *
+ * Four cells in the order the words over the list name them, and nothing else: the page keeps no second
+ * list of its columns, so a cell cannot drift away from the heading it belongs under. The name carries
+ * the dot the phone painted this asset's own feature, which is the row's colour and nothing else's.
+ */
 function listRow(item) {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.id = item.asset.id;
   button.setAttribute('aria-current', String(item.asset.id === selectedId));
 
+  const name = document.createElement('span');
+  name.className = 'name';
+
   const dot = document.createElement('span');
   dot.className = 'dot';
   dot.style.background = strokeById.get(item.asset.id) || '#757575';
 
-  const name = document.createElement('span');
-  name.textContent = item.asset.name;
+  name.append(dot, item.asset.name);
 
-  const where = document.createElement('span');
-  where.className = 'where';
-  where.textContent = dueText(item);
+  const method = document.createElement('span');
+  method.className = 'method';
+  method.textContent = methodText(item.asset.method);
 
-  button.append(dot, name, where);
+  const passes = document.createElement('span');
+  passes.className = 'passes';
+  // The number on its own: the word over the column says what it is, and what two passes *mean* - how far
+  // apart they run, which is what the app's side-reading rests on - is the phone's own sentence on the card.
+  passes.textContent = String(item.asset.passesRequired);
+
+  const due = document.createElement('span');
+  due.className = 'due';
+  due.textContent = dueText(item);
+
+  button.append(name, method, passes, due);
   button.addEventListener('click', () => selectAsset(item.asset.id, true));
   return button;
 }

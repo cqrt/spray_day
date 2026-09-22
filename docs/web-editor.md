@@ -29,13 +29,13 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.26** (tracing a line over the imagery), before it v0.6.25 (the token
-  becomes a switch), v0.6.24 (the line and the delete), v0.6.23 (the desk's first write), v0.6.22 (the
-  page), v0.6.21 (the phone side of the desk view), v0.6.20 (the HTTP split) and v0.6.19 (map layer
-  switches). The state written here was true when the file was written — **check it rather than trust
-  it** (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan
-  document that claims a clean tree is a plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.26 → **v0.6.27**.
+- The last shipped work is **v0.6.35** (the list's two new columns - how it is sprayed, and how many
+  passes), and the *Progress* section below has what came before it: v0.6.33, v0.6.31, the tracing in
+  v0.6.26, and the phase 1 and 2 work before that. The state written here was true when the file was
+  written — **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
+  `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
+  can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.35 → **v0.6.36**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -559,6 +559,22 @@ style's background colour and the work draws on top of it.
       browser driver: taken hold of by clicking it, Del-ed down to one point (where it comes off whole, as the
       phone refuses a path of one), Ctrl+Z back exactly, and a drag that changed the length — the saved body
       showing the junction moved onto the line's own vertex, to the bit. 56 node tests (5 new).
+- [x] **The list's two new columns. v0.6.35** — asked for in one line: "In the track list, 2 new columns, for
+      spray method and passes amount". A row is read across four columns now, under the words that name
+      them: the name, the spray method, the passes to finish it, and the due date. The method's words come
+      out of the state document's own phrase table (`state.choices.methods`, which is `MethodPhrase` on the
+      phone), so the page's own copy of the three methods is gone - and the card says "Not recorded" where
+      it said "Not set", the phone's word for it. The panel went from 340 to 460 px because four columns
+      need the room, and the three columns after the name are fixed widths: a row is its own box, so a cell
+      as wide as its own word would put every row's method somewhere different. Proven on the emulator over
+      six seeded assets covering every state the two columns can hold (`db/seedlist.py`): the page's rows
+      matched `/api/state` asset by asset, the words row and all six rows had their four cells at the same
+      left edges (12, 171, 277, 339), and per-column pixel counts in the picture said the same (the method
+      column's ink starting at 172 in every row, the passes digit right against its own column's edge). The
+      word over each column sits above the list rather than in it, so it stays put while the work scrolls
+      and stays out of the live region; it is hidden when nothing matches. Screenshots `cols-list.png`,
+      `cols-card.png`, `cols-search.png`, `cols-twopass.png`; notes in `build/verify/web-columns.txt`
+      (including what was **not** proven).
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

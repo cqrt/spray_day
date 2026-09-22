@@ -13,7 +13,28 @@
   --line: #d8d8d8;
   --paper: #ffffff;
   --shade: #f3f4f3;
-  --side-width: 340px;
+
+  /* As wide as the list's four columns need and no wider: the map is the half of this page people came for. */
+  --side-width: 460px;
+
+  /*
+   * The columns after the name are fixed widths rather than as wide as their own words, because a row is
+   * its own box: a cell that sized itself to its own word would put each row's method somewhere
+   * different, which is the opposite of a column. Each is sized for the longest word the phone puts in
+   * it - "Not recorded" under the heading "Spray method", one digit under "Passes", "130 days overdue"
+   * last - and a longer one wraps onto a second line rather than being cut off, so a word from a later
+   * version of the phone costs a taller row and nothing else.
+   */
+  --method-column: 96px;
+  --passes-column: 52px;
+  --due-column: 108px;
+
+  /*
+   * The four columns in the order a row puts them: said once, and used by the list, by the words over it
+   * and by every row. Three copies of this line would be three chances to line a heading up over the
+   * wrong column.
+   */
+  --list-columns: minmax(0, 1fr) var(--method-column) var(--passes-column) var(--due-column);
 }
 
 * { box-sizing: border-box; }
@@ -96,7 +117,52 @@ main { flex: 1; display: flex; min-height: 0; }
   font-size: 14px;
 }
 
-#list { overflow: auto; padding: 0 0 12px; }
+/*
+ * The list: the work under the words that name its columns, grouped by block.
+ *
+ * Laid out as a grid whose four tracks are the four columns, with every child spanning all of them - the
+ * block headings and the rows. A row takes its own cells from the same tracks, which is the whole of what
+ * lines the columns up.
+ */
+#list {
+  display: grid;
+  align-content: start;
+  grid-template-columns: var(--list-columns);
+  overflow: auto;
+  padding: 0 0 12px;
+}
+
+#list > * { grid-column: 1 / -1; }
+
+/*
+ * The words over the columns, above the list rather than inside it: they belong to the list as a whole, so
+ * they stay put while the work scrolls under them, and they are outside the live region the list carries -
+ * a screen reader is told what changed on the farm, not what the columns are called on every redraw.
+ */
+#list-head {
+  padding: 10px 12px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--quiet);
+}
+
+/* A rule that sets the display beats the browser's own `hidden`, so the attribute has to be said too. */
+#list-head[hidden] { display: none; }
+
+/*
+ * A row of the work and the row of words over it: the same four tracks and the same gap, so a column
+ * lines up the whole way down the list. What the words add is the words, and what a row adds is that it
+ * is a button - which is the rule below.
+ */
+#list button,
+#list-head {
+  display: grid;
+  grid-template-columns: var(--list-columns);
+  gap: 10px;
+  align-items: center;
+}
 
 #list h3 {
   margin: 10px 12px 4px;
@@ -107,9 +173,6 @@ main { flex: 1; display: flex; min-height: 0; }
 }
 
 #list button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   width: 100%;
   padding: 8px 12px;
   border: 0;
@@ -118,6 +181,25 @@ main { flex: 1; display: flex; min-height: 0; }
   text-align: left;
   cursor: pointer;
 }
+
+/* The name, with the colour the phone painted this asset's own feature in front of it. */
+#list button .name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Values rather than names, a size down from the name they sit beside - as the due words always were. */
+#list button .method,
+#list button .passes,
+#list button .due { font-size: 13px; }
+
+#list button .due { color: var(--quiet); }
+
+/* The passes and the due are read against the right-hand edge of their column, words and all. */
+.passes,
+.due { text-align: right; }
 
 #list button:hover { background: var(--shade); }
 #list button[aria-current="true"] { background: #e6efe4; }
@@ -130,7 +212,8 @@ main { flex: 1; display: flex; min-height: 0; }
   border: 1px solid rgba(0, 0, 0, 0.25);
 }
 
-.where { color: var(--quiet); font-size: 13px; margin-left: auto; }
+/* Nothing to show: the page's own sentence, in the ordinary voice rather than as a column of words. */
+#list .empty { margin: 8px 0 0; padding: 0 12px; color: var(--quiet); }
 
 #map { flex: 1; min-width: 0; }
 

@@ -615,7 +615,11 @@ style's background colour and the work draws on top of it.
       Proven on the emulator by a pair of runs that differ only by the selection: a 121x81 box on the line
       holds **651 near-white pixels with the row picked out and 0 without**, its mean colour moving from
       (58,72,64) to (80,91,84), while the bands above the card are pixel-for-pixel identical and the only
-      other change in the picture is the row in the list. `glow.test.mjs` is 12 tests (two new: the edge is
+      other change in the picture is the row in the list. The **published** 0.6.37 APK was then driven on its
+      own over a clean install (the installed `base.apk` the same sha256 as the release's): a track drawn from
+      the minified page itself, and the edge measured in the card-free strip of the map - near-white pixels
+      **9,756 -> 11,975** with the track picked out, and the bands above the card pixel-for-pixel identical.
+      `glow.test.mjs` is 12 tests (two new: the edge is
       white and barely softened; and it wears no due colour and not the line's own). Screenshots
       `edge-1-selected.png`, `edge-2-closed.png`, and the two sample sheets `halo-samples.png` and
       `edge-samples.png`; notes in `build/verify/web-glow.txt`.

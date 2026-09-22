@@ -1,21 +1,27 @@
 /*
- * The glow under the track that is picked out.
+ * What is drawn under the asset that is picked out.
  *
- * `glow.mjs` is pure, so node runs the very file the browser does: what the halo is made of - its width,
- * its softness, its faintness, and above all the *shape* it takes from the phone's own layer - is tested
- * here rather than read by eye in `app.js`.
+ * `glow.mjs` is pure, so node runs the very file the browser does: what the mark is made of - its width,
+ * its softness, its strength, its colour, and above all the *shape* it takes from the phone's own layer -
+ * is tested here rather than read by eye in `app.js`.
  *
- * The shape is the part that matters. A halo is built out of one of the phone's layers, and the one thing
- * it must not do is change what that layer says: a fenceline is dotted because a fenceline is a series of
- * short things, and a halo wide enough to fill in the gaps between the dots would draw it solid. So the
- * tests below are mostly about what the halo *keeps* from the phone's layer, and the rest are about the
- * glow being a glow - wider than the line, soft at the edge, and not so faint that nobody sees it.
+ * Two things are being held. The shape: a mark is built out of one of the phone's layers, and the one thing
+ * it must not do is change what that layer says - a fenceline is dotted because a fenceline is a series of
+ * short things, and an edge wide enough to fill in the gaps between the dots would draw it solid. And the
+ * colour: the edge under a line is the page's own white, which none of the three due colours is, so a line
+ * goes on saying when it is due while the edge says only "this is the one in hand".
  */
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { NO_ASSET, haloId, haloLayer, pickOut } from '../../main/assets/web/glow.mjs';
+
+/** The page's own paper: the white a line's edge is drawn in. */
+const WHITE = '#ffffff';
+
+/** The phone's own traffic light, from `AssetColors`: green, amber, red - and the edge may wear none of them. */
+const DUE_COLOURS = ['#2E7D32', '#F9A825', '#C62828'];
 
 /** A track's own layer, as `WebStyleJson` builds it: solid, 5 px, the feature's own colour. */
 const track = {
@@ -44,15 +50,29 @@ const place = {
   filter: ['==', ['get', 'shape'], 'POINT']
 };
 
-test('a track that is picked out gets a halo under it, wider and softer than the line', () => {
-  const halo = haloLayer(track, 7);
+test('a line that is picked out gets a white edge under it, wider than the line and barely softened', () => {
+  const edge = haloLayer(track, 7);
 
-  assert.equal(halo.type, 'line', 'the halo of a line is a line');
-  assert.equal(halo.source, track.source, 'drawn from the same source as the layer it belongs under');
-  assert.ok(halo.paint['line-width'] > track.paint['line-width'], 'wider than the line, or it would hide under it');
-  assert.ok(halo.paint['line-blur'] > 0, 'and soft at the edge, which is the whole of "glow"');
-  assert.ok(halo.paint['line-opacity'] > 0.2 && halo.paint['line-opacity'] < 1, 'a light, not a second line');
-  assert.deepEqual(halo.paint['line-color'], ['get', 'stroke'], "the feature's own colour, so the two agree");
+  assert.equal(edge.type, 'line', 'the edge under a line is a line');
+  assert.equal(edge.source, track.source, 'drawn from the same source as the layer it belongs under');
+  assert.ok(edge.paint['line-width'] > track.paint['line-width'], 'wider than the line, or the line hides it');
+  assert.equal(edge.paint['line-color'], WHITE, 'the page\'s own paper, not the line\'s colour');
+  assert.ok(edge.paint['line-blur'] <= 3, 'an edge, not a haze: soft enough to spread is soft enough to vanish');
+  assert.ok(edge.paint['line-opacity'] > 0.7, 'nearly solid, or the imagery reads straight through it');
+});
+
+test('the edge does not wear the line\'s own colour, so it cannot claim a state the line does not have', () => {
+  const green = { ...track, paint: { ...track.paint } };
+  const red = { ...track, paint: { ...track.paint } };
+
+  const edgeOf = (layer, id) => haloLayer(layer, id).paint['line-color'];
+
+  assert.equal(edgeOf(green, 7), edgeOf(red, 8), 'the same white for a track of any colour');
+  assert.notDeepEqual(edgeOf(green, 7), ['get', 'stroke'], 'and not the feature\'s own colour');
+  assert.ok(
+    DUE_COLOURS.every((due) => due !== edgeOf(green, 7).toUpperCase()),
+    'nor one of the three the traffic light uses, which would read as the line\'s own state'
+  );
 });
 
 /** The dashes a layer draws, in pixels: a dasharray is in multiples of that layer's own width. */
@@ -114,14 +134,18 @@ test('nothing glows until an asset is picked out: the halo names an id no asset 
   assert.deepEqual(halo.filter[halo.filter.length - 1], ['==', ['get', 'id'], NO_ASSET]);
 });
 
-test('a place gets a soft disc behind the house rather than a wider line', () => {
-  const halo = haloLayer(place, 7);
+test('a place gets a soft disc of its own colour behind the house, not a white edge', () => {
+  const disc = haloLayer(place, 7);
 
-  assert.equal(halo.type, 'circle', 'a place is a picture, so there is no width to widen');
-  assert.ok(halo.paint['circle-opacity'] > 0.2 && halo.paint['circle-opacity'] < 1, 'a light, not a disc');
-  assert.ok(halo.paint['circle-radius'] > 8, 'bigger than the house drawn on top of it');
-  assert.ok(halo.paint['circle-blur'] > 0 && halo.paint['circle-blur'] < 1, 'soft, but not blurred away');
-  assert.deepEqual(halo.paint['circle-color'], ['get', 'stroke']);
+  assert.equal(disc.type, 'circle', 'a place is a picture, so there is no width to widen');
+  assert.deepEqual(
+    disc.paint['circle-color'],
+    ['get', 'stroke'],
+    'a house already has a white edge of its own, so another white one round it would say nothing'
+  );
+  assert.ok(disc.paint['circle-opacity'] > 0.2 && disc.paint['circle-opacity'] < 1, 'a light, not a disc');
+  assert.ok(disc.paint['circle-radius'] > 8, 'bigger than the house drawn on top of it');
+  assert.ok(disc.paint['circle-blur'] > 0 && disc.paint['circle-blur'] < 1, 'soft, but not blurred away');
 });
 
 test('the layer the phone sent is left exactly as it was', () => {

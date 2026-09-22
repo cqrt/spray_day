@@ -29,12 +29,13 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.36** (the picked-out track glows on the map), before it v0.6.35 (the
-  list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26, and the phase 1 and 2 work before
-  that. The state written here was true when the file was written — **check it rather than trust it**
-  (`git status`, `HEAD` against `origin/main`, `git tag --sort=-v:refname`), because a plan document
-  that claims a clean tree is a plan document that can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.36 → **v0.6.37**.
+- The last shipped work is **v0.6.37** (the white edge under the picked-out line), before it v0.6.36 (the
+  soft glow it replaced), v0.6.35 (the list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26,
+  and the phase 1 and 2 work before that. The state written here was true when the file was written —
+  **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
+  `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
+  can be wrong.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.37 → **v0.6.38**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -601,6 +602,23 @@ style's background colour and the work draws on top of it.
       `glow-19-estuary.png`, `glow-21-fenceline.png`, `glow-15-trough.png`, `glow-24-rel-glow.png` and their
       `-closed` pairs; notes in `build/verify/web-glow.txt` - including the race this found (below) and what
       is **not** proven.
+- [x] **The white edge, as chosen. v0.6.37** — v0.6.36's glow was reported as "not very noticeable on
+      selected tracks", four treatments were drawn up as a sample sheet for the operator to judge, a second
+      sheet showed the chosen casing in orange and in the app's own amber, and the answer was white. So a
+      line's mark is now a **white edge** under it - the page's own paper, wider than the line by 10 px,
+      blurred 2, at 0.9 - rather than a soft haze in the feature's own colour. The reason it is white, and
+      now pinned by a test: white is the one colour the phone's traffic light never uses, so a line goes on
+      saying when it is due while the edge round it says only "this is the one in hand". A place keeps its
+      soft disc of its own colour, because a white edge round a house that already has a white edge of its
+      own would say nothing. The shape is still the phone's: the same layer's filter, one narrower than the
+      other, and the same dash pattern scaled so the edge's dashes land where the line's do.
+      Proven on the emulator by a pair of runs that differ only by the selection: a 121x81 box on the line
+      holds **651 near-white pixels with the row picked out and 0 without**, its mean colour moving from
+      (58,72,64) to (80,91,84), while the bands above the card are pixel-for-pixel identical and the only
+      other change in the picture is the row in the list. `glow.test.mjs` is 12 tests (two new: the edge is
+      white and barely softened; and it wears no due colour and not the line's own). Screenshots
+      `edge-1-selected.png`, `edge-2-closed.png`, and the two sample sheets `halo-samples.png` and
+      `edge-samples.png`; notes in `build/verify/web-glow.txt`.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

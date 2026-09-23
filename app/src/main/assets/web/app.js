@@ -41,6 +41,35 @@ const { NO_ASSET, haloId, haloLayer, pickOut } = await import(
 );
 
 /**
+ * Where the desk was looking the last time it was open.
+ *
+ * A refresh, and a basemap switch on the phone - which builds the editor's run again - both throw this page
+ * away and build it again, and neither of them is a different desk: an operator working one corner of the
+ * farm would otherwise lose it and have to find it again on every basemap. The camera is kept in the
+ * browser's own store rather than on the phone, because where a particular desk is looking is the desk's
+ * own business, and the plan's rule is that the desk's only write is an asset. Imported the same way as the
+ * other two modules, for the same reason.
+ */
+const { cameraOf, openingCamera, recall, remember } = await import(
+  TOKEN ? `./camera.mjs?k=${encodeURIComponent(TOKEN)}` : './camera.mjs'
+);
+
+/**
+ * The browser's own store, or null when this browser will not hand one over.
+ *
+ * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
+ * refuses the property rather than the method - so even asking for it is inside the guard, and the module
+ * that uses it is written to work with null.
+ */
+function browserStore() {
+  try {
+    return window.localStorage;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
  * Everything the phone serves is behind the token, and the token is in the address - except when the
  * operator has turned the token off on the phone, in which case the address has none and there is
  * nothing to add.
@@ -204,6 +233,14 @@ let strokeById = new Map();
 let phoneMarker = null;
 let selectedId = null;
 
+/**
+ * Where this desk was looking when it was last open, or null when there is no memory of it.
+ *
+ * Held as well as handed to the map, because opening on the work's own box has to know whether the desk has
+ * already been placed: a memory of a corner of the farm is not to be undone by the map finishing loading.
+ */
+let rememberedCamera = null;
+
 /** The map's own source for the work, found from the phone's own layer names - see `assetsSourceId`. */
 let workSource = null;
 
@@ -242,13 +279,31 @@ async function boot() {
     // old machine, WebGL switched off - still gets the list, the due dates and the card.
     renderList();
 
+    // Where this desk was looking when it was last open, if anywhere. Handed to the map as it is built
+    // rather than moved to afterwards: a map that opens on the style's own centre and is then jumped is two
+    // views, and the first of them asks the phone for imagery nobody is going to look at.
+    rememberedCamera = recall(browserStore());
+
     map = new maplibregl.Map({
       container: 'map',
       style,
+      // The memory, when there is one; otherwise the style's own centre and zoom, which are the phone's
+      // map's own - and the work's own box is fitted once the style is here (see `onStyleLoaded`).
+      ...(rememberedCamera ? openingCamera(rememberedCamera) : {}),
       // The credit the licences require, in view rather than behind a tap - the same as the phone.
       attributionControl: { compact: false }
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Where the desk is left is where the next visit opens. Written when the map stops moving rather than
+    // on every frame of a drag, and once more as the page goes away - which is the write a refresh must not
+    // miss, because a page that is being replaced gets no chance to say anything afterwards. A tab that is
+    // switched away from and never comes back is the same moment, from the page's point of view.
+    map.on('moveend', keepCameraSoon);
+    window.addEventListener('pagehide', keepCameraNow);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') keepCameraNow();
+    });
 
     // A map that fails quietly is a blank rectangle, and a phone with no imagery yet and a style the
     // browser refuses both look like that. So anything MapLibre refuses says so, in words.
@@ -340,15 +395,43 @@ function onStyleLoaded(style) {
 
   // Open on the work rather than on an ocean: the phone's own box. With nothing drawn yet the
   // style's own centre and zoom apply, which are the phone's map's own. Unless something has already
-  // been picked out of the list: the imagery arrives after the list does, so a click that lands while
-  // the map is still opening must not be undone by the map finishing.
-  if (state.bounds && selectedId === null) {
+  // been picked out of the list - the imagery arrives after the list does, so a click that lands while
+  // the map is still opening must not be undone by the map finishing - or this desk has a memory of its
+  // own view, in which case the map was already built looking at it and there is nothing to fit.
+  if (state.bounds && selectedId === null && !rememberedCamera) {
     map.fitBounds(
       [[state.bounds.minLng, state.bounds.minLat], [state.bounds.maxLng, state.bounds.maxLat]],
       { padding: 70, duration: 0 }
     );
   }
   placePhone(state.position);
+}
+
+/*
+ * Where the desk is looking, kept for the next time this page is built.
+ *
+ * The page is thrown away and rebuilt by a refresh and by a basemap switch on the phone, and neither of
+ * those is a different desk - so the camera goes into the browser's own store as it is left and comes back
+ * as the map's opening options. What may be kept, and what may be believed, is `camera.mjs` and is tested
+ * without a browser; what is here is *when*, which is the part that needs a map.
+ */
+
+/** How long after the map stops moving the camera is written: a drag is one move, not two hundred. */
+const CAMERA_SETTLE_MS = 400;
+
+/** The write that has not happened yet, so a drag does not leave a queue of them behind it. */
+let cameraWrite = null;
+
+/** The camera as it is now, written once the map has stopped moving. */
+function keepCameraSoon() {
+  clearTimeout(cameraWrite);
+  cameraWrite = setTimeout(keepCameraNow, CAMERA_SETTLE_MS);
+}
+
+/** The camera as it is now, written at once - for the page going away, which will not wait for a timer. */
+function keepCameraNow() {
+  clearTimeout(cameraWrite);
+  if (map) remember(browserStore(), cameraOf(map));
 }
 
 /**

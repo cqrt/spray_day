@@ -557,9 +557,10 @@ class WebEditorSaveTest {
             // not read as JavaScript - which on a desk looks like a map that will not draw, with the
             // reason only in a console nobody opens.
             "geometry.mjs" to "text/javascript; charset=utf-8",
-            // The other two pure modules the page runs: what a save carries, and what the glow under the
-            // picked-out track is made of. Both are imported the same way, so a type a browser will not
-            // read as JavaScript is the same blank desk.
+            // The other three pure modules the page runs: what a save carries, what the glow under the
+            // picked-out track is made of, and where the desk was looking when it was last open. All are
+            // imported the same way, so a type a browser will not read as JavaScript is the same blank desk.
+            "camera.mjs" to "text/javascript; charset=utf-8",
             "glow.mjs" to "text/javascript; charset=utf-8",
             "wire.mjs" to "text/javascript; charset=utf-8",
             "style.css" to "text/css; charset=utf-8",

@@ -197,7 +197,7 @@ that never saw the move rather than silently undoing it.
 | `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
 | `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24.** |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. |
-| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic) beside them. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24.** |
+| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic), `wire.mjs` (which of the two drawing shapes a save carries), `glow.mjs` (the mark under a picked-out asset, v0.6.36) and `camera.mjs` (the remembered view, v0.6.38) beside them. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24.** |
 
 **Changed**
 
@@ -345,12 +345,23 @@ carries it, and the state document filters on it. Nothing sets it, and nothing i
    the editor is serving builds the run again, so the address on the card is always the address that
    works. An empty token is not offered, and a run with no token is a *state* rather than a missing
    value: `WebEditorServer`'s token is null and its gate claims nothing.
+6. **Where the desk was looking is kept on the desk** (v0.6.38). A refresh, and a basemap switch on the
+   phone, both build the page again, and an operator working one corner of the farm should not have to
+   find it again on every basemap — so the camera is written to the *browser's* own store and comes back
+   as the map's opening options. Not to the phone: where a particular desk is looking is that desk's own
+   business, two laptops on the same phone are two views, and the phone's own map has a camera the page
+   has no business moving. This is the desk's one write that is *not* an asset, and it stays on the
+   machine the operator is sitting at — the store holds five numbers (centre, zoom, rotation, tilt) and
+   nothing else, no token and no asset, and it is read by `camera.mjs`, which refuses anything it could
+   not open the desk on rather than showing the operator blank ocean.
 
 ## What this does not touch
 
 The backup path, the GitHub token, the off-site copy, the record tables, and the loopback tile
 server's guarantee. **No schema change and no migration** in any phase — that is the payoff of
-choosing A.
+choosing A. The phone's database is written by the desk only through the four writes above; the
+remembered view (default 6) is the browser's own store on the operator's machine and never reaches the
+phone at all.
 
 ## How to verify
 

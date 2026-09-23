@@ -104,14 +104,15 @@ class WebEditorDocuments(
         // feature existed.
         val lines = work.map { item ->
             val geometry = paths[item.asset.id] ?: AssetGeometry.NONE
+            val shape = AssetShape.fromStorage(item.asset.shape)
             AssetLine(
                 assetId = item.asset.id,
                 name = item.asset.name,
                 colorHex = AssetColors.forStatus(item.due.status),
                 points = geometry.line,
                 sideTracks = geometry.sideTracks,
-                kind = AssetKind.fromStorage(item.asset.kind),
-                shape = AssetShape.fromStorage(item.asset.shape)
+                kind = AssetKind.fromStorage(item.asset.kind, shape),
+                shape = shape
             )
         }
         return AssetGeoJson.build(lines)

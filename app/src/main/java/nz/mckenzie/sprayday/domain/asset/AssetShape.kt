@@ -3,10 +3,10 @@ package nz.mckenzie.sprayday.domain.asset
 /**
  * Whether an asset is a line on the map or a single point.
  *
- * A track, a road and a fenceline are lines; a picnic table, a shelter or a trough is
- * a place, and its geometry is that one coordinate. Lines are the default, and only
- * infrastructure is offered the choice, because a point track is almost always a
- * mistake rather than an intention.
+ * A track, a road and a fenceline are lines; a building, a sign, a bench, a table or anything
+ * else you stop at is a place, and its geometry is that one coordinate. Nothing offers this as a
+ * choice: the kind of the asset decides it (see [AssetKind.shape]), because an answer that can
+ * disagree with the kind is a picnic table drawn as a line across a paddock.
  */
 enum class AssetShape {
     /** Two or more points: something you travel along. */

@@ -87,8 +87,7 @@ class AssetDetailViewModelTest {
         asset: AssetEntity,
         name: String = asset.name,
         groupName: String = "",
-        kind: AssetKind = AssetKind.fromStorage(asset.kind),
-        shape: AssetShape = AssetShape.fromStorage(asset.shape),
+        kind: AssetKind = AssetKind.fromStorage(asset.kind, AssetShape.fromStorage(asset.shape)),
         method: SprayMethod = SprayMethod.fromStorage(asset.method),
         intervalDays: String = asset.intervalDays.toString(),
         swathWidthM: String = "",
@@ -99,7 +98,6 @@ class AssetDetailViewModelTest {
             name = name,
             groupName = groupName,
             kind = kind,
-            shape = shape,
             method = method,
             intervalDays = intervalDays,
             swathWidthM = swathWidthM,
@@ -131,7 +129,11 @@ class AssetDetailViewModelTest {
         }!!
         assertEquals("Back", assetRepository.observeGroupName(assetId).first())
         assertEquals(SprayMethod.KNAPSACK, SprayMethod.fromStorage(stored.method))
-        assertEquals("a road is still a road after a rename", AssetKind.ROAD, AssetKind.fromStorage(stored.kind))
+        assertEquals(
+            "a road is still a road after a rename",
+            AssetKind.ROAD,
+            AssetKind.fromStorage(stored.kind, AssetShape.fromStorage(stored.shape))
+        )
         assertEquals(90, stored.intervalDays)
         assertEquals(6.0, stored.swathWidthM!!, 1e-9)
         assertEquals("spray the fenceline twice", stored.notes)

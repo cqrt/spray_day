@@ -45,15 +45,21 @@ class AssetLayerTest {
     }
 
     @Test
-    fun `there is a switch for every kind of line and one for the places`() {
+    fun `there is a switch for each line the map draws, and one for every kind of place`() {
         assertEquals(
-            "one per kind of asset, plus the houses",
-            AssetKind.entries.size + 1,
+            "one per line style, plus the houses",
+            4,
             AssetLayer.ALL.size
         )
         assertEquals(
             setOf(AssetLayer.TRACKS, AssetLayer.ROADS, AssetLayer.FENCELINES, AssetLayer.PLACES),
             AssetLayer.ALL.toSet()
+        )
+        // The eight kinds are finer than the four switches on purpose: five kinds of place share the
+        // one layer, because what tells a trough from a table is its own glyph, not a switch.
+        assertTrue(
+            "the kinds should outnumber the switches, or the types bought nothing",
+            AssetKind.entries.size > AssetLayer.ALL.size
         )
     }
 

@@ -179,7 +179,6 @@ data class WebEditorDocument(
 @Serializable
 data class WebEditorNewAsset(
     val kind: String,
-    val shape: String,
     val method: String,
     val intervalDays: String,
     val passesRequired: Int
@@ -187,7 +186,6 @@ data class WebEditorNewAsset(
     companion object {
         fun ofApp() = WebEditorNewAsset(
             kind = AssetKind.TRACK.name,
-            shape = AssetShape.LINE.name,
             method = SprayMethod.UNSET.name,
             intervalDays = AssetEntity.DEFAULT_INTERVAL_DAYS.toString(),
             passesRequired = AssetEntity.DEFAULT_PASSES_REQUIRED
@@ -307,7 +305,6 @@ data class WebEditorChoice(
 @Serializable
 data class WebEditorChoices(
     val kinds: List<WebEditorChoice>,
-    val shapes: List<WebEditorChoice>,
     val methods: List<WebEditorChoice>,
     /** One pass or two. The value is the number, because that is what the wire carries. */
     val passes: List<WebEditorChoice>,
@@ -319,7 +316,6 @@ data class WebEditorChoices(
     companion object {
         fun ofApp() = WebEditorChoices(
             kinds = AssetPhrase.kinds.map { WebEditorChoice(it.name, AssetPhrase.kind(it)) },
-            shapes = AssetPhrase.shapes.map { WebEditorChoice(it.name, AssetPhrase.shapeChoice(it)) },
             methods = MethodPhrase.choices.map {
                 WebEditorChoice(
                     value = it.name,

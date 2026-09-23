@@ -55,7 +55,6 @@ import java.security.MessageDigest
 data class WebEditorEdit(
     val name: String,
     val kind: String,
-    val shape: String,
     val method: String,
     /** The block the field named, or absent for an asset on its own. */
     val blockName: String? = null,
@@ -349,11 +348,13 @@ object WebEditorEdits {
     private fun judge(edit: WebEditorEdit, current: AssetEntity): WebEditorEditResult {
 
         // Named states rather than typed ones, so an unknown name is a refusal and not a silent
-        // fallback onto a default: a kind the page made up must not become a track.
-        val kind = AssetKind.entries.firstOrNull { it.name == edit.kind }
+        // fallback onto a default: a kind the page made up must not become a track. "Infrastructure"
+        // is the one other value read here, and it is not a fallback either: it is what every
+        // fenceline, trough and shed on a farm sprayed before this build was called, and the row's
+        // own shape says which of the two things it was. A page from before the types therefore
+        // still edits a fenceline as a fenceline, and what it writes back is the settled kind.
+        val kind = AssetKind.known(edit.kind, AssetShape.fromStorage(current.shape))
             ?: return Refused("The phone does not know what kind of thing \"${edit.kind}\" is.")
-        val shape = AssetShape.entries.firstOrNull { it.name == edit.shape }
-            ?: return Refused("The phone does not know a shape called \"${edit.shape}\".")
         val method = SprayMethod.entries.firstOrNull { it.name == edit.method }
             ?: return Refused("The phone does not know a spray method called \"${edit.method}\".")
 
@@ -361,7 +362,6 @@ object WebEditorEdits {
             name = edit.name,
             groupName = edit.blockName.orEmpty(),
             kind = kind,
-            shape = shape,
             method = method,
             intervalDays = edit.intervalDays,
             swathWidthM = edit.swathWidthM,
@@ -381,7 +381,7 @@ object WebEditorEdits {
                 // `AssetPathEdits`'s words, which are the app's own. A track with side tracks is
                 // judged by the same rules as one drawn on the phone: every path whole, and every side
                 // track starting on the line it hangs off.
-                when (val drawn = drawingOf(shape, edit)) {
+                when (val drawn = drawingOf(kind.shape, edit)) {
                     null -> WebEditorEditResult.Ok(result.asset, result.groupName)
                     is AssetPathResult.Invalid -> Refused(drawn.message)
                     is AssetPathResult.Ok -> WebEditorEditResult.Ok(

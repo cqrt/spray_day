@@ -111,7 +111,9 @@ class DrawAssetViewModel(
             return
         }
         _trackName.value = asset.name
-        _kind.value = AssetKind.fromStorage(asset.kind)
+        // Read with its shape, so a record written before the types existed opens as what it was:
+        // a fenceline if it is a line, a place if it is a spot.
+        _kind.value = AssetKind.fromStorage(asset.kind, AssetShape.fromStorage(asset.shape))
         _shape.value = AssetShape.fromStorage(asset.shape)
 
         val geometry = runCatching { assetRepository.getAssetGeometry(assetId) }
@@ -261,25 +263,17 @@ class DrawAssetViewModel(
         paths.firstOrNull().orEmpty().size >= if (shape == AssetShape.POINT) 1 else 2
 
     /**
-     * Picks what is being drawn.
+     * Picks what is being drawn, and with it the shape.
      *
-     * Only infrastructure is offered a spot, so choosing any other kind puts the shape
-     * back to a line rather than leaving a table's shape on a road.
+     * There is no separate shape to pick: three kinds are lines and five are places, and the kind
+     * decides which (see [AssetKind.shape]). Choosing a place keeps the last tap and drops the rest -
+     * a place is one coordinate and the most recent tap is the one that was meant - and a place has no
+     * side tracks, because there is nothing for one to hang off.
      */
     fun chooseKind(chosen: AssetKind) {
         _kind.value = chosen
-        if (chosen != AssetKind.INFRASTRUCTURE) _shape.value = AssetShape.LINE
-        _message.value = null
-    }
-
-    /**
-     * Picks the shape. Switching to a spot keeps the last tap and drops the rest: a place is one
-     * coordinate, and the most recent tap is the one that was meant - and a place has no side tracks,
-     * because there is nothing for one to hang off.
-     */
-    fun chooseShape(chosen: AssetShape) {
-        _shape.value = chosen
-        if (chosen == AssetShape.POINT) {
+        _shape.value = chosen.shape
+        if (chosen.shape == AssetShape.POINT) {
             _paths.value = _paths.value.firstOrNull()?.takeIf { it.isNotEmpty() }
                 ?.let { line -> listOf(listOf(line.last())) }
                 .orEmpty()

@@ -24,10 +24,11 @@ sprayed).
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
-- **Assets** — tracks, roads and pieces of infrastructure, in one list: import GPX,
+- **Assets** — tracks, roads, fencelines, and the places you stop at, in one list: import GPX,
   draw them by tapping the map, or record them by driving the line. The drawing screen
-  asks what you are making as you make it, so a fenceline is drawn as an infrastructure
-  line and a trough is placed with a single tap. Each row carries a coloured icon of
+  asks what you are making as you make it, and that answer decides the shape: a track, a road or a
+  fenceline is tapped out as a line, and a shed, a sign, a seat, a table or anything else you stop at
+  is placed with a single tap. Each row carries a coloured icon of
   what the asset is, next to the colour that says when it is due.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone
   holds, and change it. A track's details can be changed from its card; its line can be tidied by
@@ -53,8 +54,9 @@ sprayed).
   off for a network you own — with it off the address is a plain one and anyone on the Wi-Fi can
   open the editor and change your tracks, so the card says that in as many words.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
-  only the default), its **kind** (track, road or infrastructure), whether it is a
-  line or a single spot, how it is sprayed (**boom** or **knapsack**, which offers the
+  only the default), its **kind** — a track, a road, a fenceline, a building, a sign, a
+  bench seat, a picnic table, or other place — and the kind decides whether it is a line
+  or a single spot, so that is not a second question. Then how it is sprayed (**boom** or **knapsack**, which offers the
   usual width for that method), the swath width for a treated-area estimate, how many
   passes finish the job (**one**, or **two** for a line walked up one side and back
   down the other — see [A line that is sprayed twice](#a-line-that-is-sprayed-twice)),
@@ -78,8 +80,8 @@ sprayed).
   that proves it. Dates are ISO so a spreadsheet sorts them, and the file carries a
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
-  each kind drawn differently — solid for tracks, dashed for roads, dotted for
-  infrastructure, and a **house for anything that is a spot** rather than a path, in
+  each of the three lines drawn differently — solid for tracks, dashed for roads, dotted for
+  fencelines — and a **house for anything that is a spot** rather than a path, in
   the same traffic-light colour and the same house the asset's row carries. A
   **part-sprayed track is drawn in parts**: what the pass covered in the colour it
   earned, and what is still waiting for a tank in red, so "half this line is left" is
@@ -273,6 +275,28 @@ The rules live in one place, `DueReminderPlanner`, because they are the whole fe
 Android 13 and later need `POST_NOTIFICATIONS`. Settings asks for it and says plainly
 when it is missing, because a reminder system that is silently not permitted is worse
 than no reminder system at all.
+
+## The kinds of asset
+
+There are eight, and **the kind decides the shape**: a **track**, a **road** and a **fenceline** are
+lines you travel along, and a **building**, a **sign**, a **bench seat**, a **picnic table** and
+**other place** are single spots. That is why the app never asks the second question — a track that
+was also a spot would be a line drawn across a paddock, with nothing on the screen saying the two
+answers disagreed.
+
+**The glyph says which kind; the colour says which family.** Blue for a track, purple for a road, teal
+for a fenceline and for every kind of place. Eight distinct colours at the size of a list icon is
+where two of them start looking alike, so the picture carries the detail and the colour carries the
+family — and neither of them is the green, amber or red, which are for when something is due.
+
+**Other place** is the catch-all, and its glyph is a dot in a ring: it says something is here and
+claims nothing more, which is the honest thing to say about a trough, a tank or a gate.
+
+**Nothing already recorded is rewritten.** Every fenceline, trough, shed and table on a farm sprayed
+before the kinds existed was stored as one word — *infrastructure* — with the shape beside it. The
+app reads that by the shape: a line of it is a fenceline, and a spot is a place nobody named, so it
+reads as *other place*. The row keeps the old word until somebody edits it, and the first edit of any
+field settles it onto one of the eight. The backup file and the database are unchanged by all of this.
 
 ## Blocks
 

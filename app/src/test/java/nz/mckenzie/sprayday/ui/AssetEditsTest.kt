@@ -35,7 +35,6 @@ class AssetEditsTest {
         name: String = asset.name,
         groupName: String = "Home",
         kind: AssetKind = AssetKind.TRACK,
-        shape: AssetShape = AssetShape.LINE,
         method: SprayMethod = SprayMethod.UNSET,
         intervalDays: String = asset.intervalDays.toString(),
         swathWidthM: String = asset.swathWidthM.toString(),
@@ -48,7 +47,6 @@ class AssetEditsTest {
             name = name,
             groupName = groupName,
             kind = kind,
-            shape = shape,
             method = method,
             intervalDays = intervalDays,
             swathWidthM = swathWidthM,
@@ -167,11 +165,17 @@ class AssetEditsTest {
     }
 
     @Test
-    fun `what an asset is, and what shape it is, are kept as chosen`() {
-        val edited = ok(apply(kind = AssetKind.INFRASTRUCTURE, shape = AssetShape.POINT))
+    fun `what an asset is is kept as chosen, and the shape comes with it`() {
+        val place = ok(apply(kind = AssetKind.BENCH))
+        val line = ok(apply(kind = AssetKind.FENCELINE))
 
-        assertEquals(AssetKind.INFRASTRUCTURE, AssetKind.fromStorage(edited.asset.kind))
-        assertEquals(AssetShape.POINT, AssetShape.fromStorage(edited.asset.shape))
+        assertEquals(
+            AssetKind.BENCH,
+            AssetKind.fromStorage(place.asset.kind, AssetShape.fromStorage(place.asset.shape))
+        )
+        assertEquals(AssetShape.POINT, AssetShape.fromStorage(place.asset.shape))
+        // The same field, written from the kind: there is no second answer that could disagree.
+        assertEquals(AssetShape.LINE, AssetShape.fromStorage(line.asset.shape))
     }
 
     @Test
@@ -242,7 +246,6 @@ class AssetEditsTest {
                     name = twoPass.asset.name,
                     groupName = "Home",
                     kind = AssetKind.TRACK,
-                    shape = AssetShape.LINE,
                     method = SprayMethod.UNSET,
                     intervalDays = "120",
                     swathWidthM = "4.5",

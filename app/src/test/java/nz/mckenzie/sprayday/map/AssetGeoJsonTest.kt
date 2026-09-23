@@ -107,7 +107,7 @@ class AssetGeoJsonTest {
             name = "Picnic table",
             colorHex = AssetColors.GREEN,
             points = listOf(GeoPoint(-41.2865, 174.7762)),
-            kind = AssetKind.INFRASTRUCTURE,
+            kind = AssetKind.TABLE,
             shape = AssetShape.POINT
         )
 
@@ -138,7 +138,7 @@ class AssetGeoJsonTest {
             name = "Trough",
             colorHex = AssetColors.forStatus(DueStatus.NEVER_SPRAYED),
             points = listOf(GeoPoint(-41.2865, 174.7762)),
-            kind = AssetKind.INFRASTRUCTURE,
+            kind = AssetKind.OTHER_PLACE,
             shape = AssetShape.POINT
         )
 
@@ -152,7 +152,7 @@ class AssetGeoJsonTest {
 
     @Test
     fun `a line is not given a picture, because its own layer draws it`() {
-        val json = AssetGeoJson.build(listOf(line(), line(kind = AssetKind.INFRASTRUCTURE)))
+        val json = AssetGeoJson.build(listOf(line(), line(kind = AssetKind.FENCELINE)))
 
         assertFalse(
             "only a place is drawn as a picture: $json",

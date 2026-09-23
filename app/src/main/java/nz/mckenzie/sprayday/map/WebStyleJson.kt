@@ -116,7 +116,7 @@ object WebStyleJson {
     private fun lineLayers(): List<JsonObject> = listOf(
         AssetLayerIds.TRACKS to AssetKind.TRACK,
         AssetLayerIds.ROADS to AssetKind.ROAD,
-        AssetLayerIds.FENCELINES to AssetKind.INFRASTRUCTURE
+        AssetLayerIds.FENCELINES to AssetKind.FENCELINE
     ).map { (layerId, kind) ->
         buildJsonObject {
             put("id", layerId)

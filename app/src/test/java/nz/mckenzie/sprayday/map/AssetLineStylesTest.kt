@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,8 +29,8 @@ class AssetLineStylesTest {
     }
 
     @Test
-    fun `infrastructure is dotted, with a speck far shorter than its gap`() {
-        val dotted = AssetLineStyles.forKind(AssetKind.INFRASTRUCTURE)!!
+    fun `a fenceline is dotted, with a speck far shorter than its gap`() {
+        val dotted = AssetLineStyles.forKind(AssetKind.FENCELINE)!!
 
         assertTrue(
             "a dot has to be far shorter than the gap after it: ${dotted.toList()}",
@@ -38,9 +39,16 @@ class AssetLineStylesTest {
     }
 
     @Test
-    fun `no two kinds are drawn the same way`() {
-        val patterns = AssetKind.entries.map { AssetLineStyles.forKind(it)?.toList() }
+    fun `the three lines are told apart by their dashes, and a place has no dash at all`() {
+        val lines = AssetKind.entries.filter { it.shape == AssetShape.LINE }
+            .map { AssetLineStyles.forKind(it)?.toList() }
 
-        assertTrue("two kinds sharing a pattern would be indistinguishable", patterns.toSet().size == 3)
+        assertTrue(
+            "two lines sharing a dash would be indistinguishable: $lines",
+            lines.toSet().size == 3
+        )
+        AssetKind.entries.filter { it.shape == AssetShape.POINT }.forEach { place ->
+            assertNull("$place is a house, not a line", AssetLineStyles.forKind(place))
+        }
     }
 }

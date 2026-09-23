@@ -279,8 +279,8 @@ class WebEditorJsonTest {
         assertEquals(PassPhrase.SEPARATION_HINT, choices.separationHint)
         assertEquals(AssetEdits.SWATH_HINT, choices.swathHint)
         assertEquals(AssetEdits.BLOCK_HINT, choices.blockHint)
-        // A shape is offered as a sentence, because "line" and "point" mean nothing in a paddock.
-        assertEquals("Follows a path", choices.shapes.first().label)
+        // There is no shape list to offer: whether a thing is a line or a place is what its kind
+        // means (`AssetKind.shape`), so the desk is offered eight kinds and no second question.
     }
 
     @Test
@@ -291,7 +291,6 @@ class WebEditorJsonTest {
         // than written into the page: a default copied into JavaScript is a default that drifts, and the
         // one that drifts is the interval.
         assertEquals(AssetKind.TRACK.name, fresh.kind)
-        assertEquals(AssetShape.LINE.name, fresh.shape)
         assertEquals(SprayMethod.UNSET.name, fresh.method)
         assertEquals("120", fresh.intervalDays)
         assertEquals(AssetEntity.DEFAULT_PASSES_REQUIRED, fresh.passesRequired)

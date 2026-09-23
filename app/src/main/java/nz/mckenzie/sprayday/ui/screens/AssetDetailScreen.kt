@@ -93,7 +93,7 @@ fun AssetDetailScreen(
                     colorHex = AssetColors.forStatus(due?.status ?: DueStatus.NEVER_SPRAYED),
                     points = geometry.line,
                     sideTracks = geometry.sideTracks,
-                    kind = AssetKind.fromStorage(track?.kind),
+                    kind = AssetKind.fromStorage(track?.kind, AssetShape.fromStorage(track?.shape)),
                     shape = AssetShape.fromStorage(track?.shape)
                 )
             )
@@ -169,7 +169,7 @@ fun AssetDetailScreen(
                     // What it is, how it is done, and - for a line that takes two passes - how many
                     // passes that is, because the two are what decide when the light next changes.
                     track?.let { asset ->
-                        val kind = AssetKind.fromStorage(asset.kind)
+                        val kind = AssetKind.fromStorage(asset.kind, AssetShape.fromStorage(asset.shape))
                         val method = MethodPhrase.of(SprayMethod.fromStorage(asset.method))
                         val passes = PassPhrase.detail(asset.passesRequired, asset.passSeparationM)
                         Text(

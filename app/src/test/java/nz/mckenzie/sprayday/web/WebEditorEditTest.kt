@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.web
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,7 +59,6 @@ class WebEditorEditTest {
         version: String = WebEditorVersion.of(asset, blockName, listOf(path)),
         name: String = asset.name,
         kind: String = asset.kind,
-        shape: String = asset.shape,
         method: String = asset.method,
         block: String? = blockName,
         intervalDays: String = asset.intervalDays.toString(),
@@ -69,7 +69,7 @@ class WebEditorEditTest {
         points: List<GeoPoint>? = null,
         paths: List<List<GeoPoint>>? = null
     ): String = buildString {
-        append("""{"name":"$name","kind":"$kind","shape":"$shape","method":"$method",""")
+        append("""{"name":"$name","kind":"$kind","method":"$method",""")
         append(""""blockName":${if (block == null) "null" else "\"$block\""},""")
         append(""""intervalDays":"$intervalDays","swathWidthM":"$swathWidthM",""")
         append(""""passesRequired":$passes,"passSeparationM":"$separation",""")
@@ -94,10 +94,10 @@ class WebEditorEditTest {
     /** A new asset, as the desk's drawing mode sends one: no version, because there is no row yet. */
     private fun draftBody(
         name: String = "New track",
-        shape: String = asset.shape,
+        kind: String = "TRACK",
         points: List<GeoPoint>? = path
     ): String = buildString {
-        append("""{"name":"$name","kind":"TRACK","shape":"$shape","method":"UNSET",""")
+        append("""{"name":"$name","kind":"$kind","method":"UNSET",""")
         append(""""blockName":null,"intervalDays":"120","swathWidthM":"",""")
         append(""""passesRequired":1,"passSeparationM":"","notes":null""")
         if (points != null) append(""","points":${pointJson(points)}""")
@@ -187,12 +187,35 @@ class WebEditorEditTest {
     }
 
     @Test
-    fun `a kind, a shape or a method the phone does not know is refused, not defaulted`() {
+    fun `a kind or a method the phone does not know is refused, not defaulted`() {
         // Named states arrive already decided, so a name this build does not know is a refusal. Let
-        // through, each of these would quietly become a track, a line or "not set".
+        // through, each of these would quietly become a track or "not set".
         assertTrue(refused(body(kind = "PADDOCK")).message.contains("PADDOCK"))
-        assertTrue(refused(body(shape = "CIRCLE")).message.contains("CIRCLE"))
         assertTrue(refused(body(method = "DRONE")).message.contains("DRONE"))
+    }
+
+    @Test
+    fun `a fenceline written by the build before this one is read as a fenceline, not refused`() {
+        // The one kind on the wire this build has no enum value for: every fenceline, trough and shed
+        // sprayed before the types existed carries it, and the row's own shape is what says which of
+        // the two things it was.
+        val fenceline = asset.copy(kind = "INFRASTRUCTURE", shape = "LINE")
+        val result = WebEditorEdits.apply(
+            current = fenceline,
+            blockName = blockName,
+            paths = listOf(path),
+            body = body(
+                version = WebEditorVersion.of(fenceline, blockName, listOf(path)),
+                kind = "INFRASTRUCTURE"
+            )
+        )
+
+        assertTrue("expected the old word to be read: $result", result is WebEditorEditResult.Ok)
+        assertEquals(
+            "and settled to what its shape says it was",
+            AssetKind.FENCELINE.name,
+            (result as WebEditorEditResult.Ok).asset.kind
+        )
     }
 
     @Test
@@ -246,7 +269,7 @@ class WebEditorEditTest {
 
     @Test
     fun `a place drawn as a path is refused in the path rules' words`() {
-        val place = asset.copy(shape = "POINT")
+        val place = asset.copy(kind = "OTHER_PLACE", shape = "POINT")
 
         val result = WebEditorEdits.apply(
             current = place,
@@ -256,7 +279,7 @@ class WebEditorEditTest {
             // hash differently, which is the point of the shape being in the hash at all.
             body = body(
                 version = WebEditorVersion.of(place, blockName, listOf(path)),
-                shape = "POINT",
+                kind = "OTHER_PLACE",
                 points = path
             )
         )
@@ -339,8 +362,10 @@ class WebEditorEditTest {
     }
 
     @Test
-    fun `a new place is one point, and the shape decides which rules judge it`() {
-        val draft = drafted(draftBody(name = "Trough", shape = "POINT", points = listOf(path.first())))
+    fun `a new place is one point, because its kind says it is a place`() {
+        val draft = drafted(
+            draftBody(name = "Trough", kind = "OTHER_PLACE", points = listOf(path.first()))
+        )
 
         assertEquals("POINT", draft.asset.shape)
         assertEquals(1, draft.geometry.pointCount)
@@ -364,8 +389,8 @@ class WebEditorEditTest {
         assertEquals("Give it a name so it can be found later", createRefused(draftBody(name = "  ")).message)
         assertTrue(
             "and a kind this build does not know is still a refusal: " +
-                createRefused("""{"name":"X","kind":"PADDOCK","shape":"LINE","method":"UNSET","intervalDays":"120","points":[]}""").message,
-            createRefused("""{"name":"X","kind":"PADDOCK","shape":"LINE","method":"UNSET","intervalDays":"120","points":[]}""")
+                createRefused("""{"name":"X","kind":"PADDOCK","method":"UNSET","intervalDays":"120","points":[]}""").message,
+            createRefused("""{"name":"X","kind":"PADDOCK","method":"UNSET","intervalDays":"120","points":[]}""")
                 .message.contains("PADDOCK")
         )
     }

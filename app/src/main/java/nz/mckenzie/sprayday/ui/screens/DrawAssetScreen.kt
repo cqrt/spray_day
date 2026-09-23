@@ -132,18 +132,11 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                             label = "What it is",
                             choices = AssetPhrase.kinds,
                             selected = kind,
+                            // The kind decides whether this is a line to tap out or a place to tap
+                            // once, so there is no second question about it here.
                             onChoose = viewModel::chooseKind,
                             text = AssetPhrase::kind
                         )
-                        if (kind == AssetKind.INFRASTRUCTURE) {
-                            ChoiceRow(
-                                label = "Shape",
-                                choices = AssetPhrase.shapes,
-                                selected = shape,
-                                onChoose = viewModel::chooseShape,
-                                text = AssetPhrase::shapeChoice
-                            )
-                        }
                     }
                     Text(
                         text = if (isSpot) {

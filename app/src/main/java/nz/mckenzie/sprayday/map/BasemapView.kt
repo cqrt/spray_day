@@ -390,7 +390,7 @@ internal fun MapLibreMap.loadSprayDayStyle(
         // dashed and infrastructure is dotted, and the filter is what keeps them apart.
         addLineLayer(style, AssetLayerIds.TRACKS, AssetKind.TRACK)
         addLineLayer(style, AssetLayerIds.ROADS, AssetKind.ROAD)
-        addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.INFRASTRUCTURE)
+        addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.FENCELINE)
         // A place is a house, not a short line: drawing a picnic table as a line would
         // claim a shape the record does not have, and a house says what the thing is
         // rather than only where it is - the same picture the asset's row carries.

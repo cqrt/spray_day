@@ -74,8 +74,12 @@ fun AssetEditScreen(
     var name by remember { mutableStateOf(asset.name) }
     var groupName by remember { mutableStateOf(current.groupName) }
     var blocksOpen by remember { mutableStateOf(false) }
-    var kind by remember { mutableStateOf(AssetKind.fromStorage(asset.kind)) }
-    var shape by remember { mutableStateOf(AssetShape.fromStorage(asset.shape)) }
+    var kind by remember {
+        // Read by its shape as well as its word, because a record written before the types existed
+        // says only "infrastructure": whether that was a line or a spot is what says which of the two
+        // it settles as when it is next saved.
+        mutableStateOf(AssetKind.fromStorage(asset.kind, AssetShape.fromStorage(asset.shape)))
+    }
     var method by remember { mutableStateOf(SprayMethod.fromStorage(asset.method)) }
     var intervalDays by remember { mutableStateOf(asset.intervalDays.toString()) }
     var swathWidth by remember {
@@ -102,7 +106,6 @@ fun AssetEditScreen(
                                     name = name,
                                     groupName = groupName,
                                     kind = kind,
-                                    shape = shape,
                                     method = method,
                                     intervalDays = intervalDays,
                                     swathWidthM = swathWidth,
@@ -181,25 +184,12 @@ fun AssetEditScreen(
                 label = "What it is",
                 choices = AssetPhrase.kinds,
                 selected = kind,
-                onChoose = { choice ->
-                    // A single point is only worth offering for infrastructure, so moving to
-                    // another kind puts the shape back to a line rather than leaving a picnic
-                    // table's shape sitting on a road.
-                    kind = choice
-                    if (choice != AssetKind.INFRASTRUCTURE) shape = AssetShape.LINE
-                    problem = null
-                },
+                // The shape follows the kind and is not asked about: a fenceline is a line because a
+                // fenceline is something you follow, and a question that could answer otherwise is a
+                // picnic table drawn across a paddock.
+                onChoose = { choice -> kind = choice; problem = null },
                 text = AssetPhrase::kind
             )
-            if (kind == AssetKind.INFRASTRUCTURE) {
-                ChoiceRow(
-                    label = "Shape",
-                    choices = AssetPhrase.shapes,
-                    selected = shape,
-                    onChoose = { shape = it; problem = null },
-                    text = AssetPhrase::shapeChoice
-                )
-            }
             OutlinedTextField(
                 value = intervalDays,
                 onValueChange = { intervalDays = it; problem = null },

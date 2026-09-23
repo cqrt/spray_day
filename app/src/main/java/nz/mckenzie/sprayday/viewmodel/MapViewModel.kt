@@ -186,7 +186,7 @@ class MapViewModel(
                     colorHex = AssetColors.forStatus(item.due.status),
                     points = assetGeometry.line,
                     sideTracks = assetGeometry.sideTracks,
-                    kind = AssetKind.fromStorage(item.asset.kind),
+                    kind = AssetKind.fromStorage(item.asset.kind, shape),
                     shape = shape,
                     stretches = stretchesFor(item, assetGeometry.paths, coverage[item.asset.id], shape, now)
                 )

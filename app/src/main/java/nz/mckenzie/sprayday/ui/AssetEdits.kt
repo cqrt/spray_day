@@ -2,7 +2,6 @@ package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
-import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /** What the edit form made of what was typed into it. */
@@ -33,7 +32,6 @@ data class AssetEditFields(
     val name: String,
     val groupName: String,
     val kind: AssetKind,
-    val shape: AssetShape,
     val method: SprayMethod,
     val intervalDays: String,
     val swathWidthM: String,
@@ -51,8 +49,9 @@ data class AssetEditFields(
  * comma means. Those decisions are worth testing on their own, which is why this is
  * pure and lives outside the view model: the screen only has to show the message.
  *
- * The kind, the shape and the spray method are the exceptions: they are choices
- * between named states rather than something typed, so they arrive already decided.
+ * The kind and the spray method are the exceptions: they are choices between named states
+ * rather than something typed, so they arrive already decided. The shape is not a field at all -
+ * it is decided by the kind (see [nz.mckenzie.sprayday.domain.asset.AssetKind.shape]).
  */
 object AssetEdits {
 
@@ -166,7 +165,9 @@ object AssetEdits {
             asset = asset.copy(
                 name = cleanName,
                 kind = fields.kind.name,
-                shape = fields.shape.name,
+                // Written from the kind rather than from a second answer, so a stored row can only
+                // say one thing: a picnic table is a place because a picnic table is a place.
+                shape = fields.kind.shape.name,
                 method = fields.method.name,
                 notes = fields.notes.trim().ifBlank { null },
                 intervalDays = days,

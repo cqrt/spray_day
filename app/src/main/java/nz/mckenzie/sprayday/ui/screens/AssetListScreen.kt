@@ -186,7 +186,7 @@ private fun AssetRow(
         // second, which is the order the operator asked the questions in.
         leadingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind), shape = shape)
+                AssetKindIcon(kind = AssetKind.fromStorage(item.asset.kind, shape))
                 Box(
                     modifier = Modifier
                         .padding(start = 10.dp)

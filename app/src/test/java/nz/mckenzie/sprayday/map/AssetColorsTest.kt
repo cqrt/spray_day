@@ -3,6 +3,7 @@ package nz.mckenzie.sprayday.map
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,10 +30,23 @@ class AssetColorsTest {
     }
 
     @Test
-    fun `every kind has its own colour`() {
-        val colours = AssetKind.entries.map { AssetColors.forKind(it) }
+    fun `the eight kinds wear the three family colours, and nothing else`() {
+        val families = setOf(AssetColors.TRACK_KIND, AssetColors.ROAD_KIND, AssetColors.PLACE_KIND)
 
-        assertEquals(colours.size, colours.toSet().size)
+        AssetKind.entries.forEach { kind ->
+            assertTrue(
+                "$kind wears a colour from outside the three",
+                AssetColors.forKind(kind) in families
+            )
+        }
+        // A track and a road are their own colour, and every kind of place shares the teal: the glyph
+        // is what tells one place from another, because eight colours at twenty pixels is where two
+        // of them start looking alike.
+        assertEquals(AssetColors.TRACK_KIND, AssetColors.forKind(AssetKind.TRACK))
+        assertEquals(AssetColors.ROAD_KIND, AssetColors.forKind(AssetKind.ROAD))
+        assertNotEquals("a road must not look like a track", AssetColors.TRACK_KIND, AssetColors.ROAD_KIND)
+        assertEquals(AssetColors.PLACE_KIND, AssetColors.forKind(AssetKind.FENCELINE))
+        assertEquals(AssetColors.PLACE_KIND, AssetColors.forKind(AssetKind.OTHER_PLACE))
     }
 
     @Test

@@ -9,25 +9,18 @@ package nz.mckenzie.sprayday.domain.asset
  */
 object AssetPhrase {
 
-    /** "Track", "Road", "Infrastructure". */
+    /** "Track", "Road", "Fenceline", "Building", "Sign", "Bench seat", "Picnic table", "Other place". */
     fun kind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> "Track"
         AssetKind.ROAD -> "Road"
-        AssetKind.INFRASTRUCTURE -> "Infrastructure"
+        AssetKind.FENCELINE -> "Fenceline"
+        AssetKind.BUILDING -> "Building"
+        AssetKind.SIGN -> "Sign"
+        AssetKind.BENCH -> "Bench seat"
+        AssetKind.TABLE -> "Picnic table"
+        AssetKind.OTHER_PLACE -> "Other place"
     }
 
-    /**
-     * What the operator is choosing between for shape, in full sentences, because
-     * "line" and "point" mean nothing on their own in a paddock.
-     */
-    fun shapeChoice(shape: AssetShape): String = when (shape) {
-        AssetShape.LINE -> "Follows a path"
-        AssetShape.POINT -> "Just one spot"
-    }
-
-    /** The kinds in the order the picker offers them. */
+    /** The kinds in the order the picker offers them: the lines first, then the places. */
     val kinds: List<AssetKind> = AssetKind.entries.toList()
-
-    /** The shapes in the order the picker offers them. */
-    val shapes: List<AssetShape> = AssetShape.entries.toList()
 }

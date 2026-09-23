@@ -879,7 +879,6 @@ function formBody({ version = null, points = null, paths = null } = {}) {
   const body = {
     name: textOf('edit-name'),
     kind: selectedValue('edit-kind'),
-    shape: selectedValue('edit-shape'),
     method: selectedValue('edit-method'),
     blockName: textOf('edit-block'),
     intervalDays: textOf('edit-interval'),
@@ -997,7 +996,6 @@ function openEdit(item) {
   field('edit-notes').value = item.asset.notes || '';
 
   fillChoices('edit-kind', state.choices.kinds, item.asset.kind);
-  fillChoices('edit-shape', state.choices.shapes, item.asset.shape);
   fillChoices('edit-method', state.choices.methods, item.asset.method);
   fillChoices('edit-passes', state.choices.passes, String(item.asset.passesRequired));
 
@@ -1017,7 +1015,6 @@ function openEdit(item) {
     blocks.append(option);
   }
 
-  showShapeRow();
   showSeparationRow();
   updateBlockHint();
 
@@ -1025,17 +1022,6 @@ function openEdit(item) {
   field('edit').hidden = false;
   field('card').hidden = true;
   field('edit-name').focus();
-}
-
-/**
- * The shape is offered only for infrastructure, and moving to another kind puts it back to a line -
- * a picnic table's shape has no business sitting on a road. The phone's own rule: see
- * `AssetEditScreen`.
- */
-function showShapeRow() {
-  const kind = selectedValue('edit-kind');
-  field('edit-shape-row').hidden = kind !== 'INFRASTRUCTURE';
-  if (kind !== 'INFRASTRUCTURE') setSelected('edit-shape', 'LINE');
 }
 
 /**
@@ -1115,7 +1101,6 @@ function openDraft() {
   field('edit-notes').value = '';
 
   fillChoices('edit-kind', state.choices.kinds, state.newAsset.kind);
-  fillChoices('edit-shape', state.choices.shapes, state.newAsset.shape);
   fillChoices('edit-method', state.choices.methods, state.newAsset.method);
   fillChoices('edit-passes', state.choices.passes, String(state.newAsset.passesRequired));
 
@@ -1134,7 +1119,6 @@ function openDraft() {
     blocks.append(option);
   }
 
-  showShapeRow();
   showSeparationRow();
   updateBlockHint();
 
@@ -1252,7 +1236,6 @@ document.getElementById('card-close').addEventListener('click', closeCard);
 document.getElementById('edit-close').addEventListener('click', cancelForm);
 document.getElementById('edit-cancel').addEventListener('click', cancelForm);
 document.getElementById('edit-form').addEventListener('submit', saveEdit);
-document.getElementById('edit-kind').addEventListener('change', showShapeRow);
 document.getElementById('edit-passes').addEventListener('change', showSeparationRow);
 document.getElementById('edit-method').addEventListener('change', onMethodChange);
 document.getElementById('edit-block').addEventListener('input', updateBlockHint);

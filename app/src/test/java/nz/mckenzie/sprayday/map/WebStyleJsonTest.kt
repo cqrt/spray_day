@@ -75,7 +75,7 @@ class WebStyleJsonTest {
         AssetLineStyles.ROAD.zip(roads).forEach { (expected, actual) ->
             assertEquals(expected.toDouble(), actual, 1e-6)
         }
-        AssetLineStyles.INFRASTRUCTURE.zip(fencelines).forEach { (expected, actual) ->
+        AssetLineStyles.FENCELINE.zip(fencelines).forEach { (expected, actual) ->
             assertEquals(expected.toDouble(), actual, 1e-6)
         }
         // Solid means no dash array at all, rather than a dash of zero.
@@ -104,7 +104,7 @@ class WebStyleJsonTest {
             layer(AssetLayerIds.ROADS)["filter"].toString()
         )
         assertEquals(
-            """["all",["==",["get","kind"],"INFRASTRUCTURE"],["==",["get","shape"],"LINE"]]""",
+            """["all",["==",["get","kind"],"FENCELINE"],["==",["get","shape"],"LINE"]]""",
             layer(AssetLayerIds.FENCELINES)["filter"].toString()
         )
     }

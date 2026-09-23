@@ -65,7 +65,11 @@ object AssetColors {
     const val UNKNOWN = "#757575"
 
     /**
-     * One colour per kind, for the icon beside an asset in the list.
+     * One colour per family of kind, for the icon beside an asset in the list.
+     *
+     * Three colours for eight kinds, on purpose. Colour says which family a thing is in - a line
+     * you travel along, or a place you stop at - and the glyph says which kind it is, because
+     * eight distinct colours at twenty pixels is where two of them start looking alike.
      *
      * Two things decide these. None of them may be the traffic-light green, amber or
      * red, because the icon says what something is while the dot beside it says when it
@@ -80,8 +84,8 @@ object AssetColors {
     /** Roads. */
     const val ROAD_KIND = "#AB47BC"
 
-    /** Fencelines and structures: teal, the one hue left that is nobody else's. */
-    const val INFRASTRUCTURE_KIND = "#00897B"
+    /** Fencelines and every kind of place: teal, the one hue left that is nobody else's. */
+    const val PLACE_KIND = "#00897B"
 
     /**
      * Where the phone is.
@@ -112,7 +116,12 @@ object AssetColors {
     fun forKind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> TRACK_KIND
         AssetKind.ROAD -> ROAD_KIND
-        AssetKind.INFRASTRUCTURE -> INFRASTRUCTURE_KIND
+        AssetKind.FENCELINE,
+        AssetKind.BUILDING,
+        AssetKind.SIGN,
+        AssetKind.BENCH,
+        AssetKind.TABLE,
+        AssetKind.OTHER_PLACE -> PLACE_KIND
     }}
 
 /**

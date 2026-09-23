@@ -634,6 +634,35 @@ style's background colour and the work draws on top of it.
       white and barely softened; and it wears no due colour and not the line's own). Screenshots
       `edge-1-selected.png`, `edge-2-closed.png`, and the two sample sheets `halo-samples.png` and
       `edge-samples.png`; notes in `build/verify/web-glow.txt`.
+- [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
+      phone, both build the page again, and every one of them used to open on the whole farm: an operator
+      who had spent the morning on one corner of it spent it again after every basemap. The camera is now
+      kept in the **browser's own store** — never the phone's, because where a particular desk is looking
+      is that desk's business, two laptops on one phone are two views, and the plan's rule that the desk's
+      only write is an asset is kept by never asking the phone anything about it. It is handed to the map
+      as the map is built rather than moved to afterwards, written when the map stops moving (400 ms) and
+      again as the page goes away, which is the write a refresh must not miss; the fit to the work's own
+      box is skipped when there is a memory. What goes in the store is five numbers and nothing else — no
+      token, no asset, no name — which `camera.test.mjs` and every run's own probe pin.
+      Proven on the emulator on the seeded farm, in headless-Edge profiles that stand in for the
+      operator's browser (one profile reopened is a refresh; two profiles are two computers): a browser
+      that has never been here draws the work's own box, **pixel for pixel** the same as the first fresh
+      visit; the same browser reopened draws it **pixel for pixel**; the desk moved by a drag and a wheel
+      (zoom 15.246 → **17.955**, 349,437 px of change) and then rebuilt is **pixel for pixel** where it
+      was left, while a second browser differs from it by 349,507 px, so it is the memory holding the desk
+      and not something else; and the phone's basemap was switched to OpenStreetMap (`/api/style`
+      answering `osm,sprayday-assets`, the page fetching `/tiles/osm/19/…`) and back to aerial, with the
+      desk's picture **pixel for pixel** where it was left. **The rounding the pixels threw out**: the
+      first version stored the camera tidied to a centimetre, and two runs that differed only by a reload
+      came back to the same place and drew a *different picture* — 485 px of difference along the tracks —
+      so the numbers are kept exactly as the map gave them. `camera.test.mjs` is 8 tests.
+      The **published** 0.6.38 APK was driven on its own over a clean install (`versionName=0.6.38`,
+      `run-as` refusing it): `camera.mjs` served **200 / 6,913 bytes** with the key in it, and the same
+      pair of runs **pixel for pixel** at (175.1358018879173, -40.650429344825795), zoom 8.450644763...
+      Screenshots `cam-a-fit.png`, `cam-b-again.png`, `cam-c-moved.png`, `cam-d-reopened.png`,
+      `cam-e-other.png`, `cam-f-osm.png`, `cam-g-aerial-again.png`, `cam-round-*` (the rounded build's
+      counter-example) and `cam-rel-*`; notes in `build/verify/web-camera.txt`, including three things
+      **not** proven and the one harness note about the ANR.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 
@@ -657,7 +686,11 @@ while the style is still arriving leaves the desk looking at the app's own defau
 New Zealand — because the page's own fit is skipped when something is already picked out, so the fly is
 undone rather than the press being wasted. Two of that work's first pairs landed on different cameras that
 way (see `build/verify/web-glow.txt`); clicking late, after the page has settled, is what makes the runs
-comparable in the meantime.
+comparable in the meantime. **v0.6.38 narrows it to browsers that have never been here**: the desk's own
+remembered view (the v0.6.38 entry above) means the fit does not run at all on a desk that has been
+opened before, so there is nothing left to undo the fly — the window is still open for a fresh browser,
+and the fix when the fit is next touched is the same as it was: the fly and the fit in the same place
+rather than two decisions.
 
 **One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
 for and is one line:

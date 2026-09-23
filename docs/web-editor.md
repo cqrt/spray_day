@@ -29,13 +29,14 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.37** (the white edge under the picked-out line), before it v0.6.36 (the
-  soft glow it replaced), v0.6.35 (the list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26,
-  and the phase 1 and 2 work before that. The state written here was true when the file was written —
+- The last shipped work is **v0.6.39** (the desk's words and the drawing's box), before it v0.6.38 (the desk
+  remembers where it was looking), v0.6.37 (the white edge under the picked-out line), v0.6.36 (the soft
+  glow it replaced), v0.6.35 (the list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26, and
+  the phase 1 and 2 work before that. The state written here was true when the file was written —
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
   `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
   can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.37 → **v0.6.38**.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.39 → **v0.6.40**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -686,6 +687,31 @@ style's background colour and the work draws on top of it.
       `cam-e-other.png`, `cam-f-osm.png`, `cam-g-aerial-again.png`, `cam-round-*` (the rounded build's
       counter-example) and `cam-rel-*`; notes in `build/verify/web-camera.txt`, including three things
       **not** proven and the one harness note about the ANR.
+- [x] **The desk's words, and the drawing's box. v0.6.39** — asked for in one line: *"'Draw a new track'
+      should be 'Draw a new asset'. 'Find a track or block' should be 'Find an asset or block'. Check the
+      app to find other corrections. During 'change the shape' mode, there is an info bar at the top that is
+      getting full, we need to move that into a box rendered in the corner of the map and make the
+      instructions and info, i.e del, esc, condensed and not longwinded."* Every corrected word is the
+      **app's own**, because the app is where the words come from: the button, the search field, the empty
+      list and the form for a drawn line are *Draw a new asset*, *Find an asset or block*, *No asset or
+      block matches that* and *New asset*, and the card's two ways on are the phone's own menu items *Edit
+      details* and *Change the line*. The old empty-farm sentence sent the operator to the phone to draw,
+      which stopped being true in v0.6.24; it now says to draw here or on the phone. The drawing's own
+      words about "the track" under the hand stay, because those are the phone's own sentences for the same
+      gestures. The bar became a box the size of a map control in the map's own top-left corner: the phone's
+      title for the job (*Draw a line* / *Change the line*) and counts (*4 points · 3.89 km · 1 side
+      track*), one short line about whatever the drawing is in the middle of, the keys as pairs (*Del ·
+      take the last one off*, *Esc · give up* - with Ctrl+Z greyed while there is nothing to take back) and
+      the three side-track buttons under them.
+      Proven on the fixture server for the awkward states (the empty farm, the naming form, the card's two
+      buttons) and on the phone over the seeded farm, so the box is seen over real imagery: *Draw a line ·
+      3 points · 477 m*, *Working on the side track*, all three of the box's buttons doing what they say,
+      and a save from its own Enter answering *"Saved. The phone has it."* The **published** 0.6.39 APK was
+      driven on its own over a clean install (`versionName=0.6.39`, `run-as` refusing it): the button, the
+      field and the empty list carrying the new words, and the box in the corner of the minified page.
+      Screenshots `tidy-1-panel.png`, `tidy-2-box.png`, `tidy-4-box.png`, `tidy-p1-box.png`,
+      `tidy-r1-panel.png`, `tidy-r2-crop.png`; notes in `build/verify/web-tidy.txt`, including the fixture
+      harness that had gone stale under it and the three things **not** proven.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

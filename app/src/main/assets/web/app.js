@@ -542,8 +542,8 @@ function drawList() {
     const empty = document.createElement('p');
     empty.className = 'empty';
     empty.textContent = state.assets.length
-      ? 'No track or block matches that.'
-      : 'There is nothing on the farm yet. Draw a track on the phone and it appears here.';
+      ? 'No asset or block matches that.'
+      : 'There is nothing on the farm yet. Draw one here, or on the phone.';
     list.append(empty);
     return;
   }
@@ -710,63 +710,65 @@ function startShape(item) {
 /* ---- Drawing a track, saving a line, taking one away -------------------------------- */
 
 /**
- * What the page says while a track is being drawn.
+ * What the box in the map's corner says while a line is being drawn.
  *
  * The page's own words, because none of this is a rule - it is how the map is worked. What the phone
  * will or will not take is the phone's to say, and it says it when the drawing is saved.
+ *
+ * Three things, in the order they are read: what the job is (the phone's own title for the same job on
+ * the same line), what there is so far (the phone's own counts), one short line about whatever the
+ * drawing is in the middle of, and then the keys as **pairs** - a key and three or four words - rather
+ * than the run of sentences this used to be. A box in the corner of a map is read at a glance; a bar
+ * across the top of a page is read once and then in the way.
  *
  * The two side-track buttons are shown by the drawing's own state rather than by a mode of their own:
  * *Side track* is offered while the line has two vertices to hang one off and none is being drawn, and
  * *Back to the track* and *Remove this side track* while one is. That is the same shape the phone's own
  * screen has, so the same gesture means the same thing in both places.
  */
-function showDrawing({ mode, paths, active, sideTracks, sideTrackInHand, activePoints, lengthM, junction, canUndo, tracing }) {
-  const bar = field('drawing');
+function showDrawing({ mode, paths, sideTracks, sideTrackInHand, lengthM, junction, canUndo, tracing }) {
+  const box = field('drawing');
   if (mode === 'off') {
-    bar.hidden = true;
+    box.hidden = true;
     return;
   }
 
-  const count = paths.reduce((total, path) => total + path.length, 0);
-  const steps = [`${count} point${count === 1 ? '' : 's'}`, metresText(lengthM)];
-  if (sideTracks > 0) {
-    steps.push(`${sideTracks} side track${sideTracks === 1 ? '' : 's'}`);
-  }
-  if (tracing) {
-    // What the hand is doing right now, and the one thing worth knowing about it: the whole fence lands
-    // at once, so letting go is not a commitment to twenty vertices.
-    steps.push('following the pointer - let go to put this fence down');
-  } else if (sideTrackInHand) {
-    // A side track is the path in hand - being drawn, or one that has just been taken hold of by clicking it.
-    // The same words cover both, because the same gestures do: its handles are the ones on the map.
-    steps.push('the side track is what you are working on: drag its handles, or click it to put a point in');
-    steps.push('Del takes the last one off');
-    steps.push('Back to the track puts the line back in hand');
-    steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
-    steps.push('Enter or a double click saves it');
-  } else {
-    steps.push(mode === 'new'
-      ? 'click the map to lay the track, or hold the button and follow the fence'
-      : 'drag a handle, click the track to put a point in, or hold the button and follow it');
-    // Where a side track would leave the track: said in the bar, because a picked point is easy to miss on
-    // a map full of fences - and it is the one thing that decides where the spur starts.
-    steps.push(junction
-      ? 'a side track will leave the track at the point you clicked'
-      : 'a side track will leave the track where it ends');
-    if (sideTracks > 0) {
-      // How the report "I cannot move or delete a point on a side track" is answered: the handles belong to
-      // whichever path is in hand, so this says how a side track becomes the one in hand.
-      steps.push('click a side track to work on it');
-    }
-    steps.push('Del takes one off');
-    steps.push(canUndo ? 'Ctrl+Z takes one back' : 'nothing to take back yet');
-    steps.push(mode === 'new'
-      ? 'Enter or a double click finishes'
-      : 'Enter or a double click saves it');
-  }
-  steps.push('Esc gives up');
+  // The phone's own titles for the two jobs, because they are the same two jobs here.
+  field('drawing-title').textContent = mode === 'new' ? 'Draw a line' : 'Change the line';
 
-  field('drawing-words').textContent = steps.join(' · ');
+  const count = paths.reduce((total, path) => total + path.length, 0);
+  // The counts in the phone's own words, and the length only once there is a line to measure: one point
+  // is not a line, and "not measured" is the card's word for a place, not this.
+  const parts = [`${count} point${count === 1 ? '' : 's'}`];
+  if (count > 1) {
+    parts.push(metresText(lengthM));
+  }
+  if (sideTracks > 0) {
+    parts.push(`${sideTracks} side track${sideTracks === 1 ? '' : 's'}`);
+  }
+  field('drawing-info').textContent = parts.join(' · ');
+
+  // One line, and only when there is one worth saying. Following the pointer comes first because it is
+  // what the hand is doing at that moment: the whole fence lands at once, so letting go is not a
+  // commitment to twenty vertices. Then which path the handles belong to, which is what decides what a
+  // drag and Del do, and where a side track would leave from - a picked point is easy to miss on a map
+  // full of fences, and it is the one thing that decides where the spur starts.
+  const state = tracing
+    ? 'Following the pointer - let go to put it down'
+    : sideTrackInHand
+      ? 'Working on the side track'
+      : junction
+        ? 'A side track will leave the line here'
+        : (sideTracks > 0 ? 'Click a side track to work on it' : '');
+  const words = field('drawing-state');
+  words.textContent = state;
+  words.hidden = !state;
+
+  // A new line is finished by naming it; a line the phone already has is saved as it stands.
+  field('drawing-enter').textContent = mode === 'new'
+    ? 'finish (or double click)'
+    : 'save (or double click)';
+  field('drawing-keys').classList.toggle('no-undo', !canUndo);
 
   // The side-track furniture, in the same states the drawing is in. *Remove this side track* is offered for
   // any side track in hand, finished or not, because that is the other half of being able to edit one.
@@ -774,7 +776,7 @@ function showDrawing({ mode, paths, active, sideTracks, sideTrackInHand, activeP
   field('drawing-side-track').hidden = sideTrackInHand || line.length < 2;
   field('drawing-back').hidden = !sideTrackInHand;
   field('drawing-drop').hidden = !sideTrackInHand;
-  bar.hidden = false;
+  box.hidden = false;
 }
 
 /**
@@ -985,7 +987,7 @@ function openEdit(item) {
   editingId = item.asset.id;
   drafting = false;
 
-  field('edit-title').textContent = `Change ${item.asset.name}`;
+  field('edit-title').textContent = `Edit ${item.asset.name}`;
   field('edit-name').value = item.asset.name;
   field('edit-block').value = item.groupName || '';
   field('edit-interval').value = String(item.asset.intervalDays);
@@ -1104,7 +1106,7 @@ function openDraft() {
   editingId = null;
   drafting = true;
 
-  field('edit-title').textContent = 'New track';
+  field('edit-title').textContent = 'New asset';
   field('edit-name').value = '';
   field('edit-block').value = '';
   field('edit-interval').value = state.newAsset.intervalDays;

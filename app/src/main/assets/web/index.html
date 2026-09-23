@@ -25,26 +25,13 @@
 
   <p id="notice" hidden></p>
 
-  <!--
-    What the drawing mode is doing, in the page's own words, because it is the page's own furniture:
-    the phone's words are for what the phone decided, and this is only how to work the map.
-  -->
-  <p id="drawing" hidden>
-    <span id="drawing-words"></span>
-    <span id="drawing-buttons">
-      <button id="drawing-side-track" type="button" hidden>Side track</button>
-      <button id="drawing-back" type="button" hidden>Back to the track</button>
-      <button id="drawing-drop" type="button" hidden>Remove this side track</button>
-    </span>
-  </p>
-
   <main>
     <aside id="side">
       <div id="side-actions">
         <!-- Off until the map has its style: a drawing needs somewhere to be drawn. -->
-        <button id="draw" type="button" disabled>Draw a new track</button>
+        <button id="draw" type="button" disabled>Draw a new asset</button>
       </div>
-      <input id="search" type="search" placeholder="Find a track or block" autocomplete="off">
+      <input id="search" type="search" placeholder="Find an asset or block" autocomplete="off">
 
       <!--
         The words over the list's columns: the name, how it is sprayed, how many passes that takes, and
@@ -63,6 +50,33 @@
       <div id="list" aria-live="polite"></div>
     </aside>
     <div id="map"></div>
+
+    <!--
+      What the drawing is doing, in the corner of the map rather than across the top of the page: a box
+      small enough to leave the work visible and short enough to read while looking at it. The title and
+      the counts are the phone's own words for the same things ("Draw a line"; "4 points · 210 m · 1 side
+      track"), and the buttons are two moves its own screen has; the keys are the desk's own, because a
+      keyboard is the desk's own furniture, and they are pairs rather than sentences so the box stays a
+      corner rather than a bar.
+    -->
+    <section id="drawing" hidden aria-labelledby="drawing-title">
+      <h2 id="drawing-title"></h2>
+      <p id="drawing-info"></p>
+      <p id="drawing-state" hidden></p>
+      <dl id="drawing-keys">
+        <dt>Click</dt><dd>a point goes in</dd>
+        <dt>Drag</dt><dd>follow the fence</dd>
+        <dt>Del</dt><dd>take the last one off</dd>
+        <dt class="undo">Ctrl+Z</dt><dd class="undo">undo</dd>
+        <dt>Enter</dt><dd id="drawing-enter">save (or double click)</dd>
+        <dt>Esc</dt><dd>give up</dd>
+      </dl>
+      <div id="drawing-buttons">
+        <button id="drawing-side-track" type="button" hidden>Side track</button>
+        <button id="drawing-back" type="button" hidden>Back to the track</button>
+        <button id="drawing-drop" type="button" hidden>Remove this side track</button>
+      </div>
+    </section>
   </main>
 
   <section id="card" hidden>
@@ -71,8 +85,8 @@
     <p id="card-due"></p>
     <dl id="card-facts"></dl>
     <div id="card-actions">
-      <button id="card-edit" type="button">Change the details</button>
-      <button id="card-shape" type="button">Change the shape</button>
+      <button id="card-edit" type="button">Edit details</button>
+      <button id="card-shape" type="button">Change the line</button>
     </div>
 
     <!--

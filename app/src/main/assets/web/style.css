@@ -70,7 +70,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   font-size: 14px;
 }
 
-main { flex: 1; display: flex; min-height: 0; }
+main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 #side {
   width: var(--side-width);
@@ -106,16 +106,71 @@ main { flex: 1; display: flex; min-height: 0; }
 #draw:disabled { color: var(--quiet); background: var(--shade); cursor: default; }
 
 /*
- * What the drawing mode is doing: the page's own instructions, so it reads as furniture rather than as
- * a warning - which is what the notice above it is for.
+ * What the drawing is doing: a box in the map's own top-left corner, in the page's own words, because
+ * none of it is a rule - it is how the map is worked. It is a corner rather than a bar across the page
+ * so the work being drawn stays in view, and it is short enough to read while looking at that work: a
+ * title, the counts, one line about whatever the drawing is in the middle of, and one short row per key.
+ *
+ * Above the map's own controls, which is what the z-index is for: MapLibre draws its canvases as later
+ * children of the map, and its zoom control sits in the other top corner, so the two never meet.
  */
 #drawing {
-  margin: 0;
-  padding: 10px 16px;
-  background: #eef3ee;
-  border-bottom: 1px solid #d6e0d4;
-  font-size: 14px;
+  position: absolute;
+  left: calc(var(--side-width) + 16px);
+  top: 16px;
+  z-index: 3;
+  width: 280px;
+  max-width: calc(100% - var(--side-width) - 32px);
+  padding: 10px 12px 11px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  font-size: 13px;
 }
+
+#drawing h2 { margin: 0; font-size: 14px; }
+
+/* The counts, in the phone's own words: what it says about the same line on its own screen. */
+#drawing-info { margin: 2px 0 0; color: var(--quiet); font-size: 12.5px; }
+
+/* Whatever the drawing is in the middle of - following the pointer, a side track in hand - said once. */
+#drawing-state {
+  margin: 6px 0 0;
+  padding: 4px 7px;
+  background: #eef3ee;
+  border-radius: 5px;
+  font-size: 12.5px;
+}
+
+/* The keys: one short row each, the key itself in the operator's own letters ("Del", "Ctrl+Z"). */
+#drawing-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+
+#drawing-keys dt { font-weight: 600; }
+#drawing-keys dd { margin: 0; color: var(--quiet); }
+
+/* Nothing to take back yet: the key is still there to press, and this says it would do nothing. */
+#drawing-keys.no-undo .undo { color: #a6a6a6; }
+
+#drawing-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+#drawing-buttons button {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+#drawing-buttons button:hover { background: var(--shade); }
 
 /*
  * The list: the work under the words that name its columns, grouped by block.

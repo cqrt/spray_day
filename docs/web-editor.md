@@ -305,15 +305,38 @@ another path (`otherPathAt` + `hold`) takes hold of it and changes nothing about
 gets the handles, Del takes its points off, a drag moves them, and *Remove this side track* takes the whole
 strip. Taking hold is not a step of the history, so Ctrl+Z still takes back the last *change*. The cursor
 says which of the three a click will do — grab over a handle, pointer over another path, crosshair on bare
-ground — and the bar says which path is in hand, with *"click a side track to work on it"* while the line is.
+ground — and the box in the map's corner says which path is in hand, with *"click a side track to work on
+it"* while the line is.
 
 **The junction is picked by clicking the track** (v0.6.32). A click on the line puts a point in it — which it
 always did — and that point becomes where a side track will leave it, drawn as a filled dot and said in the
-bar. `startSideTrack(state, junctionIndex)` takes the vertex, or the line's end when there is none (a track
+box. `startSideTrack(state, junctionIndex)` takes the vertex, or the line's end when there is none (a track
 being drawn has nothing to choose, and an Undo can take the picked vertex away); the junction is read off the
 line's own vertices every time, so dragging one takes any side track hanging off it, and taking the vertex
 off the line takes the strip with it. A spur off the middle does **not** split the line: it hangs off it and
 the line carries on from its own end.
+
+**The page's words follow the app's** (v0.6.39). Reported as *"Draw a new track should be Draw a new asset,
+Find a track or block should be Find an asset or block; check the app for other corrections"*. The desk had
+been calling everything a track, which the app itself stopped doing when an asset became a thing that can
+be a track, a road, a fenceline or a place. So the desk now says **Draw a new asset**, **Find an asset or
+block** and *No asset or block matches that*, and the furniture has nothing made of *track* left in it. It
+also picked up the phone's own words in three places where the phone had better ones: the form for a drawn
+line is titled **New asset** (it was *New track*), and the card's two ways on are the phone's own menu
+items, **Edit details** and **Change the line** (they were *Change the details* and *Change the shape*),
+with that form titled *Edit <name>*. Nothing on the phone changed: the app is where the words come from,
+and a word that is the phone's own cannot drift.
+
+**The drawing's own furniture is a box in the map's corner** (v0.6.39). It used to be a bar across the top
+of the page, and it grew a sentence for every thing the drawing learned to do until it was a paragraph over
+the work being drawn. It is now a box the size of a map control in the map's own top-left corner: the
+phone's own title for the job (*Draw a line* / *Change the line*), the phone's own counts (*4 points ·
+3.89 km · 1 side track*), one short line about whatever the drawing is in the middle of (*Working on the
+side track*, *Following the pointer - let go to put it down*, *A side track will leave the line here*), and
+then the keys as **pairs** — *Click · a point goes in*, *Del · take the last one off*, *Esc · give up* —
+with the three buttons under them. The Ctrl+Z row greys out while there is nothing to take back, which is
+what the old bar's *"nothing to take back yet"* said in six words. The words are still the page's own,
+because none of this is a rule: the phone's words are for what the phone decided.
 
 **"Put away" was dropped** (the decision). The plan had archiving as this phase's *show-archived*, and
 `AssetRemovalRules` said it was waiting for a screen that showed an archived asset. The operator owns

@@ -42,9 +42,11 @@ sprayed).
   the one colour the app uses for nothing else, which leaves a line free to go on saying when it is due.
   Closing the card takes the edge away. A line is laid two ways: **click** where a corner is, or **hold
   the button down and follow the fence on the imagery** — the two mix, and a traced fence is one Ctrl+Z
-  rather than twenty. Where you were looking is remembered on the computer itself, so a refresh, or a
-  switch of basemap on the phone, comes back to the same corner at the same zoom rather than to the
-  whole farm again.
+  rather than twenty. What the map is doing while a line is drawn — the counts, the one thing it is in
+  the middle of, and the keys — is a small box in the map's own corner rather than a bar over the work,
+  in the phone's own words where the phone has them. Where you were looking is remembered on the
+  computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
+  the same zoom rather than to the whole farm again.
   Everything is judged by the phone's own rules and written to the phone's own database, so
   the laptop and the phone cannot disagree about what is on the farm. The address the card shows
   carries a secret code that the phone checks, and **"Only this address can open it"** turns that

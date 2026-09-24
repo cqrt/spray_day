@@ -81,19 +81,23 @@ sprayed).
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
   each of the three lines drawn differently — solid for tracks, dashed for roads, dotted for
-  fencelines — and a **house for anything that is a spot** rather than a path, in
-  the same traffic-light colour and the same house the asset's row carries. A
+  fencelines — and **a marker for anything that is a spot** rather than a path, in
+  the same traffic-light colour and the same picture the asset's row carries: a roof
+  over walls for a building, a plate on a post for a sign, a bench seat, a picnic
+  table, a dot in a ring. A
   **part-sprayed track is drawn in parts**: what the pass covered in the colour it
   earned, and what is still waiting for a tank in red, so "half this line is left" is
   visible without opening anything. A tap
   on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
   out over the farm as well as at spray height. The map does not rotate: north is up,
   which is one less thing to get wrong with gloves on.
-- **Layers you can switch off**: the layers button on the map lists what it draws — tracks,
-  roads, fencelines and stopbanks, and places — and hides any of them, so the map can be
-  cleared down to what is being read. The choice is remembered between visits, and it is the
-  home map's own: a spot being drawn still appears while it is being drawn, and an asset's
-  page still draws that asset.
+- **Layers you can switch off**: the layers button on the map lists one switch per kind of thing it
+  draws — tracks, roads, fencelines and stopbanks, buildings, signs, bench seats, picnic tables and
+  other places — and hides any of them on its own, so a block with forty troughs on it can be cleared
+  down to the two sheds that are the reason for looking. The choice is remembered between visits, and
+  it is the home map's own: a spot being drawn still appears while it is being drawn, and an asset's
+  page still draws that asset. A preference stored by a build from before the switches were split
+  reads *places* back as all five place kinds, because that is what it meant.
 - **Backup and restore**: one JSON file holding the whole season — assets and their
   lines, every spray with its amounts, the groups and the product catalogue, the
   amounts each asset remembers, and every GPS recording. A restore replaces, and says
@@ -314,6 +318,15 @@ looks exactly as it did before the chips existed.
 The desk has the same idea beside its search box, as a **Type** list: *Anything*, then the phone's own
 eight, and the list shows what matches both the typed words and the type. The phone sends each asset's
 kind already read back, so the page holds no second copy of the old-word rule.
+
+**The map draws the kinds too.** A place is no longer one house whatever it is: every kind has its own
+marker — a building is a roof over walls, a sign a plate on a post, a bench seat two bars over straight
+legs, a picnic table one top on splayed legs, and an other place a dot in a ring — and each is drawn in
+the colour its traffic light shows, which is the same rule the lines follow. The picture beside a name
+in the list and the marker on the map are one drawing at two weights: a thin outline on paper, a fatter
+one with a white edge over imagery, so the two cannot drift apart. The desk draws the phone's own
+pictures rather than its own copy of them: the phone renders each marker at the size the browser asks
+for and the page fetches it by name.
 
 ## Blocks
 

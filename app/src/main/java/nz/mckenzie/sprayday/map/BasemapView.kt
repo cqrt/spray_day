@@ -394,36 +394,11 @@ internal fun MapLibreMap.loadSprayDayStyle(
         addLineLayer(style, AssetLayerIds.TRACKS, AssetKind.TRACK)
         addLineLayer(style, AssetLayerIds.ROADS, AssetKind.ROAD)
         addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.FENCELINE)
-        // A place is a house, not a short line: drawing a picnic table as a line would
-        // claim a shape the record does not have, and a house says what the thing is
-        // rather than only where it is - the same picture the asset's row carries.
-        addPlaceIconImages(style, density)
-        if (style.getLayer(AssetLayerIds.PLACES) == null) {
-            style.addLayer(
-                SymbolLayer(AssetLayerIds.PLACES, ASSETS_SOURCE)
-                    .withProperties(
-                        // The feature names the house it wants, so which colour a place is
-                        // drawn in is decided in Kotlin, where it is tested - and the
-                        // fallback means a place can never be drawn as nothing at all.
-                        PropertyFactory.iconImage(
-                            Expression.coalesce(
-                                Expression.get(AssetGeoJson.ICON_PROPERTY),
-                                Expression.literal(PlaceIcons.FALLBACK_IMAGE_NAME)
-                            )
-                        ),
-                        // The picture is already the size a place is drawn at on this device -
-                        // see [addPlaceIconImages] - because an image is drawn at its own
-                        // pixels: there is no icon-size here to keep in step with the screen.
-                        PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
-                        // Every place is drawn, wherever it is. A dot never hid from another
-                        // dot, and a spot that vanishes because a second one is near it reads
-                        // as a spot that has been deleted.
-                        PropertyFactory.iconAllowOverlap(Expression.literal(true)),
-                        PropertyFactory.iconIgnorePlacement(Expression.literal(true))
-                    )
-                    .withFilter(shapeIs(AssetShape.POINT))
-            )
-        }
+        // A place is a marker, not a short line: drawing a picnic table as a line would claim a
+        // shape the record does not have, and a marker says what the thing is rather than only
+        // where it is - the same glyph the asset's own row carries.
+        addPlaceMarkerImages(style, density)
+        PlaceIcons.KINDS.forEach { kind -> addPlaceLayer(style, kind) }
 
         // Where the phone is. Added after the assets so it draws over them: the work is what
         // the map is for, and where you are standing is read on top of it rather than under it.
@@ -485,36 +460,80 @@ private fun applyLayerVisibility(style: Style, hidden: Set<AssetLayer>) {
 }
 
 /**
- * Hands the style the houses a place is drawn with: one per colour a traffic light can be.
+ * Hands the style the markers a place is drawn with: one per kind of place, per colour a traffic
+ * light can be.
  *
- * Drawn rather than shipped as a sprite, for the same reason the asset list's glyphs are:
- * four small pictures that only mean anything as a set are easier to keep honest in one
- * place than across a sprite sheet and the pixel ratios that come with it.
- *
- * Each is rendered at the device's own density - one image pixel per screen pixel - which is
- * what draws a place at [PlaceIcons.HOUSE_DP] on whatever screen it lands on, and keeps the
- * roof and the white edge sharp while it does it. There is no size in the style to get wrong
- * and nothing for the map to scale.
+ * Rendered from the same drawing the asset list's glyphs come from - see [MarkerIcons] - rather than
+ * painted again here, so a bench seat is a bench seat in both places. Each is rendered at the
+ * device's own density, which is what draws a place at [PlaceIcons.MARKER_DP] on whatever screen it
+ * lands on, and keeps the legs, the posts and the white edge sharp while it does it. There is no size
+ * in the style to get wrong and nothing for the map to scale.
  */
-private fun addPlaceIconImages(style: Style, density: Float) {
-    val sizePx = (PlaceIcons.HOUSE_DP * density).roundToInt()
+private fun addPlaceMarkerImages(style: Style, density: Float) {
+    val sizePx = (PlaceIcons.MARKER_DP * density).roundToInt()
     if (sizePx <= 0) return
 
-    val missing = HashMap<String, Bitmap>(PlaceIcons.COLORS.size)
-    PlaceIcons.COLORS.forEach { colorHex ->
-        val name = PlaceIcons.houseImageName(colorHex)
-        // An image belongs to the style it was added to, and a style can be loaded again -
-        // the same basemap with a key that has just been entered, say. Adding one twice is
-        // not wrong so much as unnecessary work on the main thread.
-        if (style.getImage(name) == null) {
-            missing[name] = HouseMarker.bitmap(
-                colorHex = colorHex,
-                sizePx = sizePx,
-                outlinePx = PlaceIcons.HOUSE_OUTLINE_DP * density
-            )
+    val missing = HashMap<String, Bitmap>(PlaceIcons.IMAGE_NAMES.size)
+    PlaceIcons.KINDS.forEach { kind ->
+        PlaceIcons.COLORS.forEach { colorHex ->
+            val name = PlaceIcons.imageName(kind, colorHex)
+            // An image belongs to the style it was added to, and a style can be loaded again -
+            // the same basemap with a key that has just been entered, say. Adding one twice is
+            // not wrong so much as unnecessary work on the main thread.
+            if (style.getImage(name) == null) {
+                missing[name] = MarkerIcons.bitmap(
+                    kind = kind,
+                    colorHex = colorHex,
+                    sizePx = sizePx,
+                    outlinePx = PlaceIcons.MARKER_OUTLINE_DP * density
+                )
+            }
         }
     }
     if (missing.isNotEmpty()) style.addImages(missing)
+}
+
+/**
+ * Adds the marker layer for one kind of place, if it is not already there.
+ *
+ * **One layer per kind, each filtering to its own**, which is what lets a kind be hidden on its own:
+ * one layer for every place could only be shown or hidden whole. Which picture a place wears is still
+ * the feature's own business - see [AssetGeoJson.ICON_PROPERTY] - because two places of the same kind
+ * differ in colour, and that colour is when each is next due.
+ */
+private fun addPlaceLayer(style: Style, kind: AssetKind) {
+    val id = AssetLayerIds.pointOf(kind)
+    if (style.getLayer(id) != null) return
+
+    style.addLayer(
+        SymbolLayer(id, ASSETS_SOURCE)
+            .withProperties(
+                // The feature names the marker it wants, so which colour a place is drawn in is
+                // decided in Kotlin, where it is tested - and the fallback means a place can never
+                // be drawn as nothing at all.
+                PropertyFactory.iconImage(
+                    Expression.coalesce(
+                        Expression.get(AssetGeoJson.ICON_PROPERTY),
+                        Expression.literal(PlaceIcons.FALLBACK_IMAGE_NAME)
+                    )
+                ),
+                // The picture is already the size a place is drawn at on this device - see
+                // [addPlaceMarkerImages] - because an image is drawn at its own pixels: there is no
+                // icon-size here to keep in step with the screen.
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
+                // Every place is drawn, wherever it is. A dot never hid from another dot, and a spot
+                // that vanishes because a second one is near it reads as a spot that has been
+                // deleted.
+                PropertyFactory.iconAllowOverlap(Expression.literal(true)),
+                PropertyFactory.iconIgnorePlacement(Expression.literal(true))
+            )
+            .withFilter(
+                Expression.all(
+                    Expression.eq(Expression.get("kind"), Expression.literal(kind.name)),
+                    shapeIs(AssetShape.POINT)
+                )
+            )
+    )
 }
 
 /**

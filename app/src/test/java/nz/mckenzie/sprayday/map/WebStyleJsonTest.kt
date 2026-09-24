@@ -5,6 +5,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -13,10 +15,10 @@ import org.junit.Test
 /**
  * What the page is told to draw.
  *
- * These are the claims that decide whether the desk and the phone show the same farm: the same four
- * layer ids, the same dash patterns, the same pictures, and the tiles coming from the phone rather
- * than from LINZ with a key in them. Every one of them is a copy of a decision made elsewhere, so
- * every one of them is a chance to drift - which is what this file is for.
+ * These are the claims that decide whether the desk and the phone show the same farm: the same layer
+ * ids, the same dash patterns, the same pictures, and the tiles coming from the phone rather than
+ * from LINZ with a key in them. Every one of them is a copy of a decision made elsewhere, so every
+ * one of them is a chance to drift - which is what this file is for.
  */
 class WebStyleJsonTest {
 
@@ -35,14 +37,9 @@ class WebStyleJsonTest {
     private fun paint(id: String): JsonObject = layer(id)["paint"]!!.jsonObject
 
     @Test
-    fun `the work is drawn in the app's own four layers, in the app's own order`() {
+    fun `the work is drawn in the app's own layers, in the app's own order`() {
         assertEquals(
-            listOf("background", Basemap.LINZ_AERIAL.id) + listOf(
-                AssetLayerIds.TRACKS,
-                AssetLayerIds.ROADS,
-                AssetLayerIds.FENCELINES,
-                AssetLayerIds.PLACES
-            ),
+            listOf("background", Basemap.LINZ_AERIAL.id) + AssetLayerIds.ALL,
             layerIds()
         )
     }
@@ -127,10 +124,13 @@ class WebStyleJsonTest {
     }
 
     @Test
-    fun `a place asks for the house the feature names, and falls back to the grey one`() {
-        val places = layer(AssetLayerIds.PLACES)
+    fun `a place asks for the marker the feature names, and falls back to the grey ring`() {
+        val places = layer(AssetLayerIds.pointOf(AssetKind.OTHER_PLACE))
 
-        assertEquals("""["==",["get","shape"],"POINT"]""", places["filter"].toString())
+        assertEquals(
+            """["all",["==",["get","kind"],"OTHER_PLACE"],["==",["get","shape"],"POINT"]]""",
+            places["filter"].toString()
+        )
         assertEquals(
             """["coalesce",["get","icon"],"${PlaceIcons.FALLBACK_IMAGE_NAME}"]""",
             places["layout"]!!.jsonObject["icon-image"].toString()
@@ -138,10 +138,28 @@ class WebStyleJsonTest {
     }
 
     @Test
-    fun `the page is told which pictures to draw, by the names the style asks for`() {
+    fun `every kind of place has a marker layer of its own, filtered to that kind`() {
+        PlaceIcons.KINDS.forEach { kind ->
+            val filter = layer(AssetLayerIds.pointOf(kind))["filter"].toString()
+
+            assertTrue(
+                "a ${kind.name} with no layer of its own could not be hidden on its own: $filter",
+                filter.contains("\"${kind.name}\"")
+            )
+        }
+    }
+
+    @Test
+    fun `the page is told which pictures to fetch, and how big to draw them`() {
         assertEquals(
             PlaceIcons.IMAGE_NAMES,
             style["placeIcons"]!!.jsonArray.map { it.jsonPrimitive.content }
+        )
+        assertEquals(
+            "the size the markers are drawn at, which is the phone's own marker size",
+            PlaceIcons.MARKER_DP,
+            style["markerDp"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
         )
     }
 
@@ -171,12 +189,7 @@ class WebStyleJsonTest {
             source["attribution"]!!.jsonPrimitive.content
         )
         assertEquals(
-            listOf("background", Basemap.OPENSTREETMAP.id) + listOf(
-                AssetLayerIds.TRACKS,
-                AssetLayerIds.ROADS,
-                AssetLayerIds.FENCELINES,
-                AssetLayerIds.PLACES
-            ),
+            listOf("background", Basemap.OPENSTREETMAP.id) + AssetLayerIds.ALL,
             osm["layers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
         )
     }

@@ -86,11 +86,11 @@ class MapLayersTest {
         val one = withTimeout(5_000) { viewModel.hiddenLayers.first { it.isNotEmpty() } }
         assertEquals(setOf(AssetLayer.ROADS), one)
 
-        viewModel.setLayerHidden(AssetLayer.PLACES, hidden = true)
+        viewModel.setLayerHidden(AssetLayer.OTHER_PLACES, hidden = true)
         val two = withTimeout(5_000) { viewModel.hiddenLayers.first { it.size == 2 } }
-        assertEquals(setOf(AssetLayer.ROADS, AssetLayer.PLACES), two)
+        assertEquals(setOf(AssetLayer.ROADS, AssetLayer.OTHER_PLACES), two)
 
-        viewModel.setLayerHidden(AssetLayer.PLACES, hidden = false)
+        viewModel.setLayerHidden(AssetLayer.OTHER_PLACES, hidden = false)
         val back = withTimeout(5_000) { viewModel.hiddenLayers.first { it.size == 1 } }
         assertEquals("showing one layer again is not a way to show the rest", setOf(AssetLayer.ROADS), back)
     }

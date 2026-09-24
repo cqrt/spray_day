@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -39,14 +40,21 @@ class AssetLayerIdsTest {
     }
 
     @Test
-    fun `a place is not a line, and is not drawn by a line's layer`() {
+    fun `every kind of place has its own marker layer, and no line kind shares one`() {
+        val placeIds = PlaceIcons.KINDS.map { AssetLayerIds.pointOf(it) }
         val lineIds = AssetLayer.ALL
-            .filter { it != AssetLayer.PLACES }
+            .filter { it.kind.shape == AssetShape.LINE }
             .map { AssetLayerIds.of(it) }
 
-        assertFalse(
-            "hiding places must not take a line with it",
-            lineIds.contains(AssetLayerIds.PLACES)
+        assertEquals("one layer per place kind", 5, placeIds.size)
+        assertTrue(
+            "a place kind hidden must not take a line with it: $lineIds",
+            lineIds.none { it in placeIds }
+        )
+        assertEquals(
+            "and those five are what the place kinds' own switches hide",
+            placeIds,
+            AssetLayer.ALL.filter { it.kind.shape == AssetShape.POINT }.map { AssetLayerIds.of(it) }
         )
     }
 
@@ -55,6 +63,7 @@ class AssetLayerIdsTest {
         assertEquals("sprayday-assets-line-track", AssetLayerIds.of(AssetLayer.TRACKS))
         assertEquals("sprayday-assets-line-road", AssetLayerIds.of(AssetLayer.ROADS))
         assertEquals("sprayday-assets-line-infrastructure", AssetLayerIds.of(AssetLayer.FENCELINES))
-        assertEquals("sprayday-assets-point", AssetLayerIds.of(AssetLayer.PLACES))
+        assertEquals("sprayday-assets-point-building", AssetLayerIds.of(AssetLayer.BUILDINGS))
+        assertEquals("sprayday-assets-point-other-place", AssetLayerIds.of(AssetLayer.OTHER_PLACES))
     }
 }

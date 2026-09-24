@@ -145,8 +145,11 @@ class AssetGeoJsonTest {
         val json = AssetGeoJson.build(listOf(place))
 
         assertTrue(
-            "a place never sprayed is drawn as the red house: $json",
-            json.contains("\"${AssetGeoJson.ICON_PROPERTY}\":\"${PlaceIcons.houseImageName(AssetColors.RED)}\"")
+            "a place never sprayed is drawn as the red ring: $json",
+            json.contains(
+                "\"${AssetGeoJson.ICON_PROPERTY}\":\"" +
+                    "${PlaceIcons.imageName(AssetKind.OTHER_PLACE, AssetColors.RED)}\""
+            )
         )
     }
 

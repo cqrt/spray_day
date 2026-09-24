@@ -48,6 +48,7 @@ import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.parseHexColor
 import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
@@ -358,8 +359,3 @@ internal fun AttributionStrip(basemap: Basemap, modifier: Modifier = Modifier) {
             .padding(horizontal = 8.dp, vertical = 4.dp)
     )
 }
-
-/** "#RRGGBB" to a Compose colour, used to keep map and UI colours identical. */
-internal fun parseHexColor(hex: String): Color = runCatching {
-    Color(hex.removePrefix("#").toLong(16) or 0xFF000000L)
-}.getOrDefault(Color.Gray)

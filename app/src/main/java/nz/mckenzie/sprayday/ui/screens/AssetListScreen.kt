@@ -45,6 +45,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
+import nz.mckenzie.sprayday.map.parseHexColor
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel

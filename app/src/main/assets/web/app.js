@@ -151,61 +151,35 @@ async function sendJson(path, method, body = null) {
 }
 
 /**
- * The houses a place is drawn as, painted here rather than shipped as pictures.
+ * A marker a place is drawn with: the phone's own picture, fetched rather than painted here.
  *
- * The phone says which pictures it needs - the style carries `placeIcons`, and a place asks for one
- * by name - and the page paints them, so the APK carries no copies of a marker the phone already
- * knows how to draw. The shape is the phone's own house: a roof to a ridge, two walls, and a white
- * edge half outside the walls, which is why the house is built inside the square rather than on its
- * edge.
+ * The phone says which pictures it needs - the style carries `placeIcons` and the size to draw them
+ * at - and it draws each one with the same code its own map and list use, at whatever size this
+ * screen needs: its own pixel ratio, so a 2:1 screen gets 44-pixel markers rather than stretched
+ * 22-pixel ones. This page used to paint its own house, which was a second drawing of a marker the
+ * phone already knows how to draw - and with five kinds of place it would have been five second
+ * drawings, drifting one glyph at a time.
+ *
+ * The picture is handed to the map with the pixel ratio it was asked for, so a marker is the same
+ * size on the screen whatever the screen's pixels are.
  */
-const HOUSE_PX = 22;
-const HOUSE_EAVE = 0.44;
+async function addPlaceIcon(map, name, markerDp) {
+  if (map.hasImage(name)) return;
 
-function houseImage(colour) {
   const ratio = Math.max(1, Math.round(window.devicePixelRatio || 1));
-  const size = HOUSE_PX * ratio;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  const px = Math.round((markerDp || 22) * ratio);
 
-  // The white edge, stroked fat and then filled over: a red house over dark winter imagery is
-  // otherwise a dark shape on dark ground, which is exactly when somebody is looking for it.
-  const edge = Math.max(2, Math.round(size * 0.09));
-  const left = edge;
-  const right = size - edge;
-  const top = edge;
-  const bottom = size - edge;
-  const eave = top + (bottom - top) * HOUSE_EAVE;
-
-  const path = () => {
-    ctx.beginPath();
-    ctx.moveTo((left + right) / 2, top);
-    ctx.lineTo(right, eave);
-    ctx.lineTo(right, bottom);
-    ctx.lineTo(left, bottom);
-    ctx.lineTo(left, eave);
-    ctx.closePath();
-  };
-
-  path();
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = edge * 2;
-  ctx.stroke();
-
-  path();
-  ctx.fillStyle = colour;
-  ctx.fill();
-
-  return { image: ctx.getImageData(0, 0, size, size), pixelRatio: ratio };
-}
-
-/** `#2e7d32` from the name the style asks for: the phone names a picture after its colour. */
-function colourOfPlaceIcon(name) {
-  const hex = name.replace('sprayday-place-', '');
-  return `#${hex}`;
+  // A picture the phone does not have - a refused request, a name it never drew - is left to the
+  // style's own fallback: the phone's drawing is the one to show, and guessing at it here is the
+  // second copy this function exists to avoid.
+  try {
+    const response = await fetch(withToken(`/api/markers/${name}.png?px=${px}`));
+    if (!response.ok) return;
+    map.addImage(name, await createImageBitmap(await response.blob()), { pixelRatio: ratio });
+  } catch {
+    // Off the network, or a map that is being rebuilt underneath this: the next frame that wants the
+    // picture asks for it again through the handler above.
+  }
 }
 
 
@@ -320,8 +294,7 @@ async function boot() {
     // both arrive here.
     map.on('styleimagemissing', (event) => {
       if (!event.id.startsWith('sprayday-place-')) return;
-      const { image, pixelRatio } = houseImage(colourOfPlaceIcon(event.id));
-      map.addImage(event.id, image, { pixelRatio });
+      addPlaceIcon(map, event.id, style.markerDp);
     });
 
     map.on('load', () => onStyleLoaded(style));
@@ -357,15 +330,12 @@ function featuresExcept(exceptId) {
 }
 
 function onStyleLoaded(style) {
-  // Which pictures exist is the phone's decision, in the style it built, so those are painted before
-  // the first frame asks for them. The handler above is the net under this: a colour the phone has
-  // never listed, or a frame that arrives first, still gets its house.
-  for (const name of style.placeIcons || []) {
-    if (!map.hasImage(name)) {
-      const { image, pixelRatio } = houseImage(colourOfPlaceIcon(name));
-      map.addImage(name, image, { pixelRatio });
-    }
-  }
+  // Which pictures exist is the phone's decision, in the style it built, so those are asked for
+  // before the first frame wants them. The handler above is the net under this: a picture the phone
+  // has not listed, or a frame that arrives first, is still fetched by name. Not waited on: the work
+  // is what this page is for, and a marker that lands a moment later is a marker added a moment
+  // later.
+  for (const name of style.placeIcons || []) addPlaceIcon(map, name, style.markerDp);
 
   // Where the work is drawn from, so a save can hand the map the phone's new features without asking
   // for the style again.

@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -22,6 +23,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import nz.mckenzie.sprayday.map.MarkerIcons
+import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.MainActivity
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.AssetRepository
@@ -165,6 +169,9 @@ class WebEditorService : Service() {
             data = documents,
             // The app's own tile route, from the app's own stores: one handler, one set of tiles.
             tileRoute = LocalTileServer.tileRoute(TileServerHolder.sources(this)),
+            // And the app's own marker drawing, rendered here because it is the one answer the desk
+            // gets that has to be drawn rather than written.
+            markers = ::renderMarker,
             requestedPort = WebEditorLink.DEFAULT_PORT
         )
 
@@ -185,6 +192,39 @@ class WebEditorService : Service() {
 
     private fun readPageFile(name: String): ByteArray? =
         runCatching { assets.open("$PAGE_DIR/$name").use { it.readBytes() } }.getOrNull()
+
+    /**
+     * One of the pictures a place is drawn with, at the size the browser asked for.
+     *
+     * The drawing is the app's own: [MarkerIcons] renders the same `DrawScope` glyph the asset list's
+     * icons and the map's markers come from, so the desk draws the phone's bench seat rather than a
+     * second drawing of one. The name is looked up rather than taken apart - see
+     * [PlaceIcons.ofImageName] - so a page asking for a picture gets one the phone would draw, and a
+     * page asking for anything else gets nothing.
+     *
+     * The white edge scales with the picture: a marker asked for at 44 pixels gets an edge twice the
+     * width of one asked for at 22, because it is the same marker drawn bigger rather than a smaller
+     * marker with a fat ring around it.
+     */
+    private fun renderMarker(name: String, px: Int): ByteArray? {
+        val (kind, colorHex) = PlaceIcons.ofImageName(name) ?: return null
+        val size = px.coerceAtLeast(1)
+
+        val bitmap = MarkerIcons.bitmap(
+            kind = kind,
+            colorHex = colorHex,
+            sizePx = size,
+            outlinePx = size * (PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP)
+        )
+        return try {
+            ByteArrayOutputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                out.toByteArray()
+            }
+        } finally {
+            bitmap.recycle()
+        }
+    }
 
     private fun goForeground() {
         ServiceCompat.startForeground(

@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.map.parseHexColor
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.viewmodel.BlockRow
 import nz.mckenzie.sprayday.viewmodel.BlocksViewModel

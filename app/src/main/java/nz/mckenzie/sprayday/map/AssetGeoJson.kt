@@ -208,7 +208,7 @@ object AssetGeoJson {
         // it, so a line has no picture to ask for and does not carry this property at all.
         if (line.shape == AssetShape.POINT) {
             builder.append(",\"").append(ICON_PROPERTY).append("\":\"")
-                .append(escape(PlaceIcons.houseImageName(stretch.colorHex))).append("\"")
+                .append(escape(PlaceIcons.imageName(line.kind, stretch.colorHex))).append("\"")
         }
         builder.append("},\"geometry\":{")
         if (line.shape == AssetShape.POINT) {

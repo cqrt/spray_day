@@ -35,11 +35,12 @@ object WebStyleJson {
     private const val BACKGROUND = "#0B1F13"
 
     /**
-     * The pictures the page must draw before it draws the work.
+     * The marker pictures the page must have before it draws the work.
      *
-     * The phone decides which pictures exist and what they are called; the page paints them, by the
-     * names the style's own features ask for. A canvas drawing of the house is a few lines of the
-     * page, where five bitmaps would be five bitmaps to keep in step with the marker.
+     * The phone decides which pictures exist, what they are called, and what they look like: it
+     * renders each one with the same code the app's own map and list use, and serves them at
+     * `/api/markers/<name>.png`. The page fetches the names in this list - see `app.js` - so a bench
+     * seat on the desk is the bench seat on the phone rather than a second drawing of one.
      */
     val placeIcons: List<String> = PlaceIcons.IMAGE_NAMES
 
@@ -60,6 +61,10 @@ object WebStyleJson {
         put("zoom", DEFAULT_CAMERA_ZOOM)
         // A root key MapLibre does not know is ignored by it and read by the page.
         put("placeIcons", buildJsonArray { placeIcons.forEach { add(it) } })
+        // How big the page should draw them, in its own pixels times its own pixel ratio: the phone
+        // draws a marker at the size it is told, so the page has to say. Without it the page would
+        // have to keep its own copy of a size the phone decides.
+        put("markerDp", PlaceIcons.MARKER_DP)
         put("sources", sources(basemap, tileUrlTemplate, assetsUrl))
         put("layers", layers(basemap))
     }.toString()
@@ -105,7 +110,7 @@ object WebStyleJson {
             }
         )
         lineLayers().forEach { add(it) }
-        add(placeLayer())
+        PlaceIcons.KINDS.forEach { kind -> add(placeLayer(kind)) }
     }
 
     /**
@@ -152,17 +157,19 @@ object WebStyleJson {
     }
 
     /**
-     * The places: a house each, named by the feature.
+     * The places: one marker layer per kind, named by the feature.
      *
-     * The feature says which house it wants, exactly as it does on the app's own map, and a colour
-     * nothing was drawn for gets the grey one - a place drawn in the wrong colour is a wrong answer
-     * and a place not drawn at all is a missing one, which is worse.
+     * One layer per kind so that a kind can be hidden on its own - the app's own map does the same,
+     * and the two must agree about which layer an operator's switch hides. The feature says which
+     * marker it wants, exactly as it does on the phone, and a kind or colour nothing was drawn for
+     * gets the grey ring: a place drawn in the wrong colour is a wrong answer and a place not drawn
+     * at all is a missing one, which is worse.
      */
-    private fun placeLayer(): JsonObject = buildJsonObject {
-        put("id", AssetLayerIds.PLACES)
+    private fun placeLayer(kind: AssetKind): JsonObject = buildJsonObject {
+        put("id", AssetLayerIds.pointOf(kind))
         put("type", "symbol")
         put("source", ASSETS_SOURCE)
-        put("filter", dataIs("shape", AssetShape.POINT.name))
+        put("filter", pointFilter(kind))
         put(
             "layout",
             buildJsonObject {
@@ -187,6 +194,12 @@ object WebStyleJson {
         add("all")
         add(dataIs("kind", kind.name))
         add(dataIs("shape", AssetShape.LINE.name))
+    }
+
+    private fun pointFilter(kind: AssetKind): JsonArray = buildJsonArray {
+        add("all")
+        add(dataIs("kind", kind.name))
+        add(dataIs("shape", AssetShape.POINT.name))
     }
 
     /** `["==", ["get", name], value]` - a test the map layer makes on every feature it draws. */

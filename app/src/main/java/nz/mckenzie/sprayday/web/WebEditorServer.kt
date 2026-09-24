@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.web
 
+import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.offline.HttpRequest
 import nz.mckenzie.sprayday.offline.HttpResponse
 import nz.mckenzie.sprayday.offline.HttpRoute
@@ -39,6 +40,15 @@ class WebEditorServer(
     /** This run's token, or null when this run does not ask for one - see the class comment. */
     private val token: String?,
     private val data: WebEditorData,
+    /**
+     * One of the pictures a place is drawn with: the name the style asked for, the size the browser
+     * asked for, and the bytes of the picture - or null for a name that is no picture.
+     *
+     * A function rather than something this class does, because the drawing is the one part of the
+     * desk's answer that has to be Android: it is rendered with the app's own glyph code where the
+     * service is started, and the routing here stays free of it.
+     */
+    private val markers: (String, Int) -> ByteArray? = { _, _ -> null },
     /** The tile route the app's own map uses, so the desk draws the phone's own tiles. */
     private val tileRoute: HttpRoute,
     /** The port to ask for; the next free ones are tried after it. */
@@ -144,6 +154,17 @@ class WebEditorServer(
             // left is a tile path.
             handler = { request -> tileRoute.handler(request.copy(target = request.path)) }
         ),
+        // The markers a place is drawn with: the phone's own pictures, rendered at whatever size the
+        // browser's screen needs. Before the page route, because a marker is not a file the editor
+        // ships - see [MARKERS_PATH_PREFIX] - and after the tiles, which are bigger and commoner.
+        HttpRoute(
+            claims = { it.method == GET && markerName(it.path) != null },
+            handler = { request ->
+                val name = markerName(request.path)
+                val bytes = name?.let { markers(it, pxFor(request.query)) }
+                if (bytes == null) HttpServer.NOT_FOUND else HttpResponse.bytes(200, PNG, bytes)
+            }
+        ),
         // Everything else is the page and the files it needs, or a plain 404 for a path that names
         // nothing the editor ships.
         HttpRoute(
@@ -210,6 +231,53 @@ class WebEditorServer(
         const val ASSETS_PATH = "/api/assets.geojson"
         const val STYLE_PATH = "/api/style"
 
+    /**
+     * Where the pictures a place is drawn with are served, e.g.
+     * `/api/markers/sprayday-place-sign-2e7d32.png`.
+     *
+     * The phone draws every marker it knows how to draw - see `map/MarkerIcons.kt` - and the page
+     * fetches the ones the style names. That way a bench seat on the desk is the bench seat on the
+     * phone, rather than a second drawing of one that can drift.
+     */
+    const val MARKERS_PATH_PREFIX = "/api/markers/"
+
+    /**
+     * How big the browser wants a marker, in its own pixels.
+     *
+     * A marker is a picture drawn at its own pixels rather than scaled by the style, so the size is
+     * the page's to ask for: a laptop with a 1:1 screen wants 22 pixels and one with a 2:1 screen
+     * wants 44, and both want it crisp.
+     */
+    const val PX_PARAM = "px"
+
+    /** Nothing smaller than a smudge or larger than a thumbnail, whatever a URL asks for. */
+    private const val MIN_MARKER_PX = 8
+    private const val MAX_MARKER_PX = 256
+
+    /**
+     * The picture name in a path like `/api/markers/sprayday-place-sign-2e7d32.png`, or null when the
+     * path is not one of those.
+     *
+     * Judged as strictly as an asset id is: a marker name is lowercase letters, digits and dashes, so
+     * a path with anything else in it - a `..`, a slash, a query somebody hoped would be ignored - is
+     * a path nothing serves rather than a name to be looked up and found wanting.
+     */
+    fun markerName(path: String): String? {
+        val tail = path.removePrefix(MARKERS_PATH_PREFIX)
+        if (tail == path) return null
+
+        val name = tail.removeSuffix(".png")
+        if (name == tail || name.isEmpty()) return null
+        if (!name.all { it.isLowerCase() || it.isDigit() || it == '-' }) return null
+        return name
+    }
+
+    /** The size the browser asked for, or the app's own marker size when it did not say. */
+    private fun pxFor(query: Map<String, String>): Int = query[PX_PARAM]
+        ?.toIntOrNull()
+        ?.coerceIn(MIN_MARKER_PX, MAX_MARKER_PX)
+        ?: PlaceIcons.MARKER_DP.toInt()
+
         /** Where a new asset is made: `/api/assets`, with no id on the end of it. */
         const val COLLECTION_PATH = "/api/assets"
 
@@ -265,6 +333,9 @@ class WebEditorServer(
         }
 
         private const val JSON = "application/json; charset=utf-8"
+
+    /** A marker is a drawing with edges rather than a photograph, so it travels as a PNG. */
+    private const val PNG = "image/png"
 
         /** 8799 and the two after it, before any free port will do. */
         private const val PORT_ATTEMPTS = 3

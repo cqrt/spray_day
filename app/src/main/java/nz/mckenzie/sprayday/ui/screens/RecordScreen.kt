@@ -59,6 +59,7 @@ import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.parseHexColor
 import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.formatDistance

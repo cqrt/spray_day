@@ -1,6 +1,9 @@
 package nz.mckenzie.sprayday.web
 
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
+import nz.mckenzie.sprayday.map.AssetColors
+import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.offline.HttpRequest
 import nz.mckenzie.sprayday.offline.HttpResponse
 import nz.mckenzie.sprayday.offline.HttpRoute
@@ -47,11 +50,16 @@ class WebEditorServerTest {
     private lateinit var server: WebEditorServer
     private var port: Int = 0
 
-    private fun start(requestedPort: Int = 0, withToken: Boolean = true) {
+    private fun start(
+        requestedPort: Int = 0,
+        withToken: Boolean = true,
+        markers: (String, Int) -> ByteArray? = { _, _ -> null }
+    ) {
         server = WebEditorServer(
             host = "127.0.0.1",
             token = if (withToken) token else null,
             data = data,
+            markers = markers,
             tileRoute = tiles.route,
             requestedPort = requestedPort
         )
@@ -329,6 +337,39 @@ class WebEditorServerTest {
     }
 
     @Test
+    fun `a marker is served at the size asked for, and a name that is no picture is a 404`() {
+        val asked = mutableListOf<Pair<String, Int>>()
+        start(markers = { name, px ->
+            asked += name to px
+            if (name.startsWith("sprayday-place-")) "the picture's own bytes".toByteArray() else null
+        })
+
+        val name = PlaceIcons.imageName(AssetKind.SIGN, AssetColors.RED)
+        val served = get("/api/markers/$name.png?px=44&k=$token", withToken = false)
+
+        assertEquals(200, served.code)
+        assertEquals("image/png", served.contentType)
+        assertEquals("the picture's own bytes", served.body)
+        assertEquals("asked for by name, at the size the browser wants", name to 44, asked.single())
+
+        // A name the phone draws nothing for is a path that names nothing, not an empty picture.
+        assertEquals(404, get("/api/markers/not-a-picture.png").code)
+        assertEquals("a marker is a .png or it is not served", 404, get("/api/markers/$name.jpg").code)
+    }
+
+    @Test
+    fun `a marker name is judged as strictly as an asset id`() {
+        assertNull(WebEditorServer.markerName("/api/markers/"))
+        assertNull("no .png on the end", WebEditorServer.markerName("/api/markers/sprayday-place-sign-2e7d32"))
+        assertNull("a name is never shouted", WebEditorServer.markerName("/api/markers/Sign.png"))
+        assertNull("nor underscored", WebEditorServer.markerName("/api/markers/a_b.png"))
+        assertEquals(
+            "sprayday-place-sign-2e7d32",
+            WebEditorServer.markerName("/api/markers/sprayday-place-sign-2e7d32.png")
+        )
+    }
+
+    @Test
     fun `the documents are built for the address the page was opened on`() {
         start()
 
@@ -364,10 +405,22 @@ class WebEditorServerTest {
 
     @Test
     fun `a port already in use is stepped over rather than refused`() {
-        val first = WebEditorServer("127.0.0.1", token, data, tiles.route, requestedPort = 0)
+        val first = WebEditorServer(
+            host = "127.0.0.1",
+            token = token,
+            data = data,
+            tileRoute = tiles.route,
+            requestedPort = 0
+        )
         val firstPort = first.start()
         try {
-            val second = WebEditorServer("127.0.0.1", token, data, tiles.route, requestedPort = firstPort)
+            val second = WebEditorServer(
+                host = "127.0.0.1",
+                token = token,
+                data = data,
+                tileRoute = tiles.route,
+                requestedPort = firstPort
+            )
             val secondPort = second.start()
             try {
                 assertEquals("the next port rather than the same one", firstPort + 1, secondPort)

@@ -79,7 +79,11 @@ object WebEditorJson {
             id = asset.id,
             name = asset.name,
             groupId = asset.groupId,
-            kind = asset.kind,
+            // The **resolved** kind rather than the stored word. A row drawn before the kinds existed
+            // is stored as INFRASTRUCTURE, and with the raw word the desk would have to keep its own
+            // copy of the rule that reads it back by its shape - which is the mistake v0.6.43 had to
+            // unpick in the page's wording. One reading, on the phone; the page compares names.
+            kind = AssetKind.fromStorage(asset.kind, AssetShape.fromStorage(asset.shape)).name,
             shape = asset.shape,
             method = asset.method,
             notes = asset.notes,

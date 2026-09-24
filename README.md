@@ -298,6 +298,23 @@ app reads that by the shape: a line of it is a fenceline, and a spot is a place 
 reads as *other place*. The row keeps the old word until somebody edits it, and the first edit of any
 field settles it onto one of the eight. The backup file and the database are unchanged by all of this.
 
+**Finding one kind of it.** The asset list carries a row of chips between *Draw* and the list: **All**
+first, then the eight kinds in the picker's own words. Tapping one shows only that kind — the rows
+*and* the counts on the blocks, so a block with none of it leaves the list — and tapping the chip
+already showing brings everything back, which is what *All* does too. A kind with nothing in it says
+so in one line rather than showing an empty list. Old rows come along: a fenceline stored as
+*infrastructure* is found under **Fenceline** when it is a line and under **Other place** when it is a
+spot, because the filter reads a row exactly the way the rows, the picker and the map do.
+
+It is deliberately **not remembered**, unlike the map's layer switches. Those are a way of working —
+an operator who hides the places wants them hidden tomorrow — while "where are my buildings?" is a
+question asked, answered and put down. Nothing stored also means a phone whose chips are never tapped
+looks exactly as it did before the chips existed.
+
+The desk has the same idea beside its search box, as a **Type** list: *Anything*, then the phone's own
+eight, and the list shows what matches both the typed words and the type. The phone sends each asset's
+kind already read back, so the page holds no second copy of the old-word rule.
+
 ## Blocks
 
 A **block** is the named collection of assets worked together: the estuary road, the lagoon and

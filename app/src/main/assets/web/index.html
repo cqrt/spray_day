@@ -34,6 +34,13 @@
       <input id="search" type="search" placeholder="Find an asset or block" autocomplete="off">
 
       <!--
+        The type, beside the words: which kind of asset is being looked for. Its options are the
+        phone's own, filled in once the phone has answered, so a kind the phone learns appears here
+        already named. "Anything" is first, and is what a page opened and left alone shows.
+      -->
+      <select id="type" aria-label="Type"></select>
+
+      <!--
         The words over the list's columns: the name, how it is sprayed, how many passes that takes, and
         when it is next due. Here rather than inside the list, because they belong to the list as a whole
         - they stay put while the work scrolls under them, and a screen reader is told what changed on

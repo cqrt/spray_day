@@ -66,6 +66,17 @@ const { kindText, methodText } = await import(
 );
 
 /**
+ * What the list is showing: the words typed into the box and the type picked beside it.
+ *
+ * Imported the same way. Small as it is, it is the page's own rule rather than the phone's, so it is
+ * testable - and the case worth testing is the two filters disagreeing, which a screenshot of a short
+ * list cannot show.
+ */
+const { visibleAssets } = await import(
+  TOKEN ? `./find.mjs?k=${encodeURIComponent(TOKEN)}` : './find.mjs'
+);
+
+/**
  * The browser's own store, or null when this browser will not hand one over.
  *
  * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
@@ -511,16 +522,47 @@ let featuresById = new Map();
  */
 function renderList() {
   document.getElementById('search').addEventListener('input', drawList);
+  fillTypeChoices();
+  document.getElementById('type').addEventListener('change', drawList);
   drawList();
+}
+
+/**
+ * The Type list: *Anything*, then the phone's own kinds in the phone's own words.
+ *
+ * Built from the state document rather than written here, for the reason this page reads every other
+ * word out of it: a kind the phone learns arrives already named. The value it carries is the phone's
+ * own name for the kind, which is what the rows hold now that the phone resolves a track drawn before
+ * the kinds existed (see `find.mjs`).
+ */
+function fillTypeChoices() {
+  const select = document.getElementById('type');
+  select.textContent = '';
+
+  const anything = document.createElement('option');
+  anything.value = '';
+  anything.textContent = 'Anything';
+  select.append(anything);
+
+  (state?.choices?.kinds ?? []).forEach((one) => {
+    const option = document.createElement('option');
+    option.value = one.value;
+    option.textContent = one.label;
+    select.append(option);
+  });
 }
 
 const OTHERS = 'On their own';
 
 function drawList() {
   const list = document.getElementById('list');
-  const needle = document.getElementById('search').value.trim().toLowerCase();
-  const shown = state.assets.filter(
-    (item) => !needle || item.asset.name.toLowerCase().includes(needle)
+  // What was typed, and which type is picked beside it; blank is *Anything*. The rule that turns the
+  // two into rows lives in `find.mjs`, where node can test it - including the case the screen cannot
+  // show: a name that matches a row of the wrong type.
+  const shown = visibleAssets(
+    state.assets,
+    document.getElementById('search').value,
+    document.getElementById('type').value || null
   );
 
   list.textContent = '';

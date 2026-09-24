@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.map.AssetColors
@@ -61,13 +64,16 @@ fun AssetListScreen(
     onOpenSettings: () -> Unit
 ) {
     val tracks by viewModel.assetsWithDue.collectAsStateWithLifecycle()
+    val shown by viewModel.shown.collectAsStateWithLifecycle()
+    val filter by viewModel.filter.collectAsStateWithLifecycle()
     val expanded by viewModel.expandedBlocks.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
 
     // Folded once per change rather than per frame: this is arithmetic over every asset and
-    // has no business running on each recomposition.
-    val rows = remember(tracks, expanded) { AssetListRows.build(tracks, expanded) }
+    // has no business running on each recomposition. The filter is part of the key, so a chip
+    // tapped folds the list again rather than the screen drawing rows the filter has left out.
+    val rows = remember(shown, expanded) { AssetListRows.build(shown, expanded) }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -116,6 +122,29 @@ fun AssetListScreen(
                 }
             }
 
+            // What the list is showing. One line that scrolls sideways rather than a block of
+            // chips: nine of them wrapped is three rows of screen before the first asset, and the
+            // rarer kinds are a swipe away. All leads, so the way back is always at the left - and
+            // tapping the chip already showing is the same way back, from wherever the operator is.
+            if (tracks.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item(key = "all") {
+                        ChoiceChip(
+                            selected = filter.kind == null,
+                            label = "All",
+                            onClick = { viewModel.showOnly(null) }
+                        )
+                    }
+                    items(AssetPhrase.kinds, key = { kind -> kind.name }) { kind ->
+                        ChoiceChip(
+                            selected = filter.kind == kind,
+                            label = AssetPhrase.kind(kind),
+                            onClick = { viewModel.showOnly(kind) }
+                        )
+                    }
+                }
+            }
+
             message?.let {
                 Text(text = it, style = MaterialTheme.typography.bodySmall)
             }
@@ -128,6 +157,14 @@ fun AssetListScreen(
                         "its own spray history.",
                     actionLabel = "Draw one",
                     onAction = onDrawAsset
+                )
+            } else if (shown.isEmpty()) {
+                // Nothing of the kind asked about is worth one line rather than an empty list: the
+                // chips are still above, so the way out is in sight, and the line says which of the
+                // two questions came up empty - the work, or the kind.
+                Text(
+                    text = "Nothing of that kind on the phone yet.",
+                    style = MaterialTheme.typography.bodyMedium
                 )
             } else {
                 // Rows rather than a card each: a list of assets is a list, and a card per

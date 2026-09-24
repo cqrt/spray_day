@@ -90,6 +90,31 @@ class WebEditorJsonTest {
     )
 
     @Test
+    fun `a track drawn before the kinds existed reaches the desk as what it is`() {
+        // Stored as INFRASTRUCTURE by every build before v0.6.40. The phone reads it back by its
+        // shape, here, once - so the page is handed a kind it can compare with the kinds in its own
+        // filter list, and holds no copy of the old-kind rule itself.
+        val oldLine = everyField.copy(kind = "INFRASTRUCTURE", shape = "LINE")
+        val oldSpot = everyField.copy(kind = "INFRASTRUCTURE", shape = "POINT")
+
+        assertEquals(
+            "a line is a fenceline or stopbank",
+            AssetKind.FENCELINE.name,
+            roundTrip(documentWith(oldLine)).assets.single().asset.kind
+        )
+        assertEquals(
+            "and a spot is some other place",
+            AssetKind.OTHER_PLACE.name,
+            roundTrip(documentWith(oldSpot)).assets.single().asset.kind
+        )
+        assertEquals(
+            "the shape it was stored with still travels, because the card draws a length from it",
+            "LINE",
+            roundTrip(documentWith(oldLine)).assets.single().asset.shape
+        )
+    }
+
+    @Test
     fun `every column of an asset survives the trip to the desk`() {
         val restored = roundTrip(documentWith(everyField)).assets.single().asset
 

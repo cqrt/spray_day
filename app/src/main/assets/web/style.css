@@ -89,6 +89,17 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   font: inherit;
 }
 
+/* The type, under the words and lined up with them: no top margin, because the search box above it
+   already carries one, and two would read as a gap between two unrelated things. */
+#type {
+  margin: 0 10px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  background: var(--paper);
+}
+
 /* Drawing a new track: the way in, above the list, where the work is. */
 #side-actions { padding: 10px 10px 0; }
 

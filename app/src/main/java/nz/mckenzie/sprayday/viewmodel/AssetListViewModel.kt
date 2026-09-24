@@ -11,12 +11,15 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetKindFilter
 
 /**
  * The asset library: every planned asset with its due status, folded into the blocks it is
@@ -29,6 +32,36 @@ class AssetListViewModel(
 
     val assetsWithDue: StateFlow<List<AssetWithDue>> = assetRepository.observeAssetsWithDue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * What the list is showing: everything, or the one kind the chips are asking about.
+     *
+     * Held here rather than in the screen so it survives the list being rebuilt and a turned phone,
+     * and not in a preference because it is a question being asked now rather than a way of working
+     * - see [AssetKindFilter]. Nothing is stored, so an install that never taps a chip is unchanged.
+     */
+    private val _filter = MutableStateFlow(AssetKindFilter.All)
+    val filter: StateFlow<AssetKindFilter> = _filter
+
+    /**
+     * The rows the list is built from: the whole work, or one kind of it.
+     *
+     * Filtered here rather than in the screen so the block tiles, the rows and the "nothing of that
+     * kind" line are all reading the same list - and so the rule can be tested without a screen.
+     */
+    val shown: StateFlow<List<AssetWithDue>> = combine(assetsWithDue, _filter) { all, filter ->
+        all.filter { item -> filter.keeps(item.asset.kind, item.asset.shape) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * Taps a kind chip, or the *All* chip when [kind] is null.
+     *
+     * Tapping the chip already showing goes back to everything: the chips are the only way into this
+     * and so one of them has to be the way out.
+     */
+    fun showOnly(kind: AssetKind?) {
+        _filter.update { showing -> AssetKindFilter.afterTapping(kind, showing) }
+    }
 
     /**
      * Which blocks are open, by name.

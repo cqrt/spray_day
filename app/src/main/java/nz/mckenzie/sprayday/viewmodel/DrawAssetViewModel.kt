@@ -87,17 +87,6 @@ class DrawAssetViewModel(
     private val _trackName = MutableStateFlow<String?>(null)
     val trackName: StateFlow<String?> = _trackName
 
-    init {
-        viewModelScope.launch {
-            val editing = editingAssetId
-            if (editing == null) {
-                _initialFrame.value = locationSource.frameOnDevice()
-            } else {
-                openForEditing(editing)
-            }
-        }
-    }
-
     /**
      * Opens a track that is already drawn: its geometry, what it is, and a frame around it.
      *
@@ -252,6 +241,26 @@ class DrawAssetViewModel(
 
     val canSave: StateFlow<Boolean> = combine(_paths, _shape) { paths, shape -> canSave(paths, shape) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
+
+    /**
+     * Opening on the phone, or on the track being changed - and **where this sits matters**.
+     *
+     * `viewModelScope` is `Dispatchers.Main.immediate`, and [openForEditing] writes half the fields in
+     * this class. Put this block above them and a coroutine that answers without a round trip can run
+     * before the constructor has finished - a null field and an NPE, which is what crashed the settings
+     * screen in CI (see `SettingsViewModel`, v0.6.41). Below them, there is no window: the assignments
+     * happen before the launch that can read them.
+     */
+    init {
+        viewModelScope.launch {
+            val editing = editingAssetId
+            if (editing == null) {
+                _initialFrame.value = locationSource.frameOnDevice()
+            } else {
+                openForEditing(editing)
+            }
+        }
+    }
 
     /**
      * What is being drawn, which decides how many taps it takes: a line needs two

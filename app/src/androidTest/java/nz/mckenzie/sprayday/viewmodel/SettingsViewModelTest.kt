@@ -3,10 +3,12 @@ package nz.mckenzie.sprayday.viewmodel
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.data.SettingsRepository
@@ -52,6 +54,9 @@ class SettingsViewModelTest {
     @After
     fun tearDown(): Unit = runBlocking {
         SettingsRepository(context).setLinzApiKey("")
+        // And the repository field goes back to blank, so a test that set one cannot leave the next
+        // one reading somebody else's destination.
+        SettingsRepository(context).setBackupRepo("")
         // And the token switch goes back to asking for one, which is the default an untouched install
         // has: a test that left it off would leave the next one reading somebody else's decision.
         SettingsRepository(context).setWebEditorTokenRequired(true)
@@ -116,6 +121,40 @@ class SettingsViewModelTest {
             "half-typed",
             viewModel.keyText.value
         )
+    }
+
+    /**
+     * The off-site fields are seeded from the same repository, and the seeding has to survive a read
+     * that answers **immediately**.
+     *
+     * Kotlin constructs a class top to bottom, and the seeding `init` block sits above the repository
+     * and token fields it writes. `viewModelScope` is `Dispatchers.Main.immediate`, so when the
+     * constructor runs off the main thread the seeding coroutine is *posted* to the main thread - and
+     * a stored flow that has already been read once in this process can answer without a round trip,
+     * so nothing stops that body running while the constructor is still working its way down to those
+     * fields. On a CI emulator that was an NPE on a `MutableStateFlow` from
+     * `SettingsViewModel$6.invokeSuspend`, and it took the whole instrumented run with it.
+     *
+     * Warming the reads and building the view model off the main thread is what makes the window
+     * open every time rather than once in a hundred runs: the reads answer at once, and the main
+     * thread is free to run the body while the constructor is still going.
+     */
+    @Test
+    fun theOffsiteFieldsAreSeededWhenTheStoredReadAnswersAtOnce(): Unit = runBlocking {
+        val settings = SettingsRepository(context)
+        settings.setBackupRepo("cqrt/spray-day-backups")
+        // Warm every read the constructor's own seeding makes.
+        settings.backupRepo.first()
+        settings.backupToken.first()
+        settings.storedLinzApiKey.first()
+
+        val viewModel = withContext(Dispatchers.Default) { SettingsViewModel(settings, store) }
+
+        awaitValue("the repository field should be seeded", "cqrt/spray-day-backups") {
+            viewModel.repoText.value
+        }
+
+        settings.setBackupRepo("")
     }
 
     @Test

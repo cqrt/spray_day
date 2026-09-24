@@ -303,23 +303,6 @@ class SettingsViewModel(
 
     val versionLabel: String = "version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
-    init {
-        viewModelScope.launch {
-            val stored = settings.storedLinzApiKey.first()
-            if (!typed) _keyText.value = stored
-            _storedTiles.value = TileStoreSummary(store.storedTileCount(), store.storedBytes())
-        }
-
-        // The off-site fields are seeded the same way, and for the same reason: pasting a
-        // token takes seconds on a slow device, and a late read would wipe half of one.
-        viewModelScope.launch {
-            val repo = settings.backupRepo.first()
-            val token = settings.backupToken.first()
-            if (!typedRepo) _repoText.value = repo
-            if (!typedToken) _tokenText.value = token
-        }
-    }
-
     fun setKeyText(text: String) {
         typed = true
         _keyText.value = text
@@ -532,6 +515,36 @@ class SettingsViewModel(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    /**
+     * Seeding the fields from what is stored, and **where this sits matters**.
+     *
+     * Kotlin initialises a class top to bottom, and `viewModelScope` is `Dispatchers.Main.immediate`:
+     * a seeding coroutine can run *before the constructor has finished* - on CI it did, and the write
+     * above landed on a null field: `SettingsViewModel$6.invokeSuspend` at line 318, an NPE on a
+     * `MutableStateFlow`, and the whole instrumented run behind it (v0.6.41). The window is as wide as
+     * whatever the constructor has left to do, so any construction off the main thread is a chance to
+     * fall through it.
+     *
+     * Below every field it touches, there is no window: the assignments happen before the launch that
+     * can read them. A field this block seeds belongs above it, not below.
+     */
+    init {
+        viewModelScope.launch {
+            val stored = settings.storedLinzApiKey.first()
+            if (!typed) _keyText.value = stored
+            _storedTiles.value = TileStoreSummary(store.storedTileCount(), store.storedBytes())
+        }
+
+        // The off-site fields are seeded the same way, and for the same reason: pasting a
+        // token takes seconds on a slow device, and a late read would wipe half of one.
+        viewModelScope.launch {
+            val repo = settings.backupRepo.first()
+            val token = settings.backupToken.first()
+            if (!typedRepo) _repoText.value = repo
+            if (!typedToken) _tokenText.value = token
+        }
+    }
 
     fun setRepoText(text: String) {
         typedRepo = true

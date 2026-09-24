@@ -163,9 +163,22 @@ async function sendJson(path, method, body = null) {
  * The picture is handed to the map with the pixel ratio it was asked for, so a marker is the same
  * size on the screen whatever the screen's pixels are.
  */
-async function addPlaceIcon(map, name, markerDp) {
-  if (map.hasImage(name)) return;
+/**
+ * The marker pictures being fetched right now, by name.
+ *
+ * Two things ask for the same picture within a frame of each other: the list of names this page
+ * fetches up front, and the map's own "I am missing this picture" event, which fires for a name the
+ * style asks for before the fetch has landed. Fetching twice is waste; adding the same image twice
+ * is an error MapLibre reports to the operator, so a name is remembered while its fetch is in
+ * flight and forgotten when it lands - which is also what lets a later frame ask again after the
+ * style has been rebuilt.
+ */
+const placeIconsInFlight = new Set();
 
+async function addPlaceIcon(map, name, markerDp) {
+  if (map.hasImage(name) || placeIconsInFlight.has(name)) return;
+
+  placeIconsInFlight.add(name);
   const ratio = Math.max(1, Math.round(window.devicePixelRatio || 1));
   const px = Math.round((markerDp || 22) * ratio);
 
@@ -179,6 +192,8 @@ async function addPlaceIcon(map, name, markerDp) {
   } catch {
     // Off the network, or a map that is being rebuilt underneath this: the next frame that wants the
     // picture asks for it again through the handler above.
+  } finally {
+    placeIconsInFlight.delete(name);
   }
 }
 

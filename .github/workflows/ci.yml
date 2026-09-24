@@ -37,12 +37,13 @@ jobs:
           LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lint
 
-      # The desk's own pure code, tested without a browser. `geometry.mjs`, `wire.mjs`, `glow.mjs` and
-      # `camera.mjs` are pure so that it can be: the undo stack behind Ctrl+Z, the tolerance a click has to
-      # be inside, the exact numbers a snapped vertex takes, which of the two drawing shapes a save carries,
-      # what the mark under a picked-out track is made of, and which remembered view may be believed - all
-      # arithmetic and rules, and node runs the very files the browser does. The glob is deliberate, so a new
-      # file of them is picked up by being written.
+      # The desk's own pure code, tested without a browser. `geometry.mjs`, `wire.mjs`, `glow.mjs`,
+      # `camera.mjs` and `words.mjs` are pure so that it can be: the undo stack behind Ctrl+Z, the tolerance
+      # a click has to be inside, the exact numbers a snapped vertex takes, which of the two drawing shapes a
+      # save carries, what the mark under a picked-out track is made of, which remembered view may be
+      # believed, and what the page calls a kind the phone has learned since - all arithmetic and rules, and
+      # node runs the very files the browser does. The glob is deliberate, so a new file of them is picked up
+      # by being written.
       - name: Unit test the desk's own code
         run: node --test app/src/test/js/*.test.mjs
 

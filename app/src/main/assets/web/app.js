@@ -55,6 +55,17 @@ const { cameraOf, openingCamera, recall, remember } = await import(
 );
 
 /**
+ * The page's words for the phone's codes: the phone's own labels, arrived in the state document.
+ *
+ * Imported the same way, and in a module for the same reason: what the card says an asset is has to be
+ * the phone's own word for it, and a word kept here as well as on the phone is a word that falls behind
+ * - which is what made a building read as "building, a place".
+ */
+const { kindText, methodText } = await import(
+  TOKEN ? `./words.mjs?k=${encodeURIComponent(TOKEN)}` : './words.mjs'
+);
+
+/**
  * The browser's own store, or null when this browser will not hand one over.
  *
  * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
@@ -186,26 +197,6 @@ function colourOfPlaceIcon(name) {
   return `#${hex}`;
 }
 
-
-/** Farm words for the phone's own names, so the desk says what the app says. */
-const KIND_TEXT = { TRACK: 'Track', ROAD: 'Road', INFRASTRUCTURE: 'Fenceline or stopbank' };
-
-function kindText(kind) {
-  return KIND_TEXT[kind] || kind.toLowerCase();
-}
-
-/**
- * The phone's own word for a spray method: "Not recorded", "Boom" or "Knapsack".
- *
- * Read out of the state document rather than kept here. This page used to hold its own three words,
- * which is a second copy of the phone's phrase table - one that said "Not set" where the phone says
- * "Not recorded", and one that would have gone on saying it when the phone learns a method this page
- * has never heard of. As a lookup, a method added on the phone arrives already named.
- */
-function methodText(method) {
-  const spoken = (state?.choices?.methods ?? []).find((one) => one.value === method);
-  return spoken ? spoken.label : method.toLowerCase().replace(/_/g, ' ');
-}
 
 function metresText(metres) {
   if (!metres) return 'not measured';
@@ -596,7 +587,7 @@ function listRow(item) {
 
   const method = document.createElement('span');
   method.className = 'method';
-  method.textContent = methodText(item.asset.method);
+  method.textContent = methodText(item.asset.method, state?.choices?.methods);
 
   const passes = document.createElement('span');
   passes.className = 'passes';
@@ -663,16 +654,17 @@ function showCard(item) {
     facts.append(dt, dd);
   };
 
-  fact('What it is', item.asset.shape === 'POINT'
-    ? `${kindText(item.asset.kind)}, a place`
-    : kindText(item.asset.kind));
+  // What it is, in one answer. The card used to add ", a place" for a spot, which is the *shape's* word
+  // and not the kind's - and since the kind decides the shape, that was one question answered twice:
+  // "Other place" read as "Other place, a place", and a building as "building, a place".
+  fact('What it is', kindText(item.asset.kind, state?.choices?.kinds));
   fact('Block', item.groupName || OTHERS);
   fact('Length', item.asset.shape === 'LINE' ? metresText(item.asset.lengthM) : null);
   fact('Spray every', `${item.asset.intervalDays} days`);
   fact('Next due', dateText(item.dueAtEpochMs));
   fact('Last sprayed', dateText(item.asset.lastSprayedAtEpochMs) || 'never');
   fact('Sprays recorded', item.sprayCount ? String(item.sprayCount) : null);
-  fact('Method', methodText(item.asset.method));
+  fact('Method', methodText(item.asset.method, state?.choices?.methods));
   fact('Swath', item.asset.swathWidthM ? `${item.asset.swathWidthM} m` : null);
   fact('Passes', item.asset.passesRequired > 1 ? String(item.asset.passesRequired) : null);
   fact('Notes', item.asset.notes);

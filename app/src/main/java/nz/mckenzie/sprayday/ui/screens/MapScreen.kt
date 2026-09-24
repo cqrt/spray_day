@@ -137,7 +137,7 @@ fun MapScreen(
                 // Tapping a track opens it: the map is where they are looking when they
                 // wonder about a block. The radius comes from the map's zoom, so the tap
                 // works at country scale as well as at spray height.
-                onMapClick = { lat, lng, radiusM -> viewModel.assetAt(lat, lng, radiusM)?.let(onOpenAsset) },
+                onMapClick = { lat, lng, radiusM, _ -> viewModel.assetAt(lat, lng, radiusM)?.let(onOpenAsset) },
                 modifier = Modifier.fillMaxSize()
             )
 

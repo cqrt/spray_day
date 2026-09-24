@@ -21,6 +21,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.haversineMeters
 import nz.mckenzie.sprayday.domain.geo.nearestPointOnPolyline
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
@@ -282,10 +283,22 @@ class DrawAssetViewModel(
         _message.value = null
     }
 
+    /**
+     * Adds a tap's point to what is being drawn.
+     *
+     * [tapRadiusM] is the map's fingertip, which answers *which* line the tap was about, and
+     * [onTheLineRadiusM] is a drawn line's own width at that zoom, which answers *where on it*. Two
+     * numbers because a tap here means one of two things, and the app has to be able to tell them
+     * apart: away from the line it carries the line on, and on the line it puts the point **on** it,
+     * where a side track may leave from.
+     *
+     * A spot moves to wherever it was last tapped; a line - or the side track being drawn - grows.
+     */
     fun addPoint(
         latitude: Double,
         longitude: Double,
-        tapRadiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M
+        tapRadiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M,
+        onTheLineRadiusM: Double = AssetHitTest.DEFAULT_ON_THE_LINE_TOLERANCE_M
     ) {
         val point = GeoPoint(lat = latitude, lng = longitude)
         // A spot moves to wherever it was last tapped; a line - or the side track being drawn - grows.
@@ -300,17 +313,30 @@ class DrawAssetViewModel(
         // A tap **on the track** says where a side track leaves it, rather than extending the line out to
         // wherever the finger landed. This is what makes a junction reachable in the middle of a track: the
         // point goes into the line there - a junction has to be a vertex of the line - and the next "Side
-        // track" hangs the spur off it. The tolerance is a fingertip's width at the zoom the operator is
-        // working at (the map's own answer, passed in), so a tap in the paddock still draws.
+        // track" hangs the spur off it. Both tolerances are the map's own answers for the zoom the
+        // operator is working at.
+        //
+        // Two things keep this from swallowing the taps that meant to carry the line on, which is what it
+        // did from v0.6.34 to v0.6.40 - a point counted, and nothing drawn:
+        //
+        //   * the tap has to be within **the drawn line's own width** of it, not a fingertip's. While
+        //     drawing, every tap is near the line; a fingertip of slack takes in the whole paddock beside
+        //     it, and a point put *on* the line is a point that moves nothing;
+        //   * a tap at the **end** of the line always carries it on. That is where drawing continues, and
+        //     a junction there would be the same point a side track leaves from anyway
+        //     ([startSideTrack] uses the end when nothing was picked), so nothing is lost by it.
         if (paths.isNotEmpty() && paths.first().size >= 2 && _drawing.value == 0) {
-            val onTheLine = nearestPointOnPolyline(point, paths.first())
-            if (onTheLine != null && onTheLine.distanceM <= tapRadiusM) {
+            val line = paths.first()
+            val end = line.last()
+            val atTheEnd = haversineMeters(point.lat, point.lng, end.lat, end.lng) <= tapRadiusM
+            val onTheLine = nearestPointOnPolyline(point, line)
+            if (!atTheEnd && onTheLine != null && onTheLine.distanceM <= onTheLineRadiusM) {
                 _paths.value = paths.mapIndexed { at, path ->
                     if (at != 0) path else path.toMutableList().apply { add(onTheLine.indexAfter, onTheLine.point) }
                 }
                 _junction.value = onTheLine.indexAfter
-                _message.value = "A side track will leave the track here. Press \"Side track\", " +
-                    "or keep tapping to carry the line on."
+                _message.value = "A side track will leave the track here. Press \"Side track\", or tap " +
+                    "clear of the line to carry the line on."
                 return
             }
         }

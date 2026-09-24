@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.tracking.LocationSource
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -291,8 +292,8 @@ class DrawAssetViewModelTest {
         assertEquals("a line of two points", 2, viewModel.paths.value[0].size)
 
         // A tap **on** the track, a few metres off it and halfway along: the point goes into the line there
-        // rather than out where the finger landed, because a junction has to be a vertex of the line.
-        viewModel.addPoint(-41.5102, 173.9700, tapRadiusM = 40.0)
+        // About 11 m off the line: on the drawn line, which is where a junction tap has to land.
+        viewModel.addPoint(-41.5101, 173.9700, tapRadiusM = 40.0)
 
         val line = viewModel.paths.value[0]
         assertEquals("the line gained the point, and nothing else", 3, line.size)
@@ -321,12 +322,56 @@ class DrawAssetViewModelTest {
         assertTrue("and no junction was picked", junctionBecomes(viewModel, false))
     }
 
+    /**
+     * The taps that the operator makes to carry a line on, made at the spacing a person taps them.
+     *
+     * Every one of these is a little past the end of the line, and nearer to it than a fingertip: from
+     * v0.6.34 to v0.6.40 that was read as a tap **on** the line, so the point went inside it - where
+     * nothing moves - and what the operator saw was a count going up and a line standing still. The
+     * points counted, and the line did not.
+     */
+    @Test
+    fun tapsJustPastTheEndCarryTheLineOn() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.addPoint(-41.5100, 173.9600)
+        viewModel.addPoint(-41.5100, 173.9700)
+
+        // About 21 m further east each time, which at any zoom a person draws at is well inside a
+        // fingertip's radius and further off the line than the line is wide.
+        (1..6).forEach { step ->
+            viewModel.addPoint(-41.5100, 173.9700 + step * 0.00025, tapRadiusM = 40.0)
+        }
+
+        assertEquals(
+            "every tap should have carried the line on",
+            2 + 6,
+            viewModel.paths.value.first().size
+        )
+        assertEquals("in one line, not with a side track hanging off it", 1, viewModel.paths.value.size)
+        assertTrue("and none of them is a junction", junctionBecomes(viewModel, false))
+
+        // The count is the same either way - a point put *on* the line is still a point - so what says
+        // the line grew is where its last vertex is, and how much longer it came out.
+        val line = viewModel.paths.value.first()
+        assertEquals(
+            "the last vertex is the last tap",
+            173.9700 + 6 * 0.00025,
+            line.last().lng,
+            1e-6
+        )
+        assertTrue(
+            "the line grew by the six taps: ${polylineLengthMeters(line)} m " +
+                "from ${polylineLengthMeters(line.take(2))} m",
+            polylineLengthMeters(line) > polylineLengthMeters(line.take(2)) + 100.0
+        )
+    }
+
     @Test
     fun anUndoAfterPickingAPointLeavesTheNextSideTrackAtTheEndOfTheTrack() = runBlocking {
         val viewModel = viewModel()
         viewModel.addPoint(-41.5100, 173.9600)
         viewModel.addPoint(-41.5100, 173.9800)
-        viewModel.addPoint(-41.5102, 173.9700, tapRadiusM = 40.0)
+        viewModel.addPoint(-41.5101, 173.9700, tapRadiusM = 40.0)
         assertTrue(junctionBecomes(viewModel, true))
 
         // The picked point is a vertex of the line, so an Undo takes it away - and a junction that is no

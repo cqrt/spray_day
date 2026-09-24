@@ -101,8 +101,8 @@ fun DrawAssetScreen(viewModel: DrawAssetViewModel, onBack: () -> Unit) {
                 assetGeoJson = geoJson,
                 // Drawing happens where the operator is standing, so that is the frame.
                 fitBounds = initialFrame,
-                onMapClick = { latitude, longitude, radiusM ->
-                    viewModel.addPoint(latitude, longitude, radiusM)
+                onMapClick = { latitude, longitude, radiusM, onTheLineRadiusM ->
+                    viewModel.addPoint(latitude, longitude, radiusM, onTheLineRadiusM)
                 },
                 modifier = Modifier.fillMaxSize()
             )

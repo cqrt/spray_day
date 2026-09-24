@@ -122,4 +122,32 @@ class AssetHitTestTest {
         // does not make tapping fussy.
         assertTrue(AssetHitTest.toleranceForZoom(22.0, -41.5) >= AssetHitTest.DEFAULT_TOLERANCE_M)
     }
+
+    @Test
+    fun `a tap on the line is measured in the line's own width, not in fingertips`() {
+        // The two tolerances answer two questions and must never swap: a fingertip says which line a
+        // tap was about, and the line's own width says where on it. The second is the narrower at every
+        // zoom - a floor under it is what let a tap at the end of a line be read as a tap on it.
+        listOf(6.0, 10.0, 12.0, 15.0, 16.0, 18.0, 22.0).forEach { zoom ->
+            assertTrue(
+                "at zoom $zoom, on the line should be the narrower of the two",
+                AssetHitTest.onTheLineToleranceForZoom(zoom, -41.5) <
+                    AssetHitTest.toleranceForZoom(zoom, -41.5)
+            )
+        }
+
+        // It is the line's own width, so it shrinks with the ground under it: one zoom step halves it.
+        assertEquals(
+            "one zoom step should halve it",
+            AssetHitTest.onTheLineToleranceForZoom(16.0, -41.5),
+            AssetHitTest.onTheLineToleranceForZoom(17.0, -41.5) * 2.0,
+            1e-9
+        )
+
+        // And at spray height it is metres - a line you can put a finger on - rather than tens.
+        assertTrue(
+            "at spray height: ${AssetHitTest.onTheLineToleranceForZoom(18.0, -41.5)} m",
+            AssetHitTest.onTheLineToleranceForZoom(18.0, -41.5) < 10.0
+        )
+    }
 }

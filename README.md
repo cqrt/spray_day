@@ -441,6 +441,11 @@ rest are side tracks in the order they were drawn, which is the order the databa
   track* hangs off it — which is how a side track is added to a track that already exists. The side
   track's first point is a point of the line itself - the same two numbers, not a copy, which is what
   makes it a join rather than two lines that happen to be near each other.
+  For that tap to mean "here, on the line" it has to be **on** the line: the app measures it against
+  the drawn line's own width, where choosing a track on the map is measured against a fingertip. A
+  tap further out than a line's width carries the line on instead, and a tap at the end of the line
+  always carries it on - otherwise every tap made while drawing, which is by nature near the line,
+  would be read as a tap on it, and the line would never grow.
 - **The length counts every path once.** A 222 m track with a 111 m spur is 333 m of ground if you
   drive it as two paths, not the 444 m walking the spur twice reads as - and that number is the
   handover figure and the coverage denominator.

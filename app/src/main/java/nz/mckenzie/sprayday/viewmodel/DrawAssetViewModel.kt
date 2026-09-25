@@ -24,6 +24,7 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.haversineMeters
 import nz.mckenzie.sprayday.domain.geo.nearestPointOnPolyline
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.FRAME_HALF_WIDTH_DEGREES
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
@@ -494,8 +495,11 @@ class DrawAssetViewModel(
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val DRAFT_ID = -1L
 
-        /** The same widening [nz.mckenzie.sprayday.tracking.frameOnDevice] uses, in degrees. */
-        private const val FRAME_PAD_DEGREES = 0.01
+        /**
+         * The widening [nz.mckenzie.sprayday.tracking.frameOnDevice] uses: the app's own frame,
+         * which is one number for all of it - see FRAME_HALF_WIDTH_DEGREES.
+         */
+        private const val FRAME_PAD_DEGREES = FRAME_HALF_WIDTH_DEGREES
 
         /**
          * [editingAssetId] opens an existing track to change it rather than a blank map to draw on.

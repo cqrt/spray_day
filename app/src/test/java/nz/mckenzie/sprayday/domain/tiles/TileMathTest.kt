@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.domain.tiles
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,5 +90,61 @@ class TileMathTest {
         assertThrows(IllegalArgumentException::class.java) {
             LatLngBounds(minLat = 10.0, minLng = 0.0, maxLat = -10.0, maxLng = 1.0)
         }
+    }
+
+    @Test
+    fun `a place with no size at all comes back as the app's frame around it`() {
+        val place = LatLngBounds(minLat = -41.5, minLng = 174.5, maxLat = -41.5, maxLng = 174.5)
+
+        val framed = place.withMinimumSpan()
+
+        assertEquals(
+            "a box with no size is what sends a camera to the deepest zoom it has",
+            FRAME_HALF_WIDTH_DEGREES * 2, framed.maxLat - framed.minLat, 1e-12
+        )
+        assertEquals(FRAME_HALF_WIDTH_DEGREES * 2, framed.maxLng - framed.minLng, 1e-12)
+        assertEquals("the place stays in the middle", -41.5, (framed.minLat + framed.maxLat) / 2.0, 1e-12)
+        assertEquals("the place stays in the middle", 174.5, (framed.minLng + framed.maxLng) / 2.0, 1e-12)
+    }
+
+    @Test
+    fun `a fenceline a few metres long is opened up the same way`() {
+        val fewMetres = LatLngBounds(
+            minLat = -41.5,
+            minLng = 174.5,
+            maxLat = -41.5 + 0.00008,
+            maxLng = 174.5 + 0.00006
+        )
+
+        val framed = fewMetres.withMinimumSpan()
+
+        assertEquals(FRAME_HALF_WIDTH_DEGREES * 2, framed.maxLat - framed.minLat, 1e-12)
+        assertEquals(FRAME_HALF_WIDTH_DEGREES * 2, framed.maxLng - framed.minLng, 1e-12)
+    }
+
+    @Test
+    fun `a box a camera can frame is left exactly as it was`() {
+        val work = LatLngBounds(minLat = -41.5, minLng = 174.5, maxLat = -41.4, maxLng = 174.6)
+
+        assertSame("nothing that framed properly before is reframed", work, work.withMinimumSpan())
+    }
+
+    @Test
+    fun `a line with no width but a real length is not widened`() {
+        // A camera frames this by the span it has, which is what makes it a frame; opening it up
+        // to the minimum would crop the line instead.
+        val fence = LatLngBounds(minLat = -41.53, minLng = 174.5, maxLat = -41.50, maxLng = 174.5)
+
+        assertSame(fence, fence.withMinimumSpan())
+    }
+
+    @Test
+    fun `the smallest frame is the caller's to say`() {
+        val place = LatLngBounds(minLat = -41.5, minLng = 174.5, maxLat = -41.5, maxLng = 174.5)
+
+        val wide = place.withMinimumSpan(minSpanDegrees = 0.5)
+
+        assertEquals(0.5, wide.maxLat - wide.minLat, 1e-12)
+        assertEquals(0.5, wide.maxLng - wide.minLng, 1e-12)
     }
 }

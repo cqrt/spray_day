@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.tracking
 
 import kotlinx.coroutines.withTimeoutOrNull
+import nz.mckenzie.sprayday.domain.tiles.FRAME_HALF_WIDTH_DEGREES
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
 /**
@@ -32,7 +33,7 @@ object LocationUnavailable {
  */
 suspend fun LocationSource.frameOnDevice(
     timeoutMs: Long = 5_000L,
-    halfWidthDegrees: Double = 0.01
+    halfWidthDegrees: Double = FRAME_HALF_WIDTH_DEGREES
 ): LatLngBounds? {
     val fix = withTimeoutOrNull(timeoutMs) {
         runCatching { currentLocation() }.getOrNull()

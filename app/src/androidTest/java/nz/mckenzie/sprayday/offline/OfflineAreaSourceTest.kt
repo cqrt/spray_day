@@ -12,7 +12,10 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.FRAME_HALF_WIDTH_DEGREES
 import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.viewmodel.AreaSource
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
@@ -154,5 +157,30 @@ class OfflineAreaSourceTest {
         assertEquals(168.30, bounds.minLng, 1e-9)
         assertEquals(-46.40, bounds.maxLat, 1e-9)
         assertEquals(168.40, bounds.maxLng, 1e-9)
+    }
+
+    /**
+     * A farm whose only asset is a place: one coordinate, so the box came back with no size and
+     * every map that opened on it - the map itself, this screen, the desk - was asked for a box
+     * a camera cannot fit. A frame is what comes back now, and the place is in the middle of it.
+     */
+    @Test
+    fun aFarmThatIsOnePlaceIsStillAFrame() = runBlocking {
+        assetRepository.createAsset(
+            name = "Trough",
+            geometry = listOf(GeoPoint(-46.40, 168.30)),
+            kind = AssetKind.OTHER_PLACE,
+            shape = AssetShape.POINT
+        )
+
+        val bounds = assetRepository.assetBounds()!!
+
+        assertEquals(
+            "a frame rather than a point",
+            FRAME_HALF_WIDTH_DEGREES * 2, bounds.maxLat - bounds.minLat, 1e-12
+        )
+        assertEquals(FRAME_HALF_WIDTH_DEGREES * 2, bounds.maxLng - bounds.minLng, 1e-12)
+        assertEquals("the place stays in the middle", -46.40, (bounds.minLat + bounds.maxLat) / 2.0, 1e-12)
+        assertEquals(168.30, (bounds.minLng + bounds.maxLng) / 2.0, 1e-12)
     }
 }

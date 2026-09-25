@@ -19,6 +19,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.FRAME_HALF_WIDTH_DEGREES
 import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
 import nz.mckenzie.sprayday.ui.AssetEdits
@@ -242,6 +243,40 @@ class AssetDetailViewModelTest {
 
         withTimeout(5_000) { viewModel.history.first { it.size == 1 } }
         assertEquals(DueStatus.OVERDUE, dueStatus())
+    }
+
+    /**
+     * A place is one coordinate, so the box around it has no width and no height, and a camera
+     * asked to fit that goes to the deepest zoom the map has: the page came up as the style's
+     * dark green background with the marker on it (the screenshots in `build/verify/bug1-*`).
+     * The asset's own page is framed instead, the same way the map frames the whole farm.
+     */
+    @Test
+    fun aPlaceIsFramedRatherThanPointedAt() = runBlocking {
+        val placeId = assetRepository.createAsset(
+            name = "Woolshed",
+            geometry = listOf(GeoPoint(-41.5, 173.8)),
+            kind = AssetKind.BUILDING,
+            shape = AssetShape.POINT
+        )
+        val viewModel = AssetDetailViewModel(
+            assetId = placeId,
+            assetRepository = assetRepository,
+            sprays = SprayRepository(db),
+            recordingsRepository = RecordingRepository(db),
+            settingsRepository = SettingsRepository(context),
+            context = context
+        )
+
+        val bounds = withTimeout(5_000) { viewModel.bounds.first { it != null } }!!
+
+        assertEquals(
+            "a box with no size is what sends a camera to the deepest zoom it has",
+            FRAME_HALF_WIDTH_DEGREES * 2, bounds.maxLat - bounds.minLat, 1e-12
+        )
+        assertEquals(FRAME_HALF_WIDTH_DEGREES * 2, bounds.maxLng - bounds.minLng, 1e-12)
+        assertEquals("the place stays in the middle", -41.5, (bounds.minLat + bounds.maxLat) / 2.0, 1e-12)
+        assertEquals(173.8, (bounds.minLng + bounds.maxLng) / 2.0, 1e-12)
     }
 
     private suspend fun track(): AssetEntity = assetRepository.getAsset(assetId)!!

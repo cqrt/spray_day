@@ -31,6 +31,7 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
+import nz.mckenzie.sprayday.domain.tiles.withMinimumSpan
 
 /** One spray in an asset's history, with the amounts that went out. */
 data class SprayHistoryEntry(
@@ -117,12 +118,15 @@ class AssetDetailViewModel(
             if (points.isEmpty()) {
                 null
             } else {
+                // A place is one coordinate, so the box has no size: the map's own smallest frame
+                // is what stops the camera being asked for something it cannot fit. See
+                // withMinimumSpan.
                 LatLngBounds(
                     minLat = points.minOf { it.lat },
                     minLng = points.minOf { it.lng },
                     maxLat = points.maxOf { it.lat },
                     maxLng = points.maxOf { it.lng }
-                )
+                ).withMinimumSpan()
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)

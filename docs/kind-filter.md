@@ -3,9 +3,10 @@
 A plan for the second of the five releases agreed after the kinds shipped (v0.6.40). Written before the
 work, kept while it was in progress.
 
-**Shipped in v0.6.44**, except the one thing left for release 5 (per-kind drawing and markers on the
-map). The decisions are in the README under *The kinds of asset*; the evidence is in
-`build/verify/kind-filter.txt`.
+**Shipped in v0.6.44**, and the one thing it left behind - per-kind drawing and markers on the map - went
+in after it instead of waiting its turn, as release 3 (v0.6.45, with how a marker is drawn settled over
+v0.6.46 to v0.6.48; see `map-by-kind.md`). The decisions are in the README under *The kinds of asset*;
+the evidence is in `build/verify/kind-filter.txt`.
 
 ## Why
 

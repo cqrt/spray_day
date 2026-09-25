@@ -61,20 +61,28 @@ internal data class GlyphStyle(
  * shape drawn to the very edge would have its edge cut off.
  */
 internal fun DrawScope.drawKindGlyph(kind: AssetKind, colorHex: String, style: GlyphStyle) {
-    if (style.haloFraction > 0f) {
-        drawKindShapes(
-            kind = kind,
-            color = parseHexColor(PlaceIcons.MARKER_OUTLINE),
-            // Never filled, even for a shape whose colour pass is: a wider stroke of the same path
-            // is what puts a rim around it, and filling it here would swallow the glyph.
-            style = style.copy(weight = style.weight + style.haloFraction * 2f, filledBoxes = false)
-        )
+    // The halo is a **rim**: every shape is grown by it, so the white edge is that wide and no wider.
+    // Growing the *stroke* instead - the same path drawn fatter - looks identical on a long thin
+    // shape and is wrong on a small fat one: a 20-pixel plate stroked 25 pixels wide has no hole left
+    // in the middle, so the sign's marker came out as a white block with a red bar in it.
+    val rim = size.minDimension * style.haloFraction
+    if (rim > 0f) {
+        drawKindShapes(kind, parseHexColor(PlaceIcons.MARKER_OUTLINE), style, grow = rim)
     }
-    drawKindShapes(kind, parseHexColor(colorHex), style)
+    drawKindShapes(kind, parseHexColor(colorHex), style, grow = 0f)
 }
 
-private fun DrawScope.drawKindShapes(kind: AssetKind, color: Color, style: GlyphStyle) {
+private fun DrawScope.drawKindShapes(
+    kind: AssetKind,
+    color: Color,
+    style: GlyphStyle,
+    /** How far outside itself every shape is drawn: the halo's rim, and nothing at all in colour. */
+    grow: Float
+) {
     val stroke = size.minDimension * style.weight
+    // What this pass actually draws with. Equal to [stroke] for the colour pass, that much plus the
+    // rim twice over for the halo, which is a rim half inside and half outside the shape it grows.
+    val drawnStroke = stroke + grow * 2f
     val width = size.width
     val height = size.height
     val x = { fraction: Float -> width * fraction }
@@ -85,18 +93,18 @@ private fun DrawScope.drawKindShapes(kind: AssetKind, color: Color, style: Glyph
             color = color,
             start = Offset(x(x1), y(y1)),
             end = Offset(x(x2), y(y2)),
-            strokeWidth = widthOf,
+            strokeWidth = widthOf + grow * 2f,
             cap = StrokeCap.Round
         )
     }
 
-    /** A box, filled or outlined according to the style. */
+    /** A box, filled or outlined according to the style - and larger all round by the rim. */
     fun box(left: Float, top: Float, boxWidth: Float, boxHeight: Float) {
         drawRect(
             color = color,
-            topLeft = Offset(x(left), y(top)),
-            size = Size(width * boxWidth, height * boxHeight),
-            style = if (style.filledBoxes) Fill else Stroke(width = stroke)
+            topLeft = Offset(x(left) - grow, y(top) - grow),
+            size = Size(width * boxWidth + grow * 2f, height * boxHeight + grow * 2f),
+            style = if (style.filledBoxes) Fill else Stroke(width = drawnStroke)
         )
     }
 
@@ -107,7 +115,7 @@ private fun DrawScope.drawKindShapes(kind: AssetKind, color: Color, style: Glyph
                 moveTo(x(0.14f), y(0.86f))
                 cubicTo(x(0.32f), y(0.30f), x(0.68f), y(0.70f), x(0.86f), y(0.14f))
             }
-            drawPath(path, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+            drawPath(path, color, style = Stroke(width = drawnStroke, cap = StrokeCap.Round))
         }
 
         // A road has two edges that go somewhere, so it is two straight lines.
@@ -132,7 +140,7 @@ private fun DrawScope.drawKindShapes(kind: AssetKind, color: Color, style: Glyph
                 lineTo(x(0.50f), y(0.12f))
                 lineTo(x(0.90f), y(0.46f))
             }
-            drawPath(roof, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+            drawPath(roof, color, style = Stroke(width = drawnStroke, cap = StrokeCap.Round))
             box(left = 0.26f, top = 0.50f, boxWidth = 0.48f, boxHeight = 0.38f)
         }
 
@@ -168,9 +176,10 @@ private fun DrawScope.drawKindShapes(kind: AssetKind, color: Color, style: Glyph
             drawCircle(
                 color = color,
                 radius = size.minDimension * 0.36f,
-                style = Stroke(width = stroke)
+                style = Stroke(width = drawnStroke)
             )
-            drawCircle(color = color, radius = size.minDimension * 0.10f)
+            // The dot is filled, so the rim around it is a bigger circle rather than a fatter line.
+            drawCircle(color = color, radius = size.minDimension * 0.10f + grow)
         }
     }
 }

@@ -154,6 +154,48 @@ class AssetGeoJsonTest {
     }
 
     @Test
+    fun `only the selected asset's marker wears the white edge`() {
+        val looking = placeAt(assetId = 7)
+        val beside = placeAt(assetId = 8)
+
+        val json = AssetGeoJson.build(listOf(looking, beside), selectedAssetId = 7)
+
+        assertTrue(
+            "the asset being looked at asks for the edged picture: $json",
+            json.contains(
+                "\"${AssetGeoJson.ICON_PROPERTY}\":" +
+                    "\"${PlaceIcons.selectedImageName(AssetKind.OTHER_PLACE, AssetColors.RED)}\""
+            )
+        )
+        assertTrue(
+            "and the one beside it does not: $json",
+            json.contains(
+                "\"${AssetGeoJson.ICON_PROPERTY}\":" +
+                    "\"${PlaceIcons.imageName(AssetKind.OTHER_PLACE, AssetColors.RED)}\""
+            )
+        )
+    }
+
+    @Test
+    fun `with nothing selected no marker wears an edge`() {
+        val json = AssetGeoJson.build(listOf(placeAt(assetId = 7), placeAt(assetId = 8)))
+
+        assertFalse(
+            "a map nobody has picked anything on is all plain markers: $json",
+            json.contains("-selected")
+        )
+    }
+
+    private fun placeAt(assetId: Long) = AssetLine(
+        assetId = assetId,
+        name = "Trough",
+        colorHex = AssetColors.RED,
+        points = listOf(GeoPoint(-41.2865, 174.7762)),
+        kind = AssetKind.OTHER_PLACE,
+        shape = AssetShape.POINT
+    )
+
+    @Test
     fun `a line is not given a picture, because its own layer draws it`() {
         val json = AssetGeoJson.build(listOf(line(), line(kind = AssetKind.FENCELINE)))
 

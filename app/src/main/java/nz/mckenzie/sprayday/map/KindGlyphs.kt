@@ -46,10 +46,13 @@ internal data class GlyphStyle(
         val LIST = GlyphStyle(weight = 0.13f)
 
         /**
-         * Over imagery: fatter, filled where a shape is a solid thing, and stroked white behind so
-         * it reads on dark ground.
+         * Over imagery: fatter, and filled where a shape is a solid thing.
+         *
+         * No white edge - see [PlaceIcons.selectedImageName] for the one that wears it. A map where
+         * every marker has an edge is a map where the edge says nothing, and every marker reads as a
+         * white shape with a colour inside it rather than as the colour itself.
          */
-        val MARKER = GlyphStyle(weight = 0.20f, haloFraction = 0.10f, filledBoxes = true)
+        val MARKER = GlyphStyle(weight = 0.20f, filledBoxes = true)
     }
 }
 

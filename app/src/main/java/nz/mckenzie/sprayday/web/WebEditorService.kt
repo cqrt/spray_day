@@ -202,19 +202,22 @@ class WebEditorService : Service() {
      * [PlaceIcons.ofImageName] - so a page asking for a picture gets one the phone would draw, and a
      * page asking for anything else gets nothing.
      *
-     * The white edge scales with the picture: a marker asked for at 44 pixels gets an edge twice the
-     * width of one asked for at 22, because it is the same marker drawn bigger rather than a smaller
-     * marker with a fat ring around it.
+     * The white edge is part of the picture's name rather than a decision made here: a plain marker is
+     * drawn with no edge at all, and the one the phone draws for the selected asset carries it - so a
+     * page asking for a name gets exactly the picture the phone's own map draws under that name. The
+     * edge scales with the picture: one asked for at 44 pixels gets an edge twice the width of one
+     * asked for at 22, because it is the same marker drawn bigger rather than a smaller marker with a
+     * fat ring around it.
      */
     private fun renderMarker(name: String, px: Int): ByteArray? {
-        val (kind, colorHex) = PlaceIcons.ofImageName(name) ?: return null
+        val (kind, colorHex, selected) = PlaceIcons.ofImageName(name) ?: return null
         val size = px.coerceAtLeast(1)
 
         val bitmap = MarkerIcons.bitmap(
             kind = kind,
             colorHex = colorHex,
             sizePx = size,
-            outlinePx = size * (PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP)
+            outlinePx = if (selected) size * (PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP) else 0f
         )
         return try {
             ByteArrayOutputStream().use { out ->

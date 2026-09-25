@@ -5,6 +5,8 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -96,6 +98,49 @@ class PlaceIconsTest {
         assertEquals(
             PlaceIcons.imageName(AssetKind.BUILDING, AssetColors.RED),
             PlaceIcons.imageName(AssetKind.BUILDING, AssetColors.RED.lowercase())
+        )
+    }
+
+    @Test
+    fun `the edged picture is named after the plain one, and is a different picture`() {
+        assertEquals(
+            "sprayday-place-sign-c62828-selected",
+            PlaceIcons.selectedImageName(AssetKind.SIGN, AssetColors.RED)
+        )
+        assertEquals("one per kind, per colour", 20, PlaceIcons.SELECTED_IMAGE_NAMES.size)
+
+        PlaceIcons.KINDS.forEach { kind ->
+            PlaceIcons.COLORS.forEach { colour ->
+                assertNotEquals(
+                    "an edged marker and a plain one are two pictures",
+                    PlaceIcons.imageName(kind, colour),
+                    PlaceIcons.selectedImageName(kind, colour)
+                )
+            }
+        }
+        assertFalse(
+            "and the list the page is handed is the plain one: the desk has no selected marker",
+            PlaceIcons.SELECTED_IMAGE_NAMES.any { it in PlaceIcons.IMAGE_NAMES }
+        )
+    }
+
+    @Test
+    fun `a name reads back as the picture it was made from, edged or not`() {
+        PlaceIcons.KINDS.forEach { kind ->
+            PlaceIcons.COLORS.forEach { colour ->
+                assertEquals(
+                    PlaceIcons.Marker(kind, colour, selected = false),
+                    PlaceIcons.ofImageName(PlaceIcons.imageName(kind, colour))
+                )
+                assertEquals(
+                    PlaceIcons.Marker(kind, colour, selected = true),
+                    PlaceIcons.ofImageName(PlaceIcons.selectedImageName(kind, colour))
+                )
+            }
+        }
+        assertNull(
+            "a name that is no picture reads back as nothing",
+            PlaceIcons.ofImageName("sprayday-place-nonsense-c62828")
         )
     }
 

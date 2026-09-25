@@ -114,6 +114,54 @@ class MarkerIconsTest {
         assertFalse("a ring's traffic light is not a decoration", green.sameAs(red))
     }
 
+    @Test
+    fun thePlainMarkerHasNoWhiteOnItAtAll() {
+        // The operator's rule, and the reason for it: a marker is the colour of the asset's traffic
+        // light drawn on imagery. A white edge around every one of them made each marker a white
+        // shape with a colour inside it, which is harder to read than the colour itself.
+        PlaceIcons.KINDS.forEach { kind ->
+            val bitmap = MarkerIcons.bitmap(kind, AssetColors.RED, sizePx = 64, outlinePx = 0f)
+
+            var white = 0
+            for (x in 0 until bitmap.width) {
+                for (y in 0 until bitmap.height) {
+                    if (bitmap.isWhiteAt(x, y)) white++
+                }
+            }
+
+            assertEquals(
+                "${kind.name} has $white white pixels on it, and a plain marker has none",
+                0,
+                white
+            )
+        }
+    }
+
+    @Test
+    fun onlyTheSelectedMarkerWearsTheWhiteEdge() {
+        val plain = MarkerIcons.bitmap(AssetKind.SIGN, AssetColors.RED, sizePx = 64, outlinePx = 0f)
+        val selected = MarkerIcons.bitmap(
+            AssetKind.SIGN,
+            AssetColors.RED,
+            sizePx = 64,
+            outlinePx = PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP * 64
+        )
+
+        assertFalse(
+            "the edge is the difference between the asset being looked at and the rest",
+            plain.sameAs(selected)
+        )
+        assertEquals(
+            "and the edged one is the only one with white on it",
+            0,
+            (0 until plain.width).sumOf { x -> (0 until plain.height).count { y -> plain.isWhiteAt(x, y) } }
+        )
+        assertTrue(
+            "while the edged one has a rim of it",
+            (0 until selected.width).sumOf { x -> (0 until selected.height).count { y -> selected.isWhiteAt(x, y) } } > 0
+        )
+    }
+
     private fun Bitmap.isWhiteAt(x: Int, y: Int): Boolean {
         val pixel = getPixel(x, y)
         return Color.alpha(pixel) > 0 &&

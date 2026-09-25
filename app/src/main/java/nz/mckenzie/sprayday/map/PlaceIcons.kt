@@ -65,8 +65,19 @@ object PlaceIcons {
         AssetColors.UNKNOWN
     )
 
-    /** Every image a place can ask for: one per kind, for each colour. */
+    /** Every image a place can ask for: one per kind, for each colour, with no white edge on it. */
     val IMAGE_NAMES: List<String> = KINDS.flatMap { kind -> COLORS.map { nameOf(kind, it) } }
+
+    /**
+     * The same pictures wearing the white edge, for the one asset the operator is looking at.
+     *
+     * Named after the plain picture rather than beside it - the plain name with a suffix - so the two
+     * cannot describe different things: a picture that was drawn for a kind in a colour is the picture
+     * that kind in that colour asks for, edged or not.
+     */
+    val SELECTED_IMAGE_NAMES: List<String> = KINDS.flatMap { kind ->
+        COLORS.map { selectedNameOf(kind, it) }
+    }
 
     /** The grey ring: what a kind or a colour nothing was drawn for falls back to. */
     val FALLBACK_IMAGE_NAME: String = nameOf(AssetKind.OTHER_PLACE, AssetColors.UNKNOWN)
@@ -86,21 +97,39 @@ object PlaceIcons {
     }
 
     /**
-     * The kind and the colour an image name was made from, or null when it names no picture.
+     * The same picture with the white edge on it, for the one asset that is selected.
+     *
+     * One asset at a time is the point. A map where every marker carries an edge is a map where the
+     * edge says nothing, and a white edge around every marker makes each one a white shape with a
+     * colour inside it rather than the colour itself - so the edge belongs to the asset being looked
+     * at, and only to that one.
+     */
+    fun selectedImageName(kind: AssetKind, colorHex: String): String =
+        imageName(kind, colorHex) + SELECTED_SUFFIX
+
+    /**
+     * The kind and the colour an image name was made from, and whether it wears the white edge, or
+     * null when it names no picture.
      *
      * Searched rather than un-picked from the name: [imageName] is the rule, and a second rule for
      * reading a name back would be a second place for the two to disagree - which is the mistake this
      * file exists to avoid. The desk asks for a picture by the name it was given, and the phone has to
-     * know which kind and colour that name means.
+     * know which kind and colour that name means, and whether to draw the edge.
      */
-    fun ofImageName(name: String): Pair<AssetKind, String>? {
+    fun ofImageName(name: String): Marker? {
+        val selected = name.endsWith(SELECTED_SUFFIX)
+        val plain = if (selected) name.removeSuffix(SELECTED_SUFFIX) else name
+
         KINDS.forEach { kind ->
             COLORS.forEach { colorHex ->
-                if (imageName(kind, colorHex) == name) return kind to colorHex
+                if (imageName(kind, colorHex) == plain) return Marker(kind, colorHex, selected)
             }
         }
         return null
     }
+
+    /** One of the pictures a place is drawn with: which kind, which colour, and whether it is edged. */
+    data class Marker(val kind: AssetKind, val colorHex: String, val selected: Boolean)
 
     /**
      * The image name for a kind and a colour, whether or not one was drawn for it.
@@ -113,5 +142,15 @@ object PlaceIcons {
         IMAGE_PREFIX + kind.name.lowercase().replace('_', '-') +
             "-" + colorHex.removePrefix("#").lowercase()
 
+    /** The same picture with the white edge on it - the one asset being looked at wears this. */
+    private fun selectedNameOf(kind: AssetKind, colorHex: String): String =
+        nameOf(kind, colorHex) + SELECTED_SUFFIX
+
     private const val IMAGE_PREFIX = "sprayday-place-"
+
+    /**
+     * What marks the edged picture. A word rather than a letter or a dash, because it is also the
+     * answer to "why is this one edged": it is the one that has been selected.
+     */
+    private const val SELECTED_SUFFIX = "-selected"
 }

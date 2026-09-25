@@ -22,8 +22,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MarkerIconsTest {
 
+    /**
+     * The edge these tests draw: well over the width the map uses, and stated once.
+     *
+     * The tests about shape, colour and drawing-on-nothing want an edge big enough to see, and the rim
+     * test wants a width at which a block would show if the drawing ever went back to one. The width
+     * the app actually draws is pinned by [everyMarkerWearsAThinWhiteEdge], and that is the one that
+     * comes from [PlaceIcons.MARKER_OUTLINE_DP].
+     */
+    private val drawnEdgePx = 6f
+
     private fun marker(kind: AssetKind, colorHex: String = AssetColors.GREEN) =
-        MarkerIcons.bitmap(kind, colorHex, sizePx = 64, outlinePx = 6f)
+        MarkerIcons.bitmap(kind, colorHex, sizePx = 64, outlinePx = drawnEdgePx)
 
     @Test
     fun everyKindOfPlaceIsDrawnAsSomething() {
@@ -76,15 +86,13 @@ class MarkerIconsTest {
 
     @Test
     fun theWhiteEdgeIsARimAndNotABlock() {
-        // The white edge is as wide as the marker's own outline says and no wider, which means every
-        // white pixel has a coloured pixel within that distance of it. A white *block* - the same
-        // path drawn fatter - has white pixels with the nearest colour further away than that, and
-        // that is the difference between a marker that reads over imagery and a white square with a
-        // red shape in it.
+        // The white edge is as wide as the edge drawn here says and no wider, which means every white
+        // pixel has a coloured pixel within that distance of it. A white *block* - the same path drawn
+        // fatter - has white pixels with the nearest colour further away than that, and that is the
+        // difference between a marker that reads over imagery and a white square with a red shape in it.
         PlaceIcons.KINDS.forEach { kind ->
             val bitmap = marker(kind)
-            val rim = PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP * bitmap.width
-            val reach = (rim * 2).toInt() + 2
+            val reach = (drawnEdgePx * 2).toInt() + 2
 
             var painted = 0
             var stranded = 0
@@ -115,51 +123,49 @@ class MarkerIconsTest {
     }
 
     @Test
-    fun thePlainMarkerHasNoWhiteOnItAtAll() {
-        // The operator's rule, and the reason for it: a marker is the colour of the asset's traffic
-        // light drawn on imagery. A white edge around every one of them made each marker a white
-        // shape with a colour inside it, which is harder to read than the colour itself.
+    fun everyMarkerWearsAThinWhiteEdge() {
+        // "Thin" is the operator's word for it and the number in the code is a width in
+        // density-independent pixels, so this draws the edge the map draws - at the marker's own size -
+        // and counts what it costs. The edge has to be there, because a red marker with no white round
+        // it was hard to read over winter imagery; and it has to be thin, because at two dp the markers
+        // read as white shapes with a colour inside them. The edge twice as wide is drawn beside it so
+        // that "thin" is a comparison as well as a number.
+        val size = 64
         PlaceIcons.KINDS.forEach { kind ->
-            val bitmap = MarkerIcons.bitmap(kind, AssetColors.RED, sizePx = 64, outlinePx = 0f)
+            val thin = MarkerIcons.bitmap(kind, AssetColors.RED, size, edgePx(size))
+            val wide = MarkerIcons.bitmap(kind, AssetColors.RED, size, edgePx(size) * 2f)
 
-            var white = 0
-            for (x in 0 until bitmap.width) {
-                for (y in 0 until bitmap.height) {
-                    if (bitmap.isWhiteAt(x, y)) white++
-                }
-            }
+            val white = thin.whitePixels()
+            val whiter = wide.whitePixels()
 
-            assertEquals(
-                "${kind.name} has $white white pixels on it, and a plain marker has none",
-                0,
-                white
+            assertTrue("${kind.name} is drawn with no white edge on it at all", white > 0)
+            assertTrue(
+                "${kind.name}'s edge takes $white pixels of ${size * size}, which is not a thin edge",
+                white * 100 < size * size * mostEdgePercent
+            )
+            assertTrue(
+                "${kind.name} is drawn with as much white as an edge twice as wide ($white of $whiter)",
+                white < whiter
             )
         }
     }
 
-    @Test
-    fun onlyTheSelectedMarkerWearsTheWhiteEdge() {
-        val plain = MarkerIcons.bitmap(AssetKind.SIGN, AssetColors.RED, sizePx = 64, outlinePx = 0f)
-        val selected = MarkerIcons.bitmap(
-            AssetKind.SIGN,
-            AssetColors.RED,
-            sizePx = 64,
-            outlinePx = PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP * 64
-        )
+    /**
+     * How much of a marker's picture its edge may take, as a percentage.
+     *
+     * Measured on the phone's own marker, one dp against two: at one the worst kind is the dot in a
+     * ring at 24.8% of the picture and the leanest is the sign at 14.2%; at two the *least* white kind,
+     * the sign, was 29.2% and the ring 39.1%. A ceiling between the two - nearer the two - fails if the
+     * edge is ever made fat again, and leaves the thin one room to be redrawn slightly differently.
+     */
+    private val mostEdgePercent = 27
 
-        assertFalse(
-            "the edge is the difference between the asset being looked at and the rest",
-            plain.sameAs(selected)
-        )
-        assertEquals(
-            "and the edged one is the only one with white on it",
-            0,
-            (0 until plain.width).sumOf { x -> (0 until plain.height).count { y -> plain.isWhiteAt(x, y) } }
-        )
-        assertTrue(
-            "while the edged one has a rim of it",
-            (0 until selected.width).sumOf { x -> (0 until selected.height).count { y -> selected.isWhiteAt(x, y) } } > 0
-        )
+    /** The edge the map draws, in pixels of a picture [size] across. */
+    private fun edgePx(size: Int): Float =
+        PlaceIcons.MARKER_OUTLINE_DP * size / PlaceIcons.MARKER_DP
+
+    private fun Bitmap.whitePixels(): Int = (0 until width).sumOf { x ->
+        (0 until height).count { y -> isWhiteAt(x, y) }
     }
 
     private fun Bitmap.isWhiteAt(x: Int, y: Int): Boolean {

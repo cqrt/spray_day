@@ -5,7 +5,6 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -102,39 +101,28 @@ class PlaceIconsTest {
     }
 
     @Test
-    fun `the edged picture is named after the plain one, and is a different picture`() {
-        assertEquals(
-            "sprayday-place-sign-c62828-selected",
-            PlaceIcons.selectedImageName(AssetKind.SIGN, AssetColors.RED)
-        )
-        assertEquals("one per kind, per colour", 20, PlaceIcons.SELECTED_IMAGE_NAMES.size)
+    fun `the marker's white edge is thin`() {
+        val share = PlaceIcons.MARKER_OUTLINE_DP / PlaceIcons.MARKER_DP
 
-        PlaceIcons.KINDS.forEach { kind ->
-            PlaceIcons.COLORS.forEach { colour ->
-                assertNotEquals(
-                    "an edged marker and a plain one are two pictures",
-                    PlaceIcons.imageName(kind, colour),
-                    PlaceIcons.selectedImageName(kind, colour)
-                )
-            }
-        }
-        assertFalse(
-            "and the list the page is handed is the plain one: the desk has no selected marker",
-            PlaceIcons.SELECTED_IMAGE_NAMES.any { it in PlaceIcons.IMAGE_NAMES }
+        assertTrue(
+            "an edge of ${PlaceIcons.MARKER_OUTLINE_DP}dp on a ${PlaceIcons.MARKER_DP}dp marker is " +
+                "${(share * 100).toInt()}% of its width, which is not thin",
+            share <= 0.05f
+        )
+        assertTrue(
+            "and less than one dp would not be drawn at all",
+            PlaceIcons.MARKER_OUTLINE_DP >= 1f
         )
     }
 
     @Test
-    fun `a name reads back as the picture it was made from, edged or not`() {
+    fun `a name reads back as the kind and the colour it was made from`() {
         PlaceIcons.KINDS.forEach { kind ->
             PlaceIcons.COLORS.forEach { colour ->
                 assertEquals(
-                    PlaceIcons.Marker(kind, colour, selected = false),
+                    "the desk asks for a picture by name, so a name has to mean one kind in one colour",
+                    kind to colour,
                     PlaceIcons.ofImageName(PlaceIcons.imageName(kind, colour))
-                )
-                assertEquals(
-                    PlaceIcons.Marker(kind, colour, selected = true),
-                    PlaceIcons.ofImageName(PlaceIcons.selectedImageName(kind, colour))
                 )
             }
         }

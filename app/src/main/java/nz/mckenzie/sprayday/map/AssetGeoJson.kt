@@ -151,10 +151,7 @@ object AssetGeoJson {
 
     private const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
-    fun build(lines: List<AssetLine>, selectedAssetId: Long? = null): String {
-        // [selectedAssetId] is the asset the operator is looking at, and the only one whose marker
-        // wears a white edge: the map passes nothing and draws every place plain, and the asset's own
-        // page passes its own id so the place it is showing stands out from the imagery behind it.
+    fun build(lines: List<AssetLine>): String {
         // A line needs two points to be a line; a place needs only the one it is at. Any *path* of an
         // asset qualifies it: a track whose line is too short but whose side track is drawn is still
         // a track with something on the map.
@@ -170,7 +167,7 @@ object AssetGeoJson {
         drawable.forEach { line ->
             stretchesOf(line).forEach { stretch ->
                 if (written > 0) builder.append(',')
-                appendFeature(builder, line, stretch, selectedAssetId)
+                appendFeature(builder, line, stretch)
                 written++
             }
         }
@@ -200,12 +197,7 @@ object AssetGeoJson {
             .map { AssetStretch(colorHex = line.colorHex, points = it) }
     }
 
-    private fun appendFeature(
-        builder: StringBuilder,
-        line: AssetLine,
-        stretch: AssetStretch,
-        selectedAssetId: Long?
-    ) {
+    private fun appendFeature(builder: StringBuilder, line: AssetLine, stretch: AssetStretch) {
         builder.append("{\"type\":\"Feature\",\"properties\":{")
         builder.append("\"id\":").append(line.assetId).append(',')
         builder.append("\"name\":\"").append(escape(line.name)).append("\",")
@@ -213,17 +205,10 @@ object AssetGeoJson {
         builder.append("\"kind\":\"").append(line.kind.name).append("\",")
         builder.append("\"shape\":\"").append(line.shape.name).append("\"")
         // Only a place is drawn as a picture. A line carries its colour and the layer draws
-        // it, so a line has no picture to ask for and does not carry this property at all. The
-        // selected asset asks for the same marker with the white edge on it - the one thing on the
-        // map that says which asset the phone is about to open.
+        // it, so a line has no picture to ask for and does not carry this property at all.
         if (line.shape == AssetShape.POINT) {
-            val icon = if (line.assetId == selectedAssetId) {
-                PlaceIcons.selectedImageName(line.kind, stretch.colorHex)
-            } else {
-                PlaceIcons.imageName(line.kind, stretch.colorHex)
-            }
             builder.append(",\"").append(ICON_PROPERTY).append("\":\"")
-                .append(escape(icon)).append("\"")
+                .append(escape(PlaceIcons.imageName(line.kind, stretch.colorHex))).append("\"")
         }
         builder.append("},\"geometry\":{")
         if (line.shape == AssetShape.POINT) {

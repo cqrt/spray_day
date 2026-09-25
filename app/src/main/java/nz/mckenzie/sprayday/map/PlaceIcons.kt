@@ -17,6 +17,11 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
  * it carries the due colour and the *shape* carries the kind. A place sprayed this week is green, one
  * due soon is amber and one never sprayed is red, which is the same rule the lines follow.
  *
+ * **Every marker wears a thin white edge** - [MARKER_OUTLINE_DP] of it, round every shape. A marker has
+ * to lift off whatever is behind it and imagery is as often dark as not, but white enough to be seen is
+ * not the same as white enough to take over: at two dp the markers read as white shapes with a colour
+ * inside them, and with no edge at all a red marker over winter imagery was hard to find.
+ *
  * One image per shape **and** colour rather than one picture tinted per feature: MapLibre can only
  * recolour a picture that has been turned into a signed distance field, and a marker drawn as a plain
  * picture keeps a crisp edge at the size it is actually drawn. Which picture a place wears is decided
@@ -43,10 +48,15 @@ object PlaceIcons {
     /**
      * The white edge drawn around a marker, in density-independent pixels.
      *
-     * It is the dot's white ring, kept: a red marker over dark winter imagery is otherwise a dark
-     * shape on a dark ground, which is exactly when somebody is looking for it.
+     * It is the dot's white ring, kept thin. A marker needs separating from what is behind it - a red
+     * ring over dark winter imagery is otherwise a dark shape on a dark ground, which is exactly when
+     * somebody is looking for it - but two of these around every kind made the markers read as white
+     * shapes with a colour inside, and on the small fat ones it was worse: a sign's plate is a fifth of
+     * its marker across, so a two-dp edge nearly reached its middle. None at all, and the markers were
+     * hard to read over the imagery. One dp is the least white that separates the shape from the ground
+     * and still leaves the shape its own colour.
      */
-    const val MARKER_OUTLINE_DP = 2f
+    const val MARKER_OUTLINE_DP = 1f
 
     /** The colour of that edge. Its own constant because it is the same white everywhere. */
     const val MARKER_OUTLINE = "#FFFFFF"
@@ -65,19 +75,8 @@ object PlaceIcons {
         AssetColors.UNKNOWN
     )
 
-    /** Every image a place can ask for: one per kind, for each colour, with no white edge on it. */
+    /** Every image a place can ask for: one per kind, for each colour. */
     val IMAGE_NAMES: List<String> = KINDS.flatMap { kind -> COLORS.map { nameOf(kind, it) } }
-
-    /**
-     * The same pictures wearing the white edge, for the one asset the operator is looking at.
-     *
-     * Named after the plain picture rather than beside it - the plain name with a suffix - so the two
-     * cannot describe different things: a picture that was drawn for a kind in a colour is the picture
-     * that kind in that colour asks for, edged or not.
-     */
-    val SELECTED_IMAGE_NAMES: List<String> = KINDS.flatMap { kind ->
-        COLORS.map { selectedNameOf(kind, it) }
-    }
 
     /** The grey ring: what a kind or a colour nothing was drawn for falls back to. */
     val FALLBACK_IMAGE_NAME: String = nameOf(AssetKind.OTHER_PLACE, AssetColors.UNKNOWN)
@@ -97,39 +96,21 @@ object PlaceIcons {
     }
 
     /**
-     * The same picture with the white edge on it, for the one asset that is selected.
-     *
-     * One asset at a time is the point. A map where every marker carries an edge is a map where the
-     * edge says nothing, and a white edge around every marker makes each one a white shape with a
-     * colour inside it rather than the colour itself - so the edge belongs to the asset being looked
-     * at, and only to that one.
-     */
-    fun selectedImageName(kind: AssetKind, colorHex: String): String =
-        imageName(kind, colorHex) + SELECTED_SUFFIX
-
-    /**
-     * The kind and the colour an image name was made from, and whether it wears the white edge, or
-     * null when it names no picture.
+     * The kind and the colour an image name was made from, or null when it names no picture.
      *
      * Searched rather than un-picked from the name: [imageName] is the rule, and a second rule for
      * reading a name back would be a second place for the two to disagree - which is the mistake this
      * file exists to avoid. The desk asks for a picture by the name it was given, and the phone has to
-     * know which kind and colour that name means, and whether to draw the edge.
+     * know which kind and colour that name means.
      */
-    fun ofImageName(name: String): Marker? {
-        val selected = name.endsWith(SELECTED_SUFFIX)
-        val plain = if (selected) name.removeSuffix(SELECTED_SUFFIX) else name
-
+    fun ofImageName(name: String): Pair<AssetKind, String>? {
         KINDS.forEach { kind ->
             COLORS.forEach { colorHex ->
-                if (imageName(kind, colorHex) == plain) return Marker(kind, colorHex, selected)
+                if (imageName(kind, colorHex) == name) return kind to colorHex
             }
         }
         return null
     }
-
-    /** One of the pictures a place is drawn with: which kind, which colour, and whether it is edged. */
-    data class Marker(val kind: AssetKind, val colorHex: String, val selected: Boolean)
 
     /**
      * The image name for a kind and a colour, whether or not one was drawn for it.
@@ -142,15 +123,5 @@ object PlaceIcons {
         IMAGE_PREFIX + kind.name.lowercase().replace('_', '-') +
             "-" + colorHex.removePrefix("#").lowercase()
 
-    /** The same picture with the white edge on it - the one asset being looked at wears this. */
-    private fun selectedNameOf(kind: AssetKind, colorHex: String): String =
-        nameOf(kind, colorHex) + SELECTED_SUFFIX
-
     private const val IMAGE_PREFIX = "sprayday-place-"
-
-    /**
-     * What marks the edged picture. A word rather than a letter or a dash, because it is also the
-     * answer to "why is this one edged": it is the one that has been selected.
-     */
-    private const val SELECTED_SUFFIX = "-selected"
 }

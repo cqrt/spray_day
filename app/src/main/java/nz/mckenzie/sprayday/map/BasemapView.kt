@@ -474,27 +474,20 @@ private fun addPlaceMarkerImages(style: Style, density: Float) {
     if (sizePx <= 0) return
 
     val outlinePx = PlaceIcons.MARKER_OUTLINE_DP * density
-    val missing = HashMap<String, Bitmap>(PlaceIcons.IMAGE_NAMES.size * 2)
+    val missing = HashMap<String, Bitmap>(PlaceIcons.IMAGE_NAMES.size)
     PlaceIcons.KINDS.forEach { kind ->
         PlaceIcons.COLORS.forEach { colorHex ->
-            // Two pictures of each marker: the plain one the map draws, and the same one with the
-            // white edge, which is what the asset being looked at wears. Its own page asks for the
-            // edged name - see [AssetGeoJson] - and nothing else does.
-            listOf(
-                PlaceIcons.imageName(kind, colorHex) to 0f,
-                PlaceIcons.selectedImageName(kind, colorHex) to outlinePx
-            ).forEach { (name, outline) ->
-                // An image belongs to the style it was added to, and a style can be loaded again -
-                // the same basemap with a key that has just been entered, say. Adding one twice is
-                // not wrong so much as unnecessary work on the main thread.
-                if (style.getImage(name) == null) {
-                    missing[name] = MarkerIcons.bitmap(
-                        kind = kind,
-                        colorHex = colorHex,
-                        sizePx = sizePx,
-                        outlinePx = outline
-                    )
-                }
+            val name = PlaceIcons.imageName(kind, colorHex)
+            // An image belongs to the style it was added to, and a style can be loaded again -
+            // the same basemap with a key that has just been entered, say. Adding one twice is
+            // not wrong so much as unnecessary work on the main thread.
+            if (style.getImage(name) == null) {
+                missing[name] = MarkerIcons.bitmap(
+                    kind = kind,
+                    colorHex = colorHex,
+                    sizePx = sizePx,
+                    outlinePx = outlinePx
+                )
             }
         }
     }

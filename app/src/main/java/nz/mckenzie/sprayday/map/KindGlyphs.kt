@@ -48,9 +48,9 @@ internal data class GlyphStyle(
         /**
          * Over imagery: fatter, and filled where a shape is a solid thing.
          *
-         * No white edge - see [PlaceIcons.selectedImageName] for the one that wears it. A map where
-         * every marker has an edge is a map where the edge says nothing, and every marker reads as a
-         * white shape with a colour inside it rather than as the colour itself.
+         * How wide the white edge is is not decided here: it belongs to the map, in
+         * [PlaceIcons.MARKER_OUTLINE_DP], and [MarkerIcons] asks for a glyph drawn at that width. What
+         * this style decides is the shape - how thick the strokes are, and which of them are solid.
          */
         val MARKER = GlyphStyle(weight = 0.20f, filledBoxes = true)
     }

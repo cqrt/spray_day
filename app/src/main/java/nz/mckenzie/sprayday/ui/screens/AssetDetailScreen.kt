@@ -96,10 +96,7 @@ fun AssetDetailScreen(
                     kind = AssetKind.fromStorage(track?.kind, AssetShape.fromStorage(track?.shape)),
                     shape = AssetShape.fromStorage(track?.shape)
                 )
-            ),
-            // The asset this page is showing is the one that is selected, so its marker is the one
-            // that wears the white edge - see [PlaceIcons.selectedImageName].
-            selectedAssetId = track?.id
+            )
         )
     }
 

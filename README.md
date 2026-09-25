@@ -324,11 +324,11 @@ marker — a building is a roof over walls, a sign a plate on a post, a bench se
 legs, a picnic table one top on splayed legs, and an other place a dot in a ring — and each is drawn in
 the colour its traffic light shows, which is the same rule the lines follow. The picture beside a name
 in the list and the marker on the map are one drawing, at a thin weight in the row and a fatter one over
-imagery, so the two cannot drift apart. A marker carries **no white edge**: a white edge on every one of
-them made each marker a white shape with a colour inside it rather than the colour itself, and left
-nothing to say which asset was being looked at. The edge belongs to the asset whose page is open, and to
-that one only. The desk draws the phone's own pictures rather than its own copy of them: the phone
-renders each marker at the size the browser asks for and the page fetches it by name.
+imagery, so the two cannot drift apart. Every marker wears a **thin white edge** — one dp of it. A marker
+has to lift off whatever is behind it, and imagery is as often dark as not; but two dp around every kind
+made the markers read as white shapes with a colour inside them, and with no edge at all a red marker was
+hard to find over winter imagery. The desk draws the phone's own pictures rather than its own copy of
+them: the phone renders each marker at the size the browser asks for and the page fetches it by name.
 
 ## Blocks
 

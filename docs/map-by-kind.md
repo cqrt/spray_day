@@ -1,7 +1,14 @@
 # The map by kind
 
-Release 3, taken out of the order the five releases were agreed in: per-kind layers and markers on
-the map. Written before the work, kept while it is in progress.
+Release 3 of the five agreed after the kinds shipped (v0.6.40), taken out of the agreed order: per-kind
+layers and markers on the map. Written before the work, kept while it was in progress.
+
+**Shipped in v0.6.45.** How a marker is drawn took three more releases to settle: v0.6.46 asks for it
+once rather than twice, v0.6.47 makes its white edge a rim (it had come out a solid block on the small
+shapes), and v0.6.48 draws it plain, with the edge belonging to the asset whose page is open. The last of
+those overturns the *white edge over imagery* below - the one thing this plan got wrong - so read the
+body as the plan it was. The decisions are in the README under *The kinds of asset*, and the evidence is
+in `build/verify/kind-map.txt`, `build/verify/markers-background.txt` and `build/verify/markers-plain.txt`.
 
 ## Why
 

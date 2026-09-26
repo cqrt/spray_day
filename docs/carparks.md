@@ -151,7 +151,8 @@ the app does not guess at the shape on the way in.
 
 1. **The kind and the ring** - the shape, the arithmetic, drawing and closing one, the card, the chip,
    the switch, the map's shape and the tap inside it, and the record's numbers. This is the release
-   that answers the report.
+   that answers the report. **Shipped in v0.6.53**; what was proved, and what was not, is in
+   `build/verify/carpark.txt`.
 2. **The desk** - drawing and editing a carpark from a browser, and the handover's area column.
 3. **Only if asked for** - the middle, either as a thing recorded on its own or as ground the app
    checks for itself.

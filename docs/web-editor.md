@@ -739,7 +739,11 @@ comparable in the meantime. **v0.6.38 narrows it to browsers that have never bee
 remembered view (the v0.6.38 entry above) means the fit does not run at all on a desk that has been
 opened before, so there is nothing left to undo the fly — the window is still open for a fresh browser,
 and the fix when the fit is next touched is the same as it was: the fly and the fit in the same place
-rather than two decisions.
+rather than two decisions. **v0.6.54 touched the fit** for a different reason and closed nothing above: a
+carpark's ring reaches the desk as a Polygon, the fit read vertices only out of a line, and picking a
+carpark off the list fitted `[NaN, NaN]` - so the fly never happened and a ring was invisible to
+snapping. `verticesOf` walks whatever geometry it is handed now. That is the fit's arithmetic fixed, not
+the window: the press still races the style's arrival.
 
 **One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
 for and is one line:

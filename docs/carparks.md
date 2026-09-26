@@ -154,6 +154,11 @@ the app does not guess at the shape on the way in.
    that answers the report. **Shipped in v0.6.53**; what was proved, and what was not, is in
    `build/verify/carpark.txt`.
 2. **The desk** - drawing and editing a carpark from a browser, and the handover's area column.
+   **Shipped in v0.6.54.** That release also fixed the fault the desk's own pixels found: the ground was
+   served to the map as a closed *line*, and a fill layer fills polygons and only strokes lines, so the
+   ground painted whatever pieces the tile edges left and answered nothing in the middle. Ground goes out
+   as a Polygon now, and both maps' fill layers ask for one. What was proved, and what was not, is in
+   `build/verify/desk-carparks.txt`.
 3. **Only if asked for** - the middle, either as a thing recorded on its own or as ground the app
    checks for itself.
 

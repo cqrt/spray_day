@@ -66,13 +66,14 @@ const { kindText, methodText } = await import(
 );
 
 /**
- * What the list is showing: the words typed into the box and the type picked beside it.
+ * What the desk is showing: the words typed into the box, the type picked beside it, and - because
+ * the map answers the same question as the list - the work's features that match.
  *
  * Imported the same way. Small as it is, it is the page's own rule rather than the phone's, so it is
  * testable - and the case worth testing is the two filters disagreeing, which a screenshot of a short
  * list cannot show.
  */
-const { visibleAssets } = await import(
+const { visibleAssets, visibleFeatures } = await import(
   TOKEN ? `./find.mjs?k=${encodeURIComponent(TOKEN)}` : './find.mjs'
 );
 
@@ -248,6 +249,25 @@ let editor = null;
  */
 let draftPaths = null;
 
+let workFeatures = null;
+
+/** The rows the desk is showing, which are also the assets the map draws. See `paintWork`. */
+let shownAssets = [];
+
+/**
+ * The map's own data: the work, narrowed to what the desk is showing.
+ *
+ * The phone still sends everything, and everything stays in `featuresById` for the card, the colours
+ * and the snapping - what is narrowed is only what the map draws. Quietly does nothing before the
+ * style has arrived (there is no source yet) and after the phone has answered with nothing; both are
+ * moments the page passes through, and neither is worth interrupting anyone about.
+ */
+function paintWork() {
+  if (!map || !workSource || !workFeatures) return;
+  const source = map.getSource(workSource);
+  if (source) source.setData(visibleFeatures(workFeatures, shownAssets));
+}
+
 async function boot() {
   // Nothing checks for a missing token here any more, and that is deliberate: the phone's gate hands
   // this page to a request that carried the token, or to a run that asks for none - so a page that
@@ -262,6 +282,7 @@ async function boot() {
       getJson('/api/style')
     ]);
     state = work;
+    workFeatures = features;
     strokeById = new Map(features.features.map((f) => [f.properties.id, f.properties.stroke]));
     featuresById = new Map(features.features.map((f) => [f.properties.id, f]));
 
@@ -355,6 +376,11 @@ function onStyleLoaded(style) {
   // Where the work is drawn from, so a save can hand the map the phone's new features without asking
   // for the style again.
   workSource = assetsSourceId(style);
+
+  // The style arrives carrying all of the work, and the desk may already be showing some of it: a page
+  // reopened with a type picked, or a filter set before the tiles landed. Nothing to do on an untouched
+  // page - what it is showing is everything - but the check is what keeps the two views one answer.
+  paintWork();
 
   // The glow under the work, and the one asset already picked out - a row can be clicked before the
   // imagery arrives, and that click must not be lost by the style finishing afterwards.
@@ -544,11 +570,16 @@ function drawList() {
   // What was typed, and which type is picked beside it; blank is *Anything*. The rule that turns the
   // two into rows lives in `find.mjs`, where node can test it - including the case the screen cannot
   // show: a name that matches a row of the wrong type.
-  const shown = visibleAssets(
+  shownAssets = visibleAssets(
     state.assets,
     document.getElementById('search').value,
     document.getElementById('type').value || null
   );
+  // The map is the same answer, drawn: the rows that just went on the screen are the features the map
+  // is given. Everywhere the desk changes its mind - a keystroke, a type, a save - comes through here.
+  paintWork();
+
+  const shown = shownAssets;
 
   list.textContent = '';
 
@@ -1184,9 +1215,12 @@ function replaceAsset(record) {
  */
 async function reloadFeatures() {
   const features = await getJson('/api/assets.geojson');
+  workFeatures = features;
   strokeById = new Map(features.features.map((f) => [f.properties.id, f.properties.stroke]));
   featuresById = new Map(features.features.map((f) => [f.properties.id, f]));
-  if (map && workSource && map.getSource(workSource)) map.getSource(workSource).setData(features);
+  // Handed to the map through the same narrowing as every other moment, so a save cannot quietly undo
+  // the filter: the new features go in, and what the desk is showing decides what is drawn of them.
+  paintWork();
 }
 
 /** The work as the phone holds it now: the document, the features, the list and the card. */

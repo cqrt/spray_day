@@ -1,5 +1,5 @@
 /*
- * What the desk's list is showing: the words typed into the box, and the type picked from the list.
+ * What the desk is showing: the list's rows, and the work the map draws.
  *
  * Pure, and separate from `app.js` for the same reason `words.mjs` is: node runs the very file the
  * browser does (`app/src/test/js/find.test.mjs`, which CI runs), so which rows are on the screen is
@@ -26,4 +26,24 @@ export function visibleAssets(assets, needle, kind) {
     if (kind && item.asset.kind !== kind) return false;
     return !wanted || item.asset.name.toLowerCase().includes(wanted);
   });
+}
+
+/**
+ * The work's features, narrowed to the rows the desk is showing.
+ *
+ * The list and the map are one answer to one question. Naming a kind beside a map still drawing all
+ * of the work is the page arguing with itself: an operator who has asked to see the buildings is
+ * looking at the map to see *where* they are, and forty tracks around them is the wrong answer. So
+ * what narrows the list narrows the map - both the type and the typed words - and this is the one
+ * place that does it.
+ *
+ * Chosen by the id the phone gave each asset, which is the same id the rows carry and the same one
+ * the map's own layers already filter on, so there is no second way of saying which asset is which.
+ * The collection's other keys are carried over untouched: this narrows what the map draws, and is
+ * not a second opinion about the document.
+ */
+export function visibleFeatures(features, shown) {
+  const ids = new Set((shown ?? []).map((item) => item.asset.id));
+  const all = features?.features ?? [];
+  return { ...features, features: all.filter((feature) => ids.has(feature.properties.id)) };
 }

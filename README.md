@@ -317,7 +317,12 @@ looks exactly as it did before the chips existed.
 
 The desk has the same idea beside its search box, as a **Type** list: *Anything*, then the phone's own
 eight, and the list shows what matches both the typed words and the type. The phone sends each asset's
-kind already read back, so the page holds no second copy of the old-word rule.
+kind already read back, so the page holds no second copy of the old-word rule. **The map draws the
+same answer as the list** - what narrows the rows narrows the map, and a search that matches nothing
+empties it - because a name on a list is not a place: an operator who has asked for the buildings is
+looking at the map to see *where* they are, and forty tracks around them are the wrong answer. The
+phone still sends everything and the page still holds all of it, for the card, the row colours and the
+snapping; it is only what the map is drawn from that is narrowed.
 
 **The map draws the kinds too.** A place is no longer one house whatever it is: every kind has its own
 marker — a building is a roof over walls, a sign a plate on a post, a bench seat two bars over straight

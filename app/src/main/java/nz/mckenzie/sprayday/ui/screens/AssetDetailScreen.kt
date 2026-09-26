@@ -146,6 +146,12 @@ fun AssetDetailScreen(
                         apiKey = apiKey,
                         assetGeoJson = geoJson,
                         fitBounds = bounds,
+                        // How close this little map is allowed to sit. Asked for in as many words:
+                        // the page was landing at the deepest zoom the map has, where the imagery
+                        // runs out, and 15 is the view the operator asked for - a paddock with the
+                        // asset in it. An asset too big to fit at 15 still gets its whole self on
+                        // the card, because that is the fit it always had.
+                        fitBoundsMaxZoom = ASSET_PAGE_MAX_ZOOM,
                         modifier = Modifier.fillMaxSize()
                     )
                     AttributionStrip(
@@ -452,3 +458,16 @@ fun AssetDetailScreen(
 /** Operator wording for the traffic light. */
 internal fun dueText(due: DueInfo?): String =
     due?.let { DuePhrase.of(it.status, it.daysUntilDue) } ?: "Checking due date"
+
+/**
+ * How close this page's little map may sit on its asset.
+ *
+ * The fit on its own is only as good as the asset's box, and a place is one coordinate: the
+ * camera went to the deepest zoom the map has, where the imagery has run out, and the card came
+ * up as bare background with the marker on it. Fifteen is the view the operator asked for by
+ * name - close enough to see the paddock the asset is in, wide enough to see the ground around
+ * it. It is a ceiling rather than a setting: the fit still says where, and this only stops the
+ * camera going closer than 15, so an asset whose own fit is already wider than that - a long
+ * line - is shown whole rather than cut off to satisfy a number.
+ */
+private const val ASSET_PAGE_MAX_ZOOM = 15.0

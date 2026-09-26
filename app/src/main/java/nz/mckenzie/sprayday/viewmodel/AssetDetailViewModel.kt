@@ -31,7 +31,6 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.estimatedAreaSqm
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
-import nz.mckenzie.sprayday.domain.tiles.withMinimumSpan
 
 /** One spray in an asset's history, with the amounts that went out. */
 data class SprayHistoryEntry(
@@ -118,15 +117,16 @@ class AssetDetailViewModel(
             if (points.isEmpty()) {
                 null
             } else {
-                // A place is one coordinate, so the box has no size: the map's own smallest frame
-                // is what stops the camera being asked for something it cannot fit. See
-                // withMinimumSpan.
+                // The asset's own box, exactly: a place's is a single coordinate with no size at
+                // all. What keeps that sane is the page's own limit on how close its map may sit
+                // (see ASSET_PAGE_MAX_ZOOM) rather than a box inflated here, because a camera told
+                // to fit a box with no size goes past the imagery and comes back green.
                 LatLngBounds(
                     minLat = points.minOf { it.lat },
                     minLng = points.minOf { it.lng },
                     maxLat = points.maxOf { it.lat },
                     maxLng = points.maxOf { it.lng }
-                ).withMinimumSpan()
+                )
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)

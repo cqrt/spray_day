@@ -125,6 +125,20 @@ fun BasemapView(
     onFollowBroken: () -> Unit = {},
     fitBounds: DomainBounds? = null,
     /**
+     * The deepest the camera may sit when it frames [fitBounds].
+     *
+     * A fit is only ever as good as the box: an asset that is one coordinate, or a fenceline a
+     * few metres long, has a box that fills the screen at the deepest zoom the map has - which
+     * is past the imagery, so the screen comes up as bare background. A cap says how close is
+     * still useful, and the asset's own page asks for 15: a place or a short line lands on that,
+     * while a fit that is already wider than the cap keeps the fit it always had, so a long line
+     * is never cut off to satisfy a number.
+     *
+     * Null, the default, means no cap - which is what every map that is not about one asset
+     * wants, because there the operator has asked for the whole farm.
+     */
+    fitBoundsMaxZoom: Double? = null,
+    /**
      * The layers of the work this map is not drawing.
      *
      * Empty by default, which is what every map that is not the operator's own home map wants: a
@@ -317,7 +331,7 @@ fun BasemapView(
         val map = mapState.value ?: return@LaunchedEffect
         val bounds = recentreBounds ?: return@LaunchedEffect
 
-        map.animateCamera(cameraFor(bounds))
+        map.animateCamera(cameraFor(map, bounds))
         // An asked-for camera move settles the question of the first frame. Without this, an
         // operator quick enough to tap "where am I" before the tracks' bounds come back off the
         // database is dragged from their own paddock to the work a few seconds later, having
@@ -326,13 +340,14 @@ fun BasemapView(
     }
 
     // Frame the track network the first time we know where it is, so opening the
-    // app shows "my tracks", not an arbitrary patch of countryside.
-    LaunchedEffect(fitBounds, mapState.value) {
+    // app shows "my tracks", not an arbitrary patch of countryside. The asset's own page
+    // also says how close it is allowed to end up - see [fitBoundsMaxZoom].
+    LaunchedEffect(fitBounds, fitBoundsMaxZoom, mapState.value) {
         val map = mapState.value ?: return@LaunchedEffect
         val bounds = fitBounds ?: return@LaunchedEffect
         if (boundsApplied) return@LaunchedEffect
 
-        map.animateCamera(cameraFor(bounds))
+        map.animateCamera(cameraFor(map, bounds, fitBoundsMaxZoom))
         boundsApplied = true
     }
 
@@ -580,12 +595,31 @@ private fun partIs(part: String): Expression =
  * One place rather than three, because three things now ask for exactly this: the first frame
  * on the work, the first frame on the phone when there is no work, and the recentre the
  * operator asks for by tapping.
+ *
+ * With a [maxZoom] in hand the camera is worked out here rather than by the library, because
+ * the cap is a statement about the zoom the fit lands on, and a [CameraUpdate] does not know
+ * its own zoom until the map applies it. That needs a map that has been laid out - which it
+ * has, by the time bounds arrive - and it is what lets the asset's own page end up at 15
+ * rather than at the deepest zoom the map has.
  */
-private fun cameraFor(bounds: DomainBounds): CameraUpdate =
-    CameraUpdateFactory.newLatLngBounds(
-        org.maplibre.android.geometry.LatLngBounds.Builder()
-            .include(LatLng(bounds.minLat, bounds.minLng))
-            .include(LatLng(bounds.maxLat, bounds.maxLng))
-            .build(),
-        BOUNDS_PADDING_PX
+private fun cameraFor(map: MapLibreMap, bounds: DomainBounds, maxZoom: Double? = null): CameraUpdate {
+    val maplibreBounds = org.maplibre.android.geometry.LatLngBounds.Builder()
+        .include(LatLng(bounds.minLat, bounds.minLng))
+        .include(LatLng(bounds.maxLat, bounds.maxLng))
+        .build()
+
+    if (maxZoom == null) return CameraUpdateFactory.newLatLngBounds(maplibreBounds, BOUNDS_PADDING_PX)
+
+    // Null when the library cannot work a camera out at all - a map with no size yet, or bounds
+    // it refuses. Falling back to the plain fit is what every other screen does anyway, and it is
+    // the shape of the screen that decides whether that is anything to worry about: this path is
+    // the asset's own page, whose map is laid out long before its geometry arrives.
+    val fitted = map.getCameraForLatLngBounds(
+        maplibreBounds,
+        intArrayOf(BOUNDS_PADDING_PX, BOUNDS_PADDING_PX, BOUNDS_PADDING_PX, BOUNDS_PADDING_PX)
+    ) ?: return CameraUpdateFactory.newLatLngBounds(maplibreBounds, BOUNDS_PADDING_PX)
+
+    return CameraUpdateFactory.newCameraPosition(
+        CameraPosition.Builder(fitted).zoom(minOf(fitted.zoom, maxZoom)).build()
     )
+}

@@ -62,12 +62,20 @@
       What the drawing is doing, in the corner of the map rather than across the top of the page: a box
       small enough to leave the work visible and short enough to read while looking at it. The title and
       the counts are the phone's own words for the same things ("Draw a line"; "4 points · 210 m · 1 side
-      track"), and the buttons are two moves its own screen has; the keys are the desk's own, because a
-      keyboard is the desk's own furniture, and they are pairs rather than sentences so the box stays a
-      corner rather than a bar.
+      track", or "Draw the boundary"; "4 points · 186 m · 0.4 ha of ground"), and the buttons are two moves
+      its own screen has; the keys are the desk's own, because a keyboard is the desk's own furniture, and
+      they are pairs rather than sentences so the box stays a corner rather than a bar.
+
+      *What it is* is the phone's own kind list, and it is asked while a new asset is being drawn because
+      the kind decides the shape: a carpark is drawn with its closing side and counted in ground, and a
+      line is not. The phone's own screen asks the same question in the same place.
     -->
     <section id="drawing" hidden aria-labelledby="drawing-title">
       <h2 id="drawing-title"></h2>
+      <div id="drawing-kind-row" hidden>
+        <label for="drawing-kind">What it is</label>
+        <select id="drawing-kind"></select>
+      </div>
       <p id="drawing-info"></p>
       <p id="drawing-state" hidden></p>
       <dl id="drawing-keys">
@@ -137,12 +145,24 @@
       <span class="label">Spray method</span>
       <div class="choices" id="edit-method" role="radiogroup" aria-label="Spray method"></div>
 
-      <label for="edit-swath">Swath width (m)</label>
-      <input id="edit-swath" type="text" inputmode="decimal" autocomplete="off">
-      <p class="hint" id="edit-swath-hint"></p>
+      <!--
+        The swath width and the passes are a **line's** questions. A kind that is ground answers both of
+        them itself: its area is measured from its own shape rather than estimated from a width somebody
+        typed, and one run round it is the whole job - so the three rows go together and the phone's own
+        sentence takes their place. `showKindRows` in app.js is what shows and hides them.
+      -->
+      <div id="edit-swath-row">
+        <label for="edit-swath">Swath width (m)</label>
+        <input id="edit-swath" type="text" inputmode="decimal" autocomplete="off">
+        <p class="hint" id="edit-swath-hint"></p>
+      </div>
 
-      <span class="label">Passes to finish it</span>
-      <div class="choices" id="edit-passes" role="radiogroup" aria-label="Passes to finish it"></div>
+      <div id="edit-passes-row">
+        <span class="label">Passes to finish it</span>
+        <div class="choices" id="edit-passes" role="radiogroup" aria-label="Passes to finish it"></div>
+      </div>
+
+      <p class="hint" id="edit-ground-hint" hidden></p>
 
       <div id="edit-separation-row" hidden>
         <label for="edit-separation">Two passes about (m) apart</label>

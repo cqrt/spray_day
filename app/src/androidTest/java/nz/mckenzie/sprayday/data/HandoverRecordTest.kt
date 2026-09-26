@@ -10,6 +10,7 @@ import nz.mckenzie.sprayday.data.db.RecordedSessionEntity
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
+import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.After
@@ -162,6 +163,49 @@ class HandoverRecordTest {
         val controller = HandoverController(repository(), context, ZoneId.of("Pacific/Auckland"))
 
         assertEquals("spray-day-sprays-2026-09-14.csv", controller.suggestedFileName(sprayedAt))
+    }
+
+    @Test
+    fun aCarparkSaysTheGroundMeasuredFromItsOwnShapeInTheAreaColumn() = runBlocking {
+        // The two kinds of ground in the app, in one column. A line's area can only ever be an estimate
+        // from a swath width somebody typed; a carpark's is **measured** - the boundary is the shape and
+        // the app works the area out from its corners - and this is the column the operator hands to
+        // somebody else, where an estimate that read like a survey would be the whole problem. About a
+        // hundred metres square, so the figure can be checked against the ground it was drawn on.
+        val assetId = AssetRepository(db).createAsset(
+            name = "Yard",
+            geometry = listOf(
+                GeoPoint(-41.5000, 173.9500),
+                GeoPoint(-41.5000, 173.9512),
+                GeoPoint(-41.5009, 173.9512),
+                GeoPoint(-41.5000, 173.9500)
+            ),
+            kind = AssetKind.CARPARK,
+            shape = AssetKind.CARPARK.shape,
+            createdAtEpochMs = 1_700_000_000_000L
+        )
+        val ground = AssetRepository(db).getAsset(assetId)!!.groundSqm!!
+        val product = db.productDao().insert(ProductEntity(name = "Glyphosate"))
+        val spray = db.sprayEventDao().insertEvent(
+            SprayEventEntity(assetId = assetId, sprayedAtEpochMs = sprayedAt, areaSqm = ground)
+        )
+        db.sprayEventDao().insertEventProducts(
+            listOf(SprayEventProductEntity(sprayEventId = spray, productId = product, quantityMl = 2_500.0))
+        )
+
+        val csv = repository().renderCsv(repository().rows())
+        val header = csv.lineSequence().first().split(",")
+        val row = csv.lineSequence().elementAt(1).split(",")
+        val areaColumn = header.indexOf("Area (ha)")
+
+        assertTrue("the record still has its own area column", areaColumn >= 0)
+        assertEquals("Yard", row[header.indexOf("Asset")])
+        assertEquals(
+            "the ground inside the boundary, in the column the record has always had",
+            ground / 10_000.0,
+            row[areaColumn].toDouble(),
+            0.01
+        )
     }
 
     @Test

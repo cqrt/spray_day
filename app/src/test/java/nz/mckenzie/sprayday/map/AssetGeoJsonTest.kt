@@ -154,9 +154,11 @@ class AssetGeoJsonTest {
     }
 
     @Test
-    fun `a carpark is a closed line with no picture, drawn by its own layer`() {
+    fun `a carpark is ground - a polygon in its own colour, drawn by its own layer`() {
         // The corners, with the last joining the first - which is how the app stores a ring, and why
-        // every reader of it (the metres, the coverage, the map) needs no idea what shape it is holding.
+        // every reader of it (the metres, the coverage, the tap rule) needs no idea what shape it holds.
+        // What the *map* is handed is ground: a fill layer fills a polygon and only strokes a line, so a
+        // ring drawn as a line was an outline with nothing inside it (build/verify/groundfill.txt).
         val corners = listOf(
             GeoPoint(-41.5, 173.8),
             GeoPoint(-41.5, 173.81),
@@ -176,7 +178,11 @@ class AssetGeoJsonTest {
             )
         )
 
-        assertTrue("a shape is drawn as a line round itself: $json", json.contains("\"type\":\"LineString\""))
+        assertTrue("ground is drawn in the map's own word for ground: $json", json.contains("\"type\":\"Polygon\""))
+        assertFalse(
+            "and never as the line round it, which nothing can fill: $json",
+            json.contains("\"type\":\"LineString\"")
+        )
         assertTrue("what it is, so its own layer draws it", json.contains("\"kind\":\"CARPARK\""))
         assertTrue(json.contains("\"shape\":\"AREA\""))
         assertFalse(
@@ -188,6 +194,52 @@ class AssetGeoJsonTest {
             2,
             Regex("173\\.8000000,-41\\.5000000").findAll(json).count()
         )
+    }
+
+    @Test
+    fun `a half-walked carpark is its ground, with the walked halves drawn over its edge`() {
+        val ring = listOf(
+            GeoPoint(-41.5, 173.8),
+            GeoPoint(-41.5, 173.81),
+            GeoPoint(-41.51, 173.81),
+            GeoPoint(-41.5, 173.8)
+        )
+        val started = AssetLine(
+            assetId = 12L,
+            name = "Works carpark",
+            colorHex = AssetColors.GREEN,
+            points = ring,
+            kind = AssetKind.CARPARK,
+            shape = AssetShape.AREA,
+            stretches = listOf(
+                AssetStretch(colorHex = AssetColors.GREEN, points = ring.take(3)),
+                AssetStretch(colorHex = AssetColors.RED, points = ring.drop(2))
+            )
+        )
+
+        val json = AssetGeoJson.build(listOf(started))
+
+        assertEquals("the ground and the two halves", 3, Regex("\"type\":\"Feature\",").findAll(json).count())
+        assertTrue(
+            "the ground is the first of them, so the halves are drawn on top of its edge: $json",
+            json.indexOf("\"type\":\"Polygon\"") < json.indexOf("\"type\":\"LineString\"")
+        )
+        assertTrue("and it is the asset's own colour", json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
+        assertTrue("with the half that was walked in its own", json.contains("\"stroke\":\"${AssetColors.RED}\""))
+    }
+
+    @Test
+    fun `a track that comes back to its own start is still a line, not ground`() {
+        val loop = listOf(
+            GeoPoint(-41.2865, 174.7762),
+            GeoPoint(-41.2866, 174.7763),
+            GeoPoint(-41.2867, 174.7762),
+            GeoPoint(-41.2865, 174.7762)
+        )
+        val json = AssetGeoJson.build(listOf(line(points = loop)))
+
+        assertTrue("a track is a line wherever it runs: $json", json.contains("\"type\":\"LineString\""))
+        assertFalse("and a loop is not ground unless the kind says so", json.contains("\"type\":\"Polygon\""))
     }
 
     @Test

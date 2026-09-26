@@ -50,7 +50,11 @@ sprayed).
   computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
   the same zoom rather than to the whole farm again. A carpark reads there as it does on the phone:
   the same ground drawn in the same colour, *Round it* and its metres on the card, and **Carpark** in
-  the Type list.
+  the Type list. From v0.6.54 it can be **drawn there too**: *What it is* is asked while a new asset is
+  drawn, so picking Carpark turns the job into *Draw the boundary* — the box counts its corners, its
+  metres and its ground as they go, draws the closing side nobody clicked, and offers no side-track
+  buttons; the form asks it for no swath width or pass count and says why in one line; and the card's
+  second button says *Change the boundary*.
   Everything is judged by the phone's own rules and written to the phone's own database, so
   the laptop and the phone cannot disagree about what is on the farm. The address the card shows
   carries a secret code that the phone checks, and **"Only this address can open it"** turns that

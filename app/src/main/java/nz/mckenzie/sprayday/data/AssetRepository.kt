@@ -310,9 +310,18 @@ class AssetRepository(
             // corner joins the first, and a line that has just been made a carpark arrives open by
             // definition. It is closed once, here - and a carpark whose ring is already closed is left
             // exactly as it is rather than rewritten every time its name or its interval is edited.
+            //
+            // **Unless it has no measured ground yet**, which is the fenceline somebody kept a carpark
+            // as and has just re-kinded: a closed fenceline arrives with no area, because no build
+            // before this one measured one, and the whole point of the kind is the number. Writing the
+            // geometry again is what works the area out from the corners it already has - and a shape
+            // that genuinely encloses nothing goes on saying so, at the price of one write when somebody
+            // edits it.
             AssetShape.fromStorage(asset.shape) == AssetShape.AREA -> {
                 val stored = getAssetGeometry(asset.id)
-                if (!Ring.isClosed(stored.line)) storeGeometry(asset.id, stored)
+                if (!Ring.isClosed(stored.line) || asset.areaM2 <= 0.0) {
+                    storeGeometry(asset.id, stored)
+                }
             }
             else -> Unit
         }

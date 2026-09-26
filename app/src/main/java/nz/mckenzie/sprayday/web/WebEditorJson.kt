@@ -95,6 +95,10 @@ object WebEditorJson {
             createdAtEpochMs = asset.createdAtEpochMs,
             lastSprayedAtEpochMs = asset.lastSprayedAtEpochMs,
             lengthM = asset.lengthM,
+            // The measured ground, beside the cached metres and for the same reason: a carpark's card
+            // says how much ground it is, and the desk reads the phone's own number rather than working
+            // one out from the corners it can see. Zero for everything that is not ground.
+            areaM2 = asset.areaM2,
             points = emptyList()
         ),
         dueStatus = due.status.name,
@@ -295,7 +299,19 @@ data class WebEditorChoice(
      * and a width the operator typed does not. Without it, picking "Knapsack" on a laptop would leave
      * a boom's three metres on a backpack, which is the thing that rule exists to stop.
      */
-    val swathM: String? = null
+    val swathM: String? = null,
+
+    /**
+     * The shape this choice makes, or null when picking it makes nothing.
+     *
+     * Only the kinds carry one, and it is [nz.mckenzie.sprayday.domain.asset.AssetKind.shape] -
+     * [AssetShape]'s name, the same word the phone's own screens read and the record stores. The desk
+     * draws a ring differently from a line: the closing side is drawn as it is drawn, the ground
+     * inside is counted, and a side track is not offered. A page that had to recognise "Carpark" by
+     * name to know that would be a second copy of [AssetKind], drifting from this one the day a
+     * second kind of ground ships.
+     */
+    val shape: String? = null
 )
 
 /**
@@ -315,11 +331,22 @@ data class WebEditorChoices(
     /** What the field under the typed name says when it is empty. */
     val blockHint: String,
     val swathHint: String,
-    val separationHint: String
+    val separationHint: String,
+    /**
+     * What a kind that is ground says where a line would have had a swath width and a pass count.
+     *
+     * [AssetEdits.GROUND_HINT], word for word, because the desk's form is the phone's form and a
+     * field that vanishes on a laptop without a word reads as a screen that has lost something.
+     */
+    val groundHint: String
 ) {
     companion object {
         fun ofApp() = WebEditorChoices(
-            kinds = AssetPhrase.kinds.map { WebEditorChoice(it.name, AssetPhrase.kind(it)) },
+            // The shape travels beside the label so the desk can draw a ring as ground - see
+            // [WebEditorChoice.shape] - and it is the phone's own answer rather than the page's.
+            kinds = AssetPhrase.kinds.map {
+                WebEditorChoice(it.name, AssetPhrase.kind(it), shape = it.shape.name)
+            },
             methods = MethodPhrase.choices.map {
                 WebEditorChoice(
                     value = it.name,
@@ -330,7 +357,8 @@ data class WebEditorChoices(
             passes = PassPhrase.choices.map { WebEditorChoice(it.toString(), PassPhrase.choice(it)) },
             blockHint = AssetEdits.BLOCK_HINT,
             swathHint = AssetEdits.SWATH_HINT,
-            separationHint = PassPhrase.SEPARATION_HINT
+            separationHint = PassPhrase.SEPARATION_HINT,
+            groundHint = AssetEdits.GROUND_HINT
         )
 
         /**

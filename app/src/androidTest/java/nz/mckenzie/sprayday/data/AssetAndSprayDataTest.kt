@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -514,5 +516,48 @@ class AssetAndSprayDataTest {
         assertNull(assetRepository.observeGroupName(second).first())
         assertNotNull("and the assets are still here", assetRepository.getAsset(first))
         assertNotNull(assetRepository.getAsset(second))
+    }
+
+    /* ---- Ground with an edge, and the carpark somebody kept as a fenceline ---------------- */
+
+    /** A closed square paddock: about 100 m on each side, so the ground it encloses is known. */
+    private val paddock = listOf(
+        GeoPoint(-41.5000, 173.9500),
+        GeoPoint(-41.5000, 173.9512),
+        GeoPoint(-41.5009, 173.9512),
+        GeoPoint(-41.5009, 173.9500),
+        GeoPoint(-41.5000, 173.9500)
+    )
+
+    @Test
+    fun aFencelineMadeACarparkIsMeasuredWhenItsDetailsAreSaved() = runBlocking {
+        // The fix the plan offers somebody who has been keeping carparks as fencelines: change the kind.
+        // Their fence is already a closed loop - a paddock's boundary drawn round the paddock - and no
+        // build before this one kept an area for it, so the kind on its own would leave a carpark that
+        // cannot say how much ground it is. Saving the details is what works the area out, off the
+        // corners that are already there: the whole point of the kind is that number.
+        val id = assetRepository.createAsset(
+            name = "Works",
+            geometry = paddock,
+            kind = AssetKind.FENCELINE,
+            shape = AssetShape.LINE,
+            createdAtEpochMs = 1_700_000_000_000L
+        )
+        assertNull(
+            "a line encloses nothing, so nothing is measured for it",
+            assetRepository.getAsset(id)!!.groundSqm
+        )
+
+        val asCarpark = assetRepository.getAsset(id)!!.copy(
+            kind = AssetKind.CARPARK.name,
+            shape = AssetKind.CARPARK.shape.name
+        )
+        assetRepository.saveAssetEdits(asCarpark, groupName = null)
+
+        val measured = assetRepository.getAsset(id)!!.groundSqm
+        assertNotNull("the kind is ground, so the app has to know how much ground", measured)
+        assertEquals("about 100 m square, to the metre", 10_000.0, measured!!, 200.0)
+        val ring = assetRepository.getAssetGeometry(id).line
+        assertEquals("and the ring is stored closed, as every reader of it expects", ring.first(), ring.last())
     }
 }

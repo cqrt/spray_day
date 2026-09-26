@@ -457,4 +457,43 @@ class WebEditorEditTest {
             ok(body(version = quoted, paths = listOf(path))).paths!!.first()
         )
     }
+
+    /* ---- Ground with an edge, drawn from a desk ---------------------------------------- */
+
+    /** The corners of a yard: the least that encloses anything, and the least the app will take. */
+    private val yard = listOf(
+        GeoPoint(-41.5, 173.8),
+        GeoPoint(-41.5, 173.81),
+        GeoPoint(-41.51, 173.81)
+    )
+
+    @Test
+    fun `a carpark drawn on the desk is stored closed, so the last corner joins the first`() {
+        val drawn = drafted(draftBody(name = "Yard", kind = "CARPARK", points = yard))
+
+        assertEquals("CARPARK", drawn.asset.kind)
+        assertEquals("and the kind is what says it is ground", "AREA", drawn.asset.shape)
+        // The page draws the closing side and the app stores it, and both of them are the same corner
+        // list: nothing here is left for a reader of the geometry to work out for itself.
+        assertEquals(yard + yard.first(), drawn.geometry.line)
+    }
+
+    @Test
+    fun `a carpark of two corners is refused in the app's own words rather than closed`() {
+        val refused = createRefused(draftBody(name = "Yard", kind = "CARPARK", points = yard.take(2)))
+
+        // Two corners drawn back to each other is the same side twice and no ground at all, so the
+        // answer is the sentence the phone's own drawing screen gives, not a ring around nothing.
+        assertTrue("says what is missing: ${refused.message}", refused.message.contains("three corners"))
+    }
+
+    @Test
+    fun `a line re-kinded into a carpark from the desk closes into one`() {
+        // The plan's own account of what a carpark kept as a fenceline needs: the kind is the fix, and
+        // the line the card was showing is what becomes the boundary - closed on the way in, because a
+        // boundary that arrives open would be the one shape the rest of the app would have to guess at.
+        val changed = ok(body(kind = "CARPARK", points = yard))
+
+        assertEquals("the same corners, with the closing side added", yard + yard.first(), changed.paths!!.single())
+    }
 }

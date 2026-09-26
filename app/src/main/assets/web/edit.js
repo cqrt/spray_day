@@ -33,11 +33,14 @@ const geometry = await import(
 
 const {
   TRACE_PX,
+  RING_CORNERS,
   activePath,
   add,
+  areaSqm,
   backToLine,
   canRedo,
   canUndo,
+  corners,
   createPaths,
   dropSideTrack,
   hold,
@@ -49,6 +52,7 @@ const {
   move,
   otherPathAt,
   pathsFeature,
+  perimeterMeters,
   redo,
   remove,
   samePlace,
@@ -91,6 +95,18 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   let drawing = createPaths();
   let dragging = null;
+
+  /**
+   * What is being drawn: a line, a place, or ground with an edge.
+   *
+   * The page hands this in - the kind decides it on the phone (`AssetKind.shape`), and the desk is
+   * given the same answer in the state document's own kind list - and everything the shape changes
+   * follows from it here: whether the closing side is drawn, whether the box counts ground instead of
+   * metres, and whether a side track is on offer at all. `LINE` is the default because it is what this
+   * drawing has always been, so a page that knows nothing about shapes draws exactly what it drew
+   * before.
+   */
+  let shape = 'LINE';
 
   /**
    * The traced stroke so far, or null when the button is not down.
@@ -190,9 +206,12 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   }
 
   function paint() {
+    // Ground with an edge is drawn closed: the sides that have been laid, and the closing side the
+    // phone will store. See `toFeature`'s own note for why the page draws a side nobody clicked.
+    const ground = shape === 'AREA';
     const source = map.getSource(SOURCE_ID);
     if (source) {
-      const data = pathsFeature(pathsNow());
+      const data = pathsFeature(pathsNow(), ground);
       const marker = junctionFeature(junctionPoint());
       if (marker) data.features.push(marker);
       source.setData(data);
@@ -204,7 +223,12 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       sideTracks: sideTrackCount(drawing),
       sideTrackInHand: sideTrackInHand(drawing),
       activePoints: activePath(drawing).length,
-      lengthM: lengthMeters(drawing.paths),
+      // What the phone calls the number, and what the phone counts: a line is measured along itself,
+      // and ground is measured round its edge and across its middle.
+      lengthM: ground ? perimeterMeters(line(drawing)) : lengthMeters(drawing.paths),
+      groundSqm: ground ? areaSqm(line(drawing)) : null,
+      shape,
+      ringCorners: RING_CORNERS,
       junction: junctionPoint(),
       canUndo: canUndo(drawing),
       canRedo: canRedo(drawing),
@@ -398,7 +422,11 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       // A vertex put into the **line** is where a side track will leave it: the operator has just pointed at
       // that part of the track, so that is the junction rather than the far end of the line. This is the whole
       // answer to "I clicked beside the fence I want to branch off and the spur started miles away".
-      if (!sideTrackInHand(drawing)) junction = at;
+      //
+      // Not for ground with an edge, which has no spurs to hang off it: a click on a carpark's boundary puts a
+      // corner in - that is the whole gesture, and it is how a boundary is changed from the desk - and saying
+      // "a side track will leave the line here" over a carpark is a sentence about a move the phone refuses.
+      if (!sideTrackInHand(drawing) && shape !== 'AREA') junction = at;
       paint();
       return;
     }
@@ -493,6 +521,9 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
   /** Starts a side track from the vertex picked out on the line, or from where the track ends. */
   function startFromTheLine() {
+    // Ground with an edge has no spurs to hang off it: the phone refuses a write that carries one
+    // (`AssetPathEdits`), and a page that offered the move would be offering a refusal.
+    if (shape === 'AREA') return;
     drawing = startSideTrack(drawing, junction);
     junction = null;
     paint();
@@ -510,11 +541,19 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     paint();
   }
 
-  function start(nextMode, id, paths) {
+  function start(nextMode, id, paths, nextShape = 'LINE') {
     ready();
     mode = nextMode;
     editingId = id;
-    drawing = createPaths(paths);
+    shape = nextShape;
+    // A ring is opened on its **corners**: how it is stored - the first corner repeated at the end - is
+    // the phone's own way of saying "this closes", and a handle on that repeat would be a point that can
+    // be dragged off the boundary it closes. The closing side comes back from the shape, drawn and then
+    // stored again by the phone, so nothing is lost by taking it off here.
+    const opened = shape === 'AREA'
+      ? paths.map((path, index) => (index === 0 ? corners(path) : path))
+      : paths;
+    drawing = createPaths(opened);
     dragging = null;
     stroke = null;
     swallowClick = false;
@@ -546,6 +585,9 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       sideTrackInHand: false,
       activePoints: 0,
       lengthM: 0,
+      groundSqm: null,
+      shape,
+      ringCorners: RING_CORNERS,
       canUndo: false,
       canRedo: false,
       hovered: -1,
@@ -590,18 +632,33 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
      *
      * Paths can be handed in, which is how the form's Cancel comes back to a drawing that was already
      * made rather than to a blank map - the line is the operator's work, and a form opened over it is
-     * not a reason to lose it.
+     * not a reason to lose it. The shape comes back the same way, so cancelling out of the form for a
+     * carpark returns to a carpark being drawn rather than to a line named as one.
      */
-    startNew: (paths = []) => start('new', null, paths),
+    startNew: (paths = [], shape = 'LINE') => start('new', null, paths, shape),
 
     /**
-     * A track the phone already has, opened on the whole of its drawing: the line and its side tracks.
+     * A track the phone already has, opened on the whole of its drawing: the line and its side tracks -
+     * or, for a kind that is ground, its boundary's corners.
      *
      * The paths come from the state document's own record rather than from the feature the map is
      * drawing, because the feature is one path per asset and the desk has to be able to hand back every
      * one of them - a line changed next to a spur must not be a line that lost it.
      */
-    startOn: (assetId, paths) => start('edit', assetId, paths),
+    startOn: (assetId, paths, shape = 'LINE') => start('edit', assetId, paths, shape),
+
+    /**
+     * What is being drawn, said by the page's own picker and taken from the phone's kinds.
+     *
+     * Only a new drawing has an answer to change: a track the phone already has is what its kind says it
+     * is, and changing that is the details form's business - where the phone judges it, and where a line
+     * closed into a carpark is a shape the phone can say yes or no to rather than a page deciding.
+     */
+    setShape: (next) => {
+      if (mode === 'off' || next === shape) return;
+      shape = next;
+      paint();
+    },
 
     /** Starts a side track where the line ends: the page's own button. */
     startSideTrack: () => startFromTheLine(),

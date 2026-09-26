@@ -616,6 +616,10 @@ private fun addLineLayer(
  * ground rather than a line something has been laid over. The colour is the feature's own - the
  * carpark's traffic light - and the boundary drawn on top of it is solid, so where the ground stops
  * is never in doubt.
+ *
+ * It asks for polygons as well as for carparks, because a fill layer fills polygons: handed a line it
+ * fills whatever pieces the tile boundaries left of it. A part-walked carpark's own halves are lines,
+ * and they belong to the boundary layer.
  */
 private fun addGroundFillLayer(style: Style) {
     if (style.getLayer(AssetLayerIds.CARPARKS_FILL) != null) return
@@ -629,7 +633,8 @@ private fun addGroundFillLayer(style: Style) {
             .withFilter(
                 Expression.all(
                     Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.CARPARK.name)),
-                    shapeIs(AssetShape.AREA)
+                    shapeIs(AssetShape.AREA),
+                    Expression.eq(Expression.geometryType(), Expression.literal("Polygon"))
                 )
             )
     )

@@ -16,7 +16,9 @@ import test from 'node:test';
 
 import {
   activePath,
+  areaSqm,
   backToLine,
+  corners,
   createPaths,
   dropSideTrack,
   hold,
@@ -24,9 +26,12 @@ import {
   lengthMeters,
   otherPathAt,
   pathsFeature,
+  perimeterMeters,
+  ring,
   sideTrackInHand,
   startSideTrack,
   HISTORY_LIMIT,
+  RING_CORNERS,
   TRACE_PX,
   add,
   canRedo,
@@ -223,6 +228,84 @@ test('the line the map draws is a point of one vertex, a string of many, and not
   });
 });
 
+/**
+ * A hundred metres of latitude, and of longitude at this corner: a paddock of a size a test can
+ * measure. The phone's own two constants, so the desk's figure is the phone's figure.
+ */
+const LAT_100M = 100 / 111_132;
+const LNG_100M = 100 / (111_320 * Math.cos((41.5 * Math.PI) / 180));
+const yardCorner = { lat: -41.5, lng: 173.8 };
+const yard = [
+  yardCorner,
+  { lat: -41.5, lng: 173.8 + LNG_100M },
+  { lat: -41.5 - LAT_100M, lng: 173.8 + LNG_100M },
+  { lat: -41.5 - LAT_100M, lng: 173.8 }
+];
+
+test('a ring is opened for editing on its corners, not on the corner repeated at its end', () => {
+  // How a ring is stored: the first corner again as the last vertex, so everything that reads the
+  // geometry afterwards gets the closing side without asking what shape it is holding. The desk takes
+  // that repeat off, because a handle on it is a point that can be dragged away from the boundary it
+  // closes - one carpark turning into a carpark and a stray line, with nothing on the screen to say so.
+  assert.deepEqual(corners([...yard, yardCorner]), yard);
+  assert.deepEqual(corners(yard), yard);
+  assert.deepEqual(corners([]), []);
+});
+
+test('a ring is drawn with its closing side, and nothing is closed before there is ground inside', () => {
+  // The phone's own least for a ring (`Ring.MIN_CORNERS`), and the page's.
+  assert.equal(RING_CORNERS, 3);
+
+  const drawn = toFeature(yard, true).features[0].geometry.coordinates;
+  assert.equal(drawn.length, yard.length + 1);
+  assert.deepEqual(drawn[drawn.length - 1], drawn[0]);
+
+  // Two points enclose nothing, so nothing is closed: the phone refuses that save, and drawing a
+  // boundary it is about to refuse would be the page showing something the phone does not hold.
+  assert.equal(ring(yard.slice(0, 2)).length, 2);
+  assert.equal(toFeature(yard.slice(0, 2), true).features[0].geometry.coordinates.length, 2);
+  // And with the flag off, every caller from before this keeps exactly what it had.
+  assert.equal(toFeature(yard).features[0].geometry.coordinates.length, yard.length);
+});
+
+test('only the boundary is closed, so a line with side tracks is drawn as it always was', () => {
+  const spur = [yard[1], { lat: -41.4, lng: 173.9 }];
+  const drawn = pathsFeature([yard, spur], true);
+
+  assert.equal(drawn.features.length, 2);
+  assert.equal(drawn.features[0].geometry.coordinates.length, yard.length + 1);
+  assert.equal(drawn.features[1].geometry.coordinates.length, spur.length);
+});
+
+test('the ground inside a ring is measured the way the phone measures it', () => {
+  // A hundred-metre square on the flat the phone works its own area out on: ten thousand square
+  // metres. This is the number the app has never been able to take off a line - only to estimate one
+  // from a swath width somebody typed - and the desk previewing a different one would be showing a
+  // figure the phone replaces the moment it is asked to save.
+  const measured = areaSqm(yard);
+  assert.ok(Math.abs(measured - 10_000) < 100, `a 100 m square is 10,000 m², not ${measured}`);
+
+  // The corners and the stored ring are the same ground, whichever way round it is walked.
+  assert.equal(areaSqm([...yard, yardCorner]), measured);
+  assert.equal(areaSqm([...yard].reverse()), measured);
+  // And nothing is enclosed by two points, or by one.
+  assert.equal(areaSqm(yard.slice(0, 2)), 0);
+  assert.equal(areaSqm(yard.slice(0, 1)), 0);
+});
+
+test('the metres round a ring include the closing side', () => {
+  const around = perimeterMeters(yard);
+
+  assert.ok(Math.abs(around - 400) < 4, `four sides of 100 m is 400 m, not ${around}`);
+  // The difference from walking the corners alone is the side the operator did not click: the one the
+  // phone adds when it stores the ring, and the one a rate per metre has to be worked out from.
+  const laid = lengthMeters([yard]);
+  assert.ok(Math.abs(around - laid - 100) < 1, `${around} less ${laid} is not the closing side`);
+  // Below three corners nothing is closed, so there is nothing extra to count.
+  assert.equal(perimeterMeters(yard.slice(0, 2)), lengthMeters([yard.slice(0, 2)]));
+  assert.equal(perimeterMeters(yard.slice(0, 1)), 0);
+});
+
 test("another asset's vertices are read lat-first, out of a document that is lng-first", () => {
   // The trap this exists for: GeoJSON is [lng, lat] and the phone's own vertices are lat-first, so
   // getting it the wrong way round puts a Waikato track in the Southern Alps - and it would still
@@ -240,6 +323,45 @@ test("another asset's vertices are read lat-first, out of a document that is lng
   };
 
   assert.deepEqual(verticesOf(feature), [a, b]);
+  // Ground, as the phone serves it: a Polygon whose ring is closed on itself, one level deeper than a
+  // line's coordinates. This is the shape that fitted the desk's camera to [NaN, NaN] on every carpark
+  // picked from the list, and that snapping could not see at all.
+  const yard = {
+    type: 'Feature',
+    properties: { id: 4 },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [173.8, -41.5],
+          [173.9, -41.5],
+          [173.9, -41.6],
+          [173.8, -41.5]
+        ]
+      ]
+    }
+  };
+
+  assert.deepEqual(
+    verticesOf(yard),
+    [a, { lat: -41.5, lng: 173.9 }, b, a],
+    'a ring: its corners in order, closing vertex and all'
+  );
+  assert.deepEqual(
+    verticesOf({
+      geometry: {
+        type: 'MultiLineString',
+        coordinates: [
+          [
+            [173.8, -41.5],
+            [173.9, -41.6]
+          ]
+        ]
+      }
+    }),
+    [a, b],
+    'and every part of a shape that travels in more than one piece'
+  );
   assert.deepEqual(
     verticesOf({ geometry: { type: 'Point', coordinates: [173.8, -41.5] } }),
     [a],

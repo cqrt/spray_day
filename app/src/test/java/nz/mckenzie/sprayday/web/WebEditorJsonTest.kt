@@ -213,6 +213,30 @@ class WebEditorJsonTest {
     }
 
     @Test
+    fun `the two figures a card is read for travel with the record`() {
+        // A carpark's card says the metres round it and the ground inside it, and both are the phone's own
+        // numbers: the cached length, and the measurement the kind exists for. Worked out again on the
+        // desk from the corners it can see, either would be a second answer to a question the phone has
+        // already answered - and the area is the one figure in this app that is not an estimate, so a page
+        // quietly showing zero for it is the worst version of that mistake.
+        val carpark = everyField.copy(
+            kind = AssetKind.CARPARK.name,
+            shape = AssetKind.CARPARK.shape.name,
+            swathWidthM = null,
+            passesRequired = 1,
+            passSeparationM = null,
+            lengthM = 855.0,
+            areaM2 = 45_000.0
+        )
+        val text = WebEditorJson.build(documentWith(carpark))
+
+        val record = roundTrip(documentWith(carpark)).assets.single()
+        assertEquals(855.0, record.asset.lengthM, 1e-9)
+        assertEquals(45_000.0, record.asset.areaM2, 1e-9)
+        assertTrue("and the page is handed it: $text", text.contains("\"areaM2\":45000"))
+    }
+
+    @Test
     fun `blocks and products travel in the backup's own vocabulary`() {
         val document = WebEditorDocument(
             nowEpochMs = now,
@@ -300,12 +324,30 @@ class WebEditorJsonTest {
             PassPhrase.choices.map { it.toString() to PassPhrase.choice(it) },
             choices.passes.map { it.value to it.label }
         )
-        // And the sentences under the fields, which are the phone's own.
+        // And the sentences under the fields, which are the phone's own - including the one a kind
+        // that is ground gets *instead* of a swath field, exactly as the phone's own screen shows it.
         assertEquals(PassPhrase.SEPARATION_HINT, choices.separationHint)
         assertEquals(AssetEdits.SWATH_HINT, choices.swathHint)
         assertEquals(AssetEdits.BLOCK_HINT, choices.blockHint)
+        assertEquals(AssetEdits.GROUND_HINT, choices.groundHint)
         // There is no shape list to offer: whether a thing is a line or a place is what its kind
-        // means (`AssetKind.shape`), so the desk is offered eight kinds and no second question.
+        // means (`AssetKind.shape`), so the desk is offered the phone's kinds and no second question.
+    }
+
+    @Test
+    fun `a kind carries the shape it makes, so the desk draws ground as ground`() {
+        val kinds = WebEditorChoices.ofApp().kinds.associateBy { it.value }
+
+        // The phone's own answer, not a list of kind names kept in JavaScript: the desk draws the
+        // closing side of a ring, counts its ground and offers it no side tracks, and a page that
+        // decided which kinds those are from their names would drift the day a second one ships.
+        assertEquals(AssetKind.CARPARK.shape.name, kinds.getValue(AssetKind.CARPARK.name).shape)
+        assertEquals("AREA", kinds.getValue(AssetKind.CARPARK.name).shape)
+        assertEquals("LINE", kinds.getValue(AssetKind.TRACK.name).shape)
+        assertEquals("POINT", kinds.getValue(AssetKind.OTHER_PLACE.name).shape)
+        // Nothing else carries one: picking a method or a pass count makes no shape at all.
+        assertNull(WebEditorChoices.ofApp().methods.first().shape)
+        assertNull(WebEditorChoices.ofApp().passes.first().shape)
     }
 
     @Test

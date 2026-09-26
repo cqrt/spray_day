@@ -182,7 +182,7 @@ class WebStyleJsonTest {
 
         assertEquals("fill", fill["type"]!!.jsonPrimitive.content)
         assertEquals(
-            """["all",["==",["get","kind"],"CARPARK"],["==",["get","shape"],"AREA"]]""",
+            """["all",["==",["get","kind"],"CARPARK"],["==",["get","shape"],"AREA"],["==",["geometry-type"],"Polygon"]]""",
             fill["filter"].toString()
         )
         assertEquals(

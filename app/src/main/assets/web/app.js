@@ -66,6 +66,15 @@ const { kindText, methodText } = await import(
 );
 
 /**
+ * Every vertex of a feature, whatever its geometry nests: the desk's own arithmetic, tested under node.
+ *
+ * The card's list and the camera both need it, and a carpark's ring sits a level deeper than a line's.
+ */
+const { verticesOf } = await import(
+  TOKEN ? `./geometry.mjs?k=${encodeURIComponent(TOKEN)}` : './geometry.mjs'
+);
+
+/**
  * What the desk is showing: the words typed into the box, the type picked beside it, and - because
  * the map answers the same question as the list - the work's features that match.
  *
@@ -204,6 +213,20 @@ function metresText(metres) {
   return metres >= 1000 ? `${(metres / 1000).toFixed(2)} km` : `${Math.round(metres)} m`;
 }
 
+/**
+ * "420 m²" / "1.2 ha" - a piece of ground, in the phone's own words.
+ *
+ * `formatArea`, to the letter: square metres until there are ten thousand of them and hectares after,
+ * because the number an operator reads off a phone and the number a desk shows them have to be the same
+ * figure said the same way. Nothing is said of a zero: ground that is not there yet is not "0 m²".
+ */
+function areaText(squareMetres) {
+  if (!squareMetres) return '';
+  return squareMetres >= 10_000
+    ? `${(squareMetres / 10_000).toFixed(1)} ha`
+    : `${Math.round(squareMetres)} m²`;
+}
+
 function dateText(epochMs) {
   return epochMs ? new Date(epochMs).toLocaleDateString() : '';
 }
@@ -248,6 +271,16 @@ let editor = null;
  * to cost.
  */
 let draftPaths = null;
+
+/**
+ * The kind that drawing was being made as: the box's own answer, kept while the form is open.
+ *
+ * Held beside the line because the form's Cancel has to come back to the *same* drawing - a boundary
+ * being drawn as a carpark must not return as a line of the same shape, which is what the box would
+ * say about it and what the phone would store. The form's kind picker is a draft of it, and a change
+ * of kind there is the phone's to judge when the save is made.
+ */
+let draftKind = null;
 
 let workFeatures = null;
 
@@ -540,6 +573,9 @@ function renderList() {
   document.getElementById('search').addEventListener('input', drawList);
   fillTypeChoices();
   document.getElementById('type').addEventListener('change', drawList);
+  // The same list, in the box in the map's corner: which kind a drawing is being made as. Filled here
+  // because this is where the state document first has answers to give.
+  fillDrawingKinds();
   drawList();
 }
 
@@ -684,12 +720,14 @@ function selectAsset(id, fromList = false) {
 
 function flyToAsset(id) {
   const feature = featuresById.get(id);
-  const geometry = feature && feature.geometry;
-  if (!geometry || !map) return;
+  if (!feature || !map) return;
 
-  const points = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates;
-  const lngs = points.map((p) => p[0]);
-  const lats = points.map((p) => p[1]);
+  // Every vertex, whatever the shape is: a carpark's ring is a Polygon's, so reading the pairs off the
+  // top of the coordinates fits the camera to [NaN, NaN] - which MapLibre refuses outright.
+  const corners = verticesOf(feature);
+  if (corners.length === 0) return;
+  const lngs = corners.map((point) => point.lng);
+  const lats = corners.map((point) => point.lat);
   map.fitBounds(
     [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
     { padding: 90, maxZoom: 17, duration: 600 }
@@ -728,6 +766,20 @@ function showCard(item) {
     item.asset.shape === 'AREA' ? 'Round it' : 'Length',
     item.asset.shape !== 'POINT' ? metresText(item.asset.lengthM) : null
   );
+  // The ground, and the two ways the app knows one. A ring's area is **measured** from its own corners,
+  // which is the whole reason a carpark is a kind of its own; a line's is only ever an *estimate* from the
+  // swath width somebody typed, so the two are said differently - an estimate that reads like a survey is
+  // the kind of figure that ends up in a spray diary as though somebody had measured it (`AssetPhrase.areaPhrase`).
+  // A place encloses nothing and says nothing; a line with no width cannot be estimated at all.
+  const ground = item.asset.shape === 'AREA'
+    ? item.asset.areaM2
+    : item.asset.swathWidthM
+      ? item.asset.lengthM * item.asset.swathWidthM * item.asset.passesRequired
+      : 0;
+  fact(
+    'Ground',
+    ground ? (item.asset.shape === 'AREA' ? areaText(ground) : `about ${areaText(ground)}`) : null
+  );
   fact('Spray every', `${item.asset.intervalDays} days`);
   fact('Next due', dateText(item.dueAtEpochMs));
   fact('Last sprayed', dateText(item.asset.lastSprayedAtEpochMs) || 'never');
@@ -764,12 +816,13 @@ function showCard(item) {
  *
  * The **paths** the phone handed over are what is opened, not the feature the map is drawing: a feature
  * is one path per asset, and a line that is changed from here has to hand every path back - a spur is not
- * put back by a page that never held it.
+ * put back by a page that never held it. The shape travels with them so a carpark's boundary is drawn as
+ * ground: the closing side shown, its corners the only handles, and no side-track furniture offered.
  */
 function startShape(item) {
   if (!editor) return;
   closeCard();
-  editor.startOn(item.asset.id, item.paths ?? []);
+  editor.startOn(item.asset.id, item.paths ?? [], item.asset.shape);
 }
 
 /* ---- Drawing a track, saving a line, taking one away -------------------------------- */
@@ -791,40 +844,72 @@ function startShape(item) {
  * *Back to the track* and *Remove this side track* while one is. That is the same shape the phone's own
  * screen has, so the same gesture means the same thing in both places.
  */
-function showDrawing({ mode, paths, sideTracks, sideTrackInHand, lengthM, junction, canUndo, tracing }) {
+function showDrawing({
+  mode,
+  paths,
+  sideTracks,
+  sideTrackInHand,
+  lengthM,
+  groundSqm,
+  shape,
+  ringCorners,
+  junction,
+  canUndo,
+  tracing
+}) {
   const box = field('drawing');
   if (mode === 'off') {
     box.hidden = true;
     return;
   }
 
-  // The phone's own titles for the two jobs, because they are the same two jobs here.
-  field('drawing-title').textContent = mode === 'new' ? 'Draw a line' : 'Change the line';
+  // A ring is a boundary and a line is a line, and the phone has a word for each job: *Change the
+  // boundary* for a carpark (`AssetPhrase.changeLabel`), and the same errand said the same way here.
+  const ground = shape === 'AREA';
+  const job = ground ? 'the boundary' : 'a line';
+  field('drawing-title').textContent = mode === 'new' ? `Draw ${job}` : `Change ${job}`;
 
   const count = paths.reduce((total, path) => total + path.length, 0);
   // The counts in the phone's own words, and the length only once there is a line to measure: one point
-  // is not a line, and "not measured" is the card's word for a place, not this.
+  // is not a line, and "not measured" is the card's word for a place, not this. Ground adds the number
+  // it is worth - the area inside, measured from the corners, which is what the operator is drawing for.
   const parts = [`${count} point${count === 1 ? '' : 's'}`];
   if (count > 1) {
     parts.push(metresText(lengthM));
   }
-  if (sideTracks > 0) {
+  const groundText = areaText(groundSqm);
+  if (groundText) {
+    parts.push(`${groundText} of ground`);
+  }
+  if (!ground && sideTracks > 0) {
     parts.push(`${sideTracks} side track${sideTracks === 1 ? '' : 's'}`);
   }
   field('drawing-info').textContent = parts.join(' · ');
+
+  // Which kind the new drawing is being made as. The box asks because the kind decides the shape, and
+  // the shape changes what the drawing does - so it is asked *while* drawing, as the phone's own screen
+  // does, rather than afterwards in the form. A track the phone already has is not asked: it is what its
+  // kind says it is, and changing that is the form's business.
+  field('drawing-kind-row').hidden = mode !== 'new';
 
   // One line, and only when there is one worth saying. Following the pointer comes first because it is
   // what the hand is doing at that moment: the whole fence lands at once, so letting go is not a
   // commitment to twenty vertices. Then which path the handles belong to, which is what decides what a
   // drag and Del do, and where a side track would leave from - a picked point is easy to miss on a map
-  // full of fences, and it is the one thing that decides where the spur starts.
+  // full of fences, and it is the one thing that decides where the spur starts. Ground has neither a
+  // side track nor a junction to say, and is told the one thing it does need: how many corners make a
+  // ring, and that the app closes it.
   const state = tracing
     ? 'Following the pointer - let go to put it down'
     : sideTrackInHand
       ? 'Working on the side track'
       : junction
         ? 'A side track will leave the line here'
-        : (sideTracks > 0 ? 'Click a side track to work on it' : '');
+        : ground
+          ? count < ringCorners
+            ? `Click the corners - ${ringCorners} at least`
+            : 'The last corner joins the first'
+          : (sideTracks > 0 ? 'Click a side track to work on it' : '');
   const words = field('drawing-state');
   words.textContent = state;
   words.hidden = !state;
@@ -836,11 +921,13 @@ function showDrawing({ mode, paths, sideTracks, sideTrackInHand, lengthM, juncti
   field('drawing-keys').classList.toggle('no-undo', !canUndo);
 
   // The side-track furniture, in the same states the drawing is in. *Remove this side track* is offered for
-  // any side track in hand, finished or not, because that is the other half of being able to edit one.
+  // any side track in hand, finished or not, because that is the other half of being able to edit one. A
+  // ring is offered none of the three: it has no spurs to hang off it, and the phone refuses a write that
+  // carries one, so a button here would be a button that ends in a refusal.
   const line = paths[0] ?? [];
-  field('drawing-side-track').hidden = sideTrackInHand || line.length < 2;
-  field('drawing-back').hidden = !sideTrackInHand;
-  field('drawing-drop').hidden = !sideTrackInHand;
+  field('drawing-side-track').hidden = ground || sideTrackInHand || line.length < 2;
+  field('drawing-back').hidden = ground || !sideTrackInHand;
+  field('drawing-drop').hidden = ground || !sideTrackInHand;
   box.hidden = false;
 }
 
@@ -857,6 +944,9 @@ async function finishDrawing(paths, wasEditing) {
     return;
   }
   draftPaths = paths;
+  // The kind the box was set to becomes the form's answer, so a boundary drawn as a carpark opens a
+  // form that says carpark rather than making the operator say it a second time.
+  draftKind = field('drawing-kind').value;
   openDraft();
 }
 
@@ -869,6 +959,7 @@ async function finishDrawing(paths, wasEditing) {
  */
 function abandonDrawing() {
   draftPaths = null;
+  draftKind = null;
 }
 
 /**
@@ -1046,6 +1137,37 @@ function fillChoices(id, choices, chosen) {
   }
 }
 
+/**
+ * The shape a kind makes, from the phone's own answer.
+ *
+ * Each kind in the state document carries the shape the phone reads off it (`AssetKind.shape` - the same
+ * word the record stores), so the desk draws ground as ground without a list of kind names of its own. A
+ * kind that is not in the document - a page from an older build, or a kind this phone has never heard of -
+ * is drawn as a line, which is what every drawing here was before there was any other shape.
+ */
+function shapeOfKind(kind) {
+  const choice = state.choices.kinds.find((one) => one.value === kind);
+  return (choice && choice.shape) || 'LINE';
+}
+
+/**
+ * The kinds a new drawing can be made as: the phone's list, in the phone's words.
+ *
+ * Filled once the state document has arrived, and the same nine answers the phone's own drawing screen
+ * offers - a kind the phone learns appears here already named, with its shape, and nothing here needs
+ * changing for it.
+ */
+function fillDrawingKinds() {
+  const select = field('drawing-kind');
+  select.textContent = '';
+  for (const choice of state.choices.kinds) {
+    const option = document.createElement('option');
+    option.value = choice.value;
+    option.textContent = choice.label;
+    select.append(option);
+  }
+}
+
 /** Opens the form on an asset, filled with what the phone says it holds. */
 function openEdit(item) {
   editingId = item.asset.id;
@@ -1069,6 +1191,7 @@ function openEdit(item) {
 
   field('edit-swath-hint').textContent = state.choices.swathHint;
   field('edit-separation-hint').textContent = state.choices.separationHint;
+  field('edit-ground-hint').textContent = state.choices.groundHint;
 
   // The blocks that exist, so a name can be picked rather than typed again: a typed block is how a
   // misspelling becomes a second block with one asset in it.
@@ -1082,6 +1205,7 @@ function openEdit(item) {
 
   showSeparationRow();
   updateBlockHint();
+  showKindRows();
 
   field('edit-words').hidden = true;
   field('edit').hidden = false;
@@ -1099,6 +1223,30 @@ function showSeparationRow() {
   const two = Number(selectedValue('edit-passes')) >= 2;
   field('edit-separation-row').hidden = !two;
   if (!two) field('edit-separation').value = '';
+}
+
+/**
+ * The three rows a **line** answers, for a kind that is ground.
+ *
+ * A carpark answers both of those questions itself: its area is measured from its own shape rather than
+ * estimated from a swath width somebody typed, and one run round it is the whole job. The phone's own
+ * form does not offer the fields at all - it puts `AssetEdits.GROUND_HINT` where they were, and that
+ * sentence travels in the state document - and a desk that left them showing would let an operator type
+ * a width the phone throws away without a word on the way in.
+ */
+function showKindRows() {
+  const ground = shapeOfKind(selectedValue('edit-kind')) === 'AREA';
+  field('edit-swath-row').hidden = ground;
+  field('edit-passes-row').hidden = ground;
+  field('edit-ground-hint').hidden = !ground;
+  // The separation field is the passes row's own tail, so it goes with it - whether the reason is one
+  // pass or a kind that has no pass count to answer.
+  if (ground) {
+    field('edit-separation-row').hidden = true;
+    field('edit-separation').value = '';
+  } else {
+    showSeparationRow();
+  }
 }
 
 /**
@@ -1165,7 +1313,7 @@ function openDraft() {
   field('edit-separation').value = '';
   field('edit-notes').value = '';
 
-  fillChoices('edit-kind', state.choices.kinds, state.newAsset.kind);
+  fillChoices('edit-kind', state.choices.kinds, draftKind || state.newAsset.kind);
   fillChoices('edit-method', state.choices.methods, state.newAsset.method);
   fillChoices('edit-passes', state.choices.passes, String(state.newAsset.passesRequired));
 
@@ -1175,6 +1323,7 @@ function openDraft() {
 
   field('edit-swath-hint').textContent = state.choices.swathHint;
   field('edit-separation-hint').textContent = state.choices.separationHint;
+  field('edit-ground-hint').textContent = state.choices.groundHint;
 
   const blocks = field('edit-blocks');
   blocks.textContent = '';
@@ -1186,6 +1335,7 @@ function openDraft() {
 
   showSeparationRow();
   updateBlockHint();
+  showKindRows();
 
   field('edit-words').hidden = true;
   field('edit').hidden = false;
@@ -1199,13 +1349,17 @@ function openDraft() {
  * For a new track that means back to the drawing rather than back to nothing: the drawing is the
  * operator's work, and a change of mind about the name is not a reason to lose it. The paths go back to
  * the map, so finishing again is one key away - and giving up altogether is the Escape that follows.
+ * The kind it was drawn as goes back with them: a boundary drawn as a carpark returns as one, rather
+ * than as a line that happens to have the same shape.
  */
 function cancelForm() {
   const paths = drafting ? draftPaths : null;
+  const kind = draftKind;
   closeEdit();
   if (paths && editor) {
     draftPaths = null;
-    editor.startNew(paths);
+    draftKind = null;
+    editor.startNew(paths, shapeOfKind(kind));
   }
 }
 
@@ -1308,12 +1462,28 @@ document.getElementById('edit-passes').addEventListener('change', showSeparation
 document.getElementById('edit-method').addEventListener('change', onMethodChange);
 document.getElementById('edit-block').addEventListener('input', updateBlockHint);
 
-/** The way into drawing a track: an empty line, with nothing on the map to take hold of yet. */
+/**
+ * The way into drawing a track: an empty line, with nothing on the map to take hold of yet.
+ *
+ * The box opens on the phone's own starting point for an asset - a track - and the kind picked there is
+ * what the drawing is made as, so the shape, the words and the closing side are settled before the first
+ * click rather than explained afterwards.
+ */
 document.getElementById('draw').addEventListener('click', () => {
   if (!editor || editor.isActive()) return;
   closeCard();
   draftPaths = null;
-  editor.startNew();
+  draftKind = null;
+  // The phone's own default, not one remembered from last time: a desk that kept the last pick would be
+  // a second default nobody can see, and the phone's is the one the app's own drawing screen opens on.
+  field('drawing-kind').value = state.newAsset.kind;
+  editor.startNew([], shapeOfKind(state.newAsset.kind));
+});
+
+// What the drawing is being made as. Nothing here talks to the phone: the shape only changes what the
+// page draws and counts, and what it counts is the phone's own arithmetic on the phone's own shape.
+document.getElementById('drawing-kind').addEventListener('change', () => {
+  if (editor) editor.setShape(shapeOfKind(field('drawing-kind').value));
 });
 
 // The side-track furniture on the drawing bar. Each of these is a move the drawing makes on itself -

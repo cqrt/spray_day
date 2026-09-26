@@ -131,12 +131,26 @@ object WebStyleJson {
      * A boundary on its own reads as a fence, which is the report this answers: ground is a surface.
      * The colour is the feature's own - the carpark's traffic light - so the fill and the edge cannot
      * disagree, and it is the same quarter strength the app draws it at.
+     *
+     * **Ground, and only ground.** A fill layer fills polygons: handed a line it fills whatever pieces
+     * the tile boundaries left of it, which is a patchwork rather than a surface and was how the ground
+     * used to come out. The ring is written as a Polygon for exactly this reason (`AssetGeoJson`), and
+     * the filter says so as well, because a part-walked carpark's own halves *are* lines - they are
+     * drawn by the boundary layer, over this.
      */
     private fun groundFillLayer(): JsonObject = buildJsonObject {
         put("id", AssetLayerIds.CARPARKS_FILL)
         put("type", "fill")
         put("source", ASSETS_SOURCE)
-        put("filter", lineFilter(AssetKind.CARPARK, AssetShape.AREA))
+        put(
+            "filter",
+            buildJsonArray {
+                add("all")
+                add(dataIs("kind", AssetKind.CARPARK.name))
+                add(dataIs("shape", AssetShape.AREA.name))
+                add(geometryIs("Polygon"))
+            }
+        )
         put(
             "paint",
             buildJsonObject {
@@ -236,6 +250,19 @@ object WebStyleJson {
         add("all")
         add(dataIs("kind", kind.name))
         add(dataIs("shape", AssetShape.POINT.name))
+    }
+
+    /**
+     * `["==", ["geometry-type"], value]` - a test on the shape the map has drawn a feature as.
+     *
+     * The layer's own test rather than the feature's `shape` property, because the two are not always
+     * the same thing: a part-walked carpark is a ring in its `shape` and lines on the map, and a fill
+     * layer paints whatever geometry it is handed.
+     */
+    private fun geometryIs(geometry: String): JsonArray = buildJsonArray {
+        add("==")
+        add(buildJsonArray { add("geometry-type") })
+        add(geometry)
     }
 
     /** `["==", ["get", name], value]` - a test the map layer makes on every feature it draws. */

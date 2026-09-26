@@ -4,6 +4,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.Ring
 
 /**
  * One stretch of an asset's line, drawn in its own colour.
@@ -195,10 +196,25 @@ object AssetGeoJson {
      * should be, and an asset whose stretches all came out that way falls back to being
      * drawn whole - a map that has lost a track is worse than one that shows it in one
      * colour.
+     *
+     * Ground is the one thing that is never dropped to a fallback: the ring is drawn whatever
+     * has been walked on it, because the ground is what the kind *is* rather than how far
+     * somebody has got with it.
      */
     private fun stretchesOf(line: AssetLine): List<AssetStretch> {
         if (line.shape == AssetShape.POINT) {
             return listOf(AssetStretch(colorHex = line.colorHex, points = line.points))
+        }
+        // Ground first, and whole, whether or not it has been walked: the ring is the surface the
+        // ground's own layer fills, and the walked halves are drawn over its edge. It used to be the
+        // stretches alone, so a carpark lost its ground the moment somebody started walking it - and
+        // the ground's layer, handed a line instead of a ring, painted patches of it.
+        if (line.shape == AssetShape.AREA) {
+            val ground = AssetStretch(colorHex = line.colorHex, points = line.points)
+            val walked = line.stretches.filter { it.points.size >= 2 }
+            val sideTracks = line.paths.drop(1).filter { it.size >= 2 }
+                .map { AssetStretch(colorHex = line.colorHex, points = it) }
+            return listOf(ground) + walked + sideTracks
         }
         val stretches = line.stretches.filter { it.points.size >= 2 }
         if (stretches.isNotEmpty()) return stretches
@@ -226,6 +242,19 @@ object AssetGeoJson {
         if (line.shape == AssetShape.POINT) {
             builder.append("\"type\":\"Point\",\"coordinates\":")
             appendPoint(builder, stretch.points.first())
+        } else if (isGround(line.shape, stretch.points)) {
+            // Ground, as the map's own word for it. A fill layer *fills* a Polygon and only *strokes* a
+            // LineString, so a carpark handed over as a line was never a surface: the shade and a click
+            // in the middle of it both came out as whatever pieces a tile boundary happened to leave,
+            // which is the fault this shape answers (build/verify/groundfill.txt). What is stored is
+            // unchanged - still one closed path, and still the one list the metres, the coverage and
+            // the tap rule read.
+            builder.append("\"type\":\"Polygon\",\"coordinates\":[[")
+            stretch.points.forEachIndexed { pointIndex, point ->
+                if (pointIndex > 0) builder.append(',')
+                appendPoint(builder, point)
+            }
+            builder.append("]]")
         } else {
             builder.append("\"type\":\"LineString\",\"coordinates\":[")
             stretch.points.forEachIndexed { pointIndex, point ->
@@ -236,6 +265,17 @@ object AssetGeoJson {
         }
         builder.append("}}")
     }
+
+    /**
+     * Whether a stretch is ground the map can fill: a ring, drawn as an area.
+     *
+     * `Ring.isClosed` is the app's own test for "the last corner is the first again, with at least
+     * three corners to enclose anything", and it is the rule the geometry is written by - so the shape
+     * the map is handed cannot drift from the shape the app measures and taps. A loop a *track* happens
+     * to be drawn as is not ground: the kind has to say so too.
+     */
+    private fun isGround(shape: AssetShape, points: List<GeoPoint>): Boolean =
+        shape == AssetShape.AREA && Ring.isClosed(points)
 
     /** GeoJSON is [longitude, latitude] - the opposite of how humans say it. */
     private fun appendPoint(builder: StringBuilder, point: GeoPoint) {

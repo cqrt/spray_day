@@ -26,6 +26,15 @@ export const HANDLE_PX = 10;
 export const SNAP_PX = 12;
 
 /**
+ * How many corners make a ring, which is the phone's own least for one.
+ *
+ * `Ring.MIN_CORNERS`. Under three there is no ground inside, which is what makes two corners a line
+ * and not a fenced-off thing - the phone refuses the save with its own sentence, and this is the
+ * drawing saying the same before it is asked.
+ */
+export const RING_CORNERS = 3;
+
+/**
  * A drawing of the paths given: path 0 the line, the rest its side tracks.
  *
  * Paths with nothing in them are dropped rather than kept: an empty path is not a path, and it would be
@@ -329,6 +338,85 @@ function metresBetween(a, b) {
 }
 
 /**
+ * A ring's corners: the closing vertex taken off, when the last one repeats the first.
+ *
+ * The phone stores a ring **closed** - the last vertex is the first corner again - so that everything
+ * that reads the geometry afterwards gets the closing side without asking what shape it is holding,
+ * and so a shape can be read as a ring by looking at it alone. The desk's drawing is not one of those
+ * readers: a handle on the repeated corner is a point that can be dragged off on its own, which would
+ * turn one boundary into a boundary and a stray line, so a ring opened for editing is opened on its
+ * corners. The closing side comes back from the shape's own rule ([ring]) and, from there, from the
+ * phone, which closes what it is given whether it arrived open or closed.
+ *
+ * The comparison is exact, as it is everywhere in this file: the desk snaps a vertex onto another by
+ * copying its coordinates, so a corner that is meant to be the same place *is* the same two numbers.
+ */
+export function corners(points) {
+  if (points.length >= 2 && samePlace(points[0], points[points.length - 1])) {
+    return points.slice(0, -1);
+  }
+  return points;
+}
+
+/**
+ * A ring as it is drawn: the sides that have been laid, and the closing side.
+ *
+ * Nothing closes until there are [RING_CORNERS] corners, because nothing is enclosed until then: two
+ * points drawn back to each other is the same side twice, and showing it would be the page claiming a
+ * boundary the phone is about to refuse. This is the one place the page adds a side the operator did
+ * not click - the same side the phone adds when it stores the ring.
+ */
+export function ring(points) {
+  const around = corners(points);
+  if (around.length < RING_CORNERS) return around;
+  return [...around, around[0]];
+}
+
+/**
+ * The ground a ring encloses, in square metres - the phone's own arithmetic, to the metre.
+ *
+ * The shoelace formula on the flat taken at the ring's own mean latitude, which is what
+ * `Ring.areaSqm` does and for the same reason: a carpark is tens of metres across, where a degree of
+ * longitude is the same length at both ends to within a hand's width. It is worked out from the
+ * **corners** rather than from what is drawn, so a ring opened for editing measures the same before
+ * and after its closing side is put back - and zero for fewer than three corners, which is the honest
+ * answer for a path and the number the drawing shows until there is a ring.
+ */
+export function areaSqm(points) {
+  const around = corners(points);
+  if (around.length < RING_CORNERS) return 0;
+
+  const meanLat = around.reduce((total, point) => total + point.lat, 0) / around.length;
+  const metresPerDegLng =
+    METRES_PER_DEG_LNG_AT_EQUATOR * Math.cos((meanLat * Math.PI) / 180);
+
+  let twiceTheArea = 0;
+  for (let index = 0; index < around.length; index++) {
+    const here = around[index];
+    const next = around[(index + 1) % around.length];
+    twiceTheArea +=
+      here.lng * metresPerDegLng * (next.lat * METRES_PER_DEG_LAT) -
+      next.lng * metresPerDegLng * (here.lat * METRES_PER_DEG_LAT);
+  }
+  return Math.abs(twiceTheArea) / 2;
+}
+
+/**
+ * The metres round a ring: its sides and the closing side.
+ *
+ * What the phone's own "Round it" measures, and what the box in the map's corner counts while a
+ * boundary is being drawn. The corners alone would be one side short, which is the kind of figure
+ * nobody would notice until a rate per metre was worked out from it. It walks [ring] rather than the
+ * corners so the figure is the length of the line the map is drawing: below three corners there is no
+ * closing side to count, because there is nothing enclosed to close.
+ */
+export function perimeterMeters(points) {
+  const drawn = ring(points);
+  if (drawn.length < 2) return 0;
+  return lengthMeters([drawn]);
+}
+
+/**
  * Which vertex is under the cursor, or -1.
  *
  * Measured in screen pixels rather than degrees: a degree of longitude is 111 km at the equator and
@@ -392,20 +480,28 @@ export function segmentAt(points, cursor, project, tolerancePx = HANDLE_PX) {
   return best;
 }
 
-/** The line as the map's own source wants it, or nothing at all when there is nothing drawn yet. */
-export function toFeature(points) {
-  const coordinates = points.map((point) => [point.lng, point.lat]);
+/**
+ * The path as the map's own source wants it, or nothing at all when there is nothing drawn yet.
+ *
+ * `closed` is for a shape that is ground: the first corner is repeated at the end, which is the closing
+ * side drawn as a line like every other side, and it is the same corner list the phone stores. Left
+ * false, a ring being drawn would show its sides with a gap where the ground's edge comes back to where
+ * it started - and the gap would close itself, unannounced, at the moment of saving.
+ */
+export function toFeature(points, closed = false) {
+  const drawn = closed ? ring(points) : points;
+  const coordinates = drawn.map((point) => [point.lng, point.lat]);
   return {
     type: 'FeatureCollection',
     features:
-      points.length === 0
+      drawn.length === 0
         ? []
         : [
             {
               type: 'Feature',
               properties: {},
               geometry:
-                points.length === 1
+                drawn.length === 1
                   ? { type: 'Point', coordinates: coordinates[0] }
                   : { type: 'LineString', coordinates }
             }
@@ -413,11 +509,19 @@ export function toFeature(points) {
   };
 }
 
-/** Every path as one FeatureCollection: the line and its side tracks, in one source. */
-export function pathsFeature(paths) {
+/**
+ * Every path as one FeatureCollection: the line and its side tracks, in one source.
+ *
+ * `closed` belongs to the **first** path, which is the line - or, for a kind that is ground, the
+ * boundary itself. A side track is a strip off a line and a ring has none (`AssetPathEdits` refuses
+ * them), so there is no second path to close.
+ */
+export function pathsFeature(paths, closed = false) {
   return {
     type: 'FeatureCollection',
-    features: paths.map((path) => toFeature(path).features[0]).filter(Boolean)
+    features: paths
+      .map((path, index) => toFeature(path, closed && index === 0).features[0])
+      .filter(Boolean)
   };
 }
 
@@ -453,15 +557,31 @@ export function otherPathAt(paths, active, cursor, project, tolerancePx = HANDLE
   return best;
 }
 
-/** Every vertex of a feature: how the other assets' places to snap onto are gathered. */
+/**
+ * Every vertex of a feature, whatever its geometry nests.
+ *
+ * Two things read this: the corners of the other assets to snap onto, and the box the camera is fitted
+ * to when an asset is opened from the list. A ring is a Polygon's, so its coordinates sit a level
+ * deeper than a line's - and read off the top as pairs they are `[NaN, NaN]`, which MapLibre refuses
+ * outright (`flyToAsset` threw on every carpark picked from the list, and a Polygon was invisible to
+ * snapping). So the nesting is followed rather than assumed, and one walk does for all five shapes.
+ */
 export function verticesOf(feature) {
   const geometry = feature && feature.geometry;
   if (!geometry) return [];
-  if (geometry.type === 'Point') {
-    return [vertex({ lat: geometry.coordinates[1], lng: geometry.coordinates[0] })];
-  }
-  if (geometry.type !== 'LineString') return [];
-  return geometry.coordinates.map((pair) => vertex({ lat: pair[1], lng: pair[0] }));
+  const positions = [];
+  const walk = (node) => {
+    if (!Array.isArray(node)) return;
+    if (typeof node[0] === 'number') {
+      positions.push(node);
+      return;
+    }
+    node.forEach(walk);
+  };
+  // A point's coordinates are one position and every other shape's are lists of them, so the point is
+  // walked as a shape that holds it - which is what lets one walk cover all five.
+  walk([geometry.coordinates]);
+  return positions.map((pair) => vertex({ lat: pair[1], lng: pair[0] }));
 }
 
 /* ---- Tracing: following the fence with the button held down ------------------------- */
@@ -562,6 +682,19 @@ export function simplify(points, toleranceM) {
 
 /** Metres in a degree of latitude: the same mean the phone's own arithmetic uses, to a metre. */
 const METRES_PER_DEGREE = 111_320;
+
+/**
+ * The phone's own pair, for the one figure that has to come out equal to the phone's.
+ *
+ * `METRES_PER_DEGREE` above is one number used for both directions, which is what the page's own
+ * metres have always been measured with and is right to a metre over a fence. A ring's ground is not
+ * that: it is the number the phone stores, the card shows and a spray carries into the handover, and a
+ * desk that previewed a different one would be showing a figure the phone replaces the moment it is
+ * asked to save. So the area uses the phone's two - `GeoUtils.METRES_PER_DEG_LAT` and
+ * `METRES_PER_DEG_LNG_AT_EQUATOR`, the same as `Ring.areaSqm`.
+ */
+const METRES_PER_DEG_LAT = 111_132;
+const METRES_PER_DEG_LNG_AT_EQUATOR = 111_320;
 
 /**
  * The path being worked on with a whole traced stroke on the end - as **one** step of the history.

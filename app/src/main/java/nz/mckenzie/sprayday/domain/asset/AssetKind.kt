@@ -3,10 +3,10 @@ package nz.mckenzie.sprayday.domain.asset
 /**
  * What an asset is, in the operator's words rather than the database's.
  *
- * Eight types, and the type decides the shape: three lines to travel along, and five places to
- * stop at. That is why the shape is a property here rather than a second question on the form -
- * two questions that can disagree is a picnic table drawn as a line across a paddock, with
- * nothing on the screen saying the two answers were different.
+ * Nine types, and the type decides the shape: three lines to travel along, five places to stop at,
+ * and one kind of ground with an edge. That is why the shape is a property here rather than a second
+ * question on the form - two questions that can disagree is a picnic table drawn as a line across a
+ * paddock, with nothing on the screen saying the two answers were different.
  *
  * The distinction matters for the map, which draws a fenceline and a picnic table as different
  * things, and for the handover record, which has to say what was sprayed. It decides nothing
@@ -14,7 +14,7 @@ package nz.mckenzie.sprayday.domain.asset
  * with a boom and a track can be knapsacked.
  */
 enum class AssetKind(
-    /** A line to travel along, or a single place to stop at. */
+    /** A line to travel along, a single place to stop at, or ground with an edge. */
     val shape: AssetShape
 ) {
     /** A line walked or driven to spray: the original kind, and still the common one. */
@@ -25,6 +25,18 @@ enum class AssetKind(
 
     /** A fence line: a line too, and the only infrastructure that is one. */
     FENCELINE(AssetShape.LINE),
+
+    /**
+     * A carpark: ground with an edge, sprayed whole.
+     *
+     * The first kind that is neither something you travel along nor somewhere you stop. Its edge is
+     * what you drive or walk round and its ground is what gets sprayed, and the app knows both
+     * numbers because the shape is a ring ([AssetShape.AREA]): the metres of the boundary, and the
+     * ground inside it measured from the corners. A carpark used to be kept as a fenceline, which
+     * put the wrong word on the list, the map, the record and the handover and drew a fence - dotted,
+     * post by post - where there is ground.
+     */
+    CARPARK(AssetShape.AREA),
 
     /** A shed, a woolshed, a pump house: somewhere with a roof. */
     BUILDING(AssetShape.POINT),

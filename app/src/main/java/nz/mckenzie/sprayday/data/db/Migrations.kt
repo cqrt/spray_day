@@ -411,3 +411,20 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
     }
 }
+
+/**
+ * A carpark's ground: the area a ring encloses, cached on the asset beside its length.
+ *
+ * Defaulted to zero rather than computed for the rows that are already there, because every asset in a
+ * v6 database is a line or a place and neither encloses anything - and a zero written in bulk is the
+ * sort of migration that would quietly claim a ground for something that has none. A carpark written
+ * after this carries its own measurement, put there by the same write as its vertices.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v6
+ * database, and the schema it produces is the one Room exports for v7.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `assets` ADD COLUMN `areaM2` REAL NOT NULL DEFAULT 0")
+    }
+}

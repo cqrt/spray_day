@@ -73,6 +73,10 @@ fun AssetDetailScreen(
     onOpenRecording: (Long) -> Unit = {}
 ) {
     val track by viewModel.track.collectAsStateWithLifecycle()
+
+    // What the asset is drawn as, for the one place this screen's own words have to follow it: a
+    // carpark has no line to hang a side track off, so its action says what it actually does.
+    val shape = AssetShape.fromStorage(track?.shape)
     val editDraft by viewModel.editDraft.collectAsStateWithLifecycle()
     val groupName by viewModel.groupName.collectAsStateWithLifecycle()
     val geometry by viewModel.geometry.collectAsStateWithLifecycle()
@@ -185,9 +189,16 @@ fun AssetDetailScreen(
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
+                    // The metres, and the ground. A line's area is an estimate from a swath width and a
+                    // carpark's is measured from its own corners, so the words have to say which of the
+                    // two is being read: "about 0.4 ha" against "0.4 ha of ground".
+                    val shownShape = AssetShape.fromStorage(track?.shape)
                     Text(
-                        text = "Length ${formatDistance(track?.lengthM ?: 0.0)}" +
-                            (viewModel.areaSqm?.let { " \u00b7 about ${formatArea(it)}" } ?: ""),
+                        text = AssetPhrase.lengthLabel(shownShape) + " " +
+                            formatDistance(track?.lengthM ?: 0.0) +
+                            (viewModel.areaSqm?.let {
+                                " \u00b7 " + AssetPhrase.areaPhrase(shownShape, formatArea(it))
+                            } ?: ""),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
@@ -394,7 +405,13 @@ fun AssetDetailScreen(
                     },
                     headlineContent = { Text("Edit details") },
                     supportingContent = {
-                        Text("Name, block, kind, interval, boom width and notes")
+                        Text(
+                            if (shape == AssetShape.AREA) {
+                                "Name, block, kind, interval and notes"
+                            } else {
+                                "Name, block, kind, interval, boom width and notes"
+                            }
+                        )
                     },
                     leadingContent = { AppIcon(IconGlyph.EDIT) }
                 )
@@ -403,9 +420,15 @@ fun AssetDetailScreen(
                         actionsOpen = false
                         onChangeLine()
                     },
-                    headlineContent = { Text("Change the line") },
+                    headlineContent = { Text(AssetPhrase.changeLabel(shape)) },
                     supportingContent = {
-                        Text("Move it, redraw it, or add a side track off it")
+                        Text(
+                            if (shape == AssetShape.AREA) {
+                                "Move it or redraw it - a carpark is one boundary"
+                            } else {
+                                "Move it, redraw it, or add a side track off it"
+                            }
+                        )
                     },
                     leadingContent = { AppIcon(IconGlyph.EDIT) }
                 )
@@ -416,7 +439,13 @@ fun AssetDetailScreen(
                     },
                     headlineContent = { Text("Export GPX") },
                     supportingContent = {
-                        Text("The line and its side tracks, for another device")
+                        Text(
+                            if (shape == AssetShape.AREA) {
+                                "The corners round it, for another device"
+                            } else {
+                                "The line and its side tracks, for another device"
+                            }
+                        )
                     },
                     leadingContent = { AppIcon(IconGlyph.EXPORT) }
                 )

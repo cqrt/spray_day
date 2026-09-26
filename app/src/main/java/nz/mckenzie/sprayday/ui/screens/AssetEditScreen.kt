@@ -211,6 +211,10 @@ fun AssetEditScreen(
                 },
                 text = MethodPhrase::choice
             )
+            // A kind that is ground is not asked these two questions: its area is measured from its own
+            // shape, and one run round it is the job. [AssetEdits] is what stores nothing for them; this
+            // is only the screen agreeing with it, and saying so rather than leaving a gap.
+            if (kind.shape != AssetShape.AREA) {
             OutlinedTextField(
                 value = swathWidth,
                 onValueChange = { swathWidth = it; problem = null },
@@ -243,6 +247,12 @@ fun AssetEditScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
+                )
+            }
+            } else {
+                Text(
+                    text = AssetEdits.GROUND_HINT,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
             OutlinedTextField(

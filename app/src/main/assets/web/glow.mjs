@@ -66,6 +66,18 @@ export function pickOut(phoneFilter, id) {
 }
 
 /**
+ * Whether a layer of the phone's work gets a halo of its own.
+ *
+ * A line gets a white edge, a place a disc. A **fill** gets nothing: a surface has no outline to widen,
+ * and the carpark it belongs to is drawn with a boundary as well - a line like every other line, whose
+ * own halo is what puts the white edge round a carpark that has been picked out. Asking for one anyway
+ * would draw a disc at every corner of the ring.
+ */
+export function wantsHalo(phoneLayer) {
+  return phoneLayer.type !== 'fill';
+}
+
+/**
  * The mark that belongs under one of the phone's layers: its shape, narrowed to the picked-out asset, and
  * the white the page draws a line's edge in - or, for a place, a disc in the pick's own colour.
  *

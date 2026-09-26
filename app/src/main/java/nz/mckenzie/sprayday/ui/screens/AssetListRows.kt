@@ -95,7 +95,8 @@ internal object AssetListRows {
         status = item.due.status,
         lengthM = item.asset.lengthM,
         swathWidthM = item.asset.swathWidthM,
-        passesRequired = item.asset.passesRequired
+        passesRequired = item.asset.passesRequired,
+        groundSqm = item.asset.groundSqm
     )
 }
 

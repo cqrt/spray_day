@@ -29,6 +29,34 @@ class AssetGroupingTest {
     private fun spot(status: DueStatus) =
         GroupableAsset(status = status, lengthM = 0.0, swathWidthM = null)
 
+    /** A carpark: the metres round its boundary, and the ground it encloses. */
+    private fun carpark(status: DueStatus, groundSqm: Double = 3_500.0, lengthM: Double = 260.0) =
+        GroupableAsset(status = status, lengthM = lengthM, swathWidthM = null, groundSqm = groundSqm)
+
+    @Test
+    fun `a block counts a carpark's measured ground, and not an estimate of it`() {
+        // A carpark's ground comes off its own corners, so it is added to the tile exactly - beside a
+        // line's, which is still an estimate from a swath width. Both belong in one total, because a
+        // tile is one figure; what must not happen is one being read as the other.
+        val totals = AssetGrouping.totals(
+            listOf(
+                carpark(DueStatus.NOT_DUE, groundSqm = 3_500.0),
+                line(DueStatus.NOT_DUE, lengthM = 1000.0, swathWidthM = 3.0)
+            )
+        )
+
+        assertEquals("a measured 3,500 m² and an estimated 3,000 m²", 6_500.0, totals.areaSqm, 0.01)
+        assertEquals("an area came from both of them", 2, totals.areaAssetCount)
+    }
+
+    @Test
+    fun `a carpark that has not been measured yet adds nothing, and claims nothing`() {
+        val totals = AssetGrouping.totals(listOf(carpark(DueStatus.NOT_DUE, groundSqm = 0.0)))
+
+        assertEquals("a zero is not a measurement", 0.0, totals.areaSqm, 1e-9)
+        assertEquals("so nothing says the area came from it", 0, totals.areaAssetCount)
+    }
+
     @Test
     fun `a block counts both passes of a track that is walked twice`() {
         // A handover's treated area is the ground that got sprayed, and a track walked up one side

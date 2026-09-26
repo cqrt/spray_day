@@ -3,7 +3,7 @@ package nz.mckenzie.sprayday.domain.asset
 /**
  * One layer of the work on the map, as the operator's switches see it.
  *
- * **One layer per kind of asset** - eight of them, the same eight the list's chips offer - because
+ * **One layer per kind of asset** - nine of them, the same nine the list's chips offer - because
  * the reason to hide a layer is to read another: a road network under a set of fencelines is noise,
  * and forty troughs on a block bury the two buildings that are the thing being looked for. Hiding
  * "places" was not enough for the second of those, so a place kind can be hidden on its own.
@@ -46,6 +46,17 @@ enum class AssetLayer(
         displayName = "Fencelines and stopbanks",
         summary = "Infrastructure you travel along, drawn as a dotted line.",
         kind = AssetKind.FENCELINE
+    ),
+
+    /**
+     * Ground with an edge. Drawn as a shape rather than a fence: a solid boundary with the due colour
+     * inside it, so a carpark reads as ground at a glance and not as a line to walk along.
+     */
+    CARPARKS(
+        id = "carparks",
+        displayName = "Carparks",
+        summary = "Ground you spray whole, drawn as a shape.",
+        kind = AssetKind.CARPARK
     ),
 
     BUILDINGS(

@@ -24,11 +24,12 @@ sprayed).
 - **Settings** with the LINZ key field, so an expired key is fixed on the phone
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
-- **Assets** — tracks, roads, fencelines, and the places you stop at, in one list: import GPX,
-  draw them by tapping the map, or record them by driving the line. The drawing screen
+- **Assets** — tracks, roads, fencelines, ground with an edge, and the places you stop at, in one list:
+  import GPX, draw them by tapping the map, or record them by driving the line. The drawing screen
   asks what you are making as you make it, and that answer decides the shape: a track, a road or a
-  fenceline is tapped out as a line, and a shed, a sign, a seat, a table or anything else you stop at
-  is placed with a single tap. Each row carries a coloured icon of
+  fenceline is tapped out as a line, a carpark is tapped out corner by corner and joined up when it is
+  saved, and a shed, a sign, a seat, a table or anything else you stop at is placed with a single tap.
+  Each row carries a coloured icon of
   what the asset is, next to the colour that says when it is due.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone
   holds, and change it. A track's details can be changed from its card; its line can be tidied by
@@ -47,16 +48,21 @@ sprayed).
   the middle of, and the keys — is a small box in the map's own corner rather than a bar over the work,
   in the phone's own words where the phone has them. Where you were looking is remembered on the
   computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
-  the same zoom rather than to the whole farm again.
+  the same zoom rather than to the whole farm again. A carpark reads there as it does on the phone:
+  the same ground drawn in the same colour, *Round it* and its metres on the card, and **Carpark** in
+  the Type list.
   Everything is judged by the phone's own rules and written to the phone's own database, so
   the laptop and the phone cannot disagree about what is on the farm. The address the card shows
   carries a secret code that the phone checks, and **"Only this address can open it"** turns that
   off for a network you own — with it off the address is a plain one and anyone on the Wi-Fi can
   open the editor and change your tracks, so the card says that in as many words.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
-  only the default), its **kind** — a track, a road, a fenceline, a building, a sign, a
-  bench seat, a picnic table, or other place — and the kind decides whether it is a line
-  or a single spot, so that is not a second question. Then how it is sprayed (**boom** or **knapsack**, which offers the
+  only the default), its **kind** — a track, a road, a fenceline, a carpark, a building, a sign, a
+  bench seat, a picnic table, or other place — and the kind decides whether it is a line, a ring of
+  ground, or a single spot, so that is not a second question. A carpark is not asked for a swath width
+  or a pass count, and says why in one line: those two are line ideas, and a carpark's ground is
+  measured from its own corners rather than estimated from a width. Every other kind is asked how it is
+  sprayed (**boom** or **knapsack**, which offers the
   usual width for that method), the swath width for a treated-area estimate, how many
   passes finish the job (**one**, or **two** for a line walked up one side and back
   down the other — see [A line that is sprayed twice](#a-line-that-is-sprayed-twice)),
@@ -76,25 +82,34 @@ sprayed).
   discovered a fortnight late. Nothing repeats daily, and a line drawn this morning
   is not nagged about.
 - **Handover record**: the season as a CSV — one row per product per spray, with the
-  asset, its group and spray method, the amount, water, distance, and the recording
-  that proves it. Dates are ISO so a spreadsheet sorts them, and the file carries a
+  asset, its group and spray method, the amount, water, distance, area, and the recording
+  that proves it. The area is the ground the spray covered: **measured from a carpark's own
+  boundary**, and an estimate from the swath width for a line. Dates are ISO so a spreadsheet sorts
+  them, and the file carries a
   byte-order mark so Excel opens accented names correctly.
 - **The map is the home screen**: every asset drawn in its traffic-light colour, and
   each of the three lines drawn differently — solid for tracks, dashed for roads, dotted for
   fencelines — and **a marker for anything that is a spot** rather than a path, in
   the same traffic-light colour and the same picture the asset's row carries: a roof
   over walls for a building, a plate on a post for a sign, a bench seat, a picnic
-  table, a dot in a ring. A
+  table, a dot in a ring. A **carpark is drawn as the ground it is**: a solid edge in the
+  kind's own colour with the ground inside in a light fill of the same colour, so it reads as a
+  surface from a distance rather than as a fence round nothing. A
   **part-sprayed track is drawn in parts**: what the pass covered in the colour it
   earned, and what is still waiting for a tank in red, so "half this line is left" is
-  visible without opening anything. A tap
-  on an asset opens it, and the tap radius follows the zoom, so it is tappable zoomed
+  visible without opening anything — and the same goes for a carpark's edge, where **the north
+  side being missed is worth seeing**. A tap
+  on an asset opens it, a tap **inside** a carpark opens the carpark, and the tap radius follows the
+  zoom, so it is tappable zoomed
   out over the farm as well as at spray height. The map does not rotate: north is up,
   which is one less thing to get wrong with gloves on.
 - **Layers you can switch off**: the layers button on the map lists one switch per kind of thing it
-  draws — tracks, roads, fencelines and stopbanks, buildings, signs, bench seats, picnic tables and
+  draws — tracks, roads, fencelines and stopbanks, carparks, buildings, signs, bench seats, picnic
+  tables and
   other places — and hides any of them on its own, so a block with forty troughs on it can be cleared
-  down to the two sheds that are the reason for looking. The choice is remembered between visits, and
+  down to the two sheds that are the reason for looking. A carpark's switch takes both of its layers,
+  the edge and the ground, because one without the other is not the thing that was hidden. The choice
+  is remembered between visits, and
   it is the home map's own: a spot being drawn still appears while it is being drawn, and an asset's
   page still draws that asset. A preference stored by a build from before the switches were split
   reads *places* back as all five place kinds, because that is what it meant.
@@ -137,7 +152,10 @@ sprayed).
   It is kept for as long as you are on the recorder and no longer: move to another tab,
   or put the phone down, and the next visit opens **ready to record** instead of still
   carrying the last job's numbers and the sentence about saving it.
-- **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools.
+- **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools. GPX carries tracks
+  rather than areas, so a carpark goes out as its **corners** — a closed track, which is what any
+  other tool reads it as — and comes back as a line; one edit turns it into a carpark again, because
+  the app does not guess at the shape on the way in.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
   covered. Deleting a plan never deletes the recording.
@@ -282,14 +300,26 @@ than no reminder system at all.
 
 ## The kinds of asset
 
-There are eight, and **the kind decides the shape**: a **track**, a **road** and a **fenceline** are
-lines you travel along, and a **building**, a **sign**, a **bench seat**, a **picnic table** and
+There are nine, and **the kind decides the shape**: a **track**, a **road** and a **fenceline** are
+lines you travel along, a **carpark** is a ring of ground with an edge, and a **building**, a **sign**,
+a **bench seat**, a **picnic table** and
 **other place** are single spots. That is why the app never asks the second question — a track that
 was also a spot would be a line drawn across a paddock, with nothing on the screen saying the two
 answers disagreed.
 
+**A carpark is the one kind whose size the app knows.** Its boundary is a **ring** — the corners you
+tap, joined up when it is saved, so the last corner is the first one again. That ring is stored closed
+rather than left for each reader to close for itself, because an unclosed one would make the metres
+round it, the ground inside it, the tap test and the backup all ask what shape they are holding. The
+ground is **measured from those corners** — a carpark is metres across, so reckoning it flat is out by
+less than a square metre — and it is the only area in the app that is measured rather than estimated.
+So the card says *Round it 2.09 km · 27.0 ha of ground*, with no "about" in front of it, and a spray
+recorded on a carpark carries that ground rather than a swath width somebody typed.
+
 **The glyph says which kind; the colour says which family.** Blue for a track, purple for a road, teal
-for a fenceline and for every kind of place. Eight distinct colours at the size of a list icon is
+for a fenceline and for every kind of place, and a family of its own for ground — because the colour's
+job is to say which of the three it is, and a carpark is neither a line you travel along nor a place
+you stop at. Nine distinct colours at the size of a list icon is
 where two of them start looking alike, so the picture carries the detail and the colour carries the
 family — and neither of them is the green, amber or red, which are for when something is due.
 
@@ -300,10 +330,12 @@ claims nothing more, which is the honest thing to say about a trough, a tank or 
 before the kinds existed was stored as one word — *infrastructure* — with the shape beside it. The
 app reads that by the shape: a line of it is a fenceline, and a spot is a place nobody named, so it
 reads as *other place*. The row keeps the old word until somebody edits it, and the first edit of any
-field settles it onto one of the eight. The backup file and the database are unchanged by all of this.
+field settles it onto one of the nine. The backup file and the database are unchanged by all of this —
+and a phone on a build from before carparks existed reads one as a **track**, because a kind it has
+never heard of is read by the shape beside it, which is a line.
 
 **Finding one kind of it.** The asset list carries a row of chips between *Draw* and the list: **All**
-first, then the eight kinds in the picker's own words. Tapping one shows only that kind — the rows
+first, then the nine kinds in the picker's own words. Tapping one shows only that kind — the rows
 *and* the counts on the blocks, so a block with none of it leaves the list — and tapping the chip
 already showing brings everything back, which is what *All* does too. A kind with nothing in it says
 so in one line rather than showing an empty list. Old rows come along: a fenceline stored as
@@ -316,7 +348,7 @@ question asked, answered and put down. Nothing stored also means a phone whose c
 looks exactly as it did before the chips existed.
 
 The desk has the same idea beside its search box, as a **Type** list: *Anything*, then the phone's own
-eight, and the list shows what matches both the typed words and the type. The phone sends each asset's
+nine, and the list shows what matches both the typed words and the type. The phone sends each asset's
 kind already read back, so the page holds no second copy of the old-word rule. **The map draws the
 same answer as the list** - what narrows the rows narrows the map, and a search that matches nothing
 empties it - because a name on a list is not a place: an operator who has asked for the buildings is
@@ -356,7 +388,9 @@ the tile answers what would otherwise need the rows:
 - The **length and the area** are totals of the block, and each is left out when it is not
   known rather than shown as a zero — a block of troughs has no length, and saying "0 m" about
   it would read like a measurement. The area is called an estimate, and when only some lines
-  record a swath width the tile says how many it came from.
+  record a swath width the tile says how many it came from. A tile holding a carpark says **about**
+  its area like any other, because a total mixing measured ground in with estimated ground is only as
+  good as its weakest part.
 - The **share left** is counted in assets, with the distance left beside it. Counting metres
   would let a block whose only due asset is a trough report "0% left" directly above a line
   saying something is left; the bar shows the work done in the dot's colour, so the two agree.
@@ -426,7 +460,8 @@ out for four months, and the other side was never done.
 
 So an asset can be told that it takes **two passes**, on the edit form, and how far apart those two
 passes run if the operator knows. Everything else in the app is unchanged: a line that has never
-been told otherwise is one pass, and behaves exactly as it always did.
+been told otherwise is one pass, and behaves exactly as it always did. A **carpark is never asked**:
+it is one run round one boundary, so the question of doing both sides cannot arise on one.
 
 What the app then claims is decided from the fixes, in this order:
 
@@ -566,7 +601,8 @@ Files are versioned (`"format": "spray-day-backup"`, `"version": 2`). An older f
 restores into a newer build, since missing fields fall back to defaults; a file from a
 newer build is refused with an explanation rather than half-read. The switches arrived
 without a version bump for the same reason: a file written before they existed simply has
-no such key.
+no such key. A carpark's **measured ground travels beside its length** the same way: a file written
+before carparks existed has no such key, and an absent one reads as no ground rather than as an error.
 
 ### The copy that is not on the phone
 

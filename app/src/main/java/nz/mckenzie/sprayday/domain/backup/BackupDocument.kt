@@ -115,6 +115,12 @@ data class AssetRecord(
     val createdAtEpochMs: Long,
     val lastSprayedAtEpochMs: Long? = null,
     val lengthM: Double = 0.0,
+    /**
+     * The ground a ring encloses, for a carpark. Written as a key an older file simply does not have:
+     * everything a file written before this can hold is a line or a place, and neither encloses
+     * anything, so an absent key and a zero mean the same thing.
+     */
+    val areaM2: Double = 0.0,
     val points: List<LinePointRecord> = emptyList(),
     /**
      * The side tracks hanging off [points], in the order they were drawn.

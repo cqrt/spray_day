@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.domain.asset
 
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.Ring
 
 /**
  * What a drawn path turned into: the paths to store, or why they will not do.
@@ -99,6 +100,23 @@ object AssetPathEdits {
                     "A place is one spot on the map, and that is $total points. " +
                         "Change it to a path first, or click one spot."
                 )
+            }
+
+            // Ground with an edge. The app closes the ring rather than the drawing having to: a desk
+            // hands back the corners it was given, and a line that has just been re-kinded into a
+            // carpark arrives open by definition - so what is stored is always closed, and every
+            // reader of it (the metres, the coverage, the map) walks it without asking the shape.
+            AssetShape.AREA -> when {
+                clean.size > 1 -> AssetPathResult.Invalid(
+                    "A carpark is one boundary and has no side tracks - take them off it first."
+                )
+                Ring.cornerCount(clean.firstOrNull().orEmpty()) < Ring.MIN_CORNERS ->
+                    AssetPathResult.Invalid(
+                        "A carpark is the ground inside its boundary, so it needs three corners " +
+                            "at least - and that one has " +
+                            "${Ring.cornerCount(clean.firstOrNull().orEmpty())}."
+                    )
+                else -> AssetPathResult.Ok(listOf(Ring.closed(clean.firstOrNull().orEmpty())))
             }
 
             // The app's own sentence, word for word, from `AssetRepository.importAssetGpx`: a desk

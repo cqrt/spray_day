@@ -181,6 +181,9 @@ class SprayEntryViewModel(
                 sprays.recordSpray(
                     assetId = assetId,
                     products = lines,
+                    // A carpark's ground is measured from its own shape, so a spray entered by hand on
+                    // one carries it - the same figure the recorder writes for a pass driven round it.
+                    areaSqm = assetRepository.getAsset(assetId)?.groundSqm,
                     waterLitres = parsePositiveAmount(_waterLitres.value),
                     notes = _notes.value.trim().ifBlank { null },
                     recordedSessionId = linkedSessionId

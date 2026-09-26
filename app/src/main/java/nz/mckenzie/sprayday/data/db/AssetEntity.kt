@@ -36,7 +36,7 @@ data class AssetEntity(
     val name: String,
     /** [AssetKind] name. Stored as text so an unknown value cannot break the map. */
     val kind: String = AssetKind.TRACK.name,
-    /** [AssetShape] name: a line, or a single point. */
+    /** [AssetShape] name: a line, a single point, or a ring of ground with an edge. */
     val shape: String = AssetShape.LINE.name,
     /** [SprayMethod] name. [SprayMethod.UNSET] until the operator says otherwise. */
     val method: String = SprayMethod.UNSET.name,
@@ -73,8 +73,29 @@ data class AssetEntity(
     val createdAtEpochMs: Long,
     val lastSprayedAtEpochMs: Long? = null,
     /** Cached geometry length so lists and the due engine need no point joins. */
-    val lengthM: Double = 0.0
+    val lengthM: Double = 0.0,
+
+    /**
+     * The ground the shape encloses, in square metres, for a kind that is ground with an edge.
+     *
+     * Cached from the vertices beside [lengthM] and refreshed by the same write, for the same reason:
+     * a block's tile is added up from rows rather than from geometry, and a carpark's ground is a
+     * **measurement** - the one area in this app that is not an estimate from a swath width. Zero for
+     * every other kind, which is what a line and a place enclose.
+     */
+    val areaM2: Double = 0.0
 ) {
+
+    /**
+     * The ground this row's shape encloses, or null when it encloses none.
+     *
+     * The row's own answer, in one place, so the card, a block's tile and a recorded spray cannot each
+     * work it out slightly differently - and null rather than zero for a line and a place, because a
+     * zero area beside a real one is the kind of figure that gets added up and believed.
+     */
+    val groundSqm: Double?
+        get() = if (AssetShape.fromStorage(shape) == AssetShape.AREA) areaM2.takeIf { it > 0.0 } else null
+
     companion object {
         const val DEFAULT_INTERVAL_DAYS = 120
 

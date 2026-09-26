@@ -70,6 +70,15 @@ internal const val POSITION_DOT_LAYER = "sprayday-position-dot"
 private const val POSITION_ACCURACY_FILL = "rgba(33, 33, 33, 0.16)"
 private const val POSITION_ACCURACY_OUTLINE = "rgba(33, 33, 33, 0.38)"
 
+/**
+ * How much of the ground's colour a carpark's fill carries.
+ *
+ * A quarter, in the feature's own colour, which is the carpark's traffic light: solid enough to read
+ * as ground from across a paddock, thin enough that the imagery underneath is still readable - the
+ * fill says *this is a surface*, and it is not the thing the operator is looking at.
+ */
+private const val GROUND_FILL_OPACITY = 0.25f
+
 /** Padding around the track network when the camera frames it. */
 private const val BOUNDS_PADDING_PX = 96
 
@@ -406,9 +415,17 @@ internal fun MapLibreMap.loadSprayDayStyle(
         // One line layer per kind, because line-dasharray is a constant in MapLibre
         // rather than something a feature can carry. So a track is solid, a road is
         // dashed and infrastructure is dotted, and the filter is what keeps them apart.
+        // The ground goes under every line, because that is what it is: the surface the lines on it
+        // are drawn over. Added before them, which is what puts it underneath - MapLibre draws a
+        // style's layers in the order the style lists them.
+        addGroundFillLayer(style)
         addLineLayer(style, AssetLayerIds.TRACKS, AssetKind.TRACK)
         addLineLayer(style, AssetLayerIds.ROADS, AssetKind.ROAD)
         addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.FENCELINE)
+        // Ground with an edge: a carpark's boundary, and the one line layer whose features are rings
+        // rather than paths. Solid, because what a boundary says is that it closes - the fill and the
+        // measurements are the app's, and the shape is what tells a carpark from a track.
+        addLineLayer(style, AssetLayerIds.CARPARKS, AssetKind.CARPARK, shape = AssetShape.AREA)
         // A place is a marker, not a short line: drawing a picnic table as a line would claim a
         // shape the record does not have, and a marker says what the thing is rather than only
         // where it is - the same glyph the asset's own row carries.
@@ -467,10 +484,14 @@ internal fun MapLibreMap.loadSprayDayStyle(
  */
 private fun applyLayerVisibility(style: Style, hidden: Set<AssetLayer>) {
     AssetLayer.ALL.forEach { layer ->
-        val target = style.getLayer(AssetLayerIds.of(layer)) ?: return@forEach
-        target.setProperties(
-            PropertyFactory.visibility(if (layer in hidden) Property.NONE else Property.VISIBLE)
-        )
+        // Every layer that switch is: for the ground with an edge that is two, and a boundary left
+        // behind with the fill switched off would be half a carpark.
+        AssetLayerIds.idsOf(layer).forEach inner@{ id ->
+            val target = style.getLayer(id) ?: return@inner
+            target.setProperties(
+                PropertyFactory.visibility(if (layer in hidden) Property.NONE else Property.VISIBLE)
+            )
+        }
     }
 }
 
@@ -556,9 +577,15 @@ private fun addPlaceLayer(style: Style, kind: AssetKind) {
  * Adds one of the kind's line layers if it is not already there.
  *
  * The dash pattern comes from [AssetLineStyles], so which kind is drawn dashed is
- * decided in one testable place rather than here.
+ * decided in one testable place rather than here. Which *shape* of feature the layer draws comes in
+ * from the caller, because one source carries both: a path, and the ring of ground with an edge.
  */
-private fun addLineLayer(style: Style, id: String, kind: AssetKind) {
+private fun addLineLayer(
+    style: Style,
+    id: String,
+    kind: AssetKind,
+    shape: AssetShape = AssetShape.LINE
+) {
     if (style.getLayer(id) != null) return
 
     val properties = mutableListOf<PropertyValue<*>>(
@@ -576,7 +603,33 @@ private fun addLineLayer(style: Style, id: String, kind: AssetKind) {
             .withFilter(
                 Expression.all(
                     Expression.eq(Expression.get("kind"), Expression.literal(kind.name)),
-                    shapeIs(AssetShape.LINE)
+                    shapeIs(shape)
+                )
+            )
+    )
+}
+
+/**
+ * Adds the fill that makes a carpark's ground a surface rather than an outline.
+ *
+ * Added before the line layers, so it is drawn under them: a track across a carpark is a track on
+ * ground rather than a line something has been laid over. The colour is the feature's own - the
+ * carpark's traffic light - and the boundary drawn on top of it is solid, so where the ground stops
+ * is never in doubt.
+ */
+private fun addGroundFillLayer(style: Style) {
+    if (style.getLayer(AssetLayerIds.CARPARKS_FILL) != null) return
+
+    style.addLayer(
+        FillLayer(AssetLayerIds.CARPARKS_FILL, ASSETS_SOURCE)
+            .withProperties(
+                PropertyFactory.fillColor(Expression.get("stroke")),
+                PropertyFactory.fillOpacity(Expression.literal(GROUND_FILL_OPACITY))
+            )
+            .withFilter(
+                Expression.all(
+                    Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.CARPARK.name)),
+                    shapeIs(AssetShape.AREA)
                 )
             )
     )

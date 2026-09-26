@@ -20,8 +20,9 @@ import nz.mckenzie.sprayday.domain.tiles.Basemap
  * the layer ids (the very ones the map's own switches hide), [AssetLineStyles] for the dashes,
  * [PlaceIcons] for the houses. The only thing left for the page to decide is the pixels.
  *
- * The layer set is the app's own four, in the app's own order: what you spray along, what you drive
- * along, the rest of the infrastructure, then the places on top.
+ * The layer set is the app's own, in the app's own order: the ground's surface first, because
+ * everything else is drawn on top of it, then what you spray along, what you drive along, the rest of
+ * the infrastructure, the ground's own boundary, and the places on top.
  */
 object WebStyleJson {
 
@@ -30,6 +31,14 @@ object WebStyleJson {
 
     /** Just short of opaque, as the app's own map has it, so the imagery reads underneath. */
     private const val LINE_OPACITY = 0.9
+
+    /**
+     * How much of a carpark's own colour its ground carries, as the app's own map has it.
+     *
+     * The two maps drawing the same carpark differently would be the drift this file exists to stop,
+     * so the number is here for the same reason the dash patterns are.
+     */
+    private const val GROUND_FILL_OPACITY = 0.25
 
     /** The near-black green the app shows before any tile arrives. */
     private const val BACKGROUND = "#0B1F13"
@@ -109,8 +118,32 @@ object WebStyleJson {
                 put("maxzoom", basemap.maxZoom)
             }
         )
+        // The ground's fill, under everything the phone draws on it - the same arrangement, and the
+        // same reason, as the app's own map.
+        add(groundFillLayer())
         lineLayers().forEach { add(it) }
         PlaceIcons.KINDS.forEach { kind -> add(placeLayer(kind)) }
+    }
+
+    /**
+     * The ground inside a carpark's boundary.
+     *
+     * A boundary on its own reads as a fence, which is the report this answers: ground is a surface.
+     * The colour is the feature's own - the carpark's traffic light - so the fill and the edge cannot
+     * disagree, and it is the same quarter strength the app draws it at.
+     */
+    private fun groundFillLayer(): JsonObject = buildJsonObject {
+        put("id", AssetLayerIds.CARPARKS_FILL)
+        put("type", "fill")
+        put("source", ASSETS_SOURCE)
+        put("filter", lineFilter(AssetKind.CARPARK, AssetShape.AREA))
+        put(
+            "paint",
+            buildJsonObject {
+                put("fill-color", dataProperty("stroke"))
+                put("fill-opacity", GROUND_FILL_OPACITY)
+            }
+        )
     }
 
     /**
@@ -119,15 +152,18 @@ object WebStyleJson {
      * arrangement, and the same ids, as the map the operator holds in their hand.
      */
     private fun lineLayers(): List<JsonObject> = listOf(
-        AssetLayerIds.TRACKS to AssetKind.TRACK,
-        AssetLayerIds.ROADS to AssetKind.ROAD,
-        AssetLayerIds.FENCELINES to AssetKind.FENCELINE
-    ).map { (layerId, kind) ->
+        Triple(AssetLayerIds.TRACKS, AssetKind.TRACK, AssetShape.LINE),
+        Triple(AssetLayerIds.ROADS, AssetKind.ROAD, AssetShape.LINE),
+        Triple(AssetLayerIds.FENCELINES, AssetKind.FENCELINE, AssetShape.LINE),
+        // Ground with an edge is drawn by a line layer too - its boundary is a line round the ground -
+        // and its filter asks for `AREA`, which is what tells a carpark's edge from a track's.
+        Triple(AssetLayerIds.CARPARKS, AssetKind.CARPARK, AssetShape.AREA)
+    ).map { (layerId, kind, shape) ->
         buildJsonObject {
             put("id", layerId)
             put("type", "line")
             put("source", ASSETS_SOURCE)
-            put("filter", lineFilter(kind))
+            put("filter", lineFilter(kind, shape))
             put(
                 "layout",
                 buildJsonObject {
@@ -190,10 +226,10 @@ object WebStyleJson {
         )
     }
 
-    private fun lineFilter(kind: AssetKind): JsonArray = buildJsonArray {
+    private fun lineFilter(kind: AssetKind, shape: AssetShape = AssetShape.LINE): JsonArray = buildJsonArray {
         add("all")
         add(dataIs("kind", kind.name))
-        add(dataIs("shape", AssetShape.LINE.name))
+        add(dataIs("shape", shape.name))
     }
 
     private fun pointFilter(kind: AssetKind): JsonArray = buildJsonArray {

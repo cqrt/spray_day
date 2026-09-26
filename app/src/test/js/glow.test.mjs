@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { NO_ASSET, haloId, haloLayer, pickOut } from '../../main/assets/web/glow.mjs';
+import { NO_ASSET, haloId, haloLayer, pickOut, wantsHalo } from '../../main/assets/web/glow.mjs';
 
 /** The page's own paper: the white a line's edge is drawn in. */
 const WHITE = '#ffffff';
@@ -170,4 +170,24 @@ test('a line layer that says nothing about its width still gets a halo with one'
 test('the halo is named after the layer it belongs under, once', () => {
   assert.equal(haloId(track.id), 'sprayday-desk-glow-sprayday-assets-line-track');
   assert.equal(haloLayer(track, 7).id, haloId(track.id));
+});
+
+test('ground gets no halo of its own: its edge is a line like any other', () => {
+  // The carpark's fill, as `WebStyleJson` builds it. A halo for it would have to be a circle layer -
+  // `haloLayer` has only two shapes - and a circle draws one disc per corner of the ring.
+  const ground = {
+    id: 'sprayday-assets-area-carpark-fill',
+    type: 'fill',
+    source: 'assets',
+    filter: ['all', ['==', ['get', 'kind'], 'CARPARK'], ['==', ['get', 'shape'], 'AREA']],
+    paint: { 'fill-color': ['get', 'stroke'], 'fill-opacity': 0.25 }
+  };
+
+  assert.equal(wantsHalo(ground), false, 'a surface has no outline to widen');
+  assert.equal(wantsHalo(track), true, 'and a line still gets its white edge');
+  assert.equal(
+    wantsHalo({ ...track, type: 'symbol' }),
+    true,
+    'as does a place: its house is drawn as a picture over a disc'
+  );
 });

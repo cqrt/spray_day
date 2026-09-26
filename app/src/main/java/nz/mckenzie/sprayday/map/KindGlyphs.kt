@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 
 /**
- * The eight kinds of asset, drawn: one shape each, in whatever colour the job needs.
+ * The nine kinds of asset, drawn: one shape each, in whatever colour the job needs.
  *
  * **One geometry, two weights.** The list draws a glyph 20 dp wide beside a name, where a thin
  * outline is enough and anything heavier is a blob; the map draws the same glyph as a marker over
@@ -111,6 +111,22 @@ private fun DrawScope.drawKindShapes(
         )
     }
 
+    /**
+     * A filled piece of ground - the one glyph that is a thing rather than an outline of one, filled
+     * whatever the style says about boxes, and grown all round by the rim like every other shape.
+     *
+     * The rim matters here more than anywhere: a solid shape is what a marker's white edge is for, and
+     * on the list's near-white card a solid slate block needs no edge at all.
+     */
+    fun ground(left: Float, top: Float, wide: Float, tall: Float) {
+        drawRect(
+            color = color,
+            topLeft = Offset(x(left) - grow, y(top) - grow),
+            size = Size(width * wide + grow * 2f, height * tall + grow * 2f),
+            style = Fill
+        )
+    }
+
     when (kind) {
         // A track wanders, so it is one line with a bend in it.
         AssetKind.TRACK -> {
@@ -134,6 +150,13 @@ private fun DrawScope.drawKindShapes(
             listOf(0.38f, 0.66f).forEach { rail ->
                 line(0.14f, rail, 0.86f, rail, stroke * 0.8f)
             }
+        }
+
+        // Ground with an edge: a solid piece of the paddock, and the only filled glyph of the nine.
+        // That is what the kind is - the one kind that is not something standing on the ground - and at
+        // twenty pixels a solid block cannot be taken for any of the eight outlines above it.
+        AssetKind.CARPARK -> {
+            ground(left = 0.14f, top = 0.22f, wide = 0.72f, tall = 0.56f)
         }
 
         // A roof over walls: what a shed looks like from the air, and from the ground.

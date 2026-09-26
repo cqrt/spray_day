@@ -419,6 +419,66 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The migration that gives a carpark its ground.
+     *
+     * The column is defaulted rather than computed, because every asset in a v6 database is a line or a
+     * place and neither encloses anything: what has to be proved is that a v6 row comes out of it
+     * **exactly as it was**, with no ground invented for it - and that a carpark written afterwards can
+     * carry its own. `runMigrationsAndValidate` also checks the schema it produces against the one Room
+     * exports for v7, which is what stops the column and the entity drifting apart.
+     */
+    @Test
+    fun migrationFrom6To7AddsTheGroundWithoutClaimingAny() {
+        helper.createDatabase(TEST_DB, 6).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                    "swathWidthM, passesRequired, passSeparationM, active, createdAtEpochMs, " +
+                    "lastSprayedAtEpochMs, lengthM) " +
+                    "VALUES (3, 'Estuary road', 'TRACK', 'LINE', 'BOOM', NULL, NULL, 120, 3.0, 1, " +
+                    "NULL, 1, 1000, NULL, 222.4)"
+            )
+            execSQL(
+                "INSERT INTO asset_points (assetId, pathIndex, sequence, lat, lng) VALUES " +
+                    "(3, 0, 0, -41.50, 173.95), (3, 0, 1, -41.51, 173.96)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 7, true, MIGRATION_6_7)
+
+        migrated.query("SELECT areaM2, lengthM FROM assets WHERE id = 3").use { cursor ->
+            assertTrue("the road is still there", cursor.moveToFirst())
+            assertEquals(
+                "a line encloses nothing, and nothing is claimed for it",
+                0.0,
+                cursor.getDouble(0),
+                1e-9
+            )
+            assertEquals("and its length is untouched", 222.4, cursor.getDouble(1), 0.01)
+        }
+        migrated.query("SELECT COUNT(*) FROM asset_points WHERE assetId = 3").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("with every vertex of its line", 2, cursor.getInt(0))
+        }
+
+        // A carpark written after the migration carries the ground measured off its corners: the column
+        // is writable, which is the other half of what a migration has to leave behind.
+        migrated.execSQL(
+            "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                "swathWidthM, passesRequired, passSeparationM, active, createdAtEpochMs, " +
+                "lastSprayedAtEpochMs, lengthM, areaM2) " +
+                "VALUES (4, 'Works carpark', 'CARPARK', 'AREA', 'UNSET', NULL, NULL, 120, NULL, 1, " +
+                "NULL, 1, 1000, NULL, 260.0, 3500.0)"
+        )
+        migrated.query("SELECT areaM2 FROM assets WHERE id = 4").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("a carpark's measured ground is stored", 3_500.0, cursor.getDouble(0), 0.01)
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

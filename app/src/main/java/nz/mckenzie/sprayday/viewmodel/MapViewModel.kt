@@ -93,6 +93,15 @@ class MapViewModel(
 
     private val geometryByTrack = MutableStateFlow<Map<Long, AssetGeometry>>(emptyMap())
 
+    /**
+     * The rings on the map, per asset: the geometry of the assets whose shape is an area.
+     *
+     * Held beside the lines rather than inside them, because a tap is answered in two steps - see
+     * [AssetHitTest.nearest] - and only a ring can answer the second one. Built from the geometry that
+     * was read for drawing, so a tap inside a carpark costs the database nothing.
+     */
+    private val groundByTrack = MutableStateFlow<Map<Long, List<GeoPoint>>>(emptyMap())
+
     /** The sprays that could colour part of a line, per asset. */
     private val coverageByTrack = MutableStateFlow<Map<Long, AssetSprayCoverage>>(emptyMap())
 
@@ -245,12 +254,22 @@ class MapViewModel(
             // had not changed.
             assetsWithDue
                 .map { tracks ->
-                    tracks.map { TrackKey(it.asset.id, it.asset.lengthM, it.sprayCount) }
-                        .sortedBy { it.assetId }
+                    tracks.map {
+                        TrackKey(
+                            assetId = it.asset.id,
+                            lengthM = it.asset.lengthM,
+                            sprayCount = it.sprayCount,
+                            ground = AssetShape.fromStorage(it.asset.shape) == AssetShape.AREA
+                        )
+                    }.sortedBy { it.assetId }
                 }
                 .distinctUntilChanged()
                 .collect { keys ->
-                    geometryByTrack.value = keys.associate { it.assetId to loadGeometry(it.assetId) }
+                    val geometries = keys.associate { it.assetId to loadGeometry(it.assetId) }
+                    geometryByTrack.value = geometries
+                    groundByTrack.value = keys.filter { it.ground }.associate { key ->
+                        key.assetId to geometries.getValue(key.assetId).paths.firstOrNull().orEmpty()
+                    }
                     coverageByTrack.value = keys.associate { it.assetId to loadCoverage(it.assetId) }
                 }
         }
@@ -263,12 +282,21 @@ class MapViewModel(
      * The count is in there because a spray does not change a line's geometry and does
      * change what part of it is drawn in which colour - without it, the first half of a
      * track would keep looking the way it did before the pass that sprayed it.
+     *
+     * The shape is in there because turning a line into ground changes what a tap on it means, and
+     * that reads from the same geometry this rebuilds: a change that left the length alone would
+     * otherwise keep answering taps the old way.
      */
-    private data class TrackKey(val assetId: Long, val lengthM: Double, val sprayCount: Int)
+    private data class TrackKey(
+        val assetId: Long,
+        val lengthM: Double,
+        val sprayCount: Int,
+        val ground: Boolean
+    )
 
     /** The track under a tap on the map, or null when the tap was not on one. */
     fun assetAt(lat: Double, lng: Double, radiusM: Double = AssetHitTest.DEFAULT_TOLERANCE_M): Long? =
-        AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM)
+        AssetHitTest.nearest(geometryByTrack.value, lat, lng, radiusM, groundByTrack.value)
 
     /**
      * Hides or shows one layer of the work, leaving the others as they are.

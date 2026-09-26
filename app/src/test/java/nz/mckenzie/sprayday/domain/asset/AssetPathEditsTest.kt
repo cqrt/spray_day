@@ -170,4 +170,44 @@ class AssetPathEditsTest {
             message.contains((AssetPathEdits.MAX_POINTS + 2).toString())
         )
     }
+
+    @Test
+    fun `a carpark's boundary is stored closed, so the last corner joins the first`() {
+        val corners = listOf(
+            GeoPoint(-41.5, 173.8),
+            GeoPoint(-41.5, 173.81),
+            GeoPoint(-41.51, 173.81)
+        )
+
+        val stored = ok(AssetShape.AREA, corners)
+
+        assertEquals("three corners, and the one that closes them", 4, stored.size)
+        assertEquals(corners + corners.first(), stored)
+        assertEquals(
+            "a page handing back a ring it was given is not closed a second time",
+            stored,
+            ok(AssetShape.AREA, stored)
+        )
+    }
+
+    @Test
+    fun `a carpark of two corners encloses nothing, and is refused in the app's own words`() {
+        val message = refused(AssetShape.AREA, line)
+
+        assertTrue("says how many it has: $message", message.contains("that one has 2"))
+        assertTrue("says what it is for: $message", message.contains("ground inside"))
+    }
+
+    @Test
+    fun `a carpark is one boundary, and a side track on one is refused`() {
+        val corners = listOf(
+            GeoPoint(-41.5, 173.8),
+            GeoPoint(-41.5, 173.81),
+            GeoPoint(-41.51, 173.81)
+        )
+
+        val message = refusedPaths(AssetShape.AREA, listOf(corners, listOf(corners.first(), corners[1])))
+
+        assertTrue("says what to do about it: $message", message.contains("take them off"))
+    }
 }

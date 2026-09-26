@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.geo.Ring
 import nz.mckenzie.sprayday.domain.geo.distanceToPolylineMeters
 
 /**
@@ -69,14 +70,23 @@ object AssetHitTest {
     private fun metresPerPixel(zoom: Double, latitude: Double): Double =
         156_543.03392 * kotlin.math.cos(Math.toRadians(latitude)) / Math.pow(2.0, zoom)
 
-    /** The id of the nearest track to the tap, or null if the tap was not on one. */
+    /**
+     * The id of the nearest track to the tap, or null if the tap was not on one.
+     *
+     * [ground] is the map's rings - the geometry of the assets whose shape is an area - and they
+     * answer a tap that no line claims, because a tap *inside* a carpark is a tap on the carpark. The
+     * order is the app's rule rather than this function's convenience: **a line under the fingertip
+     * wins**, so a track crossing a carpark is still the thing the operator tapped, and the ground
+     * answers what is left. Two rings under one tap come out the way two lines always have - the
+     * lowest id - so the answer never depends on the order the map happened to be built in.
+     */
     fun nearest(
         geometryByTrack: Map<Long, AssetGeometry>,
         lat: Double,
         lng: Double,
-        toleranceM: Double = DEFAULT_TOLERANCE_M
+        toleranceM: Double = DEFAULT_TOLERANCE_M,
+        ground: Map<Long, List<GeoPoint>> = emptyMap()
     ): Long? {
-        if (geometryByTrack.isEmpty()) return null
         val tap = GeoPoint(lat = lat, lng = lng)
 
         var bestId: Long? = null
@@ -99,6 +109,11 @@ object AssetHitTest {
             }
         }
 
-        return if (bestDistance <= toleranceM) bestId else null
+        if (bestDistance <= toleranceM) return bestId
+
+        return ground.entries
+            .filter { (_, ring) -> Ring.contains(ring, tap) }
+            .minByOrNull { (assetId, _) -> assetId }
+            ?.key
     }
 }

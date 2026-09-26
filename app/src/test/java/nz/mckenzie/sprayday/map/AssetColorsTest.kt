@@ -30,23 +30,34 @@ class AssetColorsTest {
     }
 
     @Test
-    fun `the eight kinds wear the three family colours, and nothing else`() {
-        val families = setOf(AssetColors.TRACK_KIND, AssetColors.ROAD_KIND, AssetColors.PLACE_KIND)
+    fun `the nine kinds wear the four family colours, and nothing else`() {
+        val families = setOf(
+            AssetColors.TRACK_KIND,
+            AssetColors.ROAD_KIND,
+            AssetColors.PLACE_KIND,
+            AssetColors.GROUND_KIND
+        )
 
         AssetKind.entries.forEach { kind ->
             assertTrue(
-                "$kind wears a colour from outside the three",
+                "$kind wears a colour from outside the four",
                 AssetColors.forKind(kind) in families
             )
         }
         // A track and a road are their own colour, and every kind of place shares the teal: the glyph
-        // is what tells one place from another, because eight colours at twenty pixels is where two
-        // of them start looking alike.
+        // is what tells one place from another, because nine colours at twenty pixels is where two of
+        // them start looking alike.
         assertEquals(AssetColors.TRACK_KIND, AssetColors.forKind(AssetKind.TRACK))
         assertEquals(AssetColors.ROAD_KIND, AssetColors.forKind(AssetKind.ROAD))
         assertNotEquals("a road must not look like a track", AssetColors.TRACK_KIND, AssetColors.ROAD_KIND)
         assertEquals(AssetColors.PLACE_KIND, AssetColors.forKind(AssetKind.FENCELINE))
         assertEquals(AssetColors.PLACE_KIND, AssetColors.forKind(AssetKind.OTHER_PLACE))
+        // Ground with an edge is neither a line you travel along nor a place you stop at, so it has the
+        // third family's colour of its own - and it must not be one of the three already in use.
+        assertEquals(AssetColors.GROUND_KIND, AssetColors.forKind(AssetKind.CARPARK))
+        assertNotEquals(AssetColors.TRACK_KIND, AssetColors.GROUND_KIND)
+        assertNotEquals(AssetColors.ROAD_KIND, AssetColors.GROUND_KIND)
+        assertNotEquals(AssetColors.PLACE_KIND, AssetColors.GROUND_KIND)
     }
 
     @Test

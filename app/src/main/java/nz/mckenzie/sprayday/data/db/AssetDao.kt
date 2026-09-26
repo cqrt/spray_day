@@ -97,8 +97,8 @@ abstract class AssetDao {
     @Query("UPDATE assets SET lastSprayedAtEpochMs = :sprayedAtEpochMs WHERE id = :assetId")
     abstract suspend fun setLastSprayedAtExactly(assetId: Long, sprayedAtEpochMs: Long?)
 
-    @Query("UPDATE assets SET lengthM = :lengthM WHERE id = :assetId")
-    abstract suspend fun updateLength(assetId: Long, lengthM: Double)
+    @Query("UPDATE assets SET lengthM = :lengthM, areaM2 = :areaM2 WHERE id = :assetId")
+    abstract suspend fun updateMeasures(assetId: Long, lengthM: Double, areaM2: Double)
 
     @Query("SELECT * FROM asset_points WHERE assetId = :assetId ORDER BY pathIndex, sequence")
     abstract suspend fun getGeometry(assetId: Long): List<AssetPointEntity>
@@ -136,11 +136,21 @@ abstract class AssetDao {
     @Query("DELETE FROM asset_points WHERE assetId = :assetId")
     abstract suspend fun deleteGeometry(assetId: Long)
 
-    /** Swaps an asset's geometry and refreshes its cached length atomically. */
+    /**
+     * Swaps an asset's geometry and refreshes its cached length and ground atomically.
+     *
+     * Both numbers are written with the vertices they come from, in one transaction, so a list can
+     * never read a length that belongs to the previous line.
+     */
     @androidx.room.Transaction
-    open suspend fun replaceGeometry(assetId: Long, points: List<AssetPointEntity>, lengthM: Double) {
+    open suspend fun replaceGeometry(
+        assetId: Long,
+        points: List<AssetPointEntity>,
+        lengthM: Double,
+        areaM2: Double
+    ) {
         deleteGeometry(assetId)
         if (points.isNotEmpty()) insertGeometry(points)
-        updateLength(assetId, lengthM)
+        updateMeasures(assetId, lengthM, areaM2)
     }
 }

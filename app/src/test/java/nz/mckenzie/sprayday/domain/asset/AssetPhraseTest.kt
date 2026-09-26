@@ -20,6 +20,7 @@ class AssetPhraseTest {
         assertEquals("Track", AssetPhrase.kind(AssetKind.TRACK))
         assertEquals("Road", AssetPhrase.kind(AssetKind.ROAD))
         assertEquals("Fenceline", AssetPhrase.kind(AssetKind.FENCELINE))
+        assertEquals("Carpark", AssetPhrase.kind(AssetKind.CARPARK))
         assertEquals("Building", AssetPhrase.kind(AssetKind.BUILDING))
         assertEquals("Sign", AssetPhrase.kind(AssetKind.SIGN))
         assertEquals("Bench seat", AssetPhrase.kind(AssetKind.BENCH))
@@ -37,10 +38,14 @@ class AssetPhraseTest {
     }
 
     @Test
-    fun `three kinds are lines to travel along and five are places to stop at`() {
+    fun `three kinds are lines, one is ground, and five are places`() {
         assertEquals(
             setOf(AssetKind.TRACK, AssetKind.ROAD, AssetKind.FENCELINE),
             AssetKind.entries.filter { it.shape == AssetShape.LINE }.toSet()
+        )
+        assertEquals(
+            setOf(AssetKind.CARPARK),
+            AssetKind.entries.filter { it.shape == AssetShape.AREA }.toSet()
         )
         assertEquals(
             setOf(
@@ -51,6 +56,35 @@ class AssetPhraseTest {
                 AssetKind.OTHER_PLACE
             ),
             AssetKind.entries.filter { it.shape == AssetShape.POINT }.toSet()
+        )
+    }
+
+    @Test
+    fun `a kind that is ground is asked for the metres round it, and its ground is not called an estimate`() {
+        assertEquals("Length", AssetPhrase.lengthLabel(AssetShape.LINE))
+        assertEquals("Length", AssetPhrase.lengthLabel(AssetShape.POINT))
+        assertEquals("Round it", AssetPhrase.lengthLabel(AssetShape.AREA))
+
+        assertEquals(
+            "a line's area is guessed from a swath width, and the words have to say so",
+            "about 0.4 ha",
+            AssetPhrase.areaPhrase(AssetShape.LINE, "0.4 ha")
+        )
+        assertEquals(
+            "a ring's ground is measured from its own corners",
+            "0.4 ha of ground",
+            AssetPhrase.areaPhrase(AssetShape.AREA, "0.4 ha")
+        )
+    }
+
+    @Test
+    fun `changing a shape is asked for in that shape's own words`() {
+        assertEquals("Change the line", AssetPhrase.changeLabel(AssetShape.LINE))
+        assertEquals("Change the line", AssetPhrase.changeLabel(AssetShape.POINT))
+        assertEquals(
+            "ground is re-fenced, not redrawn - and the drawing screen said line about a carpark",
+            "Change the boundary",
+            AssetPhrase.changeLabel(AssetShape.AREA)
         )
     }
 

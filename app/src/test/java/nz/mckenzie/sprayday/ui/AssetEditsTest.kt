@@ -179,6 +179,26 @@ class AssetEditsTest {
     }
 
     @Test
+    fun `a carpark is not asked for a swath width or a pass count, whatever the fields hold`() {
+        // The form does not offer either for a kind that is ground - its area is measured from its own
+        // shape, and one run round it is the job - so what is left in those fields is not stored. It is
+        // not allowed to stop the save either: an operator cannot fix a field they were never shown.
+        val edited = ok(
+            apply(
+                kind = AssetKind.CARPARK,
+                swathWidthM = "not a number",
+                passesRequired = 2,
+                passSeparationM = "about a metre"
+            )
+        )
+
+        assertEquals(AssetShape.AREA.name, edited.asset.shape)
+        assertNull("a width nothing reads is not kept", edited.asset.swathWidthM)
+        assertEquals("one run round it is the job", 1, edited.asset.passesRequired)
+        assertNull(edited.asset.passSeparationM)
+    }
+
+    @Test
     fun `picking a spray method suggests its usual width`() {
         assertEquals("3", AssetEdits.swathAfterMethodChange(SprayMethod.UNSET, SprayMethod.BOOM, ""))
         assertEquals("1", AssetEdits.swathAfterMethodChange(SprayMethod.UNSET, SprayMethod.KNAPSACK, ""))

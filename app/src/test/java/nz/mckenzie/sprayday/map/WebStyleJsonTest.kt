@@ -177,6 +177,38 @@ class WebStyleJsonTest {
     }
 
     @Test
+    fun `a carpark is ground - a surface under the lines, in the feature's own colour`() {
+        val fill = layer(AssetLayerIds.CARPARKS_FILL)
+
+        assertEquals("fill", fill["type"]!!.jsonPrimitive.content)
+        assertEquals(
+            """["all",["==",["get","kind"],"CARPARK"],["==",["get","shape"],"AREA"]]""",
+            fill["filter"].toString()
+        )
+        assertEquals(
+            "the carpark's own traffic light, read off the feature, so the fill and the edge cannot disagree",
+            """["get","stroke"]""",
+            paint(AssetLayerIds.CARPARKS_FILL)["fill-color"].toString()
+        )
+        assertEquals(
+            "the same strength the app's own map draws it at",
+            0.25,
+            paint(AssetLayerIds.CARPARKS_FILL)["fill-opacity"]!!.jsonPrimitive.content.toDouble(),
+            1e-9
+        )
+
+        val ids = layerIds()
+        assertTrue(
+            "a surface is drawn under everything that is drawn on it: $ids",
+            ids.indexOf(AssetLayerIds.CARPARKS_FILL) < ids.indexOf(AssetLayerIds.TRACKS)
+        )
+        assertTrue(
+            "and the boundary is drawn after the fill: $ids",
+            ids.indexOf(AssetLayerIds.CARPARKS_FILL) < ids.indexOf(AssetLayerIds.CARPARKS)
+        )
+    }
+
+    @Test
     fun `the other basemap is a different style, with that basemap's tiles and credit`() {
         val osm = Json.parseToJsonElement(
             WebStyleJson.build(Basemap.OPENSTREETMAP, "http://192.168.1.23:8799/tiles/osm/{z}/{x}/{y}.png", assets)

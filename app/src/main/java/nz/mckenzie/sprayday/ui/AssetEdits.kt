@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.ui
 
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 
 /** What the edit form made of what was typed into it. */
@@ -63,6 +64,17 @@ object AssetEdits {
 
     /** Narrower than this and it is not a boom, it is a stray keystroke. */
     const val MIN_SWATH_M = 0.1
+
+    /**
+     * What the form says where a kind that is ground would have had a swath width and a pass count.
+     *
+     * One sentence rather than an empty space, and the fields are not offered at all: a question that
+     * vanished without a word reads as a screen that has lost something. Both fields are line ideas -
+     * a width exists to guess an area that a ring measures from its own corners, and one run round a
+     * carpark is the whole job.
+     */
+    const val GROUND_HINT = "A carpark is its own ground: its area is measured from the shape, " +
+        "and one run round it is the job."
 
     /**
      * How far apart the two passes of a two-pass asset may be said to run.
@@ -127,9 +139,15 @@ object AssetEdits {
             )
         }
 
+        // A kind that is ground answers both of those questions itself, so they are not read from the
+        // fields at all - and not refused either: the form does not offer them for a carpark, so what
+        // is left in them is not something the operator is asking to be stored. A width nothing uses
+        // and a pass count that cannot happen are the sort of figures that end up quoted in a diary.
+        val isGround = fields.kind.shape == AssetShape.AREA
+
         // Blank means "not known", which is different from zero: an asset with no
         // swath width simply cannot have its treated area estimated.
-        val swath = when (val text = fields.swathWidthM.trim()) {
+        val swath = if (isGround) null else when (val text = fields.swathWidthM.trim()) {
             "" -> null
             else -> parsePositiveAmount(text)
                 ?: return AssetEditResult.Invalid("Swath width must be a number of metres, or empty")
@@ -142,10 +160,14 @@ object AssetEdits {
 
         // The two passes only exist if the job takes two, so a line that has just been set back
         // to one pass keeps no separation rather than storing a number nothing reads.
-        val passes = fields.passesRequired.coerceIn(
-            AssetEntity.DEFAULT_PASSES_REQUIRED,
-            AssetEntity.MAX_PASSES_REQUIRED
-        )
+        val passes = if (isGround) {
+            AssetEntity.DEFAULT_PASSES_REQUIRED
+        } else {
+            fields.passesRequired.coerceIn(
+                AssetEntity.DEFAULT_PASSES_REQUIRED,
+                AssetEntity.MAX_PASSES_REQUIRED
+            )
+        }
         val separation = when {
             passes < AssetEntity.TWO_PASSES_REQUIRED -> null
             fields.passSeparationM.isBlank() -> null

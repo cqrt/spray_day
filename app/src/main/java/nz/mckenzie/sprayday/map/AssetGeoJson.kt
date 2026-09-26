@@ -67,9 +67,9 @@ object AssetColors {
     /**
      * One colour per family of kind, for the icon beside an asset in the list.
      *
-     * Three colours for eight kinds, on purpose. Colour says which family a thing is in - a line
-     * you travel along, or a place you stop at - and the glyph says which kind it is, because
-     * eight distinct colours at twenty pixels is where two of them start looking alike.
+     * Four colours for nine kinds, on purpose. Colour says which family a thing is in - a line you
+     * travel along, a road, a place you stop at, or ground with an edge - and the glyph says which kind
+     * it is, because nine distinct colours at twenty pixels is where two of them start looking alike.
      *
      * Two things decide these. None of them may be the traffic-light green, amber or
      * red, because the icon says what something is while the dot beside it says when it
@@ -86,6 +86,17 @@ object AssetColors {
 
     /** Fencelines and every kind of place: teal, the one hue left that is nobody else's. */
     const val PLACE_KIND = "#00897B"
+
+    /**
+     * Ground with an edge: a carpark, and the third family's colour.
+     *
+     * A slate blue-grey, and the one hue left that is nobody's - not the traffic light's green, amber
+     * or red, not the track's blue, the road's purple or the fenceline's teal. It has to hold up as a
+     * thin outline on both the near-white card the light theme puts behind it and the near-black one
+     * the dark theme does, which is the test that decides the exact value and the reason a brown was
+     * refused once already.
+     */
+    const val GROUND_KIND = "#546E7A"
 
     /**
      * Where the phone is.
@@ -116,6 +127,7 @@ object AssetColors {
     fun forKind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> TRACK_KIND
         AssetKind.ROAD -> ROAD_KIND
+        AssetKind.CARPARK -> GROUND_KIND
         AssetKind.FENCELINE,
         AssetKind.BUILDING,
         AssetKind.SIGN,

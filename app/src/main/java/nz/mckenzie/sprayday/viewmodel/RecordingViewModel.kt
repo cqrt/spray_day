@@ -919,12 +919,20 @@ class RecordingViewModel(
                     " · " + TwoPassPhrase.notRecorded(twoPass.result)
 
                 else -> runCatching {
+                    // A carpark is the one asset whose ground the app has measured from its own shape,
+                    // so a job on one records that ground: it is the figure a handover, or a rate per
+                    // hectare worked out afterwards, is read from. Null for everything else, which is
+                    // what the app has always written - an estimate from a swath width has no place in
+                    // a record that somebody may be audited against.
+                    val groundSqm = assetRepository.getAsset(assetId)?.groundSqm
+
                     sprays.recordSpray(
                         assetId = assetId,
                         products = lines,
                         // Both legs of a two-pass job are ground that was driven: the pass being
                         // finished, and the one it was waiting on.
                         distanceM = distanceM + (twoPass?.legsM ?: 0.0),
+                        areaSqm = groundSqm,
                         recordedSessionId = sessionId
                     )
                     // The operator's word for the second side, where the fixes could not say:

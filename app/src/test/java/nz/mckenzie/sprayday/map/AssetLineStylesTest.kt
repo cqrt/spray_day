@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,5 +51,16 @@ class AssetLineStylesTest {
         AssetKind.entries.filter { it.shape == AssetShape.POINT }.forEach { place ->
             assertNull("$place is a house, not a line", AssetLineStyles.forKind(place))
         }
+    }
+
+    @Test
+    fun `a carpark's boundary is solid, because a boundary is not a dash pattern`() {
+        assertNull(AssetLineStyles.forKind(AssetKind.CARPARK))
+        // And the three that *are* told apart by their dashes are still three: ground with an edge is
+        // not a fourth line, it is a shape drawn by a layer of its own.
+        assertEquals(
+            3,
+            AssetKind.entries.filter { it.shape == AssetShape.LINE }.size
+        )
     }
 }

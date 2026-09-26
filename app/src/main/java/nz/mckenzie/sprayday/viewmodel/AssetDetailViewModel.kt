@@ -153,13 +153,25 @@ class AssetDetailViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    /** Estimated treated area, if the asset records a swath width. */
+    /**
+     * The ground the asset's own spray covers: a ring's measured area, or a line's estimate.
+     *
+     * Two different claims, and the screen's words say which one it is (see
+     * [nz.mckenzie.sprayday.domain.asset.AssetPhrase.areaPhrase]). Null when neither is known - a line
+     * with no swath width cannot have its area estimated, and nothing is claimed for it.
+     */
     val areaSqm: Double?
         get() = track.value?.let { entity ->
-            entity.swathWidthM?.let { width ->
-                // Both passes of a line sprayed twice go on the ground, so the area counts them:
-                // see estimatedAreaSqm.
-                estimatedAreaSqm(entity.lengthM, width, entity.passesRequired)
+            if (entity.groundSqm != null) {
+                // Measured from the ring's own corners when it was written, and cached on the row
+                // beside the length: an area the operator can take to a client, not a guess.
+                entity.groundSqm
+            } else {
+                entity.swathWidthM?.let { width ->
+                    // Both passes of a line sprayed twice go on the ground, so the area counts them:
+                    // see estimatedAreaSqm.
+                    estimatedAreaSqm(entity.lengthM, width, entity.passesRequired)
+                }
             }
         }
 

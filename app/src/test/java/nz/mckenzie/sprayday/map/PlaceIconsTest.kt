@@ -93,6 +93,16 @@ class PlaceIconsTest {
     }
 
     @Test
+    fun `a carpark asks for no picture at all, because it is drawn as a shape`() {
+        // Its own layer draws the boundary round the ground, so there is no marker and no image name:
+        // a shape on a map is drawn, not stuck on top of it.
+        assertEquals(
+            PlaceIcons.FALLBACK_IMAGE_NAME,
+            PlaceIcons.imageName(AssetKind.CARPARK, AssetColors.RED)
+        )
+    }
+
+    @Test
     fun `the same colour in either case asks for the same picture`() {
         assertEquals(
             PlaceIcons.imageName(AssetKind.BUILDING, AssetColors.RED),

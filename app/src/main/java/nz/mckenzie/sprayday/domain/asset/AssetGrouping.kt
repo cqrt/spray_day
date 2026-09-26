@@ -21,7 +21,16 @@ data class GroupableAsset(
      * a track walked up one side and back down the other is sprayed over twice: leaving this out
      * would under-report every two-pass track in the block by half.
      */
-    val passesRequired: Int = 1
+    val passesRequired: Int = 1,
+
+    /**
+     * The ground the shape encloses, for a kind that is ground with an edge.
+     *
+     * Null for a line and for a place, which enclose nothing: the area beside them on a block's tile
+     * is an estimate from a swath width, and these two numbers must not be added together as though
+     * they were the same measurement.
+     */
+    val groundSqm: Double? = null
 ) {
     /** Due, overdue or never done: this one still has to be driven. */
     val isLeft: Boolean get() = status != DueStatus.NOT_DUE
@@ -38,7 +47,7 @@ data class GroupTotals(
     val assetCount: Int,
     /** The lines' length added up. Spots have none, so this can be zero on a real block. */
     val lengthM: Double,
-    /** Estimated treated area of the assets that know their swath width. */
+    /** Estimated treated area of the assets that know their area - a swath width, or a ring's ground. */
     val areaSqm: Double,
     /** How many assets that area came from, so a partial estimate can say so. */
     val areaAssetCount: Int,
@@ -82,19 +91,26 @@ object AssetGrouping {
     fun totals(assets: List<GroupableAsset>): GroupTotals {
         val lines = assets.filter { it.lengthM > 0.0 }
         val left = assets.filter { it.isLeft }
-        val measured = assets.filter { it.swathWidthM != null && it.lengthM > 0.0 }
+        val ground = assets.filter { it.groundSqm != null && it.groundSqm > 0.0 }
+        val measured = assets.filter {
+            it.groundSqm == null && it.swathWidthM != null && it.lengthM > 0.0
+        }
 
         return GroupTotals(
             assetCount = assets.size,
             lengthM = lines.sumOf { it.lengthM },
-            areaSqm = measured.sumOf { asset ->
+            // The ground a ring encloses is measured from its corners, and a line's area beside it is
+            // an estimate from a swath width: counted separately, and added up because a tile is one
+            // figure. What must not happen is one of them being read as the other - see
+            // [nz.mckenzie.sprayday.domain.asset.AssetPhrase.areaPhrase], which words them apart.
+            areaSqm = ground.sumOf { it.groundSqm ?: 0.0 } + measured.sumOf { asset ->
                 estimatedAreaSqm(
                     lengthM = asset.lengthM,
                     swathWidthM = asset.swathWidthM ?: 0.0,
                     passes = asset.passesRequired
                 )
             },
-            areaAssetCount = measured.size,
+            areaAssetCount = ground.size + measured.size,
             leftCount = left.size,
             leftLengthM = left.filter { it.lengthM > 0.0 }.sumOf { it.lengthM },
             // No assets cannot happen from the list, but an empty block is not an overdue

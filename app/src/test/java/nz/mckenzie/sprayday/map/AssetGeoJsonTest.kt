@@ -154,6 +154,43 @@ class AssetGeoJsonTest {
     }
 
     @Test
+    fun `a carpark is a closed line with no picture, drawn by its own layer`() {
+        // The corners, with the last joining the first - which is how the app stores a ring, and why
+        // every reader of it (the metres, the coverage, the map) needs no idea what shape it is holding.
+        val corners = listOf(
+            GeoPoint(-41.5, 173.8),
+            GeoPoint(-41.5, 173.81),
+            GeoPoint(-41.51, 173.81),
+            GeoPoint(-41.5, 173.8)
+        )
+        val json = AssetGeoJson.build(
+            listOf(
+                AssetLine(
+                    assetId = 12L,
+                    name = "Works carpark",
+                    colorHex = AssetColors.GREEN,
+                    points = corners,
+                    kind = AssetKind.CARPARK,
+                    shape = AssetShape.AREA
+                )
+            )
+        )
+
+        assertTrue("a shape is drawn as a line round itself: $json", json.contains("\"type\":\"LineString\""))
+        assertTrue("what it is, so its own layer draws it", json.contains("\"kind\":\"CARPARK\""))
+        assertTrue(json.contains("\"shape\":\"AREA\""))
+        assertFalse(
+            "and it asks for no picture, because a shape is not a marker",
+            json.contains(AssetGeoJson.ICON_PROPERTY)
+        )
+        assertEquals(
+            "the ring closes on itself, so the first corner is in it twice",
+            2,
+            Regex("173\\.8000000,-41\\.5000000").findAll(json).count()
+        )
+    }
+
+    @Test
     fun `a line is not given a picture, because its own layer draws it`() {
         val json = AssetGeoJson.build(listOf(line(), line(kind = AssetKind.FENCELINE)))
 

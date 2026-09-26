@@ -150,4 +150,95 @@ class AssetHitTestTest {
             AssetHitTest.onTheLineToleranceForZoom(18.0, -41.5) < 10.0
         )
     }
+
+    /**
+     * A carpark: a yard about 200 m by 200 m, held the way the app holds one - closed, the first
+     * corner repeated at the end - with its middle at -41.5009, 173.9513.
+     */
+    private val carparkRing = listOf(
+        GeoPoint(-41.5000, 173.9500),
+        GeoPoint(-41.5000, 173.9526),
+        GeoPoint(-41.5018, 173.9526),
+        GeoPoint(-41.5018, 173.9500),
+        GeoPoint(-41.5000, 173.9500)
+    )
+
+    @Test
+    fun `a tap inside a carpark opens it`() {
+        val ground = mapOf(3L to carparkRing)
+
+        // The middle of the yard: over 100 m from any edge, and so not within a fingertip of one.
+        assertEquals(
+            "the ground under the tap is the thing that was tapped",
+            3L,
+            AssetHitTest.nearest(emptyMap(), lat = -41.5009, lng = 173.9513, ground = ground)
+        )
+        assertEquals(
+            "and it answers the corners on their own just the same",
+            3L,
+            AssetHitTest.nearest(emptyMap(), lat = -41.5009, lng = 173.9513, ground = mapOf(3L to carparkRing.dropLast(1)))
+        )
+    }
+
+    @Test
+    fun `a tap outside a carpark opens nothing`() {
+        val ground = mapOf(3L to carparkRing)
+
+        // Well south of the boundary, which is not the same as inside it.
+        assertNull(AssetHitTest.nearest(emptyMap(), lat = -41.5050, lng = 173.9513, ground = ground))
+        // And a "ring" of two corners encloses nothing to be on.
+        assertNull(
+            AssetHitTest.nearest(
+                emptyMap(),
+                lat = -41.5009,
+                lng = 173.9513,
+                ground = mapOf(3L to carparkRing.take(2))
+            )
+        )
+    }
+
+    @Test
+    fun `a line under the fingertip wins over the ground under it`() {
+        // A track crossing the yard, which is the one case where both would answer.
+        val geometry = tracksOf(
+            7L to listOf(GeoPoint(-41.5009, 173.9500), GeoPoint(-41.5009, 173.9526))
+        )
+
+        assertEquals(
+            "the track is what the operator put a finger on",
+            7L,
+            AssetHitTest.nearest(
+                geometry,
+                lat = -41.5009,
+                lng = 173.9513,
+                ground = mapOf(3L to carparkRing)
+            )
+        )
+    }
+
+    @Test
+    fun `a tap on a carpark's own boundary still opens it`() {
+        // The app hands the ring to both: the map draws its edge, so a tap on the edge is a tap on the
+        // line, and the answer has to be the carpark rather than nothing.
+        assertEquals(
+            3L,
+            AssetHitTest.nearest(
+                tracksOf(3L to carparkRing),
+                lat = -41.5009,
+                lng = 173.9500,
+                ground = mapOf(3L to carparkRing)
+            )
+        )
+    }
+
+    @Test
+    fun `two carparks under one tap resolve the way two lines always have`() {
+        // The same yard under two ids, which is the only way both can contain the tap exactly.
+        val overlapping = mapOf(9L to carparkRing, 4L to carparkRing)
+
+        assertEquals(
+            4L,
+            AssetHitTest.nearest(emptyMap(), lat = -41.5009, lng = 173.9513, ground = overlapping)
+        )
+    }
 }

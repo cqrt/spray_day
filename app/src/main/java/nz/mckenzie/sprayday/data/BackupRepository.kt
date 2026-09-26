@@ -241,6 +241,7 @@ private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
     createdAtEpochMs = createdAtEpochMs,
     lastSprayedAtEpochMs = lastSprayedAtEpochMs,
     lengthM = lengthM,
+    areaM2 = areaM2,
     points = points.path(0),
     spurs = points.pathsFrom(1)
 )
@@ -281,7 +282,8 @@ private fun AssetRecord.toEntity(groupId: Long?) = AssetEntity(
     active = active,
     createdAtEpochMs = createdAtEpochMs,
     lastSprayedAtEpochMs = lastSprayedAtEpochMs,
-    lengthM = lengthM
+    lengthM = lengthM,
+    areaM2 = areaM2
 )
 
 private fun ProductEntity.toRecord() = ProductRecord(

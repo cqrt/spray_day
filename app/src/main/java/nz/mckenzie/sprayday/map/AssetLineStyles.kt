@@ -34,6 +34,10 @@ object AssetLineStyles {
         AssetKind.TRACK -> null
         AssetKind.ROAD -> ROAD
         AssetKind.FENCELINE -> FENCELINE
+        // Solid, like a track, and for the opposite reason: a boundary is not a dash pattern. The edge
+        // of a piece of ground goes right round it, and what tells a carpark from a track on the map is
+        // the shape - a closed one, filled in its due colour - not the dash it is drawn with.
+        AssetKind.CARPARK -> null
         AssetKind.BUILDING,
         AssetKind.SIGN,
         AssetKind.BENCH,

@@ -36,7 +36,7 @@ const { drawingBody } = await import(
  * worth pinning: the halo takes the *phone's* layer's shape - its filter, its width, its dashes - so a
  * fenceline's glow is dotted. Imported the same way, for the same reason.
  */
-const { NO_ASSET, haloId, haloLayer, pickOut } = await import(
+const { NO_ASSET, haloId, haloLayer, pickOut, wantsHalo } = await import(
   TOKEN ? `./glow.mjs?k=${encodeURIComponent(TOKEN)}` : './glow.mjs'
 );
 
@@ -479,9 +479,14 @@ let glowFilters = new Map();
  *
  * Under all of the work rather than over it, because a halo is a light and not a lid: the phone's own line
  * sits on top of its own glow, at full strength, with its dashes unbroken.
+ *
+ * The ground's fill is passed over - see `wantsHalo` - so a carpark that is picked out wears the edge round
+ * its boundary rather than a disc at every one of its corners.
  */
 function addGlowLayers(style) {
-  const phoneLayers = (style.layers || []).filter((one) => one.id.startsWith('sprayday-assets-'));
+  const phoneLayers = (style.layers || []).filter(
+    (one) => one.id.startsWith('sprayday-assets-') && wantsHalo(one)
+  );
   if (!phoneLayers.length) return;
 
   glowFilters = new Map();
@@ -717,7 +722,12 @@ function showCard(item) {
   // "Other place" read as "Other place, a place", and a building as "building, a place".
   fact('What it is', kindText(item.asset.kind, state?.choices?.kinds));
   fact('Block', item.groupName || OTHERS);
-  fact('Length', item.asset.shape === 'LINE' ? metresText(item.asset.lengthM) : null);
+  // A line has a length and a ring has the metres round it; a place has neither. Which of the phone's
+  // own words the card uses is the phone's decision, not the page's - see AssetPhrase.lengthLabel.
+  fact(
+    item.asset.shape === 'AREA' ? 'Round it' : 'Length',
+    item.asset.shape !== 'POINT' ? metresText(item.asset.lengthM) : null
+  );
   fact('Spray every', `${item.asset.intervalDays} days`);
   fact('Next due', dateText(item.dueAtEpochMs));
   fact('Last sprayed', dateText(item.asset.lastSprayedAtEpochMs) || 'never');
@@ -732,6 +742,11 @@ function showCard(item) {
   // The ways in from the card. Assigned rather than added, because the card is redrawn on every save and
   // a listener added again on each one would save the asset twice.
   document.getElementById('card-edit').onclick = () => openEdit(item);
+  // What the second button is about to change, in the phone's own word for the shape: a line, or the
+  // boundary round a piece of ground. The label in the page is the line's, which is what most of the
+  // work is - a carpark saying "Change the line" is the wrong word in the operator's face.
+  document.getElementById('card-shape').textContent =
+    item.asset.shape === 'AREA' ? 'Change the boundary' : 'Change the line';
   document.getElementById('card-shape').onclick = () => startShape(item);
 
   // Deleting: the phone's own sentence about what is on the track, and its own answer about whether the

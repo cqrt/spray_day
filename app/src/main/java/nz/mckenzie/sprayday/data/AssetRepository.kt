@@ -19,6 +19,7 @@ import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
+import nz.mckenzie.sprayday.domain.geo.Ring
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
 import nz.mckenzie.sprayday.domain.gpx.GpxParser
 import nz.mckenzie.sprayday.domain.gpx.GpxWriter
@@ -303,7 +304,18 @@ class AssetRepository(
         geometry: AssetGeometry? = null
     ) = db.withTransaction {
         assetDao.update(asset.copy(groupId = groupIdFor(groupName)))
-        if (geometry != null) storeGeometry(asset.id, geometry)
+        when {
+            geometry != null -> storeGeometry(asset.id, geometry)
+            // A shape that is ground has to end up with ground under it: the kind decides that the last
+            // corner joins the first, and a line that has just been made a carpark arrives open by
+            // definition. It is closed once, here - and a carpark whose ring is already closed is left
+            // exactly as it is rather than rewritten every time its name or its interval is edited.
+            AssetShape.fromStorage(asset.shape) == AssetShape.AREA -> {
+                val stored = getAssetGeometry(asset.id)
+                if (!Ring.isClosed(stored.line)) storeGeometry(asset.id, stored)
+            }
+            else -> Unit
+        }
     }
 
     suspend fun updateAsset(asset: AssetEntity) = assetDao.update(asset)
@@ -338,7 +350,19 @@ class AssetRepository(
      * says a track is 800 m when its spur is 200 m of it.
      */
     private suspend fun storeGeometry(assetId: Long, geometry: AssetGeometry) {
-        val rows = geometry.paths.flatMapIndexed { pathIndex, path ->
+        // Ground with an edge is closed and measured **here**, where every geometry write goes through,
+        // rather than by each caller: a cached length that disagrees with the vertices beside it is a
+        // list that says a track is 800 m when its spur is 200 m of it - and a ground area that
+        // disagrees with them is a carpark claiming an acre it does not have. The shape is one
+        // primary-key lookup inside a transaction this write is already in.
+        val ground = AssetShape.fromStorage(assetDao.getAsset(assetId)?.shape) == AssetShape.AREA
+        val stored = if (ground) {
+            AssetGeometry(listOf(Ring.closed(geometry.line)) + geometry.sideTracks)
+        } else {
+            geometry
+        }
+
+        val rows = stored.paths.flatMapIndexed { pathIndex, path ->
             path.mapIndexed { index, point ->
                 AssetPointEntity(
                     assetId = assetId,
@@ -349,7 +373,12 @@ class AssetRepository(
                 )
             }
         }
-        assetDao.replaceGeometry(assetId, rows, geometry.lengthM)
+        assetDao.replaceGeometry(
+            assetId = assetId,
+            points = rows,
+            lengthM = stored.lengthM,
+            areaM2 = if (ground) Ring.areaSqm(stored.line) else 0.0
+        )
     }
 
     // --- Blocks -----------------------------------------------------------------------

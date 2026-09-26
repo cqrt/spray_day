@@ -202,6 +202,35 @@ class BackupFormatTest {
     }
 
     @Test
+    fun `a carpark's ground travels in the file, and a file without the key reads as none`() {
+        val carpark = AssetRecord(
+            id = 9,
+            name = "Works carpark",
+            kind = AssetKind.CARPARK.name,
+            shape = AssetShape.AREA.name,
+            intervalDays = 120,
+            createdAtEpochMs = 1_700_000_000_000L,
+            lengthM = 260.0,
+            areaM2 = 3_500.0,
+            points = listOf(LinePointRecord(-41.5, 173.8), LinePointRecord(-41.5, 173.81))
+        )
+        val written = BackupFormat.encode(
+            BackupDocument(
+                exportedAtEpochMs = 1_789_344_000_000L,
+                appVersion = "0.6.53",
+                assets = listOf(carpark)
+            )
+        )
+
+        assertEquals(3_500.0, BackupFormat.decode(written).assets.single().areaM2, 1e-9)
+
+        // A file written before carparks existed has no such key, and every asset in one is a line or a
+        // place: an absent key and a zero mean the same thing, which is no ground at all.
+        val older = written.lineSequence().filterNot { it.contains("\"areaM2\"") }.joinToString("\n")
+        assertEquals(0.0, BackupFormat.decode(older).assets.single().areaM2, 1e-9)
+    }
+
+    @Test
     fun `the file this build writes uses the asset vocabulary`() {
         val text = BackupFormat.encode(document())
 

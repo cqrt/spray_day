@@ -746,6 +746,13 @@ style's background colour and the work draws on top of it.
       `build/verify/web-editor-defaults.txt`, including the cold-start ANR this emulator has shown since
       slice 1 (dismissed with *Wait*) and one measurement that looked like a bug and was not: the system
       logs **two** foreground-service starts for one ask, while `onStartCommand` arrives once.
+      The **published** 0.6.55 APK was then installed clean and driven on its own (17,536,301 bytes,
+      `run-as` refusing it): untouched, it answered `GET /api/state` and `GET /` **200 with no token**, and
+      its card showed serving on with `http://10.0.2.16:8799/` bare beside the code switch off
+      (`we-def-9-shipped-defaults.png`); switching the code on answered **200 with it and 403 without**;
+      two rotations left the address and its secret **unchanged** with the old secret still 200; and with
+      the serving switch off the card lost its address and the port was **000**, which a force-stop and a
+      relaunch did not undo (`we-def-10-shipped-off-after-restart.png`).
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

@@ -190,7 +190,7 @@ that never saw the move rather than silently undoing it.
 | `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. **Landed in v0.6.20**; v0.6.23 gave it its first **request body** — read from the same buffered reader as the headers, `Content-Length` counted in **bytes** (counting characters would truncate a macron), 256 KB cap, `Transfer-Encoding: chunked` refused as 411, a body shorter than its own header as 400. |
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. **Landed in v0.6.21.** |
 | `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21**; v0.6.25 made the token **nullable**, where null is a run that asks for nothing at all: the gate route claims nothing, and it is the operator's own switch on the card that decides which of the two a run is. |
-| `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. |
+| `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. **v0.6.55**: `ACTION_START` is **idempotent** — a run that is going, or one being built, is the answer to a second ask, so the launcher's own ask repeating after a rotation cannot rebuild the run and hand out a new secret under a page that is open. |
 | `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. **v0.6.40**: the choices carry no shape, because the kind decides the shape (`AssetKind.shape`), and a new asset's defaults are the kind's alone. **v0.6.54** turns that round for the drawing: each kind carries its **shape** beside its label, so the desk draws a ring as ground rather than reading the word *Carpark*, a kind that is ground carries the phone's own sentence in place of the swath and passes hints, and every record carries the **measured ground** (`areaM2`) beside its metres. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
@@ -205,7 +205,8 @@ that never saw the move rather than silently undoing it.
 | File | Change |
 | --- | --- |
 | `offline/LocalTileServer.kt` | Uses the extracted `HttpServer`; its routes and its loopback-only guarantee are unchanged, word for word. Its tile route and `/status` are now factory functions a second server can be handed, so the editor serves the same tiles from the same stores. **v0.6.20 and v0.6.21.** |
-| `ui/screens/SettingsScreen.kt`, `viewmodel/SettingsViewModel.kt` | The "Draw from a computer" card: the switch, the address, Copy. No preference is stored for the switch — the address *is* the state, so a switch can never claim to be serving with nothing listening. **v0.6.21**; v0.6.25 added **"Only this address can open it"** — the token as a preference (on by default, `web_editor_token_required`), which serves the run again when it is changed while serving. |
+| `ui/screens/SettingsScreen.kt`, `viewmodel/SettingsViewModel.kt` | The "Draw from a computer" card: the switch, the address, Copy. No preference is stored for the switch — the address *is* the state, so a switch can never claim to be serving with nothing listening. **v0.6.21**; v0.6.25 added **"Only this address can open it"** — the token as a preference (on by default, `web_editor_token_required`), which serves the run again when it is changed while serving. **v0.6.55 turned both of the card's defaults over**: the serving switch is stored and **on** when unset (`web_editor_enabled`, and *off stays off*), asked for by the launcher activity as the app opens, and `web_editor_token_required` is **off** when unset — so an untouched install serves a bare address, which the card says the cost of in as many words. |
+| `MainActivity.kt` | Asks for the editor's run as the app opens, from the composition: `webEditorEnabled` read once, the service started unless the operator has turned it off or a run is already going. Here rather than in the application, because a process woken by a scheduled job has no screen behind it and no right to start a foreground service at all. **v0.6.55.** |
 | `AndroidManifest.xml` | `FOREGROUND_SERVICE_DATA_SYNC` and the service. `INTERNET` is already there. No other permission. |
 | `data/AssetRepository.kt` | `insertAsset(asset, geometry, groupName)` — a new asset and its line in one transaction, the id dropped so the database issues it and the length worked out from the vertices; `saveAssetEdits(asset, blockName, geometry)` gained an optional line written with the row; `allAssetGeometry()`, `recordingCountFor` and `recordingCounts()` for the documents. **v0.6.24.** **v0.6.54**: a carpark with no measured ground — a fenceline kept as one and just re-kinded — has its geometry written again, which is what works the area out from the corners it already has. |
 | `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
@@ -712,6 +713,39 @@ style's background colour and the work draws on top of it.
       Screenshots `tidy-1-panel.png`, `tidy-2-box.png`, `tidy-4-box.png`, `tidy-p1-box.png`,
       `tidy-r1-panel.png`, `tidy-r2-crop.png`; notes in `build/verify/web-tidy.txt`, including the fixture
       harness that had gone stale under it and the three things **not** proven.
+- [x] **The desk is served without being asked for. v0.6.55** — asked for in one line: *"On app, make
+      'draw from a computer' turned on by default and 'only this address can open it' off by default"*. The
+      card's two switches turned over, and neither of them was a one-line default. The serving switch had
+      **no preference at all** — the address *was* the state, and a restarted phone was a phone that was not
+      serving — so "on by default" meant the app had to ask for the run itself: `web_editor_enabled` is
+      stored now (**on** when unset, and *off stays off*, because a phone that came back serving after the
+      operator said no would be the app putting itself back on the network), and the launcher activity asks
+      for it as the composition starts, which is the one place Android lets a foreground service be started
+      from. Not the application: a process woken by a scheduled job has no screen behind it and no right to
+      start a service at all. `web_editor_token_required` is **off** when unset, which reverses v0.6.25's
+      promise — the argument for reversing it is the network it is served on, and the card still says out
+      loud what it costs, so an untouched install now hands out a bare address on the farm's own Wi-Fi.
+      **One bug came out of it, in the asking twice**: `ACTION_START` rebuilt the run whenever it arrived,
+      so a rotation — which recreates the activity, whose composition asks again — would have torn a run
+      down and issued a **new secret** under a page the operator was already reading. `ACTION_START` is
+      idempotent now, because "be serving" is a thing an app may ask for twice and get one run out of, and
+      the fix is invisible when it works: two rotations left the address and its secret unchanged.
+      Proven on a **fresh install**, untouched, with the phone's own words and the wire for evidence: the
+      desk answered `GET /api/state` and `GET /` **200 with no token at all** before anything had been
+      touched, and the card read *Serve the editor* **on** with `http://10.0.2.16:8799/` — bare — beside
+      *Only this address can open it* **off** and its warning sentence (`we-def-5-card-defaults.png`).
+      Turning the code on gave the address a fresh secret and the wire answered **200 with it, 403 without
+      it**, page included; turning it off while serving left the card with **no address** and the port
+      answering `000` even with the secret that had just worked; a **force-stop and relaunch** showed the
+      switch still off and no address (`we-def-7-off-after-restart.png`) with the port still silent, so it
+      is the stored answer deciding and not the default. `SettingsViewModelTest` gained *the serving switch
+      is remembered* — written before the service is told, and off is what the next launch reads — and the
+      suite's tear-down now puts **both** switches back to the untouched-install defaults. 213 instrumented
+      tests, JVM tests and lint clean. Screenshots `we-def-5-card-defaults.png`, `we-def-6-code-on.png`,
+      `we-def-7-off-after-restart.png`, `we-def-8-final-defaults.png`; notes in
+      `build/verify/web-editor-defaults.txt`, including the cold-start ANR this emulator has shown since
+      slice 1 (dismissed with *Wait*) and one measurement that looked like a bug and was not: the system
+      logs **two** foreground-service starts for one ask, while `onStartCommand` arrives once.
 - [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
 

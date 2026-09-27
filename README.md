@@ -56,10 +56,11 @@ sprayed).
   buttons; the form asks it for no swath width or pass count and says why in one line; and the card's
   second button says *Change the boundary*.
   Everything is judged by the phone's own rules and written to the phone's own database, so
-  the laptop and the phone cannot disagree about what is on the farm. The address the card shows
-  carries a secret code that the phone checks, and **"Only this address can open it"** turns that
-  off for a network you own — with it off the address is a plain one and anyone on the Wi-Fi can
-  open the editor and change your tracks, so the card says that in as many words.
+  the laptop and the phone cannot disagree about what is on the farm. It is served from the moment
+  the app is opened — the switch is on by default, and turning it off is remembered — and what the
+  card shows is a plain address unless **"Only this address can open it"** is turned on, which makes
+  it end in a secret code the phone checks. With the code off, anyone on the Wi-Fi can open the
+  editor and change your tracks, so the card says that in as many words.
 - **Per-asset settings**: each asset carries its own spray interval (120 days is
   only the default), its **kind** — a track, a road, a fenceline, a carpark, a building, a sign, a
   bench seat, a picnic table, or other place — and the kind decides whether it is a line, a ring of

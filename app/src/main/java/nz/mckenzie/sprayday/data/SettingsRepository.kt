@@ -38,6 +38,21 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
     private val basemapPref = stringPreferencesKey("basemap")
     private val hiddenMapLayersPref = stringSetPreferencesKey("hidden_map_layers")
     private val webEditorTokenRequiredPref = booleanPreferencesKey("web_editor_token_required")
+
+    /**
+     * Whether the app serves the editor to a computer - the first switch on the card.
+     *
+     * Stored, and **on when unset**. Stored because the two questions a card like this asks are
+     * different ones: this is what the operator asked for, and the address under it is what is
+     * actually happening. On, because the desk is how the work gets drawn, and a switch that has to
+     * be thrown on the phone before a man can sit down at the computer is a switch that stops the
+     * feature being used - which is why the phone now serves from the moment the app is opened.
+     *
+     * The default is also why turning it off has to be remembered: a phone restarted into serving,
+     * after the operator said no, would be the app putting itself back on the farm's network, and
+     * that is not a thing a default may do.
+     */
+    private val webEditorEnabledPref = booleanPreferencesKey("web_editor_enabled")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
     private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
     private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
@@ -122,25 +137,42 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
     }
 
     /**
-     * Whether a computer has to bring the token to reach the editor.
+     * Whether a computer has to bring the token to reach the editor - the card's "Only this address
+     * can open it".
      *
-     * **On**, and that default is a promise: an install that never touches the switch asks for a
-     * token exactly as every install has since the editor shipped.
+     * **Off when unset.** That reverses the promise this switch shipped with in v0.6.25, and the
+     * argument for reversing it is the network it is served on: the desk is for the farm's own Wi-Fi,
+     * where every device on it is the operator's, so the secret buys them little and costs them a
+     * paste - while a switch that has to be found and turned on before the desk can be used is a
+     * switch that stops the desk being used. What it costs is said on the card in as many words:
+     * with it off, anyone on the Wi-Fi can open the editor and change the tracks.
      *
-     * The token is what stops the other devices on the Wi-Fi - a visitor's phone, a tablet in the
-     * ute, a printer - and, more to the point, any web page open on the operator's own computer,
-     * from reaching a door that can change and delete the work. None of that is a router's business,
-     * which is why the token is what makes the switch safe to throw on a network nobody vouches for.
-     * On a network the operator owns, where every device on it is theirs, the secret buys them
-     * little and costs them a paste, so it can be turned off - and what they get then is a bare
-     * address that anybody on the Wi-Fi can open, which is exactly what the card shows them.
+     * Turned on, it is what stops the other devices on the Wi-Fi - a visitor's phone, a tablet in the
+     * ute, a printer - and, more to the point, any web page open on the operator's own computer, from
+     * reaching a door that can change and delete the work. None of that is a router's business, which
+     * is why the token is what makes the switch safe to throw on a network nobody vouches for.
      */
     val webEditorTokenRequired: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
-        prefs[webEditorTokenRequiredPref] ?: true
+        prefs[webEditorTokenRequiredPref] ?: false
     }
 
     suspend fun setWebEditorTokenRequired(required: Boolean) {
         context.settingsDataStore.edit { prefs -> prefs[webEditorTokenRequiredPref] = required }
+    }
+
+    /**
+     * Whether the operator wants the editor served - the card's first switch.
+     *
+     * The other half of the same question: the address on the card says what is happening, and this
+     * says what was asked for. Both are needed, because "on by default" and "off stays off" cannot
+     * both be read out of a running service.
+     */
+    val webEditorEnabled: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[webEditorEnabledPref] ?: true
+    }
+
+    suspend fun setWebEditorEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[webEditorEnabledPref] = enabled }
     }
 
     /**

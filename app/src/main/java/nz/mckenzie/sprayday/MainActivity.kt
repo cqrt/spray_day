@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.first
+import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.ui.screens.DrawAssetScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineAreaPickerScreen
@@ -42,6 +44,8 @@ import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 import nz.mckenzie.sprayday.viewmodel.BlockEditViewModel
 import nz.mckenzie.sprayday.viewmodel.BlocksViewModel
+import nz.mckenzie.sprayday.web.WebEditorService
+import nz.mckenzie.sprayday.web.WebEditorState
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
 private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
@@ -89,6 +93,20 @@ class MainActivity : ComponentActivity() {
                     requestedDestination.value?.let { wanted ->
                         destination = wanted
                         requestedDestination.value = null
+                    }
+                }
+
+                // The editor serves itself from the moment the app is opened, unless the operator
+                // has turned it off - which is what "on by default" has to mean for a service that
+                // Android only lets an app on screen start. Read here rather than in the
+                // application, where the same code would run for a scheduled job that started the
+                // process with no screen behind it and no right to start a service at all. Left
+                // alone when a run is already going, because starting again would build a new run
+                // and hand the operator a new address under a page they are already reading.
+                LaunchedEffect(Unit) {
+                    val settings = SettingsRepository(applicationContext)
+                    if (settings.webEditorEnabled.first() && !WebEditorState.isOn) {
+                        WebEditorService.start(applicationContext)
                     }
                 }
 

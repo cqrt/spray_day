@@ -63,6 +63,18 @@ class WebEditorService : Service() {
     private var server: WebEditorServer? = null
     private var positionJob: Job? = null
 
+    /**
+     * True from the moment a run is asked for until it is built, which is the window where
+     * [server] is still null.
+     *
+     * It exists because "be serving" has to be a thing an app can ask for twice and get one run out
+     * of: the Settings switch is a tap an operator can land twice, and the app asks for the run
+     * itself on the way to the map, which a rotation repeats. Without it the second ask tears the
+     * first run down a moment after it was built and hands out a new token, breaking a page that was
+     * already open. Only ever touched on the main thread, where every command below is handled.
+     */
+    private var starting = false
+
     /** The newest fix, for as long as the editor is on - see [DevicePosition.updates]. */
     private val position = MutableStateFlow<GeoPoint?>(null)
 
@@ -75,7 +87,10 @@ class WebEditorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> start()
+            // "Be serving", which is answered by the run that is already going or already being
+            // built: asking twice is how a rotation and a tap that landed twice arrive here, and
+            // neither of those is a request for a second address.
+            ACTION_START -> if (server == null && !starting) start()
             // The same run, built again - for a setting it is built from having changed. One intent
             // rather than a stop and a start from the screen, because those two racing is a real
             // thing: the second ask can arrive before the service has gone, and the run it builds is

@@ -256,9 +256,10 @@ fun SettingsScreen(
 
             // Drawing with a mouse instead of tapping a phone. The switch is the whole of the
             // feature's control: on is a foreground service serving this phone on the Wi-Fi, and
-            // the address under it is the one to open on the computer - token and all, because the
-            // address is the password. Nothing is stored for it, so a phone that has been restarted
-            // is a phone that is not serving.
+            // the address under it is the one to open on the computer. The switch is read from the
+            // address, so it can never say on with nothing listening, while the choice behind it is
+            // stored - on by default, and off stays off, because a phone that served again after the
+            // operator had turned it off would be the app putting itself back on the network.
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -284,6 +285,15 @@ fun SettingsScreen(
 
                     Text(
                         "Your computer must be on the same Wi-Fi.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    // The default said out loud, because a phone serving without the operator
+                    // having thrown anything is exactly the sort of thing that must not arrive as a
+                    // surprise - and because this is the switch they may well want the other way.
+                    Text(
+                        text = "This is on as soon as the app is opened, so the address is ready " +
+                            "when you sit down at the computer. Turn it off and it stays off.",
                         style = MaterialTheme.typography.bodySmall
                     )
 

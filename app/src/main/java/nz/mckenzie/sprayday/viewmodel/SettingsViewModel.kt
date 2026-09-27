@@ -191,22 +191,26 @@ class SettingsViewModel(
      * The switch.
      *
      * Turning it on starts a foreground service, which Android only allows from an app the operator
-     * is actually looking at - which is here, and is the reason the editor is not started from
-     * anywhere else in the app.
+     * is actually looking at - which is here, and is why the editor is started from the launcher
+     * activity and from nowhere else. The answer is written before the service is told, so a phone
+     * put down mid-press agrees with the switch rather than with the default when it comes back.
      */
     fun setWebEditor(enabled: Boolean) {
-        webEditor?.setEnabled(enabled)
+        viewModelScope.launch {
+            settings.setWebEditorEnabled(enabled)
+            webEditor?.setEnabled(enabled)
+        }
     }
 
     /**
      * Whether a computer has to bring the token to reach the editor.
      *
-     * Seeded with `true` rather than left to DataStore's first answer, like the basemap above: the
-     * card shows the default an untouched install has - a token is asked for - instead of a switch
+     * Seeded with `false` rather than left to DataStore's first answer, like the basemap above: the
+     * card shows the default an untouched install has - no token is asked for - instead of a switch
      * that sits blank for a frame and then moves.
      */
     val webEditorTokenRequired: StateFlow<Boolean> = settings.webEditorTokenRequired
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     /**
      * The token switch.

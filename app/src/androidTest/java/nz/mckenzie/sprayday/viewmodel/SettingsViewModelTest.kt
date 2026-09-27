@@ -57,9 +57,11 @@ class SettingsViewModelTest {
         // And the repository field goes back to blank, so a test that set one cannot leave the next
         // one reading somebody else's destination.
         SettingsRepository(context).setBackupRepo("")
-        // And the token switch goes back to asking for one, which is the default an untouched install
-        // has: a test that left it off would leave the next one reading somebody else's decision.
-        SettingsRepository(context).setWebEditorTokenRequired(true)
+        // And the editor's two switches go back to what an untouched install has - served, and no
+        // token asked for - so a test that left either the other way cannot leave the next one
+        // reading somebody else's decision.
+        SettingsRepository(context).setWebEditorTokenRequired(false)
+        SettingsRepository(context).setWebEditorEnabled(true)
         store.deleteAll()
     }
 
@@ -274,9 +276,9 @@ class SettingsViewModelTest {
      * The token switch: the setting, and the run that has to be built again for it to mean anything.
      *
      * Two claims in one test because they are the two halves of the same tap - and the second is the
-     * one worth having, because a run is built with the answer it started from. Leaving the setting
-     * on `true` at the end is deliberate: it is the default an untouched install has, and the next
-     * test in this suite should not inherit a decision made here.
+     * one worth having, because a run is built with the answer it started from. What it leaves behind
+     * does not matter: `tearDown` puts both of the card's switches back to the defaults an untouched
+     * install has, so the next test in this suite does not inherit a decision made here.
      */
     @Test
     fun theTokenSwitchIsWrittenAndServesTheEditorAgainOnlyWhileItIsServing(): Unit = runBlocking {
@@ -314,6 +316,50 @@ class SettingsViewModelTest {
         awaitValue("the switch written back", true, { settings.webEditorTokenRequired.first() })
         delay(500)
         assertEquals("nothing to serve again when nothing is being served", emptyList<String>(), asked.toList())
+    }
+
+    /**
+     * The serving switch: the one that decides whether the desk comes up on its own.
+     *
+     * On when unset, and turning it off has to be **written down** - a phone that came back serving
+     * after the operator had said no would be the app putting itself back on the network against
+     * their answer, which is the one thing a default may not do. The service is told in the same tap
+     * and told *after* the write, so what is on disk is never behind what was just asked for: a phone
+     * put down mid-press comes back agreeing with the switch.
+     */
+    @Test
+    fun theServingSwitchIsRememberedSoTheDeskStaysOffWhenTheAppIsOpenedAgain(): Unit = runBlocking {
+        val settings = SettingsRepository(context)
+        settings.setWebEditorEnabled(true)
+
+        val asked = Collections.synchronizedList(mutableListOf<String>())
+        val viewModel = SettingsViewModel(
+            settings = settings,
+            store = store,
+            webEditor = object : WebEditorSwitch {
+                override fun setEnabled(enabled: Boolean) {
+                    asked += if (enabled) "turned on" else "turned off"
+                }
+
+                override fun restart() = Unit
+            }
+        )
+
+        viewModel.setWebEditor(false)
+
+        awaitValue("the switch written", false, { settings.webEditorEnabled.first() })
+        awaitValue("the service told", listOf("turned off"), { asked.toList() })
+
+        // What the next launch reads is the answer rather than the default, which is the whole
+        // reason the choice is stored at all.
+        assertEquals(
+            "a launch after the operator said no must not find the desk on",
+            false,
+            settings.webEditorEnabled.first()
+        )
+
+        viewModel.setWebEditor(true)
+        awaitValue("the switch written back", true, { settings.webEditorEnabled.first() })
     }
 
     private companion object {

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import nz.mckenzie.sprayday.map.GlyphFonts
 import nz.mckenzie.sprayday.map.MarkerIcons
 import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.MainActivity
@@ -187,6 +188,9 @@ class WebEditorService : Service() {
             // And the app's own marker drawing, rendered here because it is the one answer the desk
             // gets that has to be drawn rather than written.
             markers = ::renderMarker,
+            // The letters the desk writes track names with, read out of the app - the same files the
+            // app's own map is given by the tile server.
+            fonts = { path -> GlyphFonts.read(this, path) },
             requestedPort = WebEditorLink.DEFAULT_PORT
         )
 

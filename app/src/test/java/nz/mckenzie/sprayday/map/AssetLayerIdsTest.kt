@@ -111,6 +111,28 @@ class AssetLayerIdsTest {
     }
 
     @Test
+    fun `the tracks' own switch hides the name with the track`() {
+        assertEquals(
+            "a track's line and the name written beside it are one thing to the operator",
+            listOf(AssetLayerIds.TRACKS, AssetLayerIds.TRACK_NAMES),
+            AssetLayerIds.idsOf(AssetLayer.TRACKS)
+        )
+        assertEquals(
+            "and the line is still the layer a track is named by",
+            AssetLayerIds.TRACKS,
+            AssetLayerIds.of(AssetLayer.TRACKS)
+        )
+
+        val others = AssetLayer.ALL
+            .filterNot { it == AssetLayer.TRACKS }
+            .flatMap { AssetLayerIds.idsOf(it) }
+        assertTrue(
+            "no other switch hides a track's name: $others",
+            others.none { it == AssetLayerIds.TRACK_NAMES }
+        )
+    }
+
+    @Test
     fun `the names are the map's own, so renaming a layer without this is a failing test`() {
         assertEquals("sprayday-assets-line-track", AssetLayerIds.of(AssetLayer.TRACKS))
         assertEquals("sprayday-assets-line-road", AssetLayerIds.of(AssetLayer.ROADS))
@@ -118,6 +140,7 @@ class AssetLayerIdsTest {
         assertEquals("sprayday-assets-area-carpark", AssetLayerIds.of(AssetLayer.CARPARKS))
         assertEquals("sprayday-assets-area-carpark-fill", AssetLayerIds.CARPARKS_FILL)
         assertEquals("sprayday-assets-area-carpark-casing", AssetLayerIds.CARPARKS_CASING)
+        assertEquals("sprayday-assets-line-track-names", AssetLayerIds.TRACK_NAMES)
         assertEquals("sprayday-assets-point-building", AssetLayerIds.of(AssetLayer.BUILDINGS))
         assertEquals("sprayday-assets-point-other-place", AssetLayerIds.of(AssetLayer.OTHER_PLACES))
     }

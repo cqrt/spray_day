@@ -87,12 +87,26 @@ class MapCoverageDrawingTest {
         dueNow = dueNow
     )
 
+    /**
+     * The work's own pieces, with the stretch carrying a name taken out.
+     *
+     * A track is drawn as its line and, separately, as the one stretch of it that carries the track's
+     * name - see `nz.mckenzie.sprayday.map.TrackNames`. That stretch is drawn in the whole track's
+     * colour rather than in the colour of a piece, so it says nothing about how far the job has got;
+     * what these tests count is the pieces that do.
+     */
+    private fun pieces(geoJson: String): List<String> =
+        geoJson.split("\"type\":\"Feature\",").drop(1)
+            .filterNot { it.contains("\"carriesName\":true") }
+
     /** The colours in the drawn GeoJSON, in the order they are written. */
     private fun colours(geoJson: String): List<String> =
-        Regex("\"stroke\":\"(#[0-9A-Fa-f]{6})\"")
-            .findAll(geoJson)
-            .map { it.groupValues[1] }
-            .toList()
+        pieces(geoJson).flatMap { feature ->
+            Regex("\"stroke\":\"(#[0-9A-Fa-f]{6})\"")
+                .findAll(feature)
+                .map { it.groupValues[1] }
+                .toList()
+        }
 
     /**
      * How long each drawn line is, in metres, read back out of the GeoJSON.
@@ -105,7 +119,7 @@ class MapCoverageDrawingTest {
      * the last point's bracket - which reads as a line of one point, and a length of zero.
      */
     private fun drawnLengthsM(geoJson: String): List<Double> =
-        geoJson.split("\"type\":\"Feature\",").drop(1).map { feature ->
+        pieces(geoJson).map { feature ->
             val geometry = feature.substringBefore("}}")
             val points = Regex("\\[(-?[\\d.]+),(-?[\\d.]+)]").findAll(geometry)
                 .map { GeoPoint(lat = it.groupValues[2].toDouble(), lng = it.groupValues[1].toDouble()) }
@@ -138,8 +152,8 @@ class MapCoverageDrawingTest {
         awaitColours(viewModel, listOf(AssetColors.GREEN, AssetColors.RED))
 
         assertEquals(
-            "both parts are the one asset, so a tap on either opens it",
-            2,
+            "both parts, and the stretch the name is written on, are the one asset",
+            3,
             Regex("\"id\":$assetId").findAll(viewModel.assetGeoJson.value).count()
         )
 

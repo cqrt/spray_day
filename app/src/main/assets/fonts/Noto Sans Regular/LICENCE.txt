@@ -1,0 +1,13 @@
+The letter shapes the map writes track names with.
+
+They are cut from Noto Sans, which may be used, changed and passed on freely under the SIL Open Font
+Licence, Version 1.1. The copyright line that licence asks to be carried with them is:
+
+    Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)
+
+What is in this folder is not the whole font but the three drawing ranges the map asks for: the
+everyday letters, the accented ones, and the marks and symbols beside them. A map draws its letters
+from files like these rather than from a font installed on the phone, which is why they travel with
+the app and are handed out by the app's own little server.
+
+The licence itself is at https://scripts.sil.org/OFL

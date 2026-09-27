@@ -53,17 +53,40 @@ class WebEditorServerTest {
     private fun start(
         requestedPort: Int = 0,
         withToken: Boolean = true,
-        markers: (String, Int) -> ByteArray? = { _, _ -> null }
+        markers: (String, Int) -> ByteArray? = { _, _ -> null },
+        fonts: (String) -> ByteArray? = { null }
     ) {
         server = WebEditorServer(
             host = "127.0.0.1",
             token = if (withToken) token else null,
             data = data,
             markers = markers,
+            fonts = fonts,
             tileRoute = tiles.route,
             requestedPort = requestedPort
         )
         port = server.start()
+    }
+
+    @Test
+    fun theLettersANameIsWrittenWithComeFromTheSameAddressTheTilesDo() {
+        val asked = mutableListOf<String>()
+        start(fonts = { path ->
+            asked += path
+            "letters".toByteArray()
+        })
+
+        val answer = get("/fonts/Noto%20Sans%20Regular/0-255.pbf")
+
+        assertEquals(200, answer.code)
+        assertEquals("fonts/Noto Sans Regular/0-255.pbf", asked.single())
+        assertEquals("letters", answer.body)
+        assertEquals("application/x-protobuf", answer.contentType)
+        assertEquals(
+            "and a lettering the app does not ship is a path nothing serves",
+            404,
+            get("/fonts/Another%20Lettering/0-255.pbf").code
+        )
     }
 
     @After

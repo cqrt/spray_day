@@ -14,7 +14,13 @@ import nz.mckenzie.sprayday.domain.geo.Ring
  */
 data class AssetStretch(
     val colorHex: String,
-    val points: List<GeoPoint>
+    val points: List<GeoPoint>,
+    /**
+     * Set on the one stretch of a track that carries the track's name - see
+     * [nz.mckenzie.sprayday.map.TrackNames]. The line layers leave it alone and the name layer draws
+     * nothing else, so the name is written once and the stretch is never drawn as a second line.
+     */
+    val carriesName: Boolean = false
 )
 
 /** One planned asset ready to be drawn on the map. */
@@ -217,12 +223,33 @@ object AssetGeoJson {
             return listOf(ground) + walked + sideTracks
         }
         val stretches = line.stretches.filter { it.points.size >= 2 }
-        if (stretches.isNotEmpty()) return stretches
-        // Nothing part-done: the whole track, one feature per path. A side track is drawn in the same
-        // colour as the line it leaves, because the traffic light is the whole track's answer.
-        return line.paths
-            .filter { it.size >= 2 }
-            .map { AssetStretch(colorHex = line.colorHex, points = it) }
+        val drawn = if (stretches.isNotEmpty()) {
+            stretches
+        } else {
+            // Nothing part-done: the whole track, one feature per path. A side track is drawn in the same
+            // colour as the line it leaves, because the traffic light is the whole track's answer.
+            line.paths
+                .filter { it.size >= 2 }
+                .map { AssetStretch(colorHex = line.colorHex, points = it) }
+        }
+        return drawn + nameStretch(line)
+    }
+
+    /**
+     * The one stretch of [line] that carries its name, or nothing when this line is not named.
+     *
+     * Only a track has a name written beside it, and only when there is one to write: a preview line - one
+     * being drawn, or a planned line shown over a recording - has no name at all, and a road or a fence is
+     * not what a name beside the line is for. The stretch is taken from the track's own points rather than
+     * from the pieces above, so a track that is part sprayed still carries its name once, near the middle
+     * of the whole track.
+     */
+    private fun nameStretch(line: AssetLine): List<AssetStretch> {
+        if (line.kind != AssetKind.TRACK || line.shape != AssetShape.LINE) return emptyList()
+        if (line.name.isBlank()) return emptyList()
+        val piece = TrackNames.pieceOf(line.points)
+        if (piece.size < 2) return emptyList()
+        return listOf(AssetStretch(colorHex = line.colorHex, points = piece, carriesName = true))
     }
 
     private fun appendFeature(builder: StringBuilder, line: AssetLine, stretch: AssetStretch) {
@@ -232,6 +259,11 @@ object AssetGeoJson {
         builder.append("\"stroke\":\"").append(escape(stretch.colorHex)).append("\",")
         builder.append("\"kind\":\"").append(line.kind.name).append("\",")
         builder.append("\"shape\":\"").append(line.shape.name).append("\"")
+        // The one stretch that carries the name is marked, so the line layers can leave it alone and the
+        // name layer can draw nothing else.
+        if (stretch.carriesName) {
+            builder.append(",\"").append(TrackNames.CARRIES_NAME).append("\":true")
+        }
         // Only a place is drawn as a picture. A line carries its colour and the layer draws
         // it, so a line has no picture to ask for and does not carry this property at all.
         if (line.shape == AssetShape.POINT) {

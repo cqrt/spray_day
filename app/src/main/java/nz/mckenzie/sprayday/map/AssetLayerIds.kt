@@ -60,6 +60,16 @@ object AssetLayerIds {
     const val CARPARKS_FILL = "sprayday-assets-area-carpark-fill"
 
     /**
+     * The names beside tracks.
+     *
+     * Not a layer *of* the work but a layer *about* it: it draws the one short stretch of each track
+     * that carries the track's name, and nothing else - see [nz.mckenzie.sprayday.map.TrackNames]. It is
+     * hidden with the tracks it names, because a name left behind by its track would be a label on
+     * nothing at all.
+     */
+    const val TRACK_NAMES = "sprayday-assets-line-track-names"
+
+    /**
      * The marker layer a [kind] of place is drawn by.
      *
      * Named from the kind rather than listed, so a kind added to the app cannot arrive without a
@@ -84,17 +94,17 @@ object AssetLayerIds {
     /**
      * Every style layer [layer] is drawn by.
      *
-     * One for every layer of the work but the ground with an edge, which is three: a surface, the white
-     * rim outside it, and the boundary between the two. A switch hides what this returns rather than
-     * [of] alone, so switching *Carparks* off cannot leave the ground behind and switching it on cannot
-     * show a fill with no edge.
+     * One for every layer of the work but two: the ground with an edge, which is three - a surface, the
+     * white rim outside it, and the boundary between the two - and a track, which is two, because a
+     * track's own line and the name written beside it are hidden together. A switch hides what this
+     * returns rather than [of] alone, so switching *Carparks* off cannot leave the ground behind and
+     * switching *Tracks* off cannot leave a name hanging on nothing.
      */
-    fun idsOf(layer: AssetLayer): List<String> =
-        if (layer.kind == AssetKind.CARPARK) {
-            listOf(CARPARKS_FILL, CARPARKS_CASING, CARPARKS)
-        } else {
-            listOf(of(layer))
-        }
+    fun idsOf(layer: AssetLayer): List<String> = when (layer.kind) {
+        AssetKind.CARPARK -> listOf(CARPARKS_FILL, CARPARKS_CASING, CARPARKS)
+        AssetKind.TRACK -> listOf(TRACKS, TRACK_NAMES)
+        else -> listOf(of(layer))
+    }
 
     /**
      * Every layer the map draws, in the order the style builds and draws them.
@@ -102,10 +112,12 @@ object AssetLayerIds {
      * The ground's fill comes first because everything else is drawn on top of it, its rim comes
      * straight after it and still under every line, and the boundary comes after the other lines
      * because a boundary is what the ground ends at - and because the rim is drawn *under* it, which is
-     * what leaves only the outside pixel of that rim showing.
+     * what leaves only the outside pixel of that rim showing. The names come after all of those, so a
+     * name is written over the lines it belongs to, and before the places, so a name never covers a
+     * place: a marker not drawn reads as a marker that has been deleted.
      */
     val ALL: List<String> =
-        listOf(CARPARKS_FILL, CARPARKS_CASING, TRACKS, ROADS, FENCELINES, CARPARKS) +
+        listOf(CARPARKS_FILL, CARPARKS_CASING, TRACKS, ROADS, FENCELINES, CARPARKS, TRACK_NAMES) +
             PlaceIcons.KINDS.map { pointOf(it) }
 
     private const val POINT_PREFIX = "sprayday-assets-point-"

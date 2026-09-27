@@ -413,8 +413,13 @@ internal fun MapLibreMap.loadSprayDayStyle(
     val json = when {
         // A running tile server is the preferred source: it serves downloaded areas
         // with no reception, keeps whatever it fetches, and holds the LINZ key so the
-        // style does not have to.
-        !tileUrlTemplate.isNullOrBlank() -> BasemapStyles.rasterStyleJson(basemap, tileUrlTemplate)
+        // style does not have to. It is also the only place the letters for a track's name come
+        // from, so a style built on it is the only one that can write a name at all.
+        !tileUrlTemplate.isNullOrBlank() -> BasemapStyles.rasterStyleJson(
+            basemap,
+            tileUrlTemplate,
+            glyphsUrl = GlyphFonts.urlTemplateFrom(tileUrlTemplate)
+        )
 
         // No server (tests, previews). A basemap that needs no key can simply be talked to.
         !basemap.needsKey -> BasemapStyles.rasterStyleJson(basemap, basemap.tileTemplate(""))
@@ -447,6 +452,9 @@ internal fun MapLibreMap.loadSprayDayStyle(
         // rather than paths. Solid, because what a boundary says is that it closes - the fill and the
         // measurements are the app's, and the shape is what tells a carpark from a track.
         addLineLayer(style, AssetLayerIds.CARPARKS, AssetKind.CARPARK, shape = AssetShape.AREA)
+        // The names beside tracks: written over the tracks they belong to, and under the places so a
+        // name never covers a place. See addTrackNameLayer.
+        addTrackNameLayer(style)
         // A place is a marker, not a short line: drawing a picnic table as a line would claim a
         // shape the record does not have, and a marker says what the thing is rather than only
         // where it is - the same glyph the asset's own row carries.
@@ -624,7 +632,58 @@ private fun addLineLayer(
             .withFilter(
                 Expression.all(
                     Expression.eq(Expression.get("kind"), Expression.literal(kind.name)),
-                    shapeIs(shape)
+                    shapeIs(shape),
+                    // The one stretch of a track that carries the track's name belongs to the name layer
+                    // alone. Drawn here as well it would be a second line over the track - and, on a
+                    // half-sprayed track, one line in one colour over the two that say how far the job has
+                    // got. A feature without the property at all passes this, which is every other feature.
+                    Expression.neq(Expression.get(TrackNames.CARRIES_NAME), Expression.literal(true))
+                )
+            )
+    )
+}
+
+/**
+ * Adds the names beside tracks, or does nothing when the style already has them.
+ *
+ * One name per track, written along the one stretch of it the app chose - a stretch of the track's own
+ * points, so the name follows the shape of the track rather than being laid across it - and hidden with
+ * the track by the same switch, through [AssetLayerIds.idsOf].
+ *
+ * Every number is [TrackNames]'s, which is where the desk's own style gets them too: a name the same
+ * size, in the same white, with the same outline, the same distance off the line, on both maps. The
+ * letters come from [GlyphFonts], which travels inside the app and is handed out by its own server.
+ *
+ * Added after the lines and before the places, which is where it is drawn: a name belongs over the track
+ * it names, and never over a place - a marker that is not drawn reads as a marker that has been deleted.
+ */
+private fun addTrackNameLayer(style: Style) {
+    if (style.getLayer(AssetLayerIds.TRACK_NAMES) != null) return
+
+    style.addLayer(
+        SymbolLayer(AssetLayerIds.TRACK_NAMES, ASSETS_SOURCE)
+            .withProperties(
+                PropertyFactory.symbolPlacement(Property.SYMBOL_PLACEMENT_LINE_CENTER),
+                PropertyFactory.textField(Expression.get("name")),
+                PropertyFactory.textFont(arrayOf(GlyphFonts.STACK)),
+                PropertyFactory.textSize(Expression.literal(TrackNames.SIZE)),
+                PropertyFactory.textMaxAngle(Expression.literal(TrackNames.MAX_ANGLE)),
+                PropertyFactory.textOffset(arrayOf(0f, TrackNames.OFFSET)),
+                PropertyFactory.textRotationAlignment(Property.TEXT_ROTATION_ALIGNMENT_MAP),
+                // Letters the right way up whatever the line does, and never hidden by each other: a
+                // name that vanishes behind another name reads as a track that has lost its name.
+                PropertyFactory.textKeepUpright(Expression.literal(true)),
+                PropertyFactory.textAllowOverlap(Expression.literal(true)),
+                PropertyFactory.textIgnorePlacement(Expression.literal(true)),
+                PropertyFactory.textColor(Expression.literal(TrackNames.COLOUR)),
+                PropertyFactory.textHaloColor(Expression.literal(TrackNames.HALO_COLOUR)),
+                PropertyFactory.textHaloWidth(Expression.literal(TrackNames.HALO_WIDTH))
+            )
+            .withFilter(
+                Expression.all(
+                    Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.TRACK.name)),
+                    shapeIs(AssetShape.LINE),
+                    Expression.eq(Expression.get(TrackNames.CARRIES_NAME), Expression.literal(true))
                 )
             )
     )

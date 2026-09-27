@@ -625,9 +625,10 @@ class WebEditorSaveTest {
         val open = serving(null).style("192.168.1.23:8799")
         assertFalse("a run with no token hands out no token: $open", open.contains("k="))
         assertTrue(
-            "and still says where the work and the tiles are: $open",
+            "and still says where the work, the tiles and a name's letters are: $open",
             open.contains("http://192.168.1.23:8799/api/assets.geojson") &&
-                open.contains("http://192.168.1.23:8799/tiles/")
+                open.contains("http://192.168.1.23:8799/tiles/") &&
+                open.contains("http://192.168.1.23:8799/fonts/{fontstack}/{range}.pbf")
         )
     }
 }

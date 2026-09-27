@@ -582,6 +582,43 @@ that has side tracks is refused as a page that is out of date (*"Reload the page
 write carrying `paths` is taken whatever number of them it holds. Changing the details of such a track
 saves as it always did.
 
+## The name beside a track
+
+From v0.6.57 every track's name is written on the map beside it, roughly half way along, turned to follow the
+line rather than laid across it, in small white letters with a thin dark edge. Both maps write it the same
+way, from the same numbers, and the letters come from the phone.
+
+The app marks one stretch of the track, and only that stretch carries the name. The phone's own map writes it
+once. The desk's map draws names with a web map's own engine, which names a long line piece by piece, so a
+track whose every bend is gentle enough to be marked whole can carry its name more than once there - the
+counts and the reasoning are in `build/verify/track-names.txt`.
+
+Two of those decisions were made by looking at what a map does rather than by reasoning about it, and both
+are worth knowing because the code is shaped by them:
+
+- **The name goes on one stretch of the track, not on the whole of it.** Asked for a name over a whole
+  line, the map writes it more than once - it cuts a long line into pieces of its own at some zooms, and
+  every piece gets its own name - and it drops a name it cannot fit along the line, or one that would have
+  to turn more sharply than its letters are allowed to. So the app picks the stretch itself: the longest
+  gentle run around the middle of the track, taken from the track's own points so the name still follows
+  the shape. That stretch is handed over marked, in the track's own colour, and the line layers leave it
+  alone - which is what keeps a half-sprayed track two colours with one name written beside it.
+- **The letters travel with the app.** A map is not given a font the phone has installed: it draws text
+  from files of letter shapes, one file per range of letters, and one set of files per lettering. Three
+  ranges of Noto Sans are shipped - the everyday letters, the accented ones, and the marks and symbols
+  beside them, which is where the macrons in Māori names live - and the app's own little server hands them
+  out on the same address as the tiles. So a name appears with no network at all, and the desk draws its
+  names from the phone rather than from whatever the laptop happens to have. A name in another script
+  draws nothing until its range is added, which is a file and a line of code.
+
+The *Tracks* switch hides the names along with the tracks, because a name left behind by its track would
+be a label on nothing. Names are never hidden by each other, for the same reason the place markers are
+not: a name that vanishes behind another one reads as a track that has lost its name.
+
+The reading behind all of this - the pictures, the counts of how bright the letters came out, and the two
+things it changed - is in `build/verify/names-look-first.txt`, and what was checked in the release is in
+`build/verify/track-names.txt`.
+
 ## Backup files
 
 **Back up everything** writes one JSON file to wherever the operator chooses —

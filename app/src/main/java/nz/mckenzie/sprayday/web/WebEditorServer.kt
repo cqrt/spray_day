@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.web
 
+import nz.mckenzie.sprayday.map.GlyphFonts
 import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.offline.HttpRequest
 import nz.mckenzie.sprayday.offline.HttpResponse
@@ -49,6 +50,14 @@ class WebEditorServer(
      * service is started, and the routing here stays free of it.
      */
     private val markers: (String, Int) -> ByteArray? = { _, _ -> null },
+    /**
+     * One of the letter files a track's name is written with: the path inside the app, and its bytes -
+     * or null when the app has no such file.
+     *
+     * A function rather than something this class does, for the same reason the marker pictures are:
+     * reading the app's own files is Android's business, and the routing here stays free of it.
+     */
+    private val fonts: (String) -> ByteArray? = { null },
     /** The tile route the app's own map uses, so the desk draws the phone's own tiles. */
     private val tileRoute: HttpRoute,
     /** The port to ask for; the next free ones are tried after it. */
@@ -153,6 +162,16 @@ class WebEditorServer(
             // So it is handed the path: the token has been checked by the gate above, and what is
             // left is a tile path.
             handler = { request -> tileRoute.handler(request.copy(target = request.path)) }
+        ),
+        // The letters the map writes track names with. The desk's style asks for them on this server's
+        // own address - the same address its tiles come from - so a name on the desk is written from the
+        // letters that travel inside the app rather than from a font the laptop happens to have.
+        HttpRoute(
+            claims = { it.method == GET && GlyphFonts.assetPathFor(it.path) != null },
+            handler = { request ->
+                val bytes = GlyphFonts.assetPathFor(request.path)?.let { fonts(it) }
+                if (bytes == null) HttpServer.NOT_FOUND else HttpResponse.bytes(200, PROTOBUF, bytes)
+            }
         ),
         // The markers a place is drawn with: the phone's own pictures, rendered at whatever size the
         // browser's screen needs. Before the page route, because a marker is not a file the editor
@@ -336,6 +355,9 @@ class WebEditorServer(
 
     /** A marker is a drawing with edges rather than a photograph, so it travels as a PNG. */
     private const val PNG = "image/png"
+
+    /** A letter file is the shape MapLibre reads glyphs from. */
+    private const val PROTOBUF = "application/x-protobuf"
 
         /** 8799 and the two after it, before any free port will do. */
         private const val PORT_ATTEMPTS = 3

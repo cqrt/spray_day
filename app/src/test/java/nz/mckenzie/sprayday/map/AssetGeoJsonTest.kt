@@ -64,15 +64,23 @@ class AssetGeoJsonTest {
     }
 
     @Test
-    fun `both points of the line are present`() {
+    fun `both points of the line are present - and the named stretch repeats them`() {
         val json = AssetGeoJson.build(listOf(line()))
 
-        assertEquals(2, Regex("\\[-?\\d+\\.\\d+,-?\\d+\\.\\d+\\]").findAll(json).count())
+        assertEquals(
+            "the line's own two points, and the same pair again for the stretch the name is written on",
+            4,
+            Regex("\\[-?\\d+\\.\\d+,-?\\d+\\.\\d+\\]").findAll(json).count()
+        )
     }
 
     @Test
     fun `multiple tracks are comma separated features`() {
-        val json = AssetGeoJson.build(listOf(line(), line(name = "Track 5", color = AssetColors.RED)))
+        // Nothing is named here: a named track draws the stretch its name goes on as well, and this test
+        // is about the commas between features.
+        val json = AssetGeoJson.build(
+            listOf(line(name = ""), line(name = "", color = AssetColors.RED))
+        )
 
         assertEquals(2, Regex("\"type\":\"Feature\",").findAll(json).count())
     }
@@ -90,6 +98,87 @@ class AssetGeoJsonTest {
         assertEquals(AssetColors.YELLOW, AssetColors.forStatus(DueStatus.DUE_SOON))
         assertEquals(AssetColors.RED, AssetColors.forStatus(DueStatus.OVERDUE))
         assertEquals(AssetColors.RED, AssetColors.forStatus(DueStatus.NEVER_SPRAYED))
+    }
+
+    @Test
+    fun `a track carries its name once, on a stretch of its own line`() {
+        val track = line(
+            name = "Woolshed block track",
+            points = listOf(GeoPoint(-41.0, 174.0), GeoPoint(-41.0, 174.001), GeoPoint(-41.0, 174.002))
+        )
+
+        val json = AssetGeoJson.build(listOf(track))
+
+        assertEquals(
+            "one stretch carries the name - not one per point, and not one per drawn piece",
+            1,
+            Regex("\"carriesName\":true").findAll(json).count()
+        )
+        assertEquals(
+            "and the track's own line is still drawn",
+            2,
+            Regex("\"type\":\"Feature\",").findAll(json).count()
+        )
+    }
+
+    @Test
+    fun `only a track is named beside the line`() {
+        val road = line(name = "Estuary road", kind = AssetKind.ROAD)
+        val fence = line(name = "Back fence", kind = AssetKind.FENCELINE)
+        val place = AssetLine(
+            assetId = 9L,
+            name = "Water trough",
+            colorHex = AssetColors.GREEN,
+            points = listOf(GeoPoint(-41.0, 174.0)),
+            kind = AssetKind.TABLE,
+            shape = AssetShape.POINT
+        )
+
+        listOf(road, fence, place).forEach { asset ->
+            assertFalse(
+                "a ${asset.kind} has no name written beside it",
+                AssetGeoJson.build(listOf(asset)).contains("carriesName")
+            )
+        }
+    }
+
+    @Test
+    fun `a line with no name - one being drawn - carries none`() {
+        val preview = line(name = "", kind = AssetKind.TRACK)
+
+        assertFalse(AssetGeoJson.build(listOf(preview)).contains("carriesName"))
+    }
+
+    @Test
+    fun `a half-sprayed track is still named once, from the whole track`() {
+        val partSprayed = line(
+            name = "Pump paddock track",
+            points = listOf(GeoPoint(-41.0, 174.0), GeoPoint(-41.0, 174.002))
+        ).copy(
+            stretches = listOf(
+                AssetStretch(
+                    colorHex = AssetColors.GREEN,
+                    points = listOf(GeoPoint(-41.0, 174.0), GeoPoint(-41.0, 174.001))
+                ),
+                AssetStretch(
+                    colorHex = AssetColors.RED,
+                    points = listOf(GeoPoint(-41.0, 174.001), GeoPoint(-41.0, 174.002))
+                )
+            )
+        )
+
+        val json = AssetGeoJson.build(listOf(partSprayed))
+
+        assertEquals(
+            "the stretch of the name is drawn as well as the two halves of the job",
+            3,
+            Regex("\"type\":\"Feature\",").findAll(json).count()
+        )
+        assertEquals(
+            "and the name itself is written once",
+            1,
+            Regex("\"carriesName\":true").findAll(json).count()
+        )
     }
 
     @Test
@@ -270,12 +359,16 @@ class AssetGeoJsonTest {
 
         val json = AssetGeoJson.build(listOf(halfSprayed))
 
-        assertEquals("one feature per stretch", 2, Regex("\"type\":\"Feature\",").findAll(json).count())
+        assertEquals(
+            "one feature per stretch, and one for the stretch the name is written on",
+            3,
+            Regex("\"type\":\"Feature\",").findAll(json).count()
+        )
         assertTrue(json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
         assertTrue(json.contains("\"stroke\":\"${AssetColors.RED}\""))
         assertEquals(
-            "both parts are the same asset, so a tap on either opens it",
-            2,
+            "every part is the same asset, so a tap on any of them opens it",
+            3,
             Regex("\"id\":7").findAll(json).count()
         )
     }
@@ -294,7 +387,11 @@ class AssetGeoJsonTest {
 
         val json = AssetGeoJson.build(listOf(shortStretch))
 
-        assertEquals("the track is not lost off the map", 1, Regex("\"type\":\"Feature\",").findAll(json).count())
+        assertEquals(
+            "the track is not lost off the map: drawn whole, with the stretch its name is written on",
+            2,
+            Regex("\"type\":\"Feature\",").findAll(json).count()
+        )
         assertTrue(json.contains("\"stroke\":\"${AssetColors.GREEN}\""))
         assertFalse("a dot where the line should be is worse than the line", json.contains(AssetColors.RED))
     }
@@ -309,6 +406,9 @@ class AssetGeoJsonTest {
             listOf(
                 line(
                     id = 6L,
+                    // Nothing is named here, so what is drawn is the paths alone: the name of a track with
+                    // side tracks has a test of its own, below.
+                    name = "",
                     points = listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001)),
                     sideTracks = listOf(listOf(junction, GeoPoint(0.001, 0.0005)))
                 )
@@ -329,12 +429,39 @@ class AssetGeoJsonTest {
     }
 
     @Test
+    fun `a track with a side track is named once, not once per path`() {
+        val junction = GeoPoint(0.0, 0.0005)
+        val json = AssetGeoJson.build(
+            listOf(
+                line(
+                    id = 6L,
+                    name = "Pump paddock track",
+                    points = listOf(GeoPoint(0.0, 0.0), junction, GeoPoint(0.0, 0.001)),
+                    sideTracks = listOf(listOf(junction, GeoPoint(0.001, 0.0005)))
+                )
+            )
+        )
+
+        assertEquals(
+            "the line, the side track, and the one stretch carrying the name",
+            3,
+            Regex("\"type\":\"LineString\"").findAll(json).count()
+        )
+        assertEquals(
+            "the name is written once, and from the whole track rather than from each path",
+            1,
+            Regex("\"carriesName\":true").findAll(json).count()
+        )
+    }
+
+    @Test
     fun `a side track with one point is not drawn, because there is no line in it`() {
         val junction = GeoPoint(0.0, 0.0005)
         val json = AssetGeoJson.build(
             listOf(
                 line(
                     id = 6L,
+                    name = "",
                     points = listOf(GeoPoint(0.0, 0.0), junction),
                     sideTracks = listOf(listOf(junction))
                 )

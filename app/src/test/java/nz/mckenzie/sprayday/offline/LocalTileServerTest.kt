@@ -34,11 +34,15 @@ class LocalTileServerTest {
      * the source being in the path: two sources, two stores, two licences, and no way for a tile to
      * end up in the wrong one.
      */
-    private fun startServer(upstream: TileFetcher? = null, osmUpstream: TileFetcher? = null) {
+    private fun startServer(
+        upstream: TileFetcher? = null,
+        osmUpstream: TileFetcher? = null,
+        readFont: (String) -> ByteArray? = { null }
+    ) {
         imagery = OfflineTileStore(temp.root.resolve("imagery"), ".webp")
         drawn = OfflineTileStore(temp.root.resolve("drawn"), ".png")
         server = LocalTileServer(
-            listOf(
+            sources = listOf(
                 TileSource(
                     id = Basemap.LINZ_AERIAL.id,
                     store = imagery,
@@ -53,7 +57,8 @@ class LocalTileServerTest {
                     contentType = Basemap.OPENSTREETMAP.contentType,
                     upstream = { osmUpstream }
                 )
-            )
+            ),
+            readFont = readFont
         )
         port = server.start()
     }
@@ -112,6 +117,33 @@ class LocalTileServerTest {
         assertEquals("image/webp", aerial.contentType)
         assertEquals(listOf<Byte>(9), osm.body.toList())
         assertEquals(listOf<Byte>(1), aerial.body.toList())
+    }
+
+    @Test
+    fun `the letters a map writes names with are served out of the app`() {
+        val asked = mutableListOf<String>()
+        server.stop()
+        startServer(readFont = { path ->
+            asked += path
+            byteArrayOf(7, 7, 7)
+        })
+
+        val response = get("/fonts/Noto%20Sans%20Regular/0-255.pbf")
+
+        assertEquals(200, response.code)
+        assertEquals("fonts/Noto Sans Regular/0-255.pbf", asked.single())
+        assertEquals(listOf<Byte>(7, 7, 7), response.body.toList())
+        assertEquals("application/x-protobuf", response.contentType)
+    }
+
+    @Test
+    fun `a lettering or a range the app does not ship is a 404`() {
+        server.stop()
+        startServer(readFont = { byteArrayOf(1) })
+
+        assertEquals(404, get("/fonts/Another%20Lettering/0-255.pbf").code)
+        assertEquals(404, get("/fonts/Noto%20Sans%20Regular/900-1023.pbf").code)
+        assertEquals(404, get("/fonts/Noto%20Sans%20Regular/0-255.json").code)
     }
 
     @Test

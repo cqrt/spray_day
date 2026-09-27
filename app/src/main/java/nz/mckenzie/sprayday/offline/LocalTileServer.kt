@@ -1,5 +1,7 @@
 package nz.mckenzie.sprayday.offline
 
+import nz.mckenzie.sprayday.map.GlyphFonts
+
 /**
  * A tiny HTTP tile server on loopback, so the map has **one** tile path whether or not there is
  * a network - and, since there is more than one basemap, so that each source's tiles are served
@@ -28,6 +30,15 @@ package nz.mckenzie.sprayday.offline
 class LocalTileServer(
     /** Every source this server can serve; the path names one of them. */
     private val sources: List<TileSource>,
+    /**
+     * The letters for a track's name, read out of the app by the path this server is asked for - or null
+     * when the app has no such file.
+     *
+     * Handed in rather than read here, for the same reason the routes live where the knowledge is: what
+     * this file knows about is tiles, and the letters are the app's own files. [GlyphFonts] is what
+     * decides which of them a request names. Null for the tests that have no app behind them.
+     */
+    private val readFont: (String) -> ByteArray? = { null },
     host: String = LOOPBACK
 ) {
 
@@ -35,6 +46,9 @@ class LocalTileServer(
         host = host,
         routes = listOf(
             statusRoute(),
+            // The letters the map writes track names with, on the same server as the tiles so that a
+            // style needs one address rather than two - see GlyphFonts.
+            fontRoute(readFont),
             // A tile path is claimed by its prefix and judged inside the route rather than matched
             // by the tile pattern here: a path that begins like a tile but is not one has always
             // been answered with the same 404 as a path that is nothing at all, so claiming it
@@ -71,6 +85,9 @@ class LocalTileServer(
         /** Every tile path starts here; [parseTilePath] is what says whether one really is a tile. */
         private const val TILES_PREFIX = "/tiles/"
 
+        /** What a letter file travels as: a protobuf, the shape MapLibre reads glyphs from. */
+        private const val FONT_CONTENT_TYPE = "application/x-protobuf"
+
         /** `/tiles/{source}/{z}/{x}/{y}<suffix>` - the suffix is checked against the source. */
         private val TILE_PATH = Regex(
             "^/tiles/([a-z0-9][a-z0-9-]{0,30})/(\\d{1,2})/(\\d{1,7})/(\\d{1,7})(\\.[a-z0-9]{2,5})$"
@@ -93,6 +110,26 @@ class LocalTileServer(
          * server hands this route the path on its own, because its URLs carry the token in the
          * query - and by the time it does that, the token has been checked.
          */
+        /**
+         * `/fonts/<set>/<range>.pbf`: the letter files a map writes track names with.
+         *
+         * Judged by [GlyphFonts], which is a table of what the app ships rather than the path being
+         * checked against the filesystem - so another set, another range, or a path that tries to climb
+         * out of the folder is a path nothing serves. The bytes come from the app, handed in by whoever
+         * started this server: see [TileServerHolder].
+         */
+        fun fontRoute(readFont: (String) -> ByteArray?): HttpRoute = HttpRoute(
+            claims = { it.path.startsWith(GlyphFonts.PATH_PREFIX) },
+            handler = { request ->
+                val bytes = GlyphFonts.assetPathFor(request.path)?.let { readFont(it) }
+                if (bytes == null) {
+                    HttpServer.NOT_FOUND
+                } else {
+                    HttpResponse.bytes(200, FONT_CONTENT_TYPE, bytes)
+                }
+            }
+        )
+
         fun tileRoute(sources: List<TileSource>): HttpRoute = HttpRoute(
             claims = { it.path.startsWith(TILES_PREFIX) },
             handler = { request -> answerTile(sources, request) }

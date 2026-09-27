@@ -783,7 +783,15 @@ class RecordingViewModelTest {
             "a line driven end to end should read as sprayed, got ${viewModel.coverage.value}",
             covered
         )
-        assertFalse("so none of it is left red: $map", map.contains(AssetColors.RED))
+        assertFalse(
+            "so none of the driven line is left red: $map",
+            // The stretch carrying the track's name is drawn in the whole track's colour and is never
+            // drawn as a line at all - see `nz.mckenzie.sprayday.map.TrackNames` - so what is counted
+            // here is the pieces that are on the map.
+            map.split("\"type\":\"Feature\",").drop(1)
+                .filterNot { it.contains("\"carriesName\":true") }
+                .any { it.contains(AssetColors.RED) }
+        )
     }
 
     /**

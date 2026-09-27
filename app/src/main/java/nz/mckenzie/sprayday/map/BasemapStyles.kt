@@ -22,11 +22,21 @@ object BasemapStyles {
      *
      * [tileUrlTemplate] is either the app's own tile server or the provider's own URL - the map
      * cannot tell the difference, which is the point of the server existing.
+     *
+     * [glyphsUrl] is where the letters for a track's name come from, or null when there is nowhere to
+     * get them from. The letters travel inside the app and are handed out by the app's own server, so a
+     * style built to talk to a provider directly has none: it writes no names, which is honest rather
+     * than broken, because there is nowhere to get the letters from.
      */
-    fun rasterStyleJson(basemap: Basemap, tileUrlTemplate: String): String = """
+    fun rasterStyleJson(
+        basemap: Basemap,
+        tileUrlTemplate: String,
+        glyphsUrl: String? = null
+    ): String = """
         {
           "version": 8,
           "name": "Spray Day - ${basemap.displayName}",
+          ${glyphsUrl?.let { "\"glyphs\": \"$it\"," } ?: ""}
           "sources": {
             "${basemap.id}": {
               "type": "raster",

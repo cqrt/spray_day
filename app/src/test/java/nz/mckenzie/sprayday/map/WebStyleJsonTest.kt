@@ -91,18 +91,75 @@ class WebStyleJsonTest {
     }
 
     @Test
-    fun `each line layer keeps its own kind apart from the others`() {
+    fun `each line layer keeps its own kind apart, and leaves the name's own stretch alone`() {
         assertEquals(
-            """["all",["==",["get","kind"],"TRACK"],["==",["get","shape"],"LINE"]]""",
+            """["all",["==",["get","kind"],"TRACK"],["==",["get","shape"],"LINE"],""" +
+                """["!=",["get","carriesName"],true]]""",
             layer(AssetLayerIds.TRACKS)["filter"].toString()
         )
         assertEquals(
-            """["all",["==",["get","kind"],"ROAD"],["==",["get","shape"],"LINE"]]""",
+            """["all",["==",["get","kind"],"ROAD"],["==",["get","shape"],"LINE"],""" +
+                """["!=",["get","carriesName"],true]]""",
             layer(AssetLayerIds.ROADS)["filter"].toString()
         )
         assertEquals(
-            """["all",["==",["get","kind"],"FENCELINE"],["==",["get","shape"],"LINE"]]""",
+            """["all",["==",["get","kind"],"FENCELINE"],["==",["get","shape"],"LINE"],""" +
+                """["!=",["get","carriesName"],true]]""",
             layer(AssetLayerIds.FENCELINES)["filter"].toString()
+        )
+    }
+
+    @Test
+    fun `the letters for a name come from the phone, on the address its tiles come from`() {
+        assertEquals(
+            "http://192.168.1.23:8799/fonts/{fontstack}/{range}.pbf",
+            style["glyphs"]!!.jsonPrimitive.content
+        )
+    }
+
+    @Test
+    fun `one name per track, drawn with the phone's own numbers, on the stretch that carries it`() {
+        val names = layer(AssetLayerIds.TRACK_NAMES)
+        val layout = names["layout"]!!.jsonObject
+
+        assertEquals("symbol", names["type"]!!.jsonPrimitive.content)
+        assertEquals(
+            "the name layer draws the one stretch the app marked, and nothing else",
+            """["all",["==",["get","kind"],"TRACK"],["==",["get","shape"],"LINE"],""" +
+                """["==",["get","carriesName"],true]]""",
+            names["filter"].toString()
+        )
+        assertEquals("line-center", layout["symbol-placement"]!!.jsonPrimitive.content)
+        assertEquals("""["get","name"]""", layout["text-field"].toString())
+        assertEquals(
+            "the letters the app ships, by the name a style asks for them with",
+            listOf(GlyphFonts.STACK),
+            layout["text-font"]!!.jsonArray.map { it.jsonPrimitive.content }
+        )
+        assertEquals(TrackNames.SIZE, layout["text-size"]!!.jsonPrimitive.content.toFloat(), 1e-6f)
+        assertEquals(
+            TrackNames.MAX_ANGLE,
+            layout["text-max-angle"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals(
+            "beside the line rather than on it",
+            TrackNames.OFFSET,
+            layout["text-offset"]!!.jsonArray[1].jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals("map", layout["text-rotation-alignment"]!!.jsonPrimitive.content)
+        assertEquals("true", layout["text-keep-upright"]!!.jsonPrimitive.content)
+        assertEquals("true", layout["text-allow-overlap"]!!.jsonPrimitive.content)
+        assertEquals("true", layout["text-ignore-placement"]!!.jsonPrimitive.content)
+
+        val paint = paint(AssetLayerIds.TRACK_NAMES)
+        assertEquals(TrackNames.COLOUR, paint["text-color"]!!.jsonPrimitive.content)
+        assertEquals(TrackNames.HALO_COLOUR, paint["text-halo-color"]!!.jsonPrimitive.content)
+        assertEquals(
+            TrackNames.HALO_WIDTH,
+            paint["text-halo-width"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
         )
     }
 

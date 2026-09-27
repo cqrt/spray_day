@@ -70,6 +70,31 @@ class BasemapStylesTest {
     }
 
     @Test
+    fun `the letters for a name are asked for on the map's own address, and nowhere at all without one`() {
+        val withLetters = BasemapStyles.rasterStyleJson(
+            Basemap.LINZ_AERIAL,
+            "http://127.0.0.1:41234/tiles/linz-aerial/{z}/{x}/{y}.webp",
+            glyphsUrl = GlyphFonts.urlTemplateFrom(
+                "http://127.0.0.1:41234/tiles/linz-aerial/{z}/{x}/{y}.webp"
+            )
+        )
+
+        assertTrue(
+            "a style that draws names must say where the letters come from",
+            withLetters.contains("\"glyphs\": \"http://127.0.0.1:41234/fonts/{fontstack}/{range}.pbf\"")
+        )
+
+        val without = BasemapStyles.rasterStyleJson(
+            Basemap.LINZ_AERIAL,
+            "https://imagery.example.com/aerial/{z}/{x}/{y}.webp"
+        )
+        assertFalse(
+            "a style talking to a provider has nowhere to get letters from, so it must not pretend",
+            without.contains("glyphs")
+        )
+    }
+
+    @Test
     fun `every basemap builds a style with its own zoom and credit`() {
         Basemap.entries.forEach { basemap ->
             val json = BasemapStyles.rasterStyleJson(basemap, basemap.tileTemplate(key))

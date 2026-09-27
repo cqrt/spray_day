@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.map
 
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -84,6 +85,10 @@ object WebStyleJson {
         // draws a marker at the size it is told, so the page has to say. Without it the page would
         // have to keep its own copy of a size the phone decides.
         put("markerDp", PlaceIcons.MARKER_DP)
+        // Where the letters come from: the phone's own server, on the same address the tiles come from, so
+        // a name on the desk is written from the letters that travel inside the app rather than from a
+        // font the laptop happens to have.
+        put("glyphs", GlyphFonts.urlTemplateFrom(tileUrlTemplate))
         put("sources", sources(basemap, tileUrlTemplate, assetsUrl))
         put("layers", layers(basemap))
     }.toString()
@@ -135,6 +140,9 @@ object WebStyleJson {
         // arrangement the app's own map has, and under the boundary for the reason CASING_WIDTH gives.
         add(groundCasingLayer())
         lineLayers().forEach { add(it) }
+        // The names beside tracks: over the lines they belong to, and under the places, so a name never
+        // covers a place - a marker not drawn reads as a marker that has been deleted.
+        add(trackNameLayer())
         PlaceIcons.KINDS.forEach { kind -> add(placeLayer(kind)) }
     }
 
@@ -287,6 +295,58 @@ object WebStyleJson {
         add("all")
         add(dataIs("kind", kind.name))
         add(dataIs("shape", shape.name))
+        // The one stretch of a track that carries the track's name is left to the name layer. Drawing it
+        // here as well would put a second line over the track - and, on a half-sprayed track, one line in
+        // one colour over the two colours that say how far the job has got.
+        add(dataIsNotTrue(TrackNames.CARRIES_NAME))
+    }
+
+    /**
+     * The names beside tracks: one name per track, written along the one stretch the app chose for it.
+     *
+     * Every number comes from [TrackNames], which is where the app's own map gets them too, so the two
+     * maps write a name the same size, in the same white, with the same outline, the same distance off the
+     * line. The name is turned to follow the line rather than laid across it - which is why the app puts
+     * the name on the line's own points - and it is never hidden: a name that vanishes behind another name
+     * reads as a track that has lost its name.
+     */
+    private fun trackNameLayer(): JsonObject = buildJsonObject {
+        put("id", AssetLayerIds.TRACK_NAMES)
+        put("type", "symbol")
+        put("source", ASSETS_SOURCE)
+        put(
+            "filter",
+            buildJsonArray {
+                add("all")
+                add(dataIs("kind", AssetKind.TRACK.name))
+                add(dataIs("shape", AssetShape.LINE.name))
+                add(dataIsTrue(TrackNames.CARRIES_NAME))
+            }
+        )
+        put(
+            "layout",
+            buildJsonObject {
+                // One name at the middle of the stretch it was given.
+                put("symbol-placement", "line-center")
+                put("text-field", dataProperty("name"))
+                put("text-font", buildJsonArray { add(GlyphFonts.STACK) })
+                put("text-size", TrackNames.SIZE)
+                put("text-max-angle", TrackNames.MAX_ANGLE)
+                put("text-offset", buildJsonArray { add(0); add(TrackNames.OFFSET) })
+                put("text-rotation-alignment", "map")
+                put("text-keep-upright", true)
+                put("text-allow-overlap", true)
+                put("text-ignore-placement", true)
+            }
+        )
+        put(
+            "paint",
+            buildJsonObject {
+                put("text-color", TrackNames.COLOUR)
+                put("text-halo-color", TrackNames.HALO_COLOUR)
+                put("text-halo-width", TrackNames.HALO_WIDTH)
+            }
+        )
     }
 
     private fun pointFilter(kind: AssetKind): JsonArray = buildJsonArray {
@@ -313,6 +373,25 @@ object WebStyleJson {
         add("==")
         add(dataProperty(name))
         add(value)
+    }
+
+    /** `["==", ["get", name], true]` - the one feature that carries a mark, and only that one. */
+    private fun dataIsTrue(name: String): JsonArray = buildJsonArray {
+        add("==")
+        add(dataProperty(name))
+        add(JsonPrimitive(true))
+    }
+
+    /**
+     * `["!=", ["get", name], true]` - every feature that does not carry the mark.
+     *
+     * A feature with no such property at all passes this, which is what makes it safe on a layer that
+     * draws the whole work: only the one stretch the app marked is left out.
+     */
+    private fun dataIsNotTrue(name: String): JsonArray = buildJsonArray {
+        add("!=")
+        add(dataProperty(name))
+        add(JsonPrimitive(true))
     }
 
     /** `["get", name]` - a property of the feature being drawn. */

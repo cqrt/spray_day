@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.map.GlyphFonts
 import java.io.File
 
 /**
@@ -45,7 +46,12 @@ object TileServerHolder {
         val appContext = context.applicationContext
         currentKey = initialKey
 
-        val started = LocalTileServer(sources(appContext))
+        // The letters a track's name is written with are read out of the app, here and nowhere else: the
+        // server itself knows nothing about where they live - see GlyphFonts.
+        val started = LocalTileServer(
+            sources = sources(appContext),
+            readFont = { path -> GlyphFonts.read(appContext, path) }
+        )
         started.start()
         server = started
 

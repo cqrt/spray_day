@@ -38,7 +38,7 @@ object TileServerHolder {
     fun templateUrl(basemap: Basemap): String? =
         server?.takeIf { it.isRunning }?.tileUrlTemplate(basemap.id)
 
-    /** Idempotent: safe to call from the application and from tests. */
+    /** Safe to ask for twice: the second ask finds the server up - the app and the tests both ask. */
     fun start(context: Context, initialKey: String = BuildConfig.LINZ_API_KEY) {
         if (server != null) return
 

@@ -10,6 +10,8 @@ How work leaves this machine. `project.md` is the project itself; this is the ga
   version is that plus one.
 - **Documentation alone is not a release**: commit and push it **untagged**; it rides into the
   next code release's tag.
+- A change that only alters **words** — a comment, a note, a document, a message — is not a release
+  either: untagged, and it rides the same way. A change that alters what the app does is a release.
 - One change, one commit. The message says what changed and why, in the app's own voice.
 
 ```bash
@@ -42,7 +44,7 @@ git tag -a v0.X.Y -m "..." && git push origin v0.X.Y           # ships the relea
   - `db/seed*.py` — build a seeded `spray_day.db` from one pulled off the emulator. Push it back
     with `adb push` + `run-as nz.mckenzie.sprayday`; that only works on a debuggable build, so a
     released APK's database cannot be pulled.
-  - Notes for finished work go in `build/verify/<feature>.txt`: prose, with `----` underlined
-    section headings. Commit messages are drafted in `build/verify/commit-*.txt` first.
+  - Notes for finished work go in `build/verify/<feature>.txt`: plain-English prose, with `----`
+    underlined section headings. Commit messages are drafted in `build/verify/commit-*.txt` first.
 - Prove a claim with pixels, a JSON payload or a query result. "It should work now" is not a
   verification.

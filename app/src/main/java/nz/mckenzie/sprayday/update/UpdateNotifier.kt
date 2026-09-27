@@ -21,7 +21,7 @@ import nz.mckenzie.sprayday.R
 class UpdateNotifier(private val context: Context) {
 
     /** Returns false when the operator has notifications turned off for the app. */
-    @SuppressLint("MissingPermission") // Posting without the permission is a silent no-op.
+    @SuppressLint("MissingPermission") // With the permission missing, posting does nothing and says nothing.
     fun notify(title: String, body: String): Boolean {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
 

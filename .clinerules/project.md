@@ -24,7 +24,12 @@ Rules are split by what they govern: this file is the project itself, and
 - A default must leave an untouched install behaving exactly as it did before the feature existed.
 - Never a quiet destructive write. Anything that replaces or deletes says what it will do, in
   numbers, before it does it.
-- Text the operator reads is plain farm English, not developer English.
+- **Plain English everywhere it is written down** — the app's own text, and just as much the
+  comments, the notes, the commit messages, the documents and the summary back. No file names,
+  class names, test counts or tool names, and no term of art where ordinary words will do; a
+  sentence that needs jargon to hold together is a sentence to write again. (Not "the service guard
+  makes a double ask harmless" but "asking it to serve twice does no harm, because the second ask is
+  met with the run already going".)
 
 ## How to report back
 
@@ -34,7 +39,8 @@ The operator reads the summary to decide what happens next, not to review the wo
 - **Answer the question that was asked.** "What is left?" gets the list of what is left — not a
   recap of what is done, and not the history of how it got that way.
 - **No developer English.** No file names, class names, test counts, coverage numbers or tool
-  names. Plain farm English, the same as the app's own text.
+  names. Plain English, the same as the app's own text and the same rule the House style sets for
+  every comment, note and message.
 - **Bullets, and few of them.** A paragraph is for the one thing that genuinely needs a caveat —
   and then it is one short sentence, not a section.
 - The evidence, the reasoning and the "not proven" list live in `build/verify/<feature>.txt` and

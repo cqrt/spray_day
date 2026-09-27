@@ -818,7 +818,7 @@ class SettingsViewModel(
                 initializer {
                     val settings = SettingsRepository(appContext)
 
-                    // Cheap: the database is a singleton, and this only holds references.
+                    // Cheap: there is one database for the whole app already, and this only holds onto it.
                     fun backupRepository() = BackupRepository(
                         db = SprayDayDatabase.get(appContext),
                         appVersion = BuildConfig.VERSION_NAME

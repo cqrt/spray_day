@@ -8,10 +8,10 @@ import nz.mckenzie.sprayday.domain.recording.RecordingStatus
 /**
  * Live state of the recorder, shared between the foreground service and the UI.
  *
- * A process-wide singleton is a deliberate simplification: there is exactly one
- * recorder at a time, and the alternative (binding to the service and mirroring
- * its state through a LocalBinder) buys nothing here. The authoritative record
- * of a session is always the database - this exists only for live display.
+ * One copy of this for the whole app, on purpose: only one recorder is ever
+ * running, and having the screen ask the service to hand over its state would
+ * buy nothing. What really happened is always the database's record - this is
+ * here only so the screen can watch the work while it goes on.
  */
 object TrackingState {
 

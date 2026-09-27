@@ -125,8 +125,8 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
      * The set is read and written inside the same edit, as one step, rather than from a value the
      * caller is holding: two taps in a row - which is exactly what a screen of switches is - would
      * otherwise both read what was there before either of them, and the second tap would undo the
-     * first. DataStore serialises edits, so reading the truth inside one is what makes the two
-     * accumulate.
+     * first. One edit is done at a time and reads what the last one left, so reading the truth inside
+     * it is what makes the two taps add up.
      */
     suspend fun hideMapLayer(layer: AssetLayer, hidden: Boolean) {
         context.settingsDataStore.edit { prefs ->

@@ -187,13 +187,13 @@ white edge over a hairline; nothing else in the app's marks changed.
 Proven by pixels on both maps, over the same carpark drawn with the same corners, in
 `build/verify/carpark-rim.txt`.
 
-The **published** 0.6.56 APK was installed and looked at too, because a debug build passing is not the same
-claim - the release is minified - and the pages inside it are byte-for-byte the ones in the tree. Its own
-desk, asked for nothing and **with no token**, drew and saved a carpark and answered `GET /api/style`
-byte-for-byte the answer the debug build served, the rim among its layers; across that ring's edge the rim
-reads **215,212,199** outside a **204,62,62** boundary core, which is the debug build's own desk to the
-pixel, and the picked carpark wears the desk's soft white edge over it. Its own phone opened the same
-carpark, and the preview at the top of its page wears the rim as **two solid pixels of white** against the
-outside of the red and two against its inside - one pixel of rim on a screen that draws more than one pixel
-of the drawing. The rows are in `build/verify/carpark-rim.txt`.
+The **copy that went out as 0.6.56** was put on the phone and looked at too, because the copy that ships is
+squeezed down on its way out and that squeezing can bury a fault the test copy never shows - and the pages
+inside it are the same pages, letter for letter. Asked for nothing and **with no code to show**, it drew and
+saved a carpark, and the style it serves is the test copy's style word for word; across that ground's edge
+the line of white reads **215,212,199** beside the red line's **204,62,62** - the test copy's own reading,
+to the pixel - and a carpark picked out on the screen wears the soft white mark over it. The same carpark's
+page on the phone shows the white line as **two solid pixels outside the red and two inside it**, which is
+the one pixel that was asked for, on a screen that draws more than one pixel of the drawing. The readings
+are in `build/verify/carpark-rim.txt`.
 

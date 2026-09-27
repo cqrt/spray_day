@@ -40,7 +40,7 @@ abstract class SprayDayDatabase : RoomDatabase() {
         @Volatile
         private var instance: SprayDayDatabase? = null
 
-        /** Process-wide singleton; use an in-memory builder in tests instead. */
+        /** One database for the whole app; tests build their own in memory instead. */
         fun get(context: Context): SprayDayDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(

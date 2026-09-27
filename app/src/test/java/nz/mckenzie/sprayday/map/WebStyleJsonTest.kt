@@ -209,6 +209,40 @@ class WebStyleJsonTest {
     }
 
     @Test
+    fun `the ground wears a white rim outside its boundary, drawn under it`() {
+        val casing = layer(AssetLayerIds.CARPARKS_CASING)
+        val boundary = layer(AssetLayerIds.CARPARKS)
+
+        assertEquals("line", casing["type"]!!.jsonPrimitive.content)
+        assertEquals(
+            "round exactly the ground the boundary closes, in the boundary's own words",
+            boundary["filter"].toString(),
+            casing["filter"].toString()
+        )
+        assertEquals(
+            "white: the one colour the app's traffic light never uses, so a rim can never say due",
+            "\"#FFFFFF\"",
+            paint(AssetLayerIds.CARPARKS_CASING)["line-color"].toString()
+        )
+        assertEquals(
+            "a pixel wider than the boundary on each side, which is what leaves a pixel of white outside the ring",
+            paint(AssetLayerIds.CARPARKS)["line-width"]!!.jsonPrimitive.content.toDouble() + 2,
+            paint(AssetLayerIds.CARPARKS_CASING)["line-width"]!!.jsonPrimitive.content.toDouble(),
+            1e-9
+        )
+
+        val ids = layerIds()
+        assertTrue(
+            "the boundary is drawn after the rim, or the rim would be a second edge to read: $ids",
+            ids.indexOf(AssetLayerIds.CARPARKS_CASING) < ids.indexOf(AssetLayerIds.CARPARKS)
+        )
+        assertTrue(
+            "and the rim is drawn after the ground it rims: $ids",
+            ids.indexOf(AssetLayerIds.CARPARKS_FILL) < ids.indexOf(AssetLayerIds.CARPARKS_CASING)
+        )
+    }
+
+    @Test
     fun `the other basemap is a different style, with that basemap's tiles and credit`() {
         val osm = Json.parseToJsonElement(
             WebStyleJson.build(Basemap.OPENSTREETMAP, "http://192.168.1.23:8799/tiles/osm/{z}/{x}/{y}.png", assets)

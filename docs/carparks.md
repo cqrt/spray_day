@@ -162,3 +162,28 @@ the app does not guess at the shape on the way in.
 3. **Only if asked for** - the middle, either as a thing recorded on its own or as ground the app
    checks for itself.
 
+## The hairline outside the edge - v0.6.56
+
+Asked for in one line: *"Carparks, lets add a white thin 1px line to the outside border of carparks"*.
+The ground's boundary carries the carpark's own traffic light, so it cannot also be the thing that makes
+the ground findable: over dark winter imagery a red edge and a green one are equally hard to see, and
+over pale gravel neither is obvious. **White** is what this app already uses for a mark that says *look
+here* and nothing about when the work is due - the desk's in-hand edge, the ring round the position dot,
+the drawing's own handles - so the rim is white, and it stays the one colour the traffic light never uses.
+
+**A casing, not a line beside the edge.** The white line is drawn *under* the boundary and two pixels
+wider - 7 against the boundary's 5 - so a pixel of white shows outside the ring and the sliver inside it
+is behind the boundary, which is what leaves a hairline rather than a second edge to read. It is the
+app's existing device for a mark under a line (the desk's in-hand edge is the same trick, ten pixels
+wider and blurred); a line drawn *beside* the ring would also have to be pinned to a side of the shape,
+where a casing is round all of it.
+
+The ground is now three layers and the one *Carparks* switch hides all three: the surface, this rim, and
+the boundary. Both maps draw it from the same numbers, which is what `map/WebStyleJson.kt` exists for: a
+width of 7 and `#FFFFFF`, added after the fill and before the boundary on the desk and on the phone
+alike. A picked-out carpark on the desk wears the rim *and* its halo, so the pick reads as a wider soft
+white edge over a hairline; nothing else in the app's marks changed.
+
+Proven by pixels on both maps, over the same carpark drawn with the same corners, in
+`build/verify/carpark-rim.txt`.
+

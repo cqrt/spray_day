@@ -99,7 +99,9 @@ sprayed).
   over walls for a building, a plate on a post for a sign, a bench seat, a picnic
   table, a dot in a ring. A **carpark is drawn as the ground it is**: a solid edge in the
   kind's own colour with the ground inside in a light fill of the same colour, so it reads as a
-  surface from a distance rather than as a fence round nothing. A
+  surface from a distance rather than as a fence round nothing — and a **hairline of white outside
+  that edge**, so the ground can be found over dark winter imagery without borrowing the colour that
+  says when it is due. A
   **part-sprayed track is drawn in parts**: what the pass covered in the colour it
   earned, and what is still waiting for a tank in red, so "half this line is left" is
   visible without opening anything — and the same goes for a carpark's edge, where **the north

@@ -71,12 +71,12 @@ class AssetLayerIdsTest {
     }
 
     @Test
-    fun `the ground's one switch hides both of its layers`() {
+    fun `the ground's one switch hides all three of its layers`() {
         val ground = AssetLayerIds.idsOf(AssetLayer.CARPARKS)
 
         assertEquals(
-            "a surface, and the boundary round it",
-            listOf(AssetLayerIds.CARPARKS_FILL, AssetLayerIds.CARPARKS),
+            "a surface, the white rim outside it, and the boundary between the two",
+            listOf(AssetLayerIds.CARPARKS_FILL, AssetLayerIds.CARPARKS_CASING, AssetLayerIds.CARPARKS),
             ground
         )
         assertEquals(
@@ -117,6 +117,7 @@ class AssetLayerIdsTest {
         assertEquals("sprayday-assets-line-infrastructure", AssetLayerIds.of(AssetLayer.FENCELINES))
         assertEquals("sprayday-assets-area-carpark", AssetLayerIds.of(AssetLayer.CARPARKS))
         assertEquals("sprayday-assets-area-carpark-fill", AssetLayerIds.CARPARKS_FILL)
+        assertEquals("sprayday-assets-area-carpark-casing", AssetLayerIds.CARPARKS_CASING)
         assertEquals("sprayday-assets-point-building", AssetLayerIds.of(AssetLayer.BUILDINGS))
         assertEquals("sprayday-assets-point-other-place", AssetLayerIds.of(AssetLayer.OTHER_PLACES))
     }

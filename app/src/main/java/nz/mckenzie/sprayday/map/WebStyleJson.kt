@@ -21,8 +21,8 @@ import nz.mckenzie.sprayday.domain.tiles.Basemap
  * [PlaceIcons] for the houses. The only thing left for the page to decide is the pixels.
  *
  * The layer set is the app's own, in the app's own order: the ground's surface first, because
- * everything else is drawn on top of it, then what you spray along, what you drive along, the rest of
- * the infrastructure, the ground's own boundary, and the places on top.
+ * everything else is drawn on top of it, the ground's white rim next, then what you spray along, what
+ * you drive along, the rest of the infrastructure, the ground's own boundary, and the places on top.
  */
 object WebStyleJson {
 
@@ -39,6 +39,16 @@ object WebStyleJson {
      * so the number is here for the same reason the dash patterns are.
      */
     private const val GROUND_FILL_OPACITY = 0.25
+
+    /**
+     * The white rim outside a carpark's boundary, and how wide it is: two pixels wider than the
+     * boundary, so one pixel of white shows outside the ring once the boundary is drawn over it.
+     *
+     * The app's own map draws the same line at the same relationship, so the two maps agree about the
+     * hairline for the same reason they agree about the dash patterns.
+     */
+    private const val CASING_WIDTH = LINE_WIDTH + 2
+    private const val CASING_COLOUR = "#FFFFFF"
 
     /** The near-black green the app shows before any tile arrives. */
     private const val BACKGROUND = "#0B1F13"
@@ -121,6 +131,9 @@ object WebStyleJson {
         // The ground's fill, under everything the phone draws on it - the same arrangement, and the
         // same reason, as the app's own map.
         add(groundFillLayer())
+        // The ground's own rim, straight after its fill and still under every line - the same
+        // arrangement the app's own map has, and under the boundary for the reason CASING_WIDTH gives.
+        add(groundCasingLayer())
         lineLayers().forEach { add(it) }
         PlaceIcons.KINDS.forEach { kind -> add(placeLayer(kind)) }
     }
@@ -156,6 +169,36 @@ object WebStyleJson {
             buildJsonObject {
                 put("fill-color", dataProperty("stroke"))
                 put("fill-opacity", GROUND_FILL_OPACITY)
+            }
+        )
+    }
+
+    /**
+     * The white rim outside a carpark's boundary: the same line the app's own map draws there.
+     *
+     * Solid, white and [CASING_WIDTH] wide, which is a pixel wider than the boundary on each side - and
+     * since the boundary is drawn after this, what is left of it is a hairline outside the ring. It is a
+     * mark about *where* the ground is and never about when it is due: the colour that says that stays
+     * the boundary's alone.
+     */
+    private fun groundCasingLayer(): JsonObject = buildJsonObject {
+        put("id", AssetLayerIds.CARPARKS_CASING)
+        put("type", "line")
+        put("source", ASSETS_SOURCE)
+        put("filter", lineFilter(AssetKind.CARPARK, AssetShape.AREA))
+        put(
+            "layout",
+            buildJsonObject {
+                put("line-cap", "round")
+                put("line-join", "round")
+            }
+        )
+        put(
+            "paint",
+            buildJsonObject {
+                put("line-color", CASING_COLOUR)
+                put("line-width", CASING_WIDTH)
+                put("line-opacity", 1)
             }
         )
     }

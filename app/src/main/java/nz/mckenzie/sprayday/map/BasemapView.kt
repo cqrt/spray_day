@@ -79,6 +79,24 @@ private const val POSITION_ACCURACY_OUTLINE = "rgba(33, 33, 33, 0.38)"
  */
 private const val GROUND_FILL_OPACITY = 0.25f
 
+/**
+ * How wide a line of the work is drawn: a track, a road, a fenceline, and the ground's own boundary.
+ *
+ * The ground's rim is measured from this rather than written down beside it, so a rim is always the
+ * line it rims plus two pixels - one number, and the two cannot drift apart if the line's weight
+ * changes.
+ */
+private const val ASSET_LINE_WIDTH = 5f
+
+/**
+ * How wide the white rim outside a carpark's boundary is drawn.
+ *
+ * The boundary is drawn at [ASSET_LINE_WIDTH], so a line two pixels wider leaves **one pixel of white
+ * showing outside the ring** and hides the other behind the boundary - which is the whole of the mark:
+ * a hairline that says where the ground is, without touching the colour that says when it is due.
+ */
+private const val CARPARK_CASING_WIDTH = ASSET_LINE_WIDTH + 2f
+
 /** Padding around the track network when the camera frames it. */
 private const val BOUNDS_PADDING_PX = 96
 
@@ -419,6 +437,9 @@ internal fun MapLibreMap.loadSprayDayStyle(
         // are drawn over. Added before them, which is what puts it underneath - MapLibre draws a
         // style's layers in the order the style lists them.
         addGroundFillLayer(style)
+        // The ground's own rim, straight after its fill and still under every line: it is the ground's
+        // edge, not one of the lines drawn on it. See addGroundCasingLayer.
+        addGroundCasingLayer(style)
         addLineLayer(style, AssetLayerIds.TRACKS, AssetKind.TRACK)
         addLineLayer(style, AssetLayerIds.ROADS, AssetKind.ROAD)
         addLineLayer(style, AssetLayerIds.FENCELINES, AssetKind.FENCELINE)
@@ -590,7 +611,7 @@ private fun addLineLayer(
 
     val properties = mutableListOf<PropertyValue<*>>(
         PropertyFactory.lineColor(Expression.get("stroke")),
-        PropertyFactory.lineWidth(Expression.literal(5f)),
+        PropertyFactory.lineWidth(Expression.literal(ASSET_LINE_WIDTH)),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
         PropertyFactory.lineOpacity(Expression.literal(0.9f))
@@ -635,6 +656,45 @@ private fun addGroundFillLayer(style: Style) {
                     Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.CARPARK.name)),
                     shapeIs(AssetShape.AREA),
                     Expression.eq(Expression.geometryType(), Expression.literal("Polygon"))
+                )
+            )
+    )
+}
+
+/**
+ * Adds the white rim outside a carpark's boundary.
+ *
+ * The boundary carries the traffic light's own colour, so it cannot also be the thing that makes the
+ * ground findable - over dark winter imagery a red edge and a green edge are equally hard to see. What
+ * makes it findable is white, the one colour the traffic light never uses, and the same white the
+ * app's own dot and the desk's in-hand edge wear.
+ *
+ * Drawn *under* the boundary and two pixels wider, which is what puts the white outside the ring rather
+ * than beside it: the sliver inside is behind the boundary, and what is left showing is one pixel of
+ * white round the outside. Solid and unblurred, because a hairline that is soft enough to spread is
+ * soft enough to disappear - the desk's in-hand edge can afford its blur because it is ten pixels
+ * wider; this one cannot.
+ *
+ * Its filter is the boundary's own, shape and kind, so it draws round exactly the ground the boundary
+ * closes - including the halves of a part-walked carpark, which are lines on the map and are drawn by
+ * the boundary for the same reason.
+ */
+private fun addGroundCasingLayer(style: Style) {
+    if (style.getLayer(AssetLayerIds.CARPARKS_CASING) != null) return
+
+    style.addLayer(
+        LineLayer(AssetLayerIds.CARPARKS_CASING, ASSETS_SOURCE)
+            .withProperties(
+                PropertyFactory.lineColor(Expression.literal("#FFFFFF")),
+                PropertyFactory.lineWidth(Expression.literal(CARPARK_CASING_WIDTH)),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                PropertyFactory.lineOpacity(Expression.literal(1f))
+            )
+            .withFilter(
+                Expression.all(
+                    Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.CARPARK.name)),
+                    shapeIs(AssetShape.AREA)
                 )
             )
     )

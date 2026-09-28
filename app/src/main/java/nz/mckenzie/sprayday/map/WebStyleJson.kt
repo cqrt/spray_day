@@ -313,6 +313,9 @@ object WebStyleJson {
     private fun trackNameLayer(): JsonObject = buildJsonObject {
         put("id", AssetLayerIds.TRACK_NAMES)
         put("type", "symbol")
+        // A name waits for a close view; the line it belongs to does not. On a wide view several tracks'
+        // names crowd the screen and read as a muddle.
+        put("minzoom", TrackNames.MIN_ZOOM)
         put("source", ASSETS_SOURCE)
         put(
             "filter",

@@ -588,6 +588,12 @@ From v0.6.57 every track's name is written on the map beside it, roughly half wa
 line rather than laid across it, in small white letters with a thin dark edge. Both maps write it the same
 way, from the same numbers, and the letters come from the phone.
 
+From v0.6.58 a name is written only once the map is zoomed in to level 17 or closer. On a wide view the names
+of several tracks crowded the screen and read as a muddle, which is what the operator found after living with
+the first version. The tracks themselves are drawn at every zoom; it is only their names that wait. The views
+the app opens on are wider than that - the work framed, or the phone and the work together - so a name is read
+by zooming in.
+
 The app marks one stretch of the track, and only that stretch carries the name. The phone's own map writes it
 once. The desk's map draws names with a web map's own engine, which names a long line piece by piece, so a
 track whose every bend is gentle enough to be marked whole can carry its name more than once there - the
@@ -616,8 +622,9 @@ be a label on nothing. Names are never hidden by each other, for the same reason
 not: a name that vanishes behind another one reads as a track that has lost its name.
 
 The reading behind all of this - the pictures, the counts of how bright the letters came out, and the two
-things it changed - is in `build/verify/names-look-first.txt`, and what was checked in the release is in
-`build/verify/track-names.txt`.
+things it changed - is in `build/verify/names-look-first.txt`, what was checked in the release is in
+`build/verify/track-names.txt`, the published build's own check is in the entry beside it, and what the
+waiting level was checked with is in `build/verify/track-names-zoom.txt`.
 
 ## Backup files
 

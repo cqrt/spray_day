@@ -660,33 +660,35 @@ private fun addLineLayer(
 private fun addTrackNameLayer(style: Style) {
     if (style.getLayer(AssetLayerIds.TRACK_NAMES) != null) return
 
-    style.addLayer(
-        SymbolLayer(AssetLayerIds.TRACK_NAMES, ASSETS_SOURCE)
-            .withProperties(
-                PropertyFactory.symbolPlacement(Property.SYMBOL_PLACEMENT_LINE_CENTER),
-                PropertyFactory.textField(Expression.get("name")),
-                PropertyFactory.textFont(arrayOf(GlyphFonts.STACK)),
-                PropertyFactory.textSize(Expression.literal(TrackNames.SIZE)),
-                PropertyFactory.textMaxAngle(Expression.literal(TrackNames.MAX_ANGLE)),
-                PropertyFactory.textOffset(arrayOf(0f, TrackNames.OFFSET)),
-                PropertyFactory.textRotationAlignment(Property.TEXT_ROTATION_ALIGNMENT_MAP),
-                // Letters the right way up whatever the line does, and never hidden by each other: a
-                // name that vanishes behind another name reads as a track that has lost its name.
-                PropertyFactory.textKeepUpright(Expression.literal(true)),
-                PropertyFactory.textAllowOverlap(Expression.literal(true)),
-                PropertyFactory.textIgnorePlacement(Expression.literal(true)),
-                PropertyFactory.textColor(Expression.literal(TrackNames.COLOUR)),
-                PropertyFactory.textHaloColor(Expression.literal(TrackNames.HALO_COLOUR)),
-                PropertyFactory.textHaloWidth(Expression.literal(TrackNames.HALO_WIDTH))
+    val names = SymbolLayer(AssetLayerIds.TRACK_NAMES, ASSETS_SOURCE)
+        .withProperties(
+            PropertyFactory.symbolPlacement(Property.SYMBOL_PLACEMENT_LINE_CENTER),
+            PropertyFactory.textField(Expression.get("name")),
+            PropertyFactory.textFont(arrayOf(GlyphFonts.STACK)),
+            PropertyFactory.textSize(Expression.literal(TrackNames.SIZE)),
+            PropertyFactory.textMaxAngle(Expression.literal(TrackNames.MAX_ANGLE)),
+            PropertyFactory.textOffset(arrayOf(0f, TrackNames.OFFSET)),
+            PropertyFactory.textRotationAlignment(Property.TEXT_ROTATION_ALIGNMENT_MAP),
+            // Letters the right way up whatever the line does, and never hidden by each other: a
+            // name that vanishes behind another name reads as a track that has lost its name.
+            PropertyFactory.textKeepUpright(Expression.literal(true)),
+            PropertyFactory.textAllowOverlap(Expression.literal(true)),
+            PropertyFactory.textIgnorePlacement(Expression.literal(true)),
+            PropertyFactory.textColor(Expression.literal(TrackNames.COLOUR)),
+            PropertyFactory.textHaloColor(Expression.literal(TrackNames.HALO_COLOUR)),
+            PropertyFactory.textHaloWidth(Expression.literal(TrackNames.HALO_WIDTH))
+        )
+        .withFilter(
+            Expression.all(
+                Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.TRACK.name)),
+                shapeIs(AssetShape.LINE),
+                Expression.eq(Expression.get(TrackNames.CARRIES_NAME), Expression.literal(true))
             )
-            .withFilter(
-                Expression.all(
-                    Expression.eq(Expression.get("kind"), Expression.literal(AssetKind.TRACK.name)),
-                    shapeIs(AssetShape.LINE),
-                    Expression.eq(Expression.get(TrackNames.CARRIES_NAME), Expression.literal(true))
-                )
-            )
-    )
+        )
+    // A name waits for a close view; the line it belongs to does not. On a wide view several tracks'
+    // names crowd the screen and read as a muddle.
+    names.minZoom = TrackNames.MIN_ZOOM
+    style.addLayer(names)
 }
 
 /**

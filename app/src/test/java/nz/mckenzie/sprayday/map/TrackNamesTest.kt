@@ -98,7 +98,11 @@ class TrackNamesTest {
     fun `the numbers the two maps write a name with are pinned`() {
         // Both maps read these, so a change here changes both - which is the point of them being in one
         // place. Twelve pixels with a thin outline and a wide allowance for corners is what the first
-        // look measured as readable; see `build/verify/names-look-first.txt`.
+        // look measured as readable; see `build/verify/names-look-first.txt`. The zoom floor is the
+        // operator's own finding after living with the first version: names crowded a wide view and read
+        // as a muddle, so a name now waits until the map is close in - and both maps wait for the same
+        // level, which is why the number is here rather than in either map's own file.
+        assertEquals(17f, TrackNames.MIN_ZOOM)
         assertEquals(12f, TrackNames.SIZE)
         assertEquals(0.7f, TrackNames.HALO_WIDTH)
         assertEquals(180f, TrackNames.MAX_ANGLE)

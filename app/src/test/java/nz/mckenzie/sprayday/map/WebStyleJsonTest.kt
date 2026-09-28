@@ -9,6 +9,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -124,6 +125,12 @@ class WebStyleJsonTest {
 
         assertEquals("symbol", names["type"]!!.jsonPrimitive.content)
         assertEquals(
+            "a name waits until the map is close in, exactly as the phone's own map does",
+            TrackNames.MIN_ZOOM,
+            names["minzoom"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals(
             "the name layer draws the one stretch the app marked, and nothing else",
             """["all",["==",["get","kind"],"TRACK"],["==",["get","shape"],"LINE"],""" +
                 """["==",["get","carriesName"],true]]""",
@@ -161,6 +168,16 @@ class WebStyleJsonTest {
             paint["text-halo-width"]!!.jsonPrimitive.content.toFloat(),
             1e-6f
         )
+    }
+
+    @Test
+    fun `a name waits for a close view, and the line it belongs to does not`() {
+        // What the zoom floor is for: a name read on a wide view is a muddle, a track seen on a wide view
+        // is a track. A floor on the lines as well would hide the work itself from the operator until they
+        // zoomed in, which is the opposite of what a map is for.
+        listOf(AssetLayerIds.TRACKS, AssetLayerIds.ROADS, AssetLayerIds.FENCELINES).forEach { id ->
+            assertNull("$id is drawn at every zoom", layer(id)["minzoom"])
+        }
     }
 
     @Test

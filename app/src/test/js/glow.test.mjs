@@ -42,9 +42,9 @@ const fenceline = {
   paint: { ...track.paint, 'line-dasharray': [0.05, 1.7] }
 };
 
-/** A place's: a picture, so no width and no paint block at all. */
+/** A place's: a picture, so no width and no paint block at all - and named for its kind, as the phone names it. */
 const place = {
-  id: 'sprayday-assets-point',
+  id: 'sprayday-assets-point-other-place',
   type: 'symbol',
   source: 'assets',
   filter: ['==', ['get', 'shape'], 'POINT']
@@ -186,8 +186,36 @@ test('ground gets no halo of its own: its edge is a line like any other', () => 
   assert.equal(wantsHalo(ground), false, 'a surface has no outline to widen');
   assert.equal(wantsHalo(track), true, 'and a line still gets its white edge');
   assert.equal(
-    wantsHalo({ ...track, type: 'symbol' }),
+    wantsHalo({ ...place, type: 'line' }),
     true,
-    'as does a place: its house is drawn as a picture over a disc'
+    'as does anything drawn as a line, whatever its id'
+  );
+});
+
+test('the names beside tracks get no halo: a disc there sits on every corner of the stretch the name sits on', () => {
+  // The track-names layer, as `WebStyleJson` builds it: a symbol, over the one stretch of the track
+  // that carries the name. It is a symbol like a place's marker, which is how it came to be given a
+  // place's halo - and its features are a stretch of line, so the disc landed on every corner of that
+  // stretch, in the track's own due colour. That was the red glow an operator reported on a picked-out
+  // track. A symbol layer is a place's only when it is named for a place.
+  const names = {
+    id: 'sprayday-assets-line-track-names',
+    type: 'symbol',
+    source: 'assets',
+    minzoom: 16,
+    filter: [
+      'all',
+      ['==', ['get', 'kind'], 'TRACK'],
+      ['==', ['get', 'shape'], 'LINE'],
+      ['==', ['get', 'carriesName'], true]
+    ]
+  };
+
+  assert.equal(wantsHalo(names), false, 'a layer about the work is not a layer of it');
+  assert.equal(wantsHalo(place), true, 'and a place, named for its kind, still gets its disc');
+  assert.equal(
+    wantsHalo({ ...names, id: 'sprayday-assets-line-road' }),
+    false,
+    'a symbol that is not a place is passed over whatever the line its name came from'
   );
 });

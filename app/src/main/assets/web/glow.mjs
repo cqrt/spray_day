@@ -68,13 +68,22 @@ export function pickOut(phoneFilter, id) {
 /**
  * Whether a layer of the phone's work gets a halo of its own.
  *
- * A line gets a white edge, a place a disc. A **fill** gets nothing: a surface has no outline to widen,
- * and the carpark it belongs to is drawn with a boundary as well - a line like every other line, whose
- * own halo is what puts the white edge round a carpark that has been picked out. Asking for one anyway
- * would draw a disc at every corner of the ring.
+ * A line gets a white edge, and a place's marker gets a disc. A **fill** gets nothing: a surface has no
+ * outline to widen, and the carpark it belongs to is drawn with a boundary as well - a line like every
+ * other line, whose own halo is what puts the white edge round a carpark that has been picked out. Asking
+ * for one anyway would draw a disc at every corner of the ring.
+ *
+ * The **names** beside tracks are a symbol layer like a place's marker, but they are about the work rather
+ * than of it, and their features are a stretch of the line - so the disc a halo would build from them sits
+ * on every corner of that stretch. That was the glow an operator reported on a picked-out track, so a
+ * symbol layer is a place's only when it is named for a place: the phone names a place's layer for its
+ * kind under one prefix, and a place's house has to wear no halo at all rather than borrow the names'.
  */
+const POINT_PREFIX = 'sprayday-assets-point-';
+
 export function wantsHalo(phoneLayer) {
-  return phoneLayer.type !== 'fill';
+  if (phoneLayer.type === 'line') return true;
+  return phoneLayer.type === 'symbol' && phoneLayer.id.startsWith(POINT_PREFIX);
 }
 
 /**

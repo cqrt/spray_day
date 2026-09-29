@@ -514,7 +514,9 @@ let glowFilters = new Map();
  * sits on top of its own glow, at full strength, with its dashes unbroken.
  *
  * The ground's fill is passed over - see `wantsHalo` - so a carpark that is picked out wears the edge round
- * its boundary rather than a disc at every one of its corners.
+ * its boundary rather than a disc at every one of its corners; the names beside tracks are passed over for
+ * the same reason in the other shape - their features are a stretch of line, and a disc at every corner of
+ * it was the red glow an operator reported on a picked-out track.
  */
 function addGlowLayers(style) {
   const phoneLayers = (style.layers || []).filter(

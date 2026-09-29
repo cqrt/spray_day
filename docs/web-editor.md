@@ -659,6 +659,20 @@ style's background colour and the work draws on top of it.
       white and barely softened; and it wears no due colour and not the line's own). Screenshots
       `edge-1-selected.png`, `edge-2-closed.png`, and the two sample sheets `halo-samples.png` and
       `edge-samples.png`; notes in `build/verify/web-glow.txt`.
+- [x] **The red discs on a picked-out track, gone. v0.6.60** — the names written beside tracks are a symbol
+      layer like a place's marker, and `wantsHalo` said yes to every layer that was not the ground's fill —
+      so a picked-out track was handed a place's halo, and a place's halo over the name's own stretch of
+      line is a soft disc in the track's own colour at **every corner of that stretch**: the red glow an
+      operator reported on each point of a selected track. The one test now names the work itself — lines
+      get the white edge, a symbol layer is a place's only when it is named for a place — and the names,
+      about the work rather than of it, get nothing.
+      Proven on the desk by pairs that differ only by the selection, the camera of each pair checked by the
+      level-18 tiles both runs fetched: red pixels sitting in horizontal runs of 25 or more (a 5 px line
+      cannot make one, a 44 px disc is made of them) went from **761 px in 24 runs** with a track picked on
+      the published 0.6.59 to **0** with the fix, while a place kept its disc (60 px in 2 runs picked, 0
+      closed). `glow.test.mjs` is 14 tests (one new: the names get nothing). Screenshots
+      `rel-glow-1-track.png` … `rel-glow-6-place-closed.png`; notes in `build/verify/web-glow.txt`, including
+      what the emulator's own reinstall backup did to the farm while the fixed build was going on.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
       phone, both build the page again, and every one of them used to open on the whole farm: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now

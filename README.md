@@ -623,8 +623,9 @@ not: a name that vanishes behind another one reads as a track that has lost its 
 
 The reading behind all of this - the pictures, the counts of how bright the letters came out, and the two
 things it changed - is in `build/verify/names-look-first.txt`, what was checked in the release is in
-`build/verify/track-names.txt`, the published build's own check is in the entry beside it, and what the
-waiting level was checked with is in `build/verify/track-names-zoom.txt`.
+`build/verify/track-names.txt`, the published build's own check is in the entry beside it, what the
+waiting level was checked with is in `build/verify/track-names-zoom.txt`, and the published build's own
+check of that is in the entry beside that one.
 
 ## Backup files
 

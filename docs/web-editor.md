@@ -672,7 +672,10 @@ style's background colour and the work draws on top of it.
       the published 0.6.59 to **0** with the fix, while a place kept its disc (60 px in 2 runs picked, 0
       closed). `glow.test.mjs` is 14 tests (one new: the names get nothing). Screenshots
       `rel-glow-1-track.png` … `rel-glow-6-place-closed.png`; notes in `build/verify/web-glow.txt`, including
-      what the emulator's own reinstall backup did to the farm while the fixed build was going on.
+      what the emulator's own reinstall backup did to the farm while the fixed build was going on. The
+      **published** 0.6.60 APK was then driven on its own over a clean install (`versionName=0.6.60`): the
+      served `glow.mjs` carrying the fix, and the same pair **0 wide red runs** picked and closed —
+      screenshots `rel-glow-7-published-picked.png` / `rel-glow-8-published-closed.png`.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
       phone, both build the page again, and every one of them used to open on the whole farm: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now

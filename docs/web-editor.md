@@ -689,7 +689,11 @@ style's background colour and the work draws on top of it.
       phone's own list read 628 m and its served line held **8 vertices**; a place being changed still read
       **1 point** after a click (moved, not grown); and one Ctrl+Z took a stray click straight back.
       Screenshots `ext-1-before-published.png` … `ext-5-undone.png`; notes in `build/verify/web-extend.txt`,
-      including the pre-existing quirk a click exactly on the line's end still has.
+      including the pre-existing quirk a click exactly on the line's end still has. The **published** 0.6.61
+      APK was then driven on its own over a clean install (`versionName=0.6.61`): the same two clicks took
+      the box from **5 points · 225 m** to **7 points · 490 m**, Enter answered **"Saved. The phone has it."**,
+      and the phone's own list read **490 m** — screenshots `ext-6-published-grown.png` /
+      `ext-7-published-saved.png`.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
       phone, both build the page again, and every one of them used to open on the whole farm: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now

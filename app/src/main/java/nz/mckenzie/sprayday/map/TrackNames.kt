@@ -45,13 +45,14 @@ object TrackNames {
      * The zoom the map has to be at before a name is drawn at all.
      *
      * The operator's own finding, after living with v0.6.57: on a wide view the names crowd together over
-     * a work and read as a muddle, so a name now waits until the map is close in. Seventeen is a level of
-     * the map's own zoom rather than a distance on the ground, which is what makes it the right kind of
-     * number: how big the letters are against the ground under them is exactly what the zoom says, and
+     * a work and read as a muddle, so a name now waits until the map is close in. The level shipped at
+     * seventeen in v0.6.58 and is sixteen from v0.6.59 - the operator's own adjustment after living with
+     * the floor. A level of the map's own zoom is the right kind of number rather than a distance on the
+     * ground: how big the letters are against the ground under them is exactly what the zoom says, and
      * that is what decides whether a name can be read. Both maps hold their names back until this level -
      * the phone's own map and the desk's - so the two agree as they do about every other number here.
      */
-    const val MIN_ZOOM = 17f
+    const val MIN_ZOOM = 16f
 
     /** How big the letters are, in style pixels: the same number on both maps. */
     const val SIZE = 12f

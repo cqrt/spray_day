@@ -588,7 +588,8 @@ From v0.6.57 every track's name is written on the map beside it, roughly half wa
 line rather than laid across it, in small white letters with a thin dark edge. Both maps write it the same
 way, from the same numbers, and the letters come from the phone.
 
-From v0.6.58 a name is written only once the map is zoomed in to level 17 or closer. On a wide view the names
+From v0.6.58 a name is written only once the map is zoomed in close: level 17 or closer at first, and level 16
+or closer from v0.6.59, the operator's own easing of it after living with the floor. On a wide view the names
 of several tracks crowded the screen and read as a muddle, which is what the operator found after living with
 the first version. The tracks themselves are drawn at every zoom; it is only their names that wait. The views
 the app opens on are wider than that - the work framed, or the phone and the work together - so a name is read

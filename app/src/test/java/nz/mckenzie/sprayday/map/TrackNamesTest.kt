@@ -102,7 +102,7 @@ class TrackNamesTest {
         // operator's own finding after living with the first version: names crowded a wide view and read
         // as a muddle, so a name now waits until the map is close in - and both maps wait for the same
         // level, which is why the number is here rather than in either map's own file.
-        assertEquals(17f, TrackNames.MIN_ZOOM)
+        assertEquals(16f, TrackNames.MIN_ZOOM)
         assertEquals(12f, TrackNames.SIZE)
         assertEquals(0.7f, TrackNames.HALO_WIDTH)
         assertEquals(180f, TrackNames.MAX_ANGLE)

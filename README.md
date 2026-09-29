@@ -33,9 +33,10 @@ sprayed).
   what the asset is, next to the colour that says when it is due.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone
   holds, and change it. A track's details can be changed from its card; its line can be tidied by
-  hand, by dragging the handles, clicking the line to put a vertex in the middle of it, Delete to
-  take one off and Ctrl+Z to take a step back — none of which reaches the phone until you press
-  Enter; a whole new track can be drawn from scratch; and a mis-drawn one that has nothing recorded
+  hand, by dragging the handles, clicking the line to put a vertex in the middle of it, clicking
+  past its end to carry the line on, Delete to take one off and Ctrl+Z to take a step back — none of
+  which reaches the phone until you press Enter; a whole new track can be drawn from scratch; and a
+  mis-drawn one that has nothing recorded
   against it can be deleted, while one with sprays on it says so in numbers and sends you to the
   phone. The work is read across the list: the name, **how it is sprayed**, **how many passes** the
   job takes, and when it is next due — so a knapsack job, or a line that takes two passes, can be

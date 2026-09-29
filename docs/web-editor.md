@@ -676,6 +676,20 @@ style's background colour and the work draws on top of it.
       **published** 0.6.60 APK was then driven on its own over a clean install (`versionName=0.6.60`): the
       served `glow.mjs` carrying the fix, and the same pair **0 wide red runs** picked and closed —
       screenshots `rel-glow-7-published-picked.png` / `rel-glow-8-published-closed.png`.
+- [x] **A track can be extended from the desk, as it can from the phone. v0.6.61** — reported as "if I
+      want to extend the track and click to add new points, it does not add new points. Works ok in the
+      android app". The desk had decided the opposite of the phone on purpose — a line that exists was
+      kept to its handles, "not by stray clicks" — so a track could be tidied from a browser but never
+      lengthened. A click on the paddock now carries the line on, new or being changed alike, exactly as
+      the phone's tap does; and a click while changing a **place** moves it, because on the phone a place
+      moves to wherever it was tapped rather than growing — the two arms of the phone's own one rule.
+      Proven on the emulator, the page's own box reading the counts: on the published 0.6.60 two clicks
+      past the end left the box at **5 points · 225 m**; on the fix, two clicks at two corners took it from
+      6 points · 367 m to **8 points · 629 m**, Enter answered **"Saved. The phone has it."**, the
+      phone's own list read 628 m and its served line held **8 vertices**; a place being changed still read
+      **1 point** after a click (moved, not grown); and one Ctrl+Z took a stray click straight back.
+      Screenshots `ext-1-before-published.png` … `ext-5-undone.png`; notes in `build/verify/web-extend.txt`,
+      including the pre-existing quirk a click exactly on the line's end still has.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
       phone, both build the page again, and every one of them used to open on the whole farm: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now

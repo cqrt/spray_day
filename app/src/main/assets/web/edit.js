@@ -443,10 +443,23 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       return;
     }
 
-    // A click on the paddock adds to the end of a line still being drawn, and to the side track in hand. It
-    // does nothing to a track the phone already has while its *line* is in hand: a line that exists is
-    // changed by its handles, not by stray clicks.
-    if (mode !== 'new' && !sideTrackInHand(drawing)) return;
+    // A click on the paddock carries the line on: the point goes onto the end of the path in hand,
+    // whether the line is a new one or a track the phone already has. That is the phone's own rule, and
+    // the desk used to differ - a track that existed was kept to its handles alone, so a track could be
+    // tidied from the desk but never extended, and the operator asked for the phone's answer. A stray
+    // click puts a vertex somewhere the operator can see, and one Ctrl+Z takes it straight back - the
+    // same bargain the phone's own undo offers.
+    if (shape === 'POINT') {
+      // A place is one point, and does not grow: the phone moves it to wherever it was tapped, so the
+      // click moves the point rather than adding one. The first click places it, exactly as a line's
+      // first click starts the line.
+      const path = activePath(drawing);
+      drawing = path.length === 0
+        ? add(drawing, spot(place.ground))
+        : move(drawing, path.length - 1, spot(place.ground));
+      paint();
+      return;
+    }
     const end = activePath(drawing)[activePath(drawing).length - 1];
     // A click on the spot the path already ends at adds nothing. That is exactly what the second half of
     // a double-click is, and a repeated vertex would only be collapsed again by the phone.

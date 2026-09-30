@@ -28,8 +28,8 @@ internal fun AssetWithDue.asGroupable(): GroupableAsset = GroupableAsset(
  * The box has always answered "how much, and how urgent"; these lines add "how big", worked out by
  * the same arithmetic a block's tile uses so the two cannot give different answers to one question.
  * Every line is left out when it is not known rather than shown as a zero - a farm of places has no
- * length at all, and an area covering only some of the assets says so, because a figure quietly
- * covering half the farm is the kind that ends up in a spray diary as though somebody had surveyed it.
+ * length at all, and the area is one plain figure rather than a claim about how many of the assets
+ * it covers.
  *
  * Two lines, and no more: how long the farm is and how much ground it covers. A third line used to
  * say how far there was still to drive, and it went - the counts above the rule already say how much
@@ -41,9 +41,7 @@ internal fun farmStatsLines(totals: GroupTotals): List<String> {
     val lines = mutableListOf<String>()
     if (totals.lengthM > 0.0) lines += "Total length ${formatDistance(totals.lengthM)}"
     if (totals.areaSqm > 0.0) {
-        val partial = totals.areaAssetCount < totals.assetCount
-        lines += "Total area about ${formatArea(totals.areaSqm)}" +
-            (if (partial) " from ${totals.areaAssetCount} of them" else "")
+        lines += "Total area ${formatArea(totals.areaSqm)}"
     }
     return lines
 }

@@ -82,18 +82,14 @@ export function farmStats(items) {
  * The farm's figures, said the way the phone's own box says them.
  *
  * Two lines, and no more: how long the farm is and how much ground it covers. Every line is left out
- * when it is not known rather than shown as a zero - a farm of places has no length at all - and an
- * area covering only some of the assets says so, because a figure quietly covering half the farm is
- * the kind that ends up in a spray diary as though somebody had surveyed it. Whether anything is
+ * when it is not known rather than shown as a zero - a farm of places has no length at all - and the
+ * area is one plain figure rather than a claim about how many assets it covers. Whether anything is
  * still to be driven is not said here: the counts above already say how much of the farm is left, and
  * a line repeating them is a line the desk and the phone both pay map for.
  */
 export function farmStatsLines(stats) {
   const lines = [];
   if (stats.lengthM > 0) lines.push(`Total length ${metresText(stats.lengthM)}`);
-  if (stats.areaSqm > 0) {
-    const partial = stats.areaAssetCount < stats.count;
-    lines.push(`Total area about ${areaText(stats.areaSqm)}${partial ? ` from ${stats.areaAssetCount} of them` : ''}`);
-  }
+  if (stats.areaSqm > 0) lines.push(`Total area ${areaText(stats.areaSqm)}`);
   return lines;
 }

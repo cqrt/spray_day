@@ -12,9 +12,9 @@ import org.junit.Test
  * What the map's corner box says about the whole farm.
  *
  * The arithmetic itself is a block's, already tested in its own right; what this pins is the
- * wording - what is said, what is left out when it is not known, and when an area admits it covers
- * only some of the assets. The assets are built whole and put through the same mapping the screen
- * uses, so a field the mapping forgets shows up here as a figure the box gets wrong.
+ * wording - what is said, what is left out when it is not known, and that an area covering only
+ * some of the assets is still one plain figure. The assets are built whole and put through the same
+ * mapping the screen uses, so a field the mapping forgets shows up here as a figure the box gets wrong.
  */
 class FarmStatsTest {
 
@@ -59,7 +59,7 @@ class FarmStatsTest {
     @Test
     fun `a farm of lines says its total length and its area as an estimate`() {
         assertEquals(
-            listOf("Total length 2.35 km", "Total area about 7050 m²"),
+            listOf("Total length 2.35 km", "Total area 7050 m²"),
             stats(
                 line(DueStatus.OVERDUE, lengthM = 1500.0),
                 line(DueStatus.NOT_DUE, lengthM = 850.0)
@@ -68,9 +68,9 @@ class FarmStatsTest {
     }
 
     @Test
-    fun `an area covering only some of the assets says so`() {
+    fun `an area covering only some of the assets is still said plainly`() {
         assertEquals(
-            listOf("Total length 1.00 km", "Total area about 3000 m² from 1 of them"),
+            listOf("Total length 1.00 km", "Total area 3000 m²"),
             stats(
                 line(DueStatus.NOT_DUE, lengthM = 1000.0),
                 spot(DueStatus.NOT_DUE)
@@ -88,7 +88,7 @@ class FarmStatsTest {
     @Test
     fun `a farm with nothing left says the same two figures as one with everything left`() {
         assertEquals(
-            listOf("Total length 1.20 km", "Total area about 3600 m²"),
+            listOf("Total length 1.20 km", "Total area 3600 m²"),
             stats(line(DueStatus.NOT_DUE, lengthM = 1200.0))
         )
     }
@@ -96,7 +96,7 @@ class FarmStatsTest {
     @Test
     fun `a ring's own ground is counted beside the estimates, as ground`() {
         assertEquals(
-            listOf("Total length 1.26 km", "Total area about 6500 m²"),
+            listOf("Total length 1.26 km", "Total area 6500 m²"),
             stats(
                 carpark(DueStatus.NOT_DUE, groundSqm = 3_500.0),
                 line(DueStatus.NOT_DUE, lengthM = 1000.0, swathWidthM = 3.0)
@@ -110,7 +110,7 @@ class FarmStatsTest {
         // about what is left of it: a third line here is a fifth of the map spent repeating the
         // counts above the rule.
         assertEquals(
-            listOf("Total length 4.30 km", "Total area about 1.3 ha"),
+            listOf("Total length 4.30 km", "Total area 1.3 ha"),
             stats(
                 line(DueStatus.OVERDUE, lengthM = 2500.0),
                 line(DueStatus.DUE_SOON, lengthM = 800.0),

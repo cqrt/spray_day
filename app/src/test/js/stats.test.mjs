@@ -74,13 +74,13 @@ test('a line with no width said cannot be estimated, and claims no area at all',
 test('the lines say how long the farm is and how much ground it covers', () => {
   const lines = farmStatsLines(farmStats([line(1, 'OVERDUE', 1500), line(2, 'NOT_DUE', 850)]));
 
-  assert.deepEqual(lines, ['Total length 2.35 km', 'Total area about 7050 m²']);
+  assert.deepEqual(lines, ['Total length 2.35 km', 'Total area 7050 m²']);
 });
 
-test('an area covering only some of the assets says so', () => {
+test('an area covering only some of the assets is still said plainly', () => {
   const lines = farmStatsLines(farmStats([line(1, 'NOT_DUE', 1000), spot(2, 'NOT_DUE')]));
 
-  assert.deepEqual(lines, ['Total length 1.00 km', 'Total area about 3000 m² from 1 of them']);
+  assert.deepEqual(lines, ['Total length 1.00 km', 'Total area 3000 m²']);
 });
 
 test('a farm of places says no figures at all rather than zeros', () => {
@@ -98,7 +98,7 @@ test('how much of the farm is left is not a figure the box says - the counts hav
     line(3, 'NEVER_SPRAYED', 1000)
   ]));
 
-  assert.deepEqual(lines, ['Total length 4.30 km', 'Total area about 1.3 ha']);
+  assert.deepEqual(lines, ['Total length 4.30 km', 'Total area 1.3 ha']);
 });
 
 test('figures are said the way the phone says them', () => {

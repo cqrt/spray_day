@@ -21,6 +21,7 @@
   <header id="bar">
     <span id="title">Spray Day - the work</span>
     <span id="subtitle">Served by the phone. The details you save here are saved on the phone.</span>
+    <button id="theme" type="button" aria-pressed="false">Dark mode</button>
   </header>
 
   <p id="notice" hidden></p>
@@ -195,6 +196,18 @@
 
   <script>
     (function () {
+      // The desk's own colours are chosen before the stylesheet is asked for, so a desk that was left
+      // dark does not flash light while the page is still arriving. The button in the bar flips it and
+      // `app.js` keeps the choice; the words here are the ones `theme.mjs` uses, said literally because
+      // that module has not loaded yet.
+      try {
+        if (localStorage.getItem('sprayday-desk-theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (error) {
+        // A browser with storage switched off simply starts light, which is the default.
+      }
+
       var token = new URLSearchParams(location.search).get('k') || '';
       var head = document.head;
 

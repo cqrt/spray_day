@@ -55,6 +55,18 @@ const { cameraOf, openingCamera, recall, remember } = await import(
 );
 
 /**
+ * Whether the desk is drawn light or dark.
+ *
+ * The button in the bar flips it, and the choice is kept in the browser's own store: a desk is its own
+ * machine, so the theme is the desk's, not the phone's and not the computer's. The computer's own
+ * setting is not asked - the choice is a manual one. Imported the same way as the other modules, for the
+ * same reason.
+ */
+const { DARK, LIGHT, recallTheme, rememberTheme } = await import(
+  TOKEN ? `./theme.mjs?k=${encodeURIComponent(TOKEN)}` : './theme.mjs'
+);
+
+/**
  * The page's words for the phone's codes: the phone's own labels, arrived in the state document.
  *
  * Imported the same way, and in a module for the same reason: what the card says an asset is has to be
@@ -109,6 +121,30 @@ function browserStore() {
     return null;
   }
 }
+
+/**
+ * The light/dark switch, and the word on it.
+ *
+ * The inline script in `index.html` has already put the dark attribute on before the stylesheet
+ * arrived, so a desk left dark does not flash light; this only reads the store, says the choice back
+ * on the button, and keeps the choice when the button is pressed.
+ */
+const themeButton = document.getElementById('theme');
+
+function applyTheme(theme) {
+  if (theme === DARK) document.documentElement.setAttribute('data-theme', DARK);
+  else document.documentElement.removeAttribute('data-theme');
+  themeButton.textContent = theme === DARK ? 'Light mode' : 'Dark mode';
+  themeButton.setAttribute('aria-pressed', theme === DARK ? 'true' : 'false');
+}
+
+themeButton.addEventListener('click', () => {
+  const next = recallTheme(browserStore()) === DARK ? LIGHT : DARK;
+  rememberTheme(browserStore(), next);
+  applyTheme(next);
+});
+
+applyTheme(recallTheme(browserStore()));
 
 /**
  * Everything the phone serves is behind the token, and the token is in the address - except when the

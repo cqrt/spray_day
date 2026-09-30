@@ -1,10 +1,13 @@
 /*
  * The desk page's own styling.
  *
- * Deliberately plain and light: this is read on a computer beside a window, with a map of the farm
- * in front of it, and the only things that carry colour are the due dots and the lines themselves.
- * No palette of its own - a row's dot takes the colour the phone painted that asset's feature, so
+ * Plain, and with no palette of its own: the only things that carry colour are the due dots and the
+ * lines themselves, and a row's dot takes the colour the phone painted that asset's feature - so
  * there is one place in the world that decides what "due soon" looks like.
+ *
+ * Light is the default, and there is a dark theme beside it, chosen by the button in the bar and
+ * kept in the browser's own store. The two themes are the same variables with different values, so a
+ * surface drawn in one is drawn in the other without a second copy of it to drift.
  */
 
 :root {
@@ -13,6 +16,27 @@
   --line: #d8d8d8;
   --paper: #ffffff;
   --shade: #f3f4f3;
+
+  /*
+   * The page's own accent and danger colours, said once so the dark theme can re-say them rather
+   * than a rule being written twice. The due dots and the save button's green stay as they are in
+   * both themes: the dots are the phone's own traffic light, and the save button is the one fixed
+   * colour this page has.
+   */
+  --danger: #8c2f22;
+  --danger-soft: #fdecea;
+  --danger-line: #f3c9c4;
+  --danger-border: #e0b4ae;
+  --accent-soft: #e6efe4;
+  --accent-line: #a8c6a2;
+  --state-soft: #eef3ee;
+  --float-paper: rgba(255, 255, 255, 0.94);
+  --disabled: #a6a6a6;
+  --dot-line: rgba(0, 0, 0, 0.25);
+
+  /* Native controls - a search box's clear button, a dropdown, a scrollbar - take their colours
+     from the theme rather than the browser's default. */
+  color-scheme: light;
 
   /* As wide as the list's four columns need and no wider: the map is the half of this page people came for. */
   --side-width: 460px;
@@ -37,7 +61,38 @@
   --list-columns: minmax(0, 1fr) var(--method-column) var(--passes-column) var(--due-column);
 }
 
+/*
+ * The dark theme, chosen by the button in the bar. Every colour the page wears is one of the
+ * variables above, re-said darker: ink and paper trade places, the quiet grey stays grey, and the
+ * soft greens and reds go to their night shades. The map underneath is imagery, which no theme
+ * would darken, so nothing else moves.
+ */
+:root[data-theme="dark"] {
+  --ink: #e6e6e6;
+  --quiet: #9a9a9a;
+  --line: #3a3a3a;
+  --paper: #1b1b1b;
+  --shade: #2a2a2a;
+
+  --danger: #e08a7e;
+  --danger-soft: #2a1a18;
+  --danger-line: #5c2f29;
+  --danger-border: #5c2f29;
+  --accent-soft: #1e2a1c;
+  --accent-line: #3c5a38;
+  --state-soft: #1e2a1c;
+  --float-paper: rgba(27, 27, 27, 0.94);
+  --disabled: #5a5a5a;
+  --dot-line: rgba(255, 255, 255, 0.28);
+
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
+
+/* Buttons and fields do not inherit the page's ink, so they are told it; a rule that sets its own
+   colour (the delete button's red, the save button's white) still wins over this one. */
+button, input, select, textarea { color: var(--ink); }
 
 html, body {
   margin: 0;
@@ -61,12 +116,27 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 #title { font-weight: 600; }
 #subtitle { color: var(--quiet); font-size: 13px; }
 
+/* The light/dark switch, pushed to the far end of the bar. It says what a press will choose. */
+#theme {
+  margin-left: auto;
+  align-self: center;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#theme:hover { background: var(--shade); }
+
 /* Only ever shown when something went wrong, in plain words, so nothing else has to say it. */
 #notice {
   margin: 0;
   padding: 10px 16px;
-  background: #fdecea;
-  border-bottom: 1px solid #f3c9c4;
+  background: var(--danger-soft);
+  border-bottom: 1px solid var(--danger-line);
   font-size: 14px;
 }
 
@@ -87,6 +157,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
+  background: var(--paper);
 }
 
 /* The type, under the words and lined up with them: no top margin, because the search box above it
@@ -164,7 +235,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   width: 280px;
   max-width: calc(100% - var(--side-width) - 32px);
   padding: 10px 12px 11px;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--float-paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
@@ -180,7 +251,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #drawing-state {
   margin: 6px 0 0;
   padding: 4px 7px;
-  background: #eef3ee;
+  background: var(--state-soft);
   border-radius: 5px;
   font-size: 12.5px;
 }
@@ -221,7 +292,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #drawing-keys dd { margin: 0; color: var(--quiet); }
 
 /* Nothing to take back yet: the key is still there to press, and this says it would do nothing. */
-#drawing-keys.no-undo .undo { color: #a6a6a6; }
+#drawing-keys.no-undo .undo { color: var(--disabled); }
 
 #drawing-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
@@ -322,14 +393,14 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .due { text-align: right; }
 
 #list button:hover { background: var(--shade); }
-#list button[aria-current="true"] { background: #e6efe4; }
+#list button[aria-current="true"] { background: var(--accent-soft); }
 
 .dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
   flex: none;
-  border: 1px solid rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--dot-line);
 }
 
 /* Nothing to show: the page's own sentence, in the ordinary voice rather than as a column of words. */
@@ -410,15 +481,15 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 #card-remove {
   padding: 8px 12px;
-  border: 1px solid #e0b4ae;
+  border: 1px solid var(--danger-border);
   border-radius: 6px;
   background: var(--paper);
-  color: #8c2f22;
+  color: var(--danger);
   font: inherit;
   cursor: pointer;
 }
 
-#card-remove:hover { background: #fdecea; }
+#card-remove:hover { background: var(--danger-soft); }
 #card-remove:disabled { color: var(--quiet); border-color: var(--line); background: var(--shade); cursor: default; }
 
 /*
@@ -498,7 +569,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #edit .choices label:hover { background: var(--shade); }
 
 /* Only the highlight of the chosen pill needs this, so a browser without it loses nothing. */
-#edit .choices label:has(input:checked) { background: #e6efe4; border-color: #a8c6a2; }
+#edit .choices label:has(input:checked) { background: var(--accent-soft); border-color: var(--accent-line); }
 
 #edit .choices input { margin: 0; }
 
@@ -517,8 +588,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #edit-words {
   margin: 10px 0 0;
   padding: 8px 10px;
-  background: #fdecea;
-  border: 1px solid #f3c9c4;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
   border-radius: 6px;
   font-size: 13.5px;
 }

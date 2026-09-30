@@ -108,6 +108,18 @@ const { areaText, farmStats, farmStatsLines, metresText } = await import(
 );
 
 /**
+ * A GPX file dropped on the desk: what the page will send, what name it offers, and what it says
+ * about the answer.
+ *
+ * The file's *meaning* is not here - the phone reads it, by the same rule its own file picker uses -
+ * so what this module holds is the half only a browser knows: whether the thing dropped is a file
+ * this desk should send, and how to say what came back. Pure, and tested under node like the rest.
+ */
+const { importedNote, importProblem, trackName } = await import(
+  TOKEN ? `./gpx.mjs?k=${encodeURIComponent(TOKEN)}` : './gpx.mjs'
+);
+
+/**
  * The browser's own store, or null when this browser will not hand one over.
  *
  * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
@@ -1049,6 +1061,63 @@ function abandonDrawing() {
   draftKind = null;
 }
 
+/* ---- A file somebody drew somewhere else ------------------------------------------- */
+
+/**
+ * A GPX file, read by the phone and turned into the drawing: button, picker and drop, one way in.
+ *
+ * **What the file means is the phone's answer**, not the page's: `POST /api/gpx` reads it with the
+ * same rule the phone's own list screen imports a file with - a line and its side tracks, or a file
+ * whose segments never met joined into one line - and answers with the paths. The page draws them as
+ * the drawing it would have made by hand, which is the whole point: once the line is on the map it
+ * can be traced onto, extended, have a side track hung off it, be given a kind and a block, and be
+ * saved by the one path every drawn track takes. Nothing is written until the operator says so, so a
+ * file dropped by mistake costs a reload and nothing else.
+ */
+async function importGpxFile(file) {
+  const problem = importProblem(file, state.gpx.maxBytes);
+  if (problem) {
+    showNotice(problem);
+    return;
+  }
+  // A drawing needs the map's style to have arrived, and the button that starts one is off until it
+  // has - so a file that lands in the meantime is answered rather than swallowed.
+  if (!editor) {
+    showNotice('The map is still opening. Drop the file again in a moment.');
+    return;
+  }
+
+  const button = field('import');
+  button.disabled = true;
+  try {
+    const text = await file.text();
+    const { status, answer } = await sendJson('/api/gpx', 'POST', { [state.gpx.field]: text });
+    if (status !== 200) {
+      // The phone's own sentence about the file, in the phone's own words: a file with no line in it,
+      // or one that is not a GPX file at all, is refused where both callers refuse it.
+      showNotice(answer.message || 'The phone would not read that file.');
+      return;
+    }
+
+    closeCard();
+    // The kind a file is, and the line it holds: a GPX file is a track on the ground, which is what
+    // the phone makes of one. Both go to the drawing rather than straight to the form, so the line is
+    // on the map while the operator reads the form - a file with a jump in it or a spur in the wrong
+    // place is a thing to be seen before it is named, not after - and so a form given up on comes back
+    // to the drawing, where it can be traced onto, extended and saved by the same Enter every other
+    // drawing is saved by.
+    draftKind = state.newAsset.kind;
+    draftPaths = answer.paths;
+    editor.startNew(answer.paths, shapeOfKind(draftKind));
+    openDraft(trackName(file));
+    showNotice(importedNote(file.name, answer));
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 /**
  * Saves a line the operator has finished drawing.
  *
@@ -1387,13 +1456,17 @@ function closeEdit() {
  * default interval - because those are the answers the phone would fill in for itself. Everything else
  * here is the same form the card opens: the same fields, the same choices, the same rules underneath, and
  * the same sentences when the phone refuses something.
+ *
+ * [name] is for a track that came out of a GPX file, which has a name to start with - the file's own,
+ * which the phone's own importer uses too. A line drawn here starts with the field empty, because
+ * nothing has said what it is called yet and the phone will not keep an asset that has no name.
  */
-function openDraft() {
+function openDraft(name = '') {
   editingId = null;
   drafting = true;
 
   field('edit-title').textContent = 'New asset';
-  field('edit-name').value = '';
+  field('edit-name').value = name;
   field('edit-block').value = '';
   field('edit-interval').value = state.newAsset.intervalDays;
   field('edit-swath').value = '';
@@ -1568,6 +1641,70 @@ document.getElementById('draw').addEventListener('click', () => {
   // a second default nobody can see, and the phone's is the one the app's own drawing screen opens on.
   field('drawing-kind').value = state.newAsset.kind;
   editor.startNew([], shapeOfKind(state.newAsset.kind));
+});
+
+/**
+ * The same errand, out of a file: the button opens the browser's own picker, and what comes back goes
+ * the same way a dropped file does. One function for both, so a file read from the picker and a file
+ * dropped on the map cannot become two slightly different imports.
+ */
+document.getElementById('import').addEventListener('click', () => field('import-file').click());
+
+document.getElementById('import-file').addEventListener('change', (event) => {
+  const file = event.target.files && event.target.files[0];
+  // Asking the same file twice in a row is a thing operators do after fixing it: a file input keeps
+  // its own answer, and an input still holding the last file fires no change the second time.
+  event.target.value = '';
+  if (file) importGpxFile(file);
+});
+
+/**
+ * A file dropped on the map.
+ *
+ * The browser's own default for a dropped file is to open it as a page, which would throw the desk
+ * away mid-job - so letting go is prevented on the map and only there: a drop anywhere else on the page
+ * still does whatever the browser does with it, which is not this page's business. A drag that carries
+ * no file at all - text dragged out of another window - is left alone rather than being answered with
+ * a sentence about GPX files.
+ */
+const mapContainer = document.getElementById('map');
+const dropHint = field('drop-hint');
+
+const carryingAFile = (event) =>
+  [...(event.dataTransfer ? event.dataTransfer.types : [])].includes('Files');
+
+mapContainer.addEventListener('dragover', (event) => {
+  if (!carryingAFile(event)) return;
+  event.preventDefault();
+  mapContainer.classList.add('dropping');
+  dropHint.hidden = false;
+});
+
+// A drag that leaves the map, or is given up on, takes the rim and the hint with it. A drag that merely
+// crosses one of the map's own children says so for a moment as well; the next move over the map puts
+// both back, which is why a dragover and a dragleave are read as the two halves of one state rather
+// than as a state each.
+mapContainer.addEventListener('dragleave', () => {
+  mapContainer.classList.remove('dropping');
+  dropHint.hidden = true;
+});
+
+mapContainer.addEventListener('drop', (event) => {
+  if (!carryingAFile(event)) return;
+  mapContainer.classList.remove('dropping');
+  dropHint.hidden = true;
+  event.preventDefault();
+  const file = event.dataTransfer.files && event.dataTransfer.files[0];
+  if (file) importGpxFile(file);
+});
+
+// The page itself takes no dropped file outside the map: without this the browser navigates away to
+// the GPX file and the work that was on the screen is gone.
+window.addEventListener('dragover', (event) => {
+  if (carryingAFile(event)) event.preventDefault();
+});
+window.addEventListener('drop', (event) => {
+  if (carryingAFile(event)) event.preventDefault();
 });
 
 // What the drawing is being made as. Nothing here talks to the phone: the shape only changes what the

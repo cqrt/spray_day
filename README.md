@@ -48,7 +48,16 @@ them is worked out the one way, on the phone.
   the one colour the app uses for nothing else, which leaves a line free to go on saying when it is due.
   Closing the card takes the edge away. A line is laid two ways: **click** where a corner is, or **hold
   the button down and follow the fence on the imagery** — the two mix, and a traced fence is one Ctrl+Z
-  rather than twenty. What the map is doing while a line is drawn — the counts, the one thing it is in
+  rather than twenty. A line that was drawn somewhere else — walked with a handheld, exported from QGIS
+  or Google Earth — comes in as a **GPX file**: drop it on the map, or use **Import a GPX file**, and the
+  phone reads it and puts it on the map as a drawing. It is a file that arrived as a *track*, so it is
+  read by the phone's own rule rather than by a second one kept in the browser: a file whose own track
+  segments meet becomes the line with its **side tracks**, and one whose segments do not meet is joined
+  up into a single line and **says so**, because a track with a jump in it is worth seeing before it is
+  saved. From there it is a drawing like any other: the counts and the metres are the phone's, the line
+  can be tidied or carried on with a click, the name starts as the file's own name and can be typed over,
+  and it becomes a track when you save it. Nothing is written until then, so a file dropped by mistake
+  costs a reload. What the map is doing while a line is drawn — the counts, the one thing it is in
   the middle of, and the keys — is a small box in the map's own corner rather than a bar over the work,
   in the phone's own words where the phone has them. Where you were looking is remembered on the
   computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
@@ -163,10 +172,12 @@ them is worked out the one way, on the phone.
   It is kept for as long as you are on the recorder and no longer: move to another tab,
   or put the phone down, and the next visit opens **ready to record** instead of still
   carrying the last job's numbers and the sentence about saving it.
-- **GPX export** of any asset, shareable to QGIS/Google Earth/forestry tools. GPX carries tracks
+- **GPX in and out** of any asset, shareable to QGIS/Google Earth/forestry tools. GPX carries tracks
   rather than areas, so a carpark goes out as its **corners** — a closed track, which is what any
   other tool reads it as — and comes back as a line; one edit turns it into a carpark again, because
-  the app does not guess at the shape on the way in.
+  the app does not guess at the shape on the way in. A file comes in from the phone's own **Import GPX**
+  or by being dropped on the map of the computer editor, and both of them read it the same way, by the
+  same rule, so the same file makes the same track whichever door it came through.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
   covered. Deleting a plan never deletes the recording.

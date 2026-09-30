@@ -13,6 +13,7 @@ import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.AssetEdits
@@ -411,5 +412,58 @@ class WebEditorJsonTest {
         assertTrue(text.contains("\"bounds\":null"))
         assertTrue(text.contains("\"position\":null"))
         assertTrue(text.contains("\"assets\":[]"))
+    }
+
+    @Test
+    fun `the page is told what a dropped GPX file is called and how big one may be`() {
+        val gpx = roundTrip(documentWith(everyField)).gpx
+
+        // The name a file travels under, and the size the socket will read. Both the phone's answers:
+        // a page that guessed the name would send a file the phone read as absent, which looks exactly
+        // like a GPX file with nothing in it, and one that guessed the size would pass on a refusal
+        // about a request that never arrived.
+        assertEquals(WebEditorServer.GPX_FIELD, gpx.field)
+        assertEquals(WebEditorServer.MAX_GPX_BYTES, gpx.maxBytes)
+        assertEquals(256 * 1024, gpx.maxBytes)
+    }
+
+    @Test
+    fun `a reading answers with the paths, the line first, and what became of the segments`() {
+        val line = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9))
+        val sideTrack = listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.7, 173.9))
+
+        val text = WebEditorJson.gpx(
+            GpxInterchange.Reading(
+                paths = listOf(line, sideTrack),
+                sideTracks = 1,
+                segmentsDidNotMeet = false
+            )
+        )
+        val read = json.decodeFromString(WebEditorGpx.serializer(), text)
+
+        // The vertices in the same shape the write that follows carries them back in, so a drawing read
+        // out of a file is the same kind of thing as one traced over the imagery - which is what lets
+        // the desk tidy it and save it by the one path every drawing takes.
+        assertEquals(2, read.paths.size)
+        assertEquals(WebEditorPoint(lat = -41.5, lng = 173.8), read.paths[0].first())
+        assertEquals("the line is first, and the side track hangs off its own last vertex",
+            read.paths[0].last(), read.paths[1].first())
+        assertEquals(1, read.sideTracks)
+        assertEquals(false, read.segmentsDidNotMeet)
+    }
+
+    @Test
+    fun `a file whose segments did not meet says so, rather than being left to be worked out`() {
+        val text = WebEditorJson.gpx(
+            GpxInterchange.Reading(
+                paths = listOf(listOf(GeoPoint(-41.5, 173.8), GeoPoint(-42.0, 174.0))),
+                sideTracks = 0,
+                segmentsDidNotMeet = true
+            )
+        )
+
+        // The page cannot see this from a count of paths: a file with one segment and a file whose
+        // segments could not be joined are both one line, and only the second is worth saying out loud.
+        assertTrue("the page is told: $text", text.contains("\"segmentsDidNotMeet\":true"))
     }
 }

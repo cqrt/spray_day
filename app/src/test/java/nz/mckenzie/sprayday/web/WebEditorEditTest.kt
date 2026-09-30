@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.web
 
+import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -495,5 +496,48 @@ class WebEditorEditTest {
         val changed = ok(body(kind = "CARPARK", points = yard))
 
         assertEquals("the same corners, with the closing side added", yard + yard.first(), changed.paths!!.single())
+    }
+
+    /* ---- A GPX file dropped on the desk ------------------------------------------------ */
+
+    /** The body `POST /api/gpx` carries: the file itself, as JSON, under the name the state document gave. */
+    private fun gpxBody(file: String): String =
+        Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to file))
+
+    @Test
+    fun `a GPX file arrives as the text it is, newlines and quotes and all`() {
+        // The file is a JSON string rather than the request's own bytes, so what comes back out has to
+        // be the file exactly as it was: a track's name with a quote in it, the XML's own line breaks,
+        // and every coordinate, all of which a second escaping would quietly change.
+        val file = "<?xml version=\"1.0\"?>\n<gpx version=\"1.1\"><trk><name>Gully \"track\"</name>\n" +
+            "<trkseg><trkpt lat=\"-41.0\" lon=\"174.0\"/><trkpt lat=\"-41.1\" lon=\"174.1\"/>" +
+            "</trkseg></trk></gpx>\n"
+
+        assertEquals(file, WebEditorEdits.readGpx(gpxBody(file)))
+    }
+
+    @Test
+    fun `a body with no GPX file in it is nothing to read, rather than an empty file`() {
+        // Null rather than "": the caller refuses both, and a missing one is what a page that sent the
+        // wrong field name would produce - which is a page to be told about, not a file to read.
+        assertNull(WebEditorEdits.readGpx(null))
+        assertNull(WebEditorEdits.readGpx(""))
+        assertNull(WebEditorEdits.readGpx("not json at all"))
+        assertNull(WebEditorEdits.readGpx("""{"gpx":""}"""))
+        assertNull(WebEditorEdits.readGpx("""{"gpx":"   "}"""))
+        assertNull(
+            "the edit bodies' own field name is not this one",
+            WebEditorEdits.readGpx("""{"points":[]}""")
+        )
+    }
+
+    @Test
+    fun `a field this build has never heard of does not stop a file being read`() {
+        // A page from a later build may carry more than this one knows about, and a file that is
+        // perfectly readable must not be refused over a field nothing here reads.
+        val file = "<gpx version=\"1.1\"><trk><trkseg><trkpt lat=\"-41.0\" lon=\"174.0\"/></trkseg></trk></gpx>"
+        val body = Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to file, "somethingNew" to "7"))
+
+        assertEquals(file, WebEditorEdits.readGpx(body))
     }
 }

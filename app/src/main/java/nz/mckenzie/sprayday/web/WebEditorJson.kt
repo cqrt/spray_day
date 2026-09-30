@@ -16,6 +16,7 @@ import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.ui.AssetEdits
 
@@ -140,6 +141,22 @@ object WebEditorJson {
      */
     fun removed(message: String): String =
         json.encodeToString(WebEditorRemoved.serializer(), WebEditorRemoved(message))
+
+    /**
+     * What reading a dropped GPX file answers with: the paths the file holds, as the desk draws them.
+     *
+     * The reading's own facts travel with them rather than being worked out again by the page: how
+     * many of the file's segments became side tracks, and whether they had to be joined up instead.
+     * The page says what happened in words, and the numbers in those words are the phone's.
+     */
+    fun gpx(reading: GpxInterchange.Reading): String = json.encodeToString(
+        WebEditorGpx.serializer(),
+        WebEditorGpx(
+            paths = reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
+            sideTracks = reading.sideTracks,
+            segmentsDidNotMeet = reading.segmentsDidNotMeet
+        )
+    )
 }
 
 /** Everything `GET /api/state` answers with. */
@@ -182,7 +199,12 @@ data class WebEditorDocument(
      * falls behind is the one nobody looks at; this way the interval the desk fills in is the interval
      * the phone would have filled in.
      */
-    val newAsset: WebEditorNewAsset = WebEditorNewAsset.ofApp()
+    val newAsset: WebEditorNewAsset = WebEditorNewAsset.ofApp(),
+    /**
+     * What a GPX file dropped on the desk has to know: the name it travels under, and the largest
+     * file the phone will take. Both the phone's own answers - see [WebEditorGpxRules].
+     */
+    val gpx: WebEditorGpxRules = WebEditorGpxRules.ofApp()
 )
 
 /**
@@ -271,6 +293,29 @@ data class WebEditorRemoval(val allowed: Boolean, val sentence: String) {
 @Serializable
 data class WebEditorRemoved(val message: String)
 
+/**
+ * What `POST /api/gpx` answers with: the line and side tracks a dropped file holds.
+ *
+ * [paths] is exactly the shape the write that follows carries them back in, so a drawing read out of
+ * a file is the same kind of thing as one traced over the imagery - which is why the desk can let it
+ * be tidied, extended and saved by the one path every drawing takes.
+ */
+@Serializable
+data class WebEditorGpx(
+    /** Path 0 is the line, the rest its side tracks. */
+    val paths: List<List<WebEditorPoint>> = emptyList(),
+    /** How many of the file's own segments became side tracks. */
+    val sideTracks: Int = 0,
+    /**
+     * Whether the file's segments did not meet, and every point was joined into one line instead.
+     *
+     * Here rather than left to the page to work out from a count of paths: the difference between a
+     * file with one segment and a file whose segments could not be joined is a difference the page
+     * cannot see, and it is the one an operator wants told about.
+     */
+    val segmentsDidNotMeet: Boolean = false
+)
+
 /** A box on the ground, in the order a person would say it. */
 @Serializable
 data class WebEditorBounds(
@@ -292,6 +337,39 @@ data class WebEditorBounds(
 /** Where the phone was when it last knew. */
 @Serializable
 data class WebEditorPosition(val lat: Double, val lng: Double)
+
+/**
+ * The body `POST /api/gpx` carries: the file the operator dropped, as text.
+ *
+ * One JSON string, because a body here is a JSON document and nothing else - and because a GPX file
+ * is text, so a track's name and every coordinate in it survive the trip as themselves rather than
+ * as bytes something has to decode on the other side.
+ */
+@Serializable
+data class WebEditorGpxBody(
+    /** See [WebEditorServer.GPX_FIELD] for why the page is told this name rather than writing it in. */
+    val gpx: String = ""
+)
+
+/**
+ * The GPX facts the page has to know, carried in the state document.
+ *
+ * The field a dropped file travels under, and how large a file the phone will take. Both are the
+ * phone's answers: a page that guessed the field name would send a file the phone read as absent,
+ * which is indistinguishable from a GPX file with no track in it, and a page that guessed the size
+ * would pass on a refusal about a request that never arrived. The largest is
+ * [WebEditorServer.MAX_GPX_BYTES] - the socket's own limit - so the page can say so in words before
+ * anything is sent.
+ */
+@Serializable
+data class WebEditorGpxRules(
+    val field: String,
+    val maxBytes: Int = WebEditorServer.MAX_GPX_BYTES
+) {
+    companion object {
+        fun ofApp() = WebEditorGpxRules(field = WebEditorServer.GPX_FIELD)
+    }
+}
 
 /** One thing an operator can pick, as the phone stores it and as the phone says it. */
 @Serializable

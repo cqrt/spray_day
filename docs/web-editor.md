@@ -26,17 +26,22 @@ away.
   `wire.mjs` decides which of the two shapes a save has. **v0.6.31 taught the desk to draw one**, so the
   refusal that is left is about a *stale page*: a write carrying a single `points` for a track that has
   side tracks never read this track's paths, and a reload is what fixes it.
+- **A GPX file reaches the desk in v0.6.68**, from either door: dropped on the map or chosen with
+  **Import a GPX file**. The phone reads it by the same rule its own **Import GPX** uses and answers with
+  the paths, so what lands on the desk is a drawing — tidyable, extendable, and saved by the write every
+  drawn track is saved by. See the phase 3 section for why the reading is the phone's and not the page's.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.39** (the desk's words and the drawing's box), before it v0.6.38 (the desk
-  remembers where it was looking), v0.6.37 (the white edge under the picked-out line), v0.6.36 (the soft
-  glow it replaced), v0.6.35 (the list's two new columns), v0.6.33, v0.6.31, the tracing in v0.6.26, and
-  the phase 1 and 2 work before that. The state written here was true when the file was written —
+- The last shipped work is **v0.6.68** (a GPX file dropped on the desk), before it v0.6.67 (the pole
+  gate's glyph), v0.6.63 (the corner box cut down to what it says), v0.6.62 (the farm's figures on both
+  screens), v0.6.61 (a line carried on from the desk), v0.6.60, v0.6.56, v0.6.55 (the editor served
+  without being asked for), v0.6.54, the tracing in v0.6.26, and the phase 1 and 2 work before that. The
+  state written here was true when the file was written —
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
   `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
   can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.39 → **v0.6.40**.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.68 → **v0.6.69**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -83,7 +88,7 @@ later: the same editor would sit behind a second storage adapter.
 | **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | **v0.6.20 — shipped** |
 | **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.21 (the phone) + v0.6.22 (the page)** |
 | **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | **v0.6.23 (metadata) + v0.6.24 (the line, a new track, the delete)** |
-| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, **tracing a line over the imagery**. *Show-archived was dropped* — see below. | v0.6.26+ |
+| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, **tracing a line over the imagery**. *Show-archived was dropped* — see below. | tracing **v0.6.26**, side tracks **v0.6.29/v0.6.31**, GPX drop **v0.6.68**, multi-select **left** |
 
 ### Step 0 — the HTTP split (v0.6.20, shipped)
 
@@ -191,16 +196,19 @@ that never saw the move rather than silently undoing it.
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. **Landed in v0.6.21.** |
 | `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21**; v0.6.25 made the token **nullable**, where null is a run that asks for nothing at all: the gate route claims nothing, and it is the operator's own switch on the card that decides which of the two a run is. |
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. **v0.6.55**: `ACTION_START` is **idempotent** — a run that is going, or one being built, is the answer to a second ask, so the launcher's own ask repeating after a rotation cannot rebuild the run and hand out a new secret under a page that is open. |
-| `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. **v0.6.40**: the choices carry no shape, because the kind decides the shape (`AssetKind.shape`), and a new asset's defaults are the kind's alone. **v0.6.54** turns that round for the drawing: each kind carries its **shape** beside its label, so the desk draws a ring as ground rather than reading the word *Carpark*, a kind that is ground carries the phone's own sentence in place of the swath and passes hints, and every record carries the **measured ground** (`areaM2`) beside its metres. **v0.6.62**: the document carries the traffic light's own colours (`dueColours`, keyed by the state's own name), so the page's farm key is painted in the phone's own red, amber and green — a state nothing is in has no feature to be coloured by, and the page keeps no palette of its own. |
+| `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. **v0.6.40**: the choices carry no shape, because the kind decides the shape (`AssetKind.shape`), and a new asset's defaults are the kind's alone. **v0.6.54** turns that round for the drawing: each kind carries its **shape** beside its label, so the desk draws a ring as ground rather than reading the word *Carpark*, a kind that is ground carries the phone's own sentence in place of the swath and passes hints, and every record carries the **measured ground** (`areaM2`) beside its metres. **v0.6.62**: the document carries the traffic light's own colours (`dueColours`, keyed by the state's own name), so the page's farm key is painted in the phone's own red, amber and green — a state nothing is in has no feature to be coloured by, and the page keeps no palette of its own. **v0.6.68**: the document carries `gpx` — the field name a dropped file travels under and the largest file the phone will take — so neither is written down in JavaScript. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
+| `domain/gpx/GpxInterchange.kt` | **The one place a GPX file becomes a track** (v0.6.68): a file whose later segments start on the first is a line with its side tracks, and one whose segments do not meet is every point joined into a single line — with the count of side tracks and whether the segments met, so both callers say the same thing about the same file. Pure, so the join rule is held by a JVM test rather than by a browser. **The reading, not the writing**: it hands back the paths and writes nothing, which is what lets `AssetRepository.importAssetGpx` (the phone's own **Import GPX**) and `POST /api/gpx` (the desk's drop) be one rule with two doors. |
+| `app/src/main/assets/web/gpx.mjs` | The desk's half of a dropped file, which is the half only a browser can know (v0.6.68): whether the thing dropped is a file to send at all (its name ends `.gpx` — the type a computer reports for one is whatever the computer that wrote it decided — and it is no larger than the phone's own stated limit), what name to offer for the track (the file's, without its extension, as the phone's own importer uses a chosen file's), and the words for what came back, including the one case worth saying out loud: a file whose segments did not meet was joined up. Pure, like `wire.mjs`, so node runs it. |
+| `app/src/test/js/gpx.test.mjs` | Those claims, under node: a GPX file taken and a `.kml` refused in words that say what would be taken, the phone's stated limit kept rather than a second one invented, a file too big refused before it is sent, the name off a file's own name (capitals, spaces and a file with no name to speak of), and the note for a plain line, for side tracks and for a file that was joined up. |
 | `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: **the paths** (path 0 the line, the rest its side tracks), which one is being worked on, and the undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the path a click belongs, the vertex to snap onto, the side-track moves (`startSideTrack`/`backToLine`/`dropSideTrack`), the whole track's metres, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z, the junction's exactness and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history); v0.6.31 made the state **multi-path** (`createPaths`, `active`, `activePath`) and added the side-track moves and `pathsFeature`. **v0.6.54**: `verticesOf` follows whatever the geometry nests, so a carpark's **ring** is read for snapping and for the camera fit — a Polygon used to fit the desk's camera to `[NaN, NaN]`, which MapLibre refuses outright. |
 | `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
 | `app/src/main/assets/web/stats.mjs` | The farm's figures, as arithmetic: what the whole farm comes to — how many assets, how many of them are overdue, due soon or not due, the total length, and the total area with how many assets it was worked out from. The phone's own corner box works the same numbers out the same way, from one shared mapping, and the page reads them out of the phone's state document rather than working out its own — so the box on a screen and the box on a desk are one answer. Pure, like `geometry.mjs`, so node can run it and CI does. **v0.6.62; in v0.6.63 the third figure it worked out — the driving still to do — went**, because the counts beside it already say how much of the farm is left and the line cost a fifth of the map to say so again. |
 | `app/src/test/js/stats.test.mjs` | Those claims, under node: a farm of lines, places and a ring counted and totalled, a figure nobody knows **left out rather than said as a nought**, the area of a farm where only some assets know theirs saying how many it came from, and the wording of a length and an area shared with the phone. **v0.6.62; v0.6.63 turned one of them round** — it now pins that a farm with work outstanding says its length and its area and no third line about what is left. |
 | `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24; v0.6.40 dropped the wire's `shape`** — the kind decides the shape, and the one old word for a kind this build has no value for ("INFRASTRUCTURE") is read by the row's own shape rather than refused, so a page from the build before that still edits a fenceline as a fenceline. |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. **v0.6.56**: the ground gained a fourth line - a **white rim** two pixels wider than the boundary and drawn under it, so a pixel of white shows outside a carpark's edge on the desk as it does on the phone. |
-| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic), `wire.mjs` (which of the two drawing shapes a save carries), `glow.mjs` (the mark under a picked-out asset, v0.6.36) and `camera.mjs` (the remembered view, v0.6.38) beside them, with `stats.mjs` (what the whole farm comes to, v0.6.62) since. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24; v0.6.40 removed the form's shape picker** — the kind decides whether a thing is a line or a place. **v0.6.54**: the drawing box asks **What it is** while a new asset is drawn, the picked kind decides the shape (*Draw the boundary*, the ground counted as it is drawn, the closing side drawn for you and no side-track buttons), and the form's swath and passes rows give way to the phone's own sentence. **v0.6.56**: the ground's new white rim is one of the phone's own line layers, so `wantsHalo` gives it a halo like any other line - an unpicked carpark shows the bare hairline, and a picked one reads as a wider soft white edge over it. |
+| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic), `wire.mjs` (which of the two drawing shapes a save carries), `glow.mjs` (the mark under a picked-out asset, v0.6.36) and `camera.mjs` (the remembered view, v0.6.38) beside them, with `stats.mjs` (what the whole farm comes to, v0.6.62) since. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24; v0.6.40 removed the form's shape picker** — the kind decides whether a thing is a line or a place. **v0.6.54**: the drawing box asks **What it is** while a new asset is drawn, the picked kind decides the shape (*Draw the boundary*, the ground counted as it is drawn, the closing side drawn for you and no side-track buttons), and the form's swath and passes rows give way to the phone's own sentence. **v0.6.56**: the ground's new white rim is one of the phone's own line layers, so `wantsHalo` gives it a halo like any other line - an unpicked carpark shows the bare hairline, and a picked one reads as a wider soft white edge over it. **v0.6.68**: `gpx.mjs` (the desk's half of a dropped file) beside the rest, the sidebar's second way in, and the map as the drop zone. |
 
 **Changed**
 
@@ -212,8 +220,16 @@ that never saw the move rather than silently undoing it.
 | `AndroidManifest.xml` | `FOREGROUND_SERVICE_DATA_SYNC` and the service. `INTERNET` is already there. No other permission. |
 | `data/AssetRepository.kt` | `insertAsset(asset, geometry, groupName)` — a new asset and its line in one transaction, the id dropped so the database issues it and the length worked out from the vertices; `saveAssetEdits(asset, blockName, geometry)` gained an optional line written with the row; `allAssetGeometry()`, `recordingCountFor` and `recordingCounts()` for the documents. **v0.6.24.** **v0.6.54**: a carpark with no measured ground — a fenceline kept as one and just re-kinded — has its geometry written again, which is what works the area out from the corners it already has. |
 | `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
-| `web/WebEditorDocuments.kt` | `create` and `remove` beside `save`, the path passed into the transaction, `removal` on each record, the phone's own `newAsset` defaults in the state document, and `mjs` in the content-type table — a browser refuses a module whose type it does not read as JavaScript, and the desk's drawing module is the same file node imports, so the extension is what tells both of them. **v0.6.24.** |
-| `README.md` | A `## Drawing from a computer` section, and the vendored licence note. |
+| `web/WebEditorDocuments.kt` | `create` and `remove` beside `save`, the path passed into the transaction, `removal` on each record, the phone's own `newAsset` defaults in the state document, and `mjs` in the content-type table — a browser refuses a module whose type it does not read as JavaScript, and the desk's drawing module is the same file node imports, so the extension is what tells both of them. **v0.6.24.** **v0.6.68**: `gpx(body)` — the dropped file read by `GpxInterchange` and answered with its paths, with nothing written. |
+| `domain/gpx/GpxParser.kt` | **The reading moved to `GpxInterchange` in v0.6.68**, so the phone's own import and the desk's drop cannot disagree: `parseSegments` still reads the file's own track segments and `parse` still flattens every point into one line, and *what those segments mean as a track* is now decided in one place rather than in the repository. Nothing about how a file is read changed. |
+| `data/AssetRepository.kt` | **v0.6.68**: `importAssetGpx` reads the file through `GpxInterchange` and returns the reading itself (`GpxInterchange.Reading` — the paths, the side tracks and whether the segments met) rather than a result type of its own, so the sentence the phone's list screen shows counts the points the import was already handed instead of asking the database again. The repository's own `GpxImportResult` is gone with it: one shape of answer for the one rule. |
+| `viewmodel/AssetListViewModel.kt` | **v0.6.68**: the import message counts the reading's own points, and reads `segmentsDidNotMeet` under the name the shared reading uses. The same words, and one place they come from. |
+| `web/WebEditorServer.kt` | **v0.6.68**: `POST /api/gpx` (`GPX_PATH`), `WebEditorWrite.GpxRead` answered with `WebEditorJson.gpx`, and the two facts the page may not guess at stated where they belong — `GPX_FIELD` (the name the file travels under) and `MAX_GPX_BYTES` (the socket's own limit). `WebEditorData` gained `gpx(body)`, which is the fifth thing a route can ask the data for and the only one that writes nothing. |
+| `web/WebEditorJson.kt` | **v0.6.68**: `WebEditorGpx` (the reading on the wire), `WebEditorGpxBody` (the file as one JSON string) and `WebEditorGpxRules`, which the state document carries so the page is told the field name and the largest file rather than writing either of them down. |
+| `web/WebEditorEdit.kt` | **v0.6.68**: `WebEditorEdits.readGpx(body)` — the GPX body decoded beside the edit bodies it is read with, with `ignoreUnknownKeys` for the same reason, and `WebEditorWrite.GpxRead` beside the other outcomes a write can have. |
+| `app/src/main/assets/web/index.html` | **v0.6.68**: the **Import a GPX file** button and the picker it opens, and the sentence the map shows while a file is over it. |
+| `app/src/main/assets/web/style.css` | **v0.6.68**: the two ways in share one shape, and the drop zone has a rim and a hint in the map's corner. |
+| `README.md` | A `## Drawing from a computer` section, and the vendored licence note. **v0.6.68**: the GPX bullet became **in and out**, and the editor paragraph says how a dropped file is read. |
 | `.github/workflows/ci.yml` | `node --test app/src/test/js/geometry.test.mjs` beside the Gradle gate: the desk's drawing arithmetic, held by the same file the browser runs. **v0.6.24.** |
 
 ## Endpoints
@@ -256,6 +272,18 @@ that never saw the move rather than silently undoing it.
 - The geometry half of `PUT`: the body may carry `points`, a list of `{lat, lng}`, and the line is written
   in the same transaction as the rest of the row. Absent means "the line is unchanged"; an empty list is a
   refusal. `points` is also in each record's `version`, so a stale card about a moved line is refused.
+- `POST /api/gpx` — a GPX file read as the paths of a track, and **nothing written** (v0.6.68). The body
+  carries the file as one JSON string, under the field name the state document names
+  (`WebEditorGpxRules.field` — a page that guessed it would send a file the phone read as absent, which
+  is indistinguishable from a GPX file with no track in it). The answer is `paths` — the line first, its
+  side tracks after it, in the very shape the write that follows carries them back in — beside
+  `sideTracks` and `segmentsDidNotMeet`, so the page says what happened in the phone's own numbers and
+  cannot have to work out from a path count what only the phone can see: a file with one segment and a
+  file whose segments could not be joined are both one line, and only the second is worth saying. Answers
+  **200** with the reading, **400 `invalid`** for anything that is not a line at all — a file with one
+  point in it, a file that will not parse, a body carrying no file — in the app's own words. The largest
+  file is the socket's own **256 KB**, which the state document states so the page can say so before
+  anything is sent; a **GET** of the path is nobody's and falls through to the page route's 404.
 - **The token is required on everything**; anything without it is 403, including `/`. A run served
   with the token switch off asks for nothing at all: no gate, no token in the address, and none in
   the URLs the style hands to MapLibre (v0.6.25 — see *Defaults taken*, 5).
@@ -349,6 +377,40 @@ screen to show. What the desk may do with a track it wants gone is unchanged - d
 recorded against it, and if sprays or recordings hang off it, they are named in numbers and the phone is
 where it goes. The `active` column stays exactly as it is: it is the record's own field, a backup
 carries it, and the state document filters on it. Nothing sets it, and nothing is going to.
+
+**A GPX file is dropped on the desk, and the phone reads it** (v0.6.68). The phase's own item, and the
+one place this plan had left a hole: *"drop a GPX file on the desk and have it become a track's line"*.
+The reading is **the phone's**, not the page's, and that is the whole design. A GPX file's meaning - a
+line and the side tracks hanging off it when its own track segments meet, one line with a jump in it
+when they do not - is already a rule the app has, in `GpxInterchange`, and it is the rule the phone's
+own **Import GPX** uses. A second copy of it in JavaScript is a copy that drifts, and the one that falls
+behind would be whichever door is used less; worse, a page that *flattened* a file's segments for itself
+would be proposing paths the phone's own rules could refuse, and the operator would be looking at a
+drawing that cannot be saved.
+
+So `POST /api/gpx` takes the file as JSON (`{"gpx": "<gpx …>"}`, one string, which is why a track's name
+and every coordinate survive it) and answers with the paths and what became of the segments. **It writes
+nothing**: no row, no id, no block. The page draws those paths as its own drawing, opens the form on it
+with the file's own name in the name field, and the track is made afterwards by the same `POST
+/api/assets` every drawn track is made by. A file dropped by mistake therefore costs a reload and
+nothing else, and there is one way into the database rather than two.
+
+The page's half is the part only a browser can know, and it is `gpx.mjs`, pure and tested under node like
+`wire.mjs`: whether the thing dropped is a file this desk should send (a name ending `.gpx` - the type a
+computer reports for a GPX file is whatever the computer that wrote it decided - and no more than the
+phone's own 256 KB), what to offer as the track's name (the file's, without its extension, which is what
+the phone's own importer does with a chosen file), and how to word the answer. The file's meaning is not
+in it. The two ways in - the **Import a GPX file** button and a drop on the map - lead to the same
+function, so a file read from the picker and a file dropped cannot become two slightly different
+imports; the map is the drop zone and only the map is, because a file dropped anywhere else in the
+browser is opened as a page.
+
+**Nothing is written until the file is saved, which is what makes one safe to explore with.** The
+imported line lands in the drawing, so it can be traced onto, carried past its end, given a side track,
+tidied - and the box in the corner counts it in the phone's own arithmetic (*5 points · 401 m · 1 side
+track*) while the form is open. A form given up on leaves the drawing, which is the drawing's own Cancel
+rule rather than a special case for files. What the phone refuses, it refuses in the words both doors
+use.
 
 ## Defaults taken (overrule any of these and change this file)
 
@@ -839,8 +901,45 @@ style's background colour and the work draws on top of it.
       two rotations left the address and its secret **unchanged** with the old secret still 200; and with
       the serving switch off the card lost its address and the port was **000**, which a force-stop and a
       relaunch did not undo (`we-def-10-shipped-off-after-restart.png`).
-- [ ] **Phase 3, what is left** — GPX drag-and-drop, and working on more than one asset at once.
-      *Show-archived was dropped* (see the phase 3 section above), so the phase's own list is now this.
+- [x] **A GPX file is dropped on the desk. v0.6.68** — the phase's own last item, asked for in one line:
+      *"New feature, import GPX to desktop UI via file or drag n drop"*. Two ways in — a file dropped on
+      the map, and an **Import a GPX file** button — and one function behind both, so they cannot become
+      two slightly different imports. **The phone reads the file**: `POST /api/gpx` hands it to the same
+      rule the phone's own **Import GPX** uses (`GpxInterchange`, lifted out of `AssetRepository` for the
+      purpose), answers with the paths and what became of the segments, and **writes nothing** — the
+      track is made afterwards by the same write every drawn track is made by, so a file dropped by
+      mistake costs a reload. Proven by payload, by a driven browser and by the database. By payload, on
+      the emulator over the seeded five-asset farm: a file whose segments meet answered
+      **200** with `paths` (three-vertex line, then the spur off its own last vertex, to the bit) and
+      `{"sideTracks":1,"segmentsDidNotMeet":false}`; a file whose segments do not meet answered **200**
+      with one four-point line and `{"sideTracks":0,"segmentsDidNotMeet":true}`; and an empty body, a
+      body with no file, a body that is not a document, a one-point file and a malformed file each
+      answered **400** in the app's own words ("A line needs at least two points", "That file could not be
+      read as GPX…"). Driven in a headless Edge through the DevTools protocol, with a real `File` built
+      in the page and handed over as a real `drop` (`db/pagedump.ps1` grew a `drop` step for it): the
+      notice read *gpx-joined.gpx: one line of 5 points with 1 side track. Give it a name, then save it
+      to the phone.*, the drawing's box read **5 points · 401 m · 1 side track** (the phone's own
+      arithmetic on the phone's own paths), the form opened with **gpx-joined** in the name field and
+      **Track** picked, and the drop zone's own words showed while a file was over the map
+      (*Drop the GPX file to put its line on the map*, with the map's rim) and were **gone** when the
+      drag was given up on. A file that is not a GPX file was refused by the page before anything was
+      sent (*"not-a-track.kml" is not a GPX file. Drop a file whose name ends in .gpx.*); a file with one
+      point in it was refused by the phone in the shared sentence; a file whose segments do not meet drew
+      as one line with the notice saying so; the form's Cancel left the drawing (*5 points · 401 m · 1
+      side track*) rather than nothing; and the picker's own change handler was driven with a chosen file
+      and did the same thing as a drop. The save was checked **in the database**, not in the page
+      (`db/gpxcheck2.py` over the pulled file *and its `-wal`*, force-stopped first): the new row is
+      asset 6, `TRACK`/`LINE`, **400.54 m** worked out by the phone from five vertices, `asset_points`
+      holding **path 0 with three vertices and path 1 with two**, the junction the same two numbers in
+      both — and the five seeded assets, the two blocks, every other point and the spray count
+      unchanged. The phone's own map then drew the imported track with its spur
+      (`db/gpx-app-list-small.jpg`). Screenshots `gpx-drop-3.png`, `gpx-save-1.png`, `gpx-apart-1.png`,
+      `gpx-drop-kml.png`, `gpx-hint-1.png`, `gpx-pick-1.png`; notes in `build/verify/web-gpx.txt`,
+      including what is **not** proven (the minified build's own behaviour, and a file chosen through a
+      real picker dialog rather than the picker's own change handler).
+- [ ] **Phase 3, what is left** — working on more than one asset at once.
+      *Show-archived was dropped* (see the phase 3 section above) and **GPX drag-and-drop landed in
+      v0.6.68**, so the phase's own list is now this one item.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
@@ -849,10 +948,10 @@ summarised task, or a brand-new one, can see exactly where the work stopped.
 
 **Phase 3 — one item left of it.** Snapping is in (with the drawing itself), tracing is in (v0.6.26),
 side tracks reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone's own record
-is `side-tracks.md`). What remains is **GPX drag-and-drop** — drop a GPX file on the desk and have it
-become a track's line, which is now a well-defined thing to become: a drawing of paths, junction rules and
-all — and **working on more than one asset at once**. *Show-archived was dropped, not deferred*: see the
-phase 3 section above for the decision and what it leaves alone.
+is `side-tracks.md`), and **GPX drag-and-drop shipped as v0.6.68** — the file's meaning is read on the
+phone, by the same rule its own **Import GPX** uses, and the page draws the paths it is handed. What
+remains of the phase is **working on more than one asset at once**. *Show-archived was dropped, not
+deferred*: see the phase 3 section above for the decision and what it leaves alone.
 
 **The first press after a page load can be wasted.** One run in five, the first traced stroke after the
 desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the

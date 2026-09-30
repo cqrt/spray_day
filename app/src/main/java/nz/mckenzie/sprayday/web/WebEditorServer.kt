@@ -135,6 +135,15 @@ class WebEditorServer(
             handler = { request -> write(data.create(request.body)) }
         ),
         HttpRoute(
+            claims = { it.method == POST && it.path == GPX_PATH },
+            // A file the operator dropped on the desk's map, read as a line and its side tracks. The
+            // route is here rather than the page because what a GPX file *is* is the phone's own rule
+            // - the same reading the phone's list screen imports a file with - and a second copy of it
+            // in JavaScript is the one that would drift. Nothing is written: the paths go back to the
+            // page, which draws them and saves them as the track they are.
+            handler = { request -> write(data.gpx(request.body)) }
+        ),
+        HttpRoute(
             claims = { it.method == PUT && assetId(it.path) != null },
             // The id is asked for twice, once to decide whether this route answers at all and once
             // to answer with - so a route can never answer for a path it did not claim, and there is
@@ -201,8 +210,8 @@ class WebEditorServer(
         HttpResponse.bytes(status, JSON, body.toByteArray(Charsets.UTF_8))
 
     /**
-     * A write's outcome as an answer: the new record, the sentence about what is gone, or the refusal
-     * with its own status.
+     * A write's outcome as an answer: the new record, the sentence about what is gone, the paths a
+     * dropped GPX file turned out to hold, or the refusal with its own status.
      *
      * The status is [WebEditorRefusal]'s and [WebEditorWrite]'s, not this class's guess, so what a page
      * is told when a save is refused is decided where the refusal is decided - and a new asset is told
@@ -214,6 +223,8 @@ class WebEditorServer(
         is WebEditorWrite.Saved -> json(WebEditorJson.saved(result.record))
         is WebEditorWrite.Created -> json(WebEditorJson.saved(result.record), status = 201)
         is WebEditorWrite.Removed -> json(WebEditorJson.removed(result.message))
+        // A file read, and nothing written: the page is handed the reading and makes it a drawing.
+        is WebEditorWrite.GpxRead -> json(WebEditorJson.gpx(result.reading))
         is WebEditorWrite.Refused -> HttpResponse.bytes(
             result.refusal.status,
             JSON,
@@ -299,6 +310,33 @@ class WebEditorServer(
 
         /** Where a new asset is made: `/api/assets`, with no id on the end of it. */
         const val COLLECTION_PATH = "/api/assets"
+
+        /**
+         * Where a GPX file is read: `/api/gpx`.
+         *
+         * A path of its own rather than a field in the new asset's own body, because what it answers
+         * is not a write: the desk is handed the file's own line to draw, and the track it becomes is
+         * made afterwards by the same write every drawn track is made by.
+         */
+        const val GPX_PATH = "/api/gpx"
+
+        /**
+         * The longest GPX file the phone will take, in bytes of the file itself.
+         *
+         * The socket's own limit is what decides this - a body over it is refused before any route
+         * sees it - and it is stated here so the page can say so in words, before a file is sent,
+         * rather than passing on a refusal about the size of a request that never arrived.
+         */
+        const val MAX_GPX_BYTES = 256 * 1024
+
+        /**
+         * What a GPX file is called in a body: one JSON string, escaped as JSON escapes any text.
+         *
+         * JSON rather than the file's own bytes because a body here is a JSON document and nothing
+         * else, and a GPX file is text: a track's name, and every coordinate in it, survive the
+         * round trip as themselves.
+         */
+        const val GPX_FIELD = "gpx"
 
         /** What the token is called in a URL, e.g. `/api/state?k=7f3a…`. */
         const val TOKEN_PARAM = "k"
@@ -415,6 +453,17 @@ interface WebEditorData {
      * say which track it read is a delete nobody can be held to.
      */
     suspend fun remove(id: Long, version: String?): WebEditorWrite
+
+    /**
+     * `POST /api/gpx`: a GPX file read as the paths of a track that is not on the phone yet.
+     *
+     * The body is the file the operator dropped on the desk, as JSON, because that is the only body
+     * either server takes. **Nothing is written**: the answer is the line and its side tracks, and the
+     * page draws them as its own drawing - which the operator then names and saves through the same
+     * write every drawn track goes through. So a file dropped by mistake costs a page reload and
+     * nothing else, and there is one way into the database rather than two.
+     */
+    suspend fun gpx(body: String?): WebEditorWrite
 
     /**
      * The page and the files it asks for, from `app/src/main/assets/web`.

@@ -115,9 +115,11 @@ class AssetListViewModel(
                     ?: "Imported track"
 
                 val imported = assetRepository.importAssetGpx(name = name, gpx = text)
-                val points = assetRepository.getAssetGeometry(imported.assetId).pointCount
+                // The points are the reading's own, so the sentence counts what the file held rather
+                // than asking the database again for a number the import has just been handed.
+                val points = imported.paths.sumOf { it.size }
                 _message.value = when {
-                    imported.segmentsDidNotJoin ->
+                    imported.segmentsDidNotMeet ->
                         "Imported \"$name\" with $points points as one line: the file's own track " +
                             "segments do not meet, so they were joined up."
                     imported.sideTracks == 1 ->

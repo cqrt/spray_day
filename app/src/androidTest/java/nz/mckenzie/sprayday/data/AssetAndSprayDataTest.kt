@@ -56,6 +56,15 @@ class AssetAndSprayDataTest {
         .first { it.asset.id == assetId }
 
     /**
+     * The id of the asset made last, which is what an import answers with now that it hands back the
+     * file's own reading rather than a row: the newest number in the table is the one it just made.
+     */
+    private suspend fun newestAssetId(): Long = assetRepository
+        .observeAssetsWithDue(MinuteTicker.fixed(now))
+        .first()
+        .maxOf { it.asset.id }
+
+    /**
      * A track with a side track off it, stored and read back as the two paths it is.
      *
      * The claim this pins is the length: **each path counted once**. The same ground drawn the old way
@@ -376,11 +385,12 @@ class AssetAndSprayDataTest {
         val gpx = assetRepository.exportAssetGpx(source)!!
 
         val imported = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
+        val id = newestAssetId()
 
-        assertEquals(2, assetRepository.getAssetGeometry(imported.assetId).pointCount)
-        assertEquals(111.19, assetRepository.getAsset(imported.assetId)!!.lengthM, 1.0)
+        assertEquals(2, assetRepository.getAssetGeometry(id).pointCount)
+        assertEquals(111.19, assetRepository.getAsset(id)!!.lengthM, 1.0)
         assertEquals("one line, and nothing else was in the file", 0, imported.sideTracks)
-        assertFalse(imported.segmentsDidNotJoin)
+        assertFalse(imported.segmentsDidNotMeet)
     }
 
     /**
@@ -402,17 +412,18 @@ class AssetAndSprayDataTest {
         val gpx = assetRepository.exportAssetGpx(source)!!
 
         val imported = assetRepository.importAssetGpx(name = "Gully track again", gpx = gpx)
+        val id = newestAssetId()
 
-        val stored = assetRepository.getAssetGeometry(imported.assetId)
+        val stored = assetRepository.getAssetGeometry(id)
         assertEquals("the line and its side track", 2, stored.paths.size)
         assertEquals(listOf(spur), stored.sideTracks)
         assertEquals("and the side track starts on the line's own vertex", stored.line[1], stored.sideTracks[0].first())
         assertEquals(1, imported.sideTracks)
-        assertFalse(imported.segmentsDidNotJoin)
+        assertFalse(imported.segmentsDidNotMeet)
         assertEquals(
             "222 m of track, each path counted once",
             222.3,
-            assetRepository.getAsset(imported.assetId)!!.lengthM,
+            assetRepository.getAsset(id)!!.lengthM,
             1.0
         )
     }
@@ -432,11 +443,11 @@ class AssetAndSprayDataTest {
 
         val imported = assetRepository.importAssetGpx(name = "Two fences", gpx = gpx)
 
-        val stored = assetRepository.getAssetGeometry(imported.assetId)
+        val stored = assetRepository.getAssetGeometry(newestAssetId())
         assertEquals("one line, every point in it", 1, stored.paths.size)
         assertEquals(4, stored.pointCount)
         assertEquals(0, imported.sideTracks)
-        assertTrue("and the answer says the file's segments did not meet", imported.segmentsDidNotJoin)
+        assertTrue("and the answer says the file's segments did not meet", imported.segmentsDidNotMeet)
     }
 
     @Test

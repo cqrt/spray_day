@@ -172,7 +172,12 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 /* Drawing a new track: the way in, above the list, where the work is. */
-#side-actions { padding: 10px 10px 0; }
+#side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 0;
+}
 
 /*
  * The farm at a glance: the phone's own corner box, on a desk. Plain, and carrying no colour of its
@@ -205,7 +210,11 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 #farm hr { margin: 7px 0 2px; border: 0; border-top: 1px solid var(--line); }
 
-#draw {
+/* The two ways into a track that is not on the phone yet: drawn on the map here, or read out of a
+   file somebody drew somewhere else. One shape, because they are one errand - "this is where a track
+   goes" - and both of them end on the map. */
+#draw,
+#import {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--line);
@@ -215,8 +224,32 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   cursor: pointer;
 }
 
-#draw:hover:not(:disabled) { background: var(--shade); }
-#draw:disabled { color: var(--quiet); background: var(--shade); cursor: default; }
+#draw:hover:not(:disabled),
+#import:hover:not(:disabled) { background: var(--shade); }
+
+#draw:disabled,
+#import:disabled { color: var(--quiet); background: var(--shade); cursor: default; }
+
+/*
+ * A GPX file over the map. The hint is the page's own words about what letting go will do, and it sits
+ * in the map's corner rather than its middle: the operator is watching the line they are about to land
+ * there, not reading a message.
+ */
+#drop-hint {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+  background: var(--float-paper);
+  font-size: 13.5px;
+  pointer-events: none;
+}
+
+/* A rim round the map while a file is over it, so which half of the page takes it is never a guess. */
+#map.dropping { outline: 3px solid var(--accent-line); outline-offset: -3px; }
 
 /*
  * What the drawing is doing: a box in the map's own top-left corner, in the page's own words, because

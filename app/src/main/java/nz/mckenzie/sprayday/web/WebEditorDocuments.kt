@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
@@ -249,6 +250,31 @@ class WebEditorDocuments(
     }
 
     /**
+     * `POST /api/gpx`: the paths a dropped GPX file holds, and nothing written.
+     *
+     * The file is read by [GpxInterchange], which is the same reading the phone's own list screen
+     * imports a file with: so a file the desk refuses and a file the phone refuses are the same files,
+     * refused in the same words, and a track made from a dropped file is the track the phone would
+     * have made from a picked one. What it may *do* is deliberately nothing: no row, no id, no block -
+     * the desk draws the paths it is handed, so a file dropped by mistake is a page reload and not a
+     * track somebody has to find and delete.
+     */
+    override suspend fun gpx(body: String?): WebEditorWrite {
+        // A body the phone cannot read is not an empty file: it is a request made of something else,
+        // and saying "there was no GPX in that" would send the operator looking at the file.
+        val file = WebEditorEdits.readGpx(body) ?: return refused(
+            WebEditorRefusal.INVALID,
+            "That request did not carry a GPX file, so nothing was read."
+        )
+
+        return when (val outcome = GpxInterchange.read(file)) {
+            is GpxInterchange.Outcome.Invalid ->
+                refused(WebEditorRefusal.INVALID, outcome.message)
+            is GpxInterchange.Outcome.Read -> WebEditorWrite.GpxRead(outcome.reading)
+        }
+    }
+
+    /**
      * One asset as the wire carries it, with the two reads its record needs.
      *
      * The geometry for the version, and the recordings for the delete sentence. Both are single-asset
@@ -299,7 +325,6 @@ class WebEditorDocuments(
 
     /** `?k=…` for a run with a token, nothing at all for one without. */
     private val tokenQuery: String get() = token?.let { "?$TOKEN_PARAM=$it" }.orEmpty()
-
     override fun page(path: String): HttpResponse? {
         val name = if (path == "/") INDEX else path.removePrefix("/")
         // Exact names only. The page is the one thing here whose name a caller chooses, and a page

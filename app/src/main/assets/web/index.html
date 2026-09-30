@@ -31,6 +31,15 @@
       <div id="side-actions">
         <!-- Off until the map has its style: a drawing needs somewhere to be drawn. -->
         <button id="draw" type="button" disabled>Draw a new asset</button>
+        <!--
+          A track that was drawn somewhere else: the file's own line is read by the phone and becomes
+          the drawing, so a fence somebody walked with a handheld arrives ready to name and save
+          rather than being traced over the imagery point by point. The same file can be dropped on
+          the map, which is the gesture most people try first.
+        -->
+        <button id="import" type="button" disabled>Import a GPX file</button>
+        <!-- The picker itself: opened by the button above, and never shown. -->
+        <input id="import-file" type="file" accept=".gpx,application/gpx+xml" hidden>
       </div>
 
       <!--
@@ -68,6 +77,12 @@
       <div id="list" aria-live="polite"></div>
     </aside>
     <div id="map"></div>
+    <!--
+      Said while a file is over the map rather than after it is dropped: a GPX file dropped anywhere
+      else in the browser is opened as a page, and an operator who does not know the map is the target
+      would watch the work disappear. Shown by `app.js` only while something is being dragged.
+    -->
+    <p id="drop-hint" hidden>Drop the GPX file to put its line on the map</p>
 
     <!--
       What the drawing is doing, in the corner of the map rather than across the top of the page: a box

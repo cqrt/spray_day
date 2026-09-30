@@ -10,6 +10,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
 import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
 import nz.mckenzie.sprayday.ui.AssetEdits
@@ -194,6 +195,16 @@ sealed interface WebEditorWrite {
     /** Something is gone from the phone: the phone's own sentence saying what happened. */
     data class Removed(val message: String) : WebEditorWrite
 
+    /**
+     * A GPX file was read, and nothing was written: the paths it holds, and what became of its
+     * segments - see [nz.mckenzie.sprayday.domain.gpx.GpxInterchange.Reading].
+     *
+     * A write in the routing's own sense rather than the database's: it is a POST with a body, judged
+     * and answered like the others, and it is here so a refusal about a file keeps the same shape and
+     * the same statuses as a refusal about an edit.
+     */
+    data class GpxRead(val reading: GpxInterchange.Reading) : WebEditorWrite
+
     data class Refused(val refusal: WebEditorRefusal, val message: String) : WebEditorWrite
 }
 
@@ -273,6 +284,18 @@ object WebEditorEdits {
      * they *did* type, out of range, is answered by the rules below in the app's own words.
      */
     private const val UNREADABLE = "That edit could not be read, so nothing was saved."
+
+    /**
+     * The GPX file a page sent, or null when the body carried none this build can read.
+     *
+     * Read here, beside [parse], so every JSON body the editor takes is decoded in one place with one
+     * `Json` - and so the reading of a body is the same whether it describes a write or a file. What
+     * the *file* means is a question about the ground and is answered by
+     * [nz.mckenzie.sprayday.domain.gpx.GpxInterchange], not here.
+     */
+    fun readGpx(body: String?): String? = body
+        ?.let { runCatching { json.decodeFromString(WebEditorGpxBody.serializer(), it).gpx }.getOrNull() }
+        ?.takeIf { it.isNotBlank() }
 
     /**
      * An edit to an asset the phone already has.

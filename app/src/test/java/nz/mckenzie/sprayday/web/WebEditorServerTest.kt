@@ -2,6 +2,8 @@ package nz.mckenzie.sprayday.web
 
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.offline.HttpRequest
@@ -222,6 +224,30 @@ class WebEditorServerTest {
                 )
                 MISSING_ID -> WebEditorWrite.Refused(WebEditorRefusal.MISSING, "no such track")
                 else -> WebEditorWrite.Removed("Estuary road is gone from the phone.")
+            }
+        }
+
+        /**
+         * The body a GPX file arrived as, and a reading for it - or a refusal, so a file the phone
+         * will not take has a route to travel as well.
+         */
+        var lastGpx: String? = null
+
+        override suspend fun gpx(body: String?): WebEditorWrite {
+            lastGpx = body
+            return if (body.isNullOrBlank()) {
+                WebEditorWrite.Refused(WebEditorRefusal.INVALID, "that request carried no GPX file")
+            } else {
+                WebEditorWrite.GpxRead(
+                    GpxInterchange.Reading(
+                        paths = listOf(
+                            listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9)),
+                            listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.4, 173.7))
+                        ),
+                        sideTracks = 1,
+                        segmentsDidNotMeet = false
+                    )
+                )
             }
         }
 
@@ -641,5 +667,56 @@ class WebEditorServerTest {
         assertEquals(404, send(WebEditorServer.COLLECTION_PATH, "DELETE").code)
 
         assertNull("nothing was deleted", data.lastRemove)
+    }
+
+    @Test
+    fun `a dropped GPX file is read at its own path and answered with the paths it holds`() {
+        start()
+
+        val body = """{"gpx":"<gpx version=\"1.1\"><trk><trkseg/></trk></gpx>"}"""
+        val response = send(WebEditorServer.GPX_PATH, "POST", body)
+
+        assertEquals(200, response.code)
+        assertEquals("application/json; charset=utf-8", response.contentType)
+        assertEquals("the file arrived whole", body, data.lastGpx)
+        // The reading, as the page draws it: the line first and its side tracks after it, each vertex
+        // an object the page's own drawing already knows what to do with.
+        assertEquals(
+            """{"paths":[[{"lat":-41.5,"lng":173.8},{"lat":-41.6,"lng":173.9}],""" +
+                """[{"lat":-41.5,"lng":173.8},{"lat":-41.4,"lng":173.7}]],""" +
+                """"sideTracks":1,"segmentsDidNotMeet":false}""",
+            response.body
+        )
+    }
+
+    @Test
+    fun `a GPX file the phone will not read keeps the refusal's own status and words`() {
+        start()
+
+        val refused = send(WebEditorServer.GPX_PATH, "POST", "")
+
+        assertEquals(400, refused.code)
+        assertEquals(
+            """{"reason":"invalid","message":"that request carried no GPX file"}""",
+            refused.body
+        )
+    }
+
+    @Test
+    fun `reading a GPX file needs the token as surely as a write does`() {
+        start()
+
+        assertEquals(403, send(WebEditorServer.GPX_PATH, "POST", """{"gpx":"x"}""", withToken = false).code)
+        assertNull("a refused file never reached the data", data.lastGpx)
+    }
+
+    @Test
+    fun `a GPX file is read with a POST, and a GET of that path is the page route's business`() {
+        start()
+
+        // The path names a thing done rather than a thing read: a GET of it falls through to the page
+        // route, which serves no such file, so it is a 404 rather than a file read with no file.
+        assertEquals(404, get(WebEditorServer.GPX_PATH).code)
+        assertNull(data.lastGpx)
     }
 }

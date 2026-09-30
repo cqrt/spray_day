@@ -195,17 +195,16 @@ private fun DrawScope.drawKindShapes(
             line(0.58f, 0.34f, 0.80f, 0.88f)
         }
 
-        // A gate hung on a post: the post reaches past the gate on the left, two rails close on a
-        // stile at the right, and the brace between them is what makes it a gate rather than a seat.
-        // What tells it from a fenceline is that frame - a fence is posts with rails between them, a
-        // gate is one opening with an edge of its own. Every endpoint is kept well inside the box
-        // because the marker's round cap and its white rim are both drawn from the ends of a line.
+        // A gate hung on a post: the post reaches past the gate on the left, one rail runs out to a
+        // stile that hangs from its end - so the deck spans between two uprights and it reads a little
+        // like a bridge. What tells it from a fenceline is that frame: a fence is posts with rails
+        // between them, a gate is one opening with an edge of its own. Every endpoint is kept well
+        // inside the box because the marker's round cap and its white rim are both drawn from the ends
+        // of a line.
         AssetKind.POLE_GATE -> {
             line(0.20f, 0.16f, 0.20f, 0.84f)
             line(0.20f, 0.30f, 0.86f, 0.30f)
-            line(0.20f, 0.70f, 0.86f, 0.70f)
             line(0.86f, 0.30f, 0.86f, 0.70f)
-            line(0.26f, 0.64f, 0.80f, 0.36f)
         }
 
         // A dot in a ring: something is here, and nothing beyond that. The house this used to wear

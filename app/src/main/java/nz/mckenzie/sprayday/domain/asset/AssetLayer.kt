@@ -3,7 +3,7 @@ package nz.mckenzie.sprayday.domain.asset
 /**
  * One layer of the work on the map, as the operator's switches see it.
  *
- * **One layer per kind of asset** - nine of them, the same nine the list's chips offer - because
+ * **One layer per kind of asset** - ten of them, the same ten the list's chips offer - because
  * the reason to hide a layer is to read another: a road network under a set of fencelines is noise,
  * and forty troughs on a block bury the two buildings that are the thing being looked for. Hiding
  * "places" was not enough for the second of those, so a place kind can be hidden on its own.
@@ -87,10 +87,17 @@ enum class AssetLayer(
         kind = AssetKind.TABLE
     ),
 
+    POLE_GATES(
+        id = "pole-gates",
+        displayName = "Pole gates",
+        summary = "A post with a three-rail gate hung on it.",
+        kind = AssetKind.POLE_GATE
+    ),
+
     OTHER_PLACES(
         id = "other-places",
         displayName = "Other places",
-        summary = "A dot in a ring: a trough, a tank, a gate.",
+        summary = "A dot in a ring: a trough, a tank, a standpipe.",
         kind = AssetKind.OTHER_PLACE
     );
 
@@ -104,7 +111,7 @@ enum class AssetLayer(
          *
          * Before this release there were four switches and the fifth kind of thing was "places".
          * An operator who hid them meant the troughs, the sheds and the signs alike, so the id is
-         * read back as the five place kinds rather than dropped - a hidden layer coming back is a
+         * read back as the six place kinds rather than dropped - a hidden layer coming back is a
          * map that has quietly changed under somebody.
          */
         private const val LEGACY_PLACES = "places"
@@ -122,7 +129,7 @@ enum class AssetLayer(
             ?.flatMapTo(mutableSetOf()) { id -> layersFor(id) }
             .orEmpty()
 
-        /** The layers one stored id names: one, or - the old "places" - all five of them. */
+        /** The layers one stored id names: one, or - the old "places" - all six of them. */
         private fun layersFor(id: String): List<AssetLayer> = if (id == LEGACY_PLACES) {
             entries.filter { it.kind.shape == AssetShape.POINT }
         } else {

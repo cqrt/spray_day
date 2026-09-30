@@ -38,7 +38,7 @@ class PlaceIconsTest {
             AssetKind.entries.filter { it.shape == AssetShape.POINT },
             PlaceIcons.KINDS
         )
-        assertEquals(5, PlaceIcons.KINDS.size)
+        assertEquals(6, PlaceIcons.KINDS.size)
     }
 
     @Test
@@ -68,7 +68,7 @@ class PlaceIconsTest {
 
     @Test
     fun `no two pictures share a name`() {
-        assertEquals("a picture per kind, per colour", 20, PlaceIcons.IMAGE_NAMES.size)
+        assertEquals("a picture per kind, per colour", 24, PlaceIcons.IMAGE_NAMES.size)
         assertTrue(
             "two of them sharing a name would make one of them a lie: ${PlaceIcons.IMAGE_NAMES}",
             PlaceIcons.IMAGE_NAMES.toSet().size == PlaceIcons.KINDS.size * PlaceIcons.COLORS.size

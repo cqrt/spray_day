@@ -7,7 +7,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
  *
  * A track is a line you travel along, a road is a line with two edges, and a fenceline is a
  * series of short things - posts - so they are drawn solid, dashed and dotted in that order. The
- * five kinds that are places are not here: they are drawn as a house, and a dash pattern has
+ * six kinds that are places are not here: they are drawn as a house, and a dash pattern has
  * nothing to say about a house.
  *
  * Dash lengths are multiples of the line width rather than pixels, which is why the dotted style
@@ -42,6 +42,7 @@ object AssetLineStyles {
         AssetKind.SIGN,
         AssetKind.BENCH,
         AssetKind.TABLE,
+        AssetKind.POLE_GATE,
         AssetKind.OTHER_PLACE -> null
     }
 }

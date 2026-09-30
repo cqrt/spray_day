@@ -11,7 +11,7 @@ object AssetPhrase {
 
     /**
      * "Track", "Road", "Fenceline", "Carpark", "Building", "Sign", "Bench seat", "Picnic table",
-     * "Other place".
+     * "Pole gate", "Other place".
      */
     fun kind(kind: AssetKind): String = when (kind) {
         AssetKind.TRACK -> "Track"
@@ -22,6 +22,7 @@ object AssetPhrase {
         AssetKind.SIGN -> "Sign"
         AssetKind.BENCH -> "Bench seat"
         AssetKind.TABLE -> "Picnic table"
+        AssetKind.POLE_GATE -> "Pole gate"
         AssetKind.OTHER_PLACE -> "Other place"
     }
 

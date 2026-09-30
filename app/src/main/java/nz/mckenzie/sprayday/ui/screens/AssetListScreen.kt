@@ -124,7 +124,7 @@ fun AssetListScreen(
             }
 
             // What the list is showing. One line that scrolls sideways rather than a block of
-            // chips: nine of them wrapped is three rows of screen before the first asset, and the
+            // chips: ten of them wrapped is three rows of screen before the first asset, and the
             // rarer kinds are a swipe away. All leads, so the way back is always at the left - and
             // tapping the chip already showing is the same way back, from wherever the operator is.
             if (tracks.isNotEmpty()) {

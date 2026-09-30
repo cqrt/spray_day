@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 
 /**
- * The nine kinds of asset, drawn: one shape each, in whatever colour the job needs.
+ * The ten kinds of asset, drawn: one shape each, in whatever colour the job needs.
  *
  * **One geometry, two weights.** The list draws a glyph 20 dp wide beside a name, where a thin
  * outline is enough and anything heavier is a blob; the map draws the same glyph as a marker over
@@ -152,7 +152,7 @@ private fun DrawScope.drawKindShapes(
             }
         }
 
-        // Ground with an edge: a solid piece of the paddock, and the only filled glyph of the nine.
+        // Ground with an edge: a solid piece of the paddock, and the only filled glyph of the ten.
         // That is what the kind is - the one kind that is not something standing on the ground - and at
         // twenty pixels a solid block cannot be taken for any of the eight outlines above it.
         AssetKind.CARPARK -> {
@@ -193,6 +193,19 @@ private fun DrawScope.drawKindShapes(
             line(0.14f, 0.34f, 0.86f, 0.34f)
             line(0.42f, 0.34f, 0.20f, 0.88f)
             line(0.58f, 0.34f, 0.80f, 0.88f)
+        }
+
+        // A gate hung on a post: the post reaches past the gate on the left, two rails close on a
+        // stile at the right, and the brace between them is what makes it a gate rather than a seat.
+        // What tells it from a fenceline is that frame - a fence is posts with rails between them, a
+        // gate is one opening with an edge of its own. Every endpoint is kept well inside the box
+        // because the marker's round cap and its white rim are both drawn from the ends of a line.
+        AssetKind.POLE_GATE -> {
+            line(0.20f, 0.16f, 0.20f, 0.84f)
+            line(0.20f, 0.30f, 0.86f, 0.30f)
+            line(0.20f, 0.70f, 0.86f, 0.70f)
+            line(0.86f, 0.30f, 0.86f, 0.70f)
+            line(0.26f, 0.64f, 0.80f, 0.36f)
         }
 
         // A dot in a ring: something is here, and nothing beyond that. The house this used to wear

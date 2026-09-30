@@ -30,7 +30,7 @@ class AssetColorsTest {
     }
 
     @Test
-    fun `the nine kinds wear the four family colours, and nothing else`() {
+    fun `the ten kinds wear the four family colours, and nothing else`() {
         val families = setOf(
             AssetColors.TRACK_KIND,
             AssetColors.ROAD_KIND,
@@ -45,7 +45,7 @@ class AssetColorsTest {
             )
         }
         // A track and a road are their own colour, and every kind of place shares the teal: the glyph
-        // is what tells one place from another, because nine colours at twenty pixels is where two of
+        // is what tells one place from another, because ten colours at twenty pixels is where two of
         // them start looking alike.
         assertEquals(AssetColors.TRACK_KIND, AssetColors.forKind(AssetKind.TRACK))
         assertEquals(AssetColors.ROAD_KIND, AssetColors.forKind(AssetKind.ROAD))

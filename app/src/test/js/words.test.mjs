@@ -14,7 +14,7 @@ import test from 'node:test';
 
 import { kindText, methodText } from '../../main/assets/web/words.mjs';
 
-/** The phone's own list, as it arrives in the state document: the eight kinds, the phone's words. */
+/** A few of the phone's own kinds, as they arrive in the state document: the phone's words. */
 const kinds = [
   { value: 'TRACK', label: 'Track' },
   { value: 'ROAD', label: 'Road' },

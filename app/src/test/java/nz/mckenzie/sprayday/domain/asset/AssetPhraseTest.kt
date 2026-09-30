@@ -25,6 +25,7 @@ class AssetPhraseTest {
         assertEquals("Sign", AssetPhrase.kind(AssetKind.SIGN))
         assertEquals("Bench seat", AssetPhrase.kind(AssetKind.BENCH))
         assertEquals("Picnic table", AssetPhrase.kind(AssetKind.TABLE))
+        assertEquals("Pole gate", AssetPhrase.kind(AssetKind.POLE_GATE))
         assertEquals("Other place", AssetPhrase.kind(AssetKind.OTHER_PLACE))
 
         AssetKind.entries.forEach { kind ->
@@ -38,7 +39,7 @@ class AssetPhraseTest {
     }
 
     @Test
-    fun `three kinds are lines, one is ground, and five are places`() {
+    fun `three kinds are lines, one is ground, and six are places`() {
         assertEquals(
             setOf(AssetKind.TRACK, AssetKind.ROAD, AssetKind.FENCELINE),
             AssetKind.entries.filter { it.shape == AssetShape.LINE }.toSet()
@@ -53,6 +54,7 @@ class AssetPhraseTest {
                 AssetKind.SIGN,
                 AssetKind.BENCH,
                 AssetKind.TABLE,
+                AssetKind.POLE_GATE,
                 AssetKind.OTHER_PLACE
             ),
             AssetKind.entries.filter { it.shape == AssetShape.POINT }.toSet()

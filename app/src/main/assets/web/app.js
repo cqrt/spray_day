@@ -212,7 +212,7 @@ async function sendJson(path, method, body = null) {
  * at - and it draws each one with the same code its own map and list use, at whatever size this
  * screen needs: its own pixel ratio, so a 2:1 screen gets 44-pixel markers rather than stretched
  * 22-pixel ones. This page used to paint its own house, which was a second drawing of a marker the
- * phone already knows how to draw - and with five kinds of place it would have been five second
+ * phone already knows how to draw - and with six kinds of place it would have been six second
  * drawings, drifting one glyph at a time.
  *
  * The picture is handed to the map with the pixel ratio it was asked for, so a marker is the same
@@ -1240,7 +1240,7 @@ function shapeOfKind(kind) {
 /**
  * The kinds a new drawing can be made as: the phone's list, in the phone's words.
  *
- * Filled once the state document has arrived, and the same nine answers the phone's own drawing screen
+ * Filled once the state document has arrived, and the same ten answers the phone's own drawing screen
  * offers - a kind the phone learns appears here already named, with its shape, and nothing here needs
  * changing for it.
  */

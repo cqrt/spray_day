@@ -46,13 +46,13 @@ class AssetLayerIdsTest {
             .filter { it.kind.shape == AssetShape.LINE }
             .map { AssetLayerIds.of(it) }
 
-        assertEquals("one layer per place kind", 5, placeIds.size)
+        assertEquals("one layer per place kind", 6, placeIds.size)
         assertTrue(
             "a place kind hidden must not take a line with it: $lineIds",
             lineIds.none { it in placeIds }
         )
         assertEquals(
-            "and those five are what the place kinds' own switches hide",
+            "and those six are what the place kinds' own switches hide",
             placeIds,
             AssetLayer.ALL.filter { it.kind.shape == AssetShape.POINT }.map { AssetLayerIds.of(it) }
         )

@@ -116,14 +116,14 @@ them is worked out the one way, on the phone.
   which is one less thing to get wrong with gloves on.
 - **Layers you can switch off**: the layers button on the map lists one switch per kind of thing it
   draws — tracks, roads, fencelines and stopbanks, carparks, buildings, signs, bench seats, picnic
-  tables and
+  tables, pole gates and
   other places — and hides any of them on its own, so a block with forty troughs on it can be cleared
   down to the two sheds that are the reason for looking. A carpark's switch takes both of its layers,
   the edge and the ground, because one without the other is not the thing that was hidden. The choice
   is remembered between visits, and
   it is the home map's own: a spot being drawn still appears while it is being drawn, and an asset's
   page still draws that asset. A preference stored by a build from before the switches were split
-  reads *places* back as all five place kinds, because that is what it meant.
+  reads *places* back as all six place kinds, because that is what it meant.
 - **Backup and restore**: one JSON file holding the whole season — assets and their
   lines, every spray with its amounts, the groups and the product catalogue, the
   amounts each asset remembers, and every GPS recording. A restore replaces, and says
@@ -311,9 +311,9 @@ than no reminder system at all.
 
 ## The kinds of asset
 
-There are nine, and **the kind decides the shape**: a **track**, a **road** and a **fenceline** are
+There are ten, and **the kind decides the shape**: a **track**, a **road** and a **fenceline** are
 lines you travel along, a **carpark** is a ring of ground with an edge, and a **building**, a **sign**,
-a **bench seat**, a **picnic table** and
+a **bench seat**, a **picnic table**, a **pole gate** and
 **other place** are single spots. That is why the app never asks the second question — a track that
 was also a spot would be a line drawn across a paddock, with nothing on the screen saying the two
 answers disagreed.
@@ -330,23 +330,23 @@ recorded on a carpark carries that ground rather than a swath width somebody typ
 **The glyph says which kind; the colour says which family.** Blue for a track, purple for a road, teal
 for a fenceline and for every kind of place, and a family of its own for ground — because the colour's
 job is to say which of the three it is, and a carpark is neither a line you travel along nor a place
-you stop at. Nine distinct colours at the size of a list icon is
+you stop at. Ten distinct colours at the size of a list icon is
 where two of them start looking alike, so the picture carries the detail and the colour carries the
 family — and neither of them is the green, amber or red, which are for when something is due.
 
 **Other place** is the catch-all, and its glyph is a dot in a ring: it says something is here and
-claims nothing more, which is the honest thing to say about a trough, a tank or a gate.
+claims nothing more, which is the honest thing to say about a trough, a tank or a standpipe.
 
 **Nothing already recorded is rewritten.** Every fenceline, trough, shed and table on a farm sprayed
 before the kinds existed was stored as one word — *infrastructure* — with the shape beside it. The
 app reads that by the shape: a line of it is a fenceline, and a spot is a place nobody named, so it
 reads as *other place*. The row keeps the old word until somebody edits it, and the first edit of any
-field settles it onto one of the nine. The backup file and the database are unchanged by all of this —
+field settles it onto one of the ten. The backup file and the database are unchanged by all of this —
 and a phone on a build from before carparks existed reads one as a **track**, because a kind it has
 never heard of is read by the shape beside it, which is a line.
 
 **Finding one kind of it.** The asset list carries a row of chips between *Draw* and the list: **All**
-first, then the nine kinds in the picker's own words. Tapping one shows only that kind — the rows
+first, then the ten kinds in the picker's own words. Tapping one shows only that kind — the rows
 *and* the counts on the blocks, so a block with none of it leaves the list — and tapping the chip
 already showing brings everything back, which is what *All* does too. A kind with nothing in it says
 so in one line rather than showing an empty list. Old rows come along: a fenceline stored as
@@ -359,7 +359,7 @@ question asked, answered and put down. Nothing stored also means a phone whose c
 looks exactly as it did before the chips existed.
 
 The desk has the same idea beside its search box, as a **Type** list: *Anything*, then the phone's own
-nine, and the list shows what matches both the typed words and the type. The phone sends each asset's
+ten, and the list shows what matches both the typed words and the type. The phone sends each asset's
 kind already read back, so the page holds no second copy of the old-word rule. **The map draws the
 same answer as the list** - what narrows the rows narrows the map, and a search that matches nothing
 empties it - because a name on a list is not a place: an operator who has asked for the buildings is

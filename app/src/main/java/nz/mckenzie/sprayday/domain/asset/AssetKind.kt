@@ -3,7 +3,7 @@ package nz.mckenzie.sprayday.domain.asset
 /**
  * What an asset is, in the operator's words rather than the database's.
  *
- * Nine types, and the type decides the shape: three lines to travel along, five places to stop at,
+ * Ten types, and the type decides the shape: three lines to travel along, six places to stop at,
  * and one kind of ground with an edge. That is why the shape is a property here rather than a second
  * question on the form - two questions that can disagree is a picnic table drawn as a line across a
  * paddock, with nothing on the screen saying the two answers were different.
@@ -51,11 +51,20 @@ enum class AssetKind(
     TABLE(AssetShape.POINT),
 
     /**
-     * Anything else that is one spot: a trough, a tank, a gate.
+     * A pole gate: a gate hung on a post, sprayed around rather than travelled along.
      *
-     * The catch-all, and its glyph is the plainest of the eight on purpose: what it has to say is
+     * Its own kind rather than an [OTHER_PLACE] because a farm has dozens of them and they are the
+     * same thing every time: a gate that reads as a gate is one an operator can find, count and hide
+     * on its own, which a grey ring saying only "something is here" cannot do.
+     */
+    POLE_GATE(AssetShape.POINT),
+
+    /**
+     * Anything else that is one spot: a trough, a tank, a standpipe.
+     *
+     * The catch-all, and its glyph is the plainest of the ten on purpose: what it has to say is
      * "something is here" and nothing beyond that. Everything on a farm sprayed before these
-     * types existed that was a single spot is read as one of these, because which of the five it
+     * types existed that was a single spot is read as one of these, because which of them it
      * was is a thing nobody wrote down.
      */
     OTHER_PLACE(AssetShape.POINT);
@@ -63,7 +72,7 @@ enum class AssetKind(
     companion object {
 
         /**
-         * What infrastructure was stored as before there were eight types.
+         * What infrastructure was stored as before the kinds had names.
          *
          * Every fenceline, trough, shed and table on a farm sprayed before this release carries
          * this one word, and the shape beside it is the only thing that says which of the two
@@ -80,7 +89,7 @@ enum class AssetKind(
          * always has to answer: a record that cannot be read is a record that cannot be looked at.
          */
         fun known(value: String?, shape: AssetShape): AssetKind? = when (value) {
-            // A line of old infrastructure was a fenceline. A spot was one of the five places,
+            // A line of old infrastructure was a fenceline. A spot was one of the places,
             // and the one that claims nothing is the honest reading of a thing nobody named.
             LEGACY_INFRASTRUCTURE -> if (shape == AssetShape.POINT) OTHER_PLACE else FENCELINE
             else -> entries.firstOrNull { it.name == value }

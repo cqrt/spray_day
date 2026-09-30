@@ -15,7 +15,7 @@ import nz.mckenzie.sprayday.map.GlyphStyle
 import nz.mckenzie.sprayday.map.drawKindGlyph
 
 /**
- * A small coloured glyph saying what an asset is: eight types, one shape each.
+ * A small coloured glyph saying what an asset is: ten types, one shape each.
  *
  * The shapes live in [drawKindGlyph] (`map/KindGlyphs.kt`) rather than here, because the map's
  * markers are the same shapes at a marker's weight - fatter, filled, with a white edge - and a bench
@@ -23,7 +23,7 @@ import nz.mckenzie.sprayday.map.drawKindGlyph
  * of the two places.
  *
  * Drawn rather than shipped as an icon font or a set of images: the app has no icon dependency and
- * does not need one for eight shapes, and these only mean anything as a set.
+ * does not need one for ten shapes, and these only mean anything as a set.
  *
  * The colour is the family's, never the kind's and never the traffic light's. Colour says whether a
  * thing is a line to travel along or a place to stop at; the glyph says which kind it is. The dot

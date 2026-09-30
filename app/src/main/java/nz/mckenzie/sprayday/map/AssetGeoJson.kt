@@ -74,9 +74,9 @@ object AssetColors {
     /**
      * One colour per family of kind, for the icon beside an asset in the list.
      *
-     * Four colours for nine kinds, on purpose. Colour says which family a thing is in - a line you
+     * Four colours for ten kinds, on purpose. Colour says which family a thing is in - a line you
      * travel along, a road, a place you stop at, or ground with an edge - and the glyph says which kind
-     * it is, because nine distinct colours at twenty pixels is where two of them start looking alike.
+     * it is, because ten distinct colours at twenty pixels is where two of them start looking alike.
      *
      * Two things decide these. None of them may be the traffic-light green, amber or
      * red, because the icon says what something is while the dot beside it says when it
@@ -140,6 +140,7 @@ object AssetColors {
         AssetKind.SIGN,
         AssetKind.BENCH,
         AssetKind.TABLE,
+        AssetKind.POLE_GATE,
         AssetKind.OTHER_PLACE -> PLACE_KIND
     }}
 

@@ -296,8 +296,8 @@ private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier)
             LegendRow(AssetColors.YELLOW, "Due soon", dueSoon)
             LegendRow(AssetColors.GREEN, "Not due", notDue)
             if (stats.isNotEmpty()) {
-                // The rule is what says the lines under it are figures about the farm rather than
-                // more counts, so it stays on a one-line box; the gap around it is the rows' own.
+                // The rule is what says the lines under it are figures about the farm rather than more
+                // counts, so it keeps its place; the gaps either side of it are the rows' own now.
                 HorizontalDivider()
                 stats.forEach { line ->
                     Text(text = line, style = MaterialTheme.typography.bodySmall)

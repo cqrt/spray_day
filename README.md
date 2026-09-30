@@ -5,7 +5,11 @@ rural tracks actually get sprayed: the same lines, roughly three times a year.
 
 The point of the app is the map: open it and see at a glance **which assets are
 due**, coloured green (not due), yellow (due soon) or red (overdue / never
-sprayed).
+sprayed). A box in the map's corner counts what is due and says what the whole
+farm comes to — how long it is, how much ground it covers, and how far there is
+still to drive. The computer's page carries the same box over the same work,
+and the two agree because every figure in them is worked out the one way, on
+the phone.
 
 ## What it does
 

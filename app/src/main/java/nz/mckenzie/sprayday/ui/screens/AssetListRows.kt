@@ -3,7 +3,6 @@ package nz.mckenzie.sprayday.ui.screens
 import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.domain.asset.AssetGrouping
 import nz.mckenzie.sprayday.domain.asset.GroupTotals
-import nz.mckenzie.sprayday.domain.asset.GroupableAsset
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.ui.formatArea
 import nz.mckenzie.sprayday.ui.formatDistance
@@ -69,7 +68,7 @@ internal object AssetListRows {
         }
 
         val blocks = members.map { (key, list) ->
-            Block(key = key, name = names.getValue(key), totals = AssetGrouping.totals(list.map(::asGroupable)))
+            Block(key = key, name = names.getValue(key), totals = AssetGrouping.totals(list.map { it.asGroupable() }))
         }.sortedWith(
             compareByDescending<Block> { AssetGrouping.urgency(it.totals.status) }
                 .thenBy { it.name.lowercase() }
@@ -90,14 +89,6 @@ internal object AssetListRows {
 
     /** One block mid-fold: its key, the spelling to show, and what it adds up to. */
     private data class Block(val key: String, val name: String, val totals: GroupTotals)
-
-    private fun asGroupable(item: AssetWithDue) = GroupableAsset(
-        status = item.due.status,
-        lengthM = item.asset.lengthM,
-        swathWidthM = item.asset.swathWidthM,
-        passesRequired = item.asset.passesRequired,
-        groundSqm = item.asset.groundSqm
-    )
 }
 
 /**

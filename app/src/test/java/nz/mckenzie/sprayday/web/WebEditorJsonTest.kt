@@ -14,6 +14,7 @@ import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
+import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.AssetEdits
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -379,6 +380,23 @@ class WebEditorJsonTest {
         assertNull("a method nobody has recorded implies no width", methods.getValue(SprayMethod.UNSET.name).swathM)
         // Nothing else carries one: picking a kind does not imply a width.
         assertNull(WebEditorChoices.ofApp().kinds.first().swathM)
+    }
+
+    @Test
+    fun `the traffic light's colours travel under the names the page looks them up by`() {
+        val restored = roundTrip(
+            WebEditorDocument(
+                nowEpochMs = now,
+                dueColours = DueStatus.entries.associate { it.name to AssetColors.forStatus(it) }
+            )
+        )
+
+        // The phone's own red, amber and green - the ones its map paints lines with - so the page's
+        // key is the phone's, and a state nothing is in still has its colour rather than a grey dot.
+        assertEquals(AssetColors.RED, restored.dueColours.getValue(DueStatus.OVERDUE.name))
+        assertEquals(AssetColors.RED, restored.dueColours.getValue(DueStatus.NEVER_SPRAYED.name))
+        assertEquals(AssetColors.YELLOW, restored.dueColours.getValue(DueStatus.DUE_SOON.name))
+        assertEquals(AssetColors.GREEN, restored.dueColours.getValue(DueStatus.NOT_DUE.name))
     }
 
     @Test

@@ -103,6 +103,37 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 /* Drawing a new track: the way in, above the list, where the work is. */
 #side-actions { padding: 10px 10px 0; }
 
+/*
+ * The farm at a glance: the phone's own corner box, on a desk. Plain, and carrying no colour of its
+ * own: the dots take the colours the phone sent with the document, and every figure is the phone's
+ * own arithmetic. A rule that sets the display beats the browser's own `hidden`, so the attribute is
+ * said too.
+ */
+#farm {
+  margin: 10px 10px 0;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+#farm[hidden] { display: none; }
+
+#farm .count { margin: 0 0 4px; font-weight: 600; font-size: 14px; }
+
+#farm .key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+/* The figures, a shade quieter than the key above them: the key is what the day is decided on,
+   and how long it all is comes after that. */
+#farm .stat { margin: 2px 0 0; font-size: 13px; color: var(--quiet); }
+
+#farm hr { margin: 7px 0 2px; border: 0; border-top: 1px solid var(--line); }
+
 #draw {
   width: 100%;
   padding: 9px 12px;

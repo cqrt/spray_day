@@ -12,6 +12,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.Basemap
@@ -85,6 +86,8 @@ class WebEditorDocuments(
                 products = sprays.observeProducts().first().map { it.toRecord() },
                 bounds = assets.assetBounds()?.let { WebEditorBounds.of(it) },
                 position = position()?.let { WebEditorPosition(lat = it.lat, lng = it.lng) },
+                // The phone's own traffic light, so the page's key is the phone's - see the field.
+                dueColours = DueStatus.entries.associate { it.name to AssetColors.forStatus(it) },
                 // The phone's own words for the form the desk is about to build, from the phone's own
                 // phrase tables rather than from a list kept in JavaScript.
                 choices = WebEditorChoices.ofApp()

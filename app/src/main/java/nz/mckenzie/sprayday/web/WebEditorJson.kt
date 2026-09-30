@@ -157,6 +157,14 @@ data class WebEditorDocument(
     /** The phone's last fix, if it has one. Better than the browser's own: see the plan. */
     val position: WebEditorPosition? = null,
     /**
+     * The phone's own traffic light, one colour per due state, keyed by the state's own name.
+     *
+     * The page's key is the one thing that cannot take its colour from a feature: a state nothing
+     * is in has no feature to be painted by, and a grey dot beside "Overdue 0" would be the page's
+     * own opinion about what overdue looks like - the one thing this arrangement exists to avoid.
+     */
+    val dueColours: Map<String, String> = emptyMap(),
+    /**
      * The words and the choices the phone's own edit form offers.
      *
      * Carried in the document rather than written into the page, for the same reason the colours and

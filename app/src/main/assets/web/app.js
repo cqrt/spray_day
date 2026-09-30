@@ -87,6 +87,15 @@ const { visibleAssets, visibleFeatures } = await import(
 );
 
 /**
+ * What the whole farm comes to: the phone's own corner box, on a desk. The counts, the figures and
+ * the words for a figure are all the phone's own, and the module is pure for the same reason
+ * `find.mjs` is: the arithmetic is a rule, and a rule that a test can pin cannot drift.
+ */
+const { areaText, farmStats, farmStatsLines, metresText } = await import(
+  TOKEN ? `./stats.mjs?k=${encodeURIComponent(TOKEN)}` : './stats.mjs'
+);
+
+/**
  * The browser's own store, or null when this browser will not hand one over.
  *
  * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
@@ -207,25 +216,6 @@ async function addPlaceIcon(map, name, markerDp) {
   }
 }
 
-
-function metresText(metres) {
-  if (!metres) return 'not measured';
-  return metres >= 1000 ? `${(metres / 1000).toFixed(2)} km` : `${Math.round(metres)} m`;
-}
-
-/**
- * "420 m²" / "1.2 ha" - a piece of ground, in the phone's own words.
- *
- * `formatArea`, to the letter: square metres until there are ten thousand of them and hectares after,
- * because the number an operator reads off a phone and the number a desk shows them have to be the same
- * figure said the same way. Nothing is said of a zero: ground that is not there yet is not "0 m²".
- */
-function areaText(squareMetres) {
-  if (!squareMetres) return '';
-  return squareMetres >= 10_000
-    ? `${(squareMetres / 10_000).toFixed(1)} ha`
-    : `${Math.round(squareMetres)} m²`;
-}
 
 function dateText(epochMs) {
   return epochMs ? new Date(epochMs).toLocaleDateString() : '';
@@ -559,6 +549,62 @@ function placePhone(position) {
 let featuresById = new Map();
 
 /**
+ * The farm at a glance: the phone's own corner box, on a desk.
+ *
+ * The whole farm, whatever the list below has been narrowed to: the box answers "what is there and
+ * what needs doing about all of it", which is a question about the farm rather than about the typing.
+ * Everything in it is the phone's own - the counts and the figures from `stats.mjs`, which is the
+ * phone's own arithmetic, and the dots from the state document's own traffic light - so a desk and a
+ * phone held side by side give one answer.
+ */
+function fillFarmBox() {
+  const box = document.getElementById('farm');
+  const items = state?.assets ?? [];
+  box.hidden = !items.length;
+  if (!items.length) {
+    box.textContent = '';
+    return;
+  }
+
+  const stats = farmStats(items);
+  box.textContent = '';
+
+  const count = document.createElement('p');
+  count.className = 'count';
+  count.textContent = `${stats.count} asset${stats.count === 1 ? '' : 's'}`;
+  box.append(count);
+
+  // The key, one row per state. The colour comes from the document rather than from a feature
+  // because a state nothing is in has no feature to be painted by, and the row is there anyway -
+  // the phone's own box says "Overdue 0" rather than going quiet about it.
+  const key = [
+    ['Overdue', stats.overdue, 'OVERDUE'],
+    ['Due soon', stats.dueSoon, 'DUE_SOON'],
+    ['Not due', stats.notDue, 'NOT_DUE']
+  ];
+  for (const [label, amount, status] of key) {
+    const row = document.createElement('p');
+    row.className = 'key-row';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = state.dueColours?.[status] || '#757575';
+    row.append(dot, `${label} ${amount}`);
+    box.append(row);
+  }
+
+  const lines = farmStatsLines(stats);
+  if (lines.length) {
+    box.append(document.createElement('hr'));
+    for (const line of lines) {
+      const figure = document.createElement('p');
+      figure.className = 'stat';
+      figure.textContent = line;
+      box.append(figure);
+    }
+  }
+}
+
+/**
  * The work as a list, grouped by block.
  *
  * A block is how the work is talked about on a farm - "the estuary block" is a road, a lagoon and
@@ -578,6 +624,9 @@ function renderList() {
   // The same list, in the box in the map's corner: which kind a drawing is being made as. Filled here
   // because this is where the state document first has answers to give.
   fillDrawingKinds();
+  // The farm at a glance, from the same document and at the same moment: the box is the phone's
+  // own answer about the whole farm, and this is where that answer first arrives.
+  fillFarmBox();
   drawList();
 }
 
@@ -1397,6 +1446,9 @@ async function reloadFeatures() {
 /** The work as the phone holds it now: the document, the features, the list and the card. */
 async function reloadWork() {
   state = await getJson('/api/state');
+  // The box first, because a save can move a due date and a due date is a count and a colour:
+  // the farm at a glance is the answer the operator saved to see.
+  fillFarmBox();
   await reloadFeatures();
   drawList();
   const item = state.assets.find((one) => one.asset.id === selectedId);

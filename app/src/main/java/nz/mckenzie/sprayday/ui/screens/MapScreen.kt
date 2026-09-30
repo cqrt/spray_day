@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +46,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.R
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.domain.asset.AssetGrouping
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.tiles.Basemap
@@ -264,6 +266,9 @@ private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier)
     val overdue = (counts[DueStatus.OVERDUE] ?: 0) + (counts[DueStatus.NEVER_SPRAYED] ?: 0)
     val dueSoon = counts[DueStatus.DUE_SOON] ?: 0
     val notDue = counts[DueStatus.NOT_DUE] ?: 0
+    // How big the work is, by the same arithmetic a block's tile uses: the box and the tiles are two
+    // answers to one question, and this is what keeps them the same answer.
+    val stats = farmStatsLines(AssetGrouping.totals(tracks.map { it.asGroupable() }))
 
     Card(modifier = modifier, shape = RoundedCornerShape(10.dp)) {
         Column(
@@ -277,6 +282,12 @@ private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier)
             LegendRow(AssetColors.RED, "Overdue", overdue)
             LegendRow(AssetColors.YELLOW, "Due soon", dueSoon)
             LegendRow(AssetColors.GREEN, "Not due", notDue)
+            if (stats.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(top = 2.dp))
+                stats.forEach { line ->
+                    Text(text = line, style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }

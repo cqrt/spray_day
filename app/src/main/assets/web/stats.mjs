@@ -6,8 +6,8 @@
  * figures the desk puts in its corner are pinned by a test rather than read by eye.
  *
  * **The phone's arithmetic, not a second opinion.** Every figure here is the rule the phone's own
- * map box uses: the length of every line added up, an area made of a ring's own ground and a line's
- * estimates (never one read as the other), and the driving still to do. The two formatters are here
+ * map box uses: the length of every line added up, and an area made of a ring's own ground and a
+ * line's estimates (never one read as the other). The two formatters are here
  * too, and for the same reason: they are the phone's own words for a figure (`formatDistance` and
  * `formatArea` on the phone), and a copy kept in `app.js` as well would be a second copy to fall
  * behind. A desk that totalled the farm its own way would be a second answer to one question, and
@@ -74,19 +74,19 @@ export function farmStats(items) {
       }
       return total;
     }, 0),
-    areaAssetCount: all.filter((item) => isGround(item) || isEstimated(item)).length,
-    leftLengthM: all
-      .filter((item) => item.dueStatus !== 'NOT_DUE')
-      .reduce((total, item) => total + (item.asset.lengthM ?? 0), 0)
+    areaAssetCount: all.filter((item) => isGround(item) || isEstimated(item)).length
   };
 }
 
 /**
  * The farm's figures, said the way the phone's own box says them.
  *
- * Every line is left out when it is not known rather than shown as a zero - a farm of places has no
- * length at all - and an area covering only some of the assets says so, because a figure quietly
- * covering half the farm is the kind that ends up in a spray diary as though somebody had surveyed it.
+ * Two lines, and no more: how long the farm is and how much ground it covers. Every line is left out
+ * when it is not known rather than shown as a zero - a farm of places has no length at all - and an
+ * area covering only some of the assets says so, because a figure quietly covering half the farm is
+ * the kind that ends up in a spray diary as though somebody had surveyed it. Whether anything is
+ * still to be driven is not said here: the counts above already say how much of the farm is left, and
+ * a line repeating them is a line the desk and the phone both pay map for.
  */
 export function farmStatsLines(stats) {
   const lines = [];
@@ -95,8 +95,5 @@ export function farmStatsLines(stats) {
     const partial = stats.areaAssetCount < stats.count;
     lines.push(`Total area about ${areaText(stats.areaSqm)}${partial ? ` from ${stats.areaAssetCount} of them` : ''}`);
   }
-  // The counts have already said how much is left; this is the driving that still has to happen, so
-  // it is said only when there is a distance to say.
-  if (stats.leftLengthM > 0) lines.push(`Left to spray ${metresText(stats.leftLengthM)}`);
   return lines;
 }

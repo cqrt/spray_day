@@ -9,11 +9,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -270,10 +272,21 @@ private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier)
     // answers to one question, and this is what keeps them the same answer.
     val stats = farmStatsLines(AssetGrouping.totals(tracks.map { it.asGroupable() }))
 
+    // As tall as what it says and no taller, and as wide as its longest line and no wider. It stands
+    // over the map, so every dp it takes is map the operator cannot see: the gaps and the padding here
+    // are the smallest that still read as rows rather than as one block of text.
+    //
+    // The width is the intrinsic width for the sake of the rule between the counts and the figures. A
+    // rule fills whatever it is given, so left to itself it stretched the card to the width of the map
+    // and left three quarters of the box empty - a corner box a thousand pixels wide to say six short
+    // lines. Asking the column for its widest line first makes the card hug its own text, and the rule
+    // then fills that and stops there.
     Card(modifier = modifier, shape = RoundedCornerShape(10.dp)) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier
+                .width(IntrinsicSize.Max)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = "${tracks.size} asset${if (tracks.size == 1) "" else "s"}",
@@ -283,7 +296,9 @@ private fun DueLegend(tracks: List<AssetWithDue>, modifier: Modifier = Modifier)
             LegendRow(AssetColors.YELLOW, "Due soon", dueSoon)
             LegendRow(AssetColors.GREEN, "Not due", notDue)
             if (stats.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(top = 2.dp))
+                // The rule is what says the lines under it are figures about the farm rather than
+                // more counts, so it stays on a one-line box; the gap around it is the rows' own.
+                HorizontalDivider()
                 stats.forEach { line ->
                     Text(text = line, style = MaterialTheme.typography.bodySmall)
                 }

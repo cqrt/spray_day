@@ -30,6 +30,12 @@ internal fun AssetWithDue.asGroupable(): GroupableAsset = GroupableAsset(
  * Every line is left out when it is not known rather than shown as a zero - a farm of places has no
  * length at all, and an area covering only some of the assets says so, because a figure quietly
  * covering half the farm is the kind that ends up in a spray diary as though somebody had surveyed it.
+ *
+ * Two lines, and no more: how long the farm is and how much ground it covers. A third line used to
+ * say how far there was still to drive, and it went - the counts above the rule already say how much
+ * of the farm is left, the tile of every block that is behind says the distance again, and on a phone
+ * the line cost a fifth of the map to say something the box had just said. The rule the box keeps is
+ * that a figure earns its line by being the only place it is said.
  */
 internal fun farmStatsLines(totals: GroupTotals): List<String> {
     val lines = mutableListOf<String>()
@@ -39,8 +45,5 @@ internal fun farmStatsLines(totals: GroupTotals): List<String> {
         lines += "Total area about ${formatArea(totals.areaSqm)}" +
             (if (partial) " from ${totals.areaAssetCount} of them" else "")
     }
-    // The counts above already say how much is left; this is the driving that still has to happen,
-    // so it is said only when there is a distance to say.
-    if (totals.leftLengthM > 0.0) lines += "Left to spray ${formatDistance(totals.leftLengthM)}"
     return lines
 }

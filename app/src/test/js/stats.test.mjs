@@ -71,24 +71,10 @@ test('a line with no width said cannot be estimated, and claims no area at all',
   assert.equal(stats.areaAssetCount, 0);
 });
 
-test('the driving still to do is the lines that are due, overdue or never sprayed', () => {
-  const stats = farmStats([
-    line(1, 'OVERDUE', 1500),
-    line(2, 'NOT_DUE', 850),
-    spot(3, 'NEVER_SPRAYED')
-  ]);
-
-  assert.equal(stats.leftLengthM, 1500, 'a place is work, but not driving');
-});
-
-test('the lines say the length, the area as an estimate, and the driving left', () => {
+test('the lines say how long the farm is and how much ground it covers', () => {
   const lines = farmStatsLines(farmStats([line(1, 'OVERDUE', 1500), line(2, 'NOT_DUE', 850)]));
 
-  assert.deepEqual(lines, [
-    'Total length 2.35 km',
-    'Total area about 7050 m²',
-    'Left to spray 1.50 km'
-  ]);
+  assert.deepEqual(lines, ['Total length 2.35 km', 'Total area about 7050 m²']);
 });
 
 test('an area covering only some of the assets says so', () => {
@@ -103,11 +89,16 @@ test('a farm of places says no figures at all rather than zeros', () => {
   assert.deepEqual(farmStatsLines(farmStats([spot(1, 'NOT_DUE')])), []);
 });
 
-test('a farm with nothing left says no distance left, because the counts have said it already', () => {
-  assert.deepEqual(farmStatsLines(farmStats([line(1, 'NOT_DUE', 1200)])), [
-    'Total length 1.20 km',
-    'Total area about 3600 m²'
-  ]);
+test('how much of the farm is left is not a figure the box says - the counts have said it', () => {
+  // Three assets' worth of work outstanding, and the box still says the farm's size and nothing about
+  // what is left of it: a third line here is a fifth of the map repeating the counts above it.
+  const lines = farmStatsLines(farmStats([
+    line(1, 'OVERDUE', 2500),
+    line(2, 'DUE_SOON', 800),
+    line(3, 'NEVER_SPRAYED', 1000)
+  ]));
+
+  assert.deepEqual(lines, ['Total length 4.30 km', 'Total area about 1.3 ha']);
 });
 
 test('figures are said the way the phone says them', () => {

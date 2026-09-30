@@ -57,9 +57,9 @@ class FarmStatsTest {
         farmStatsLines(AssetGrouping.totals(assets.map { it.asGroupable() }))
 
     @Test
-    fun `a farm of lines says its total length, its area as an estimate, and the driving left to do`() {
+    fun `a farm of lines says its total length and its area as an estimate`() {
         assertEquals(
-            listOf("Total length 2.35 km", "Total area about 7050 m²", "Left to spray 1.50 km"),
+            listOf("Total length 2.35 km", "Total area about 7050 m²"),
             stats(
                 line(DueStatus.OVERDUE, lengthM = 1500.0),
                 line(DueStatus.NOT_DUE, lengthM = 850.0)
@@ -86,7 +86,7 @@ class FarmStatsTest {
     }
 
     @Test
-    fun `a farm with nothing left says no distance left, because the counts have said it already`() {
+    fun `a farm with nothing left says the same two figures as one with everything left`() {
         assertEquals(
             listOf("Total length 1.20 km", "Total area about 3600 m²"),
             stats(line(DueStatus.NOT_DUE, lengthM = 1200.0))
@@ -105,10 +105,17 @@ class FarmStatsTest {
     }
 
     @Test
-    fun `a never-sprayed line is work still to drive, the same as an overdue one`() {
+    fun `how much is left is not a figure the box says, however much of the farm is left`() {
+        // Three assets' worth of driving outstanding, and the box says the farm's size and nothing
+        // about what is left of it: a third line here is a fifth of the map spent repeating the
+        // counts above the rule.
         assertEquals(
-            listOf("Total length 800 m", "Left to spray 800 m"),
-            stats(line(DueStatus.NEVER_SPRAYED, lengthM = 800.0, swathWidthM = null))
+            listOf("Total length 4.30 km", "Total area about 1.3 ha"),
+            stats(
+                line(DueStatus.OVERDUE, lengthM = 2500.0),
+                line(DueStatus.DUE_SOON, lengthM = 800.0),
+                line(DueStatus.NEVER_SPRAYED, lengthM = 1000.0)
+            )
         )
     }
 }

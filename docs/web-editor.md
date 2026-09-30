@@ -935,8 +935,16 @@ style's background colour and the work draws on top of it.
       unchanged. The phone's own map then drew the imported track with its spur
       (`db/gpx-app-list-small.jpg`). Screenshots `gpx-drop-3.png`, `gpx-save-1.png`, `gpx-apart-1.png`,
       `gpx-drop-kml.png`, `gpx-hint-1.png`, `gpx-pick-1.png`; notes in `build/verify/web-gpx.txt`,
-      including what is **not** proven (the minified build's own behaviour, and a file chosen through a
-      real picker dialog rather than the picker's own change handler).
+      including what is **not** proven. The **published** 0.6.68 APK was then installed over the app
+      removed (`versionName=0.6.68`, 17,710,927 bytes) and driven on its own, with nothing seeded into
+      it because a released build cannot be: `POST /api/gpx` answered **200** with the paths of a
+      two-segment file (spur first vertex = line last vertex, to the bit) and **400** in the shared
+      sentence for a one-point file, so R8 keeps the new serializer and route; the page, its script and
+      `gpx.mjs` were **200** to a real browser; the same drop read *"gpx-joined.gpx: one line of 5
+      points with 1 side track…"* with the box at **5 points · 401 m · 1 side track**; and Save
+      answered *"Saved. The phone has it."*, the phone's own **Assets** screen then reading
+      **401 m · never sprayed** for the row the desk had just made (`rel-gpx-drop-1.png`,
+      `rel-gpx-save-1.png`, `rel-gpx-phone.txt`).
 - [ ] **Phase 3, what is left** — working on more than one asset at once.
       *Show-archived was dropped* (see the phase 3 section above) and **GPX drag-and-drop landed in
       v0.6.68**, so the phase's own list is now this one item.

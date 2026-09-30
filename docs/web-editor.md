@@ -737,7 +737,14 @@ style's background colour and the work draws on top of it.
       released 0.6.62 was on the phone first, so its picture is the genuine before — and reading the phone's
       own interface tree either side: the same two figures (1.67 km, and 5782 m² from 2 of them), and no
       third line. Screenshots `farmbox-before.png`, `farmbox-after2.png`, `farmbox-desk.png`; notes in
-      `build/verify/farmbox-size.txt`.
+      `build/verify/farmbox-size.txt`. The **published** 0.6.63 APK was then driven on its own over a clean
+      install (`versionName=0.6.63`), the farm made through the page's own "make a new asset" call because a
+      released build's database cannot be pushed into: the phone read the same six lines — **3 assets ·
+      Overdue 3 · Due soon 0 · Not due 0 · Total length 1.67 km · Total area about 5782 m² from 2 of them** —
+      its box came out **668 x 374 px**, the debug build's own numbers to the pixel, and the page's box
+      **156.52 px** tall against the shipped 0.6.62's 177.36, its dots still `rgb(198, 40, 40)` /
+      `rgb(249, 168, 37)` / `rgb(46, 125, 50)`, with an empty install drawing no box at all — screenshots
+      `pub-farmbox.png` / `pub-farmbox-desk.png`.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
       phone, both build the page again, and every one of them used to open on the whole farm: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now

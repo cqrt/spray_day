@@ -1071,6 +1071,33 @@ and what it leaves alone. What is left of the whole plan is the three jobs below
    before it.
 3. **The Draw button can be pressed a moment too soon** (see below, one line).
 
+**Riding with the next code change, rather than being a release of its own: the word "farm" in the code.**
+The documents and the app's screens now say **area** for the whole set of tracks and places, and the code
+still says farm in three kinds of place. It is a wording change and nothing else — no behaviour moves — so
+it goes in with the next change that alters what the app does and is verified as part of that change
+rather than being tagged on its own. When it is done:
+
+- **56 comments** across the Kotlin sources, where the word is doing ordinary work: *"a farm's Wi-Fi"*,
+  *"the whole farm at once"*, *"a farm sprayed before this build"*. The ones about real ground — the
+  network on the property, a connection slow enough to matter — want **the property** or **the area's
+  Wi-Fi**, whichever reads better in place, and the ones about the assets want **the area**. Four more
+  Kotlin mentions are in test names and their messages, and 11 more are comments in the page's own code;
+  all of them change with the rest.
+- **Five names in the page's own code**, and the calls that go with them: `farmStats` and `farmStatsLines`
+  (exported by `stats.mjs`, called twice), `farmWords` (`words.mjs`), the function `fillFarmBox` with its
+  two callers, and the corner box's own id, `farm`, with the five stylesheet rules that name it. These are
+  served from the APK, so renaming them changes what a browser asks the phone for and they must move
+  together: the element, its rules, the code that fills it, and the two modules' exports.
+- **Two names in the phone's own code**: `farmStatsLines` in `ui/screens/FarmStats.kt` and its one caller
+  in `MapScreen.kt`. The file's own name may stay — it names the box rather than the word — but the
+  function's should follow the page's, since the page's function is the same arithmetic written twice.
+- **One sentence an operator reads**: the empty list on the page says *"There is nothing on the farm yet.
+  Draw one here, or on the phone."* That one is not a comment and not a name: it is a word on a screen, so
+  it changes with the rest and is checked by eye in the same run.
+
+Nothing else in the code uses the word: no string resource, no table, no database column, and nothing in
+the backup format.
+
 **The first press after the page opens is sometimes wasted, and it is the same window as the wrong first
 view above.** One run in five, the first traced stroke after the desk opened drew nothing, and the
 identical gesture worked either side of that run. The cost is a wasted run rather than a wrong line, but

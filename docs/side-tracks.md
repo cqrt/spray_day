@@ -247,12 +247,12 @@ a browser on the machine the desk is being used from.
 
 ## Next
 
-### v0.6.35 - GPX drag-and-drop onto the desk, and more than one asset at a time
-
-Phase 3 of `web-editor.md` has one item left before the desk is done: dropping a GPX file onto the page.
-The desk can now draw every part of a track, so what a dropped file has to become is a drawing the page
-already knows how to hold. Both screens can also pick a junction where they like now (v0.6.32 for the desk,
-v0.6.34 for the phone), so the two agree about what a side track is again.
+**Nothing is noted here as next.** The last thing this file had queued — dropping a GPX file onto the
+desk, and changing several assets at once — shipped in v0.6.68 and v0.6.69, and `web-editor.md` records
+what they did and how they were checked. What is left of the plan as a whole is the three jobs at the end
+of `web-editor.md`: a release not being tried before it is published, the desk's first view of a whole
+area landing wrong, and the Draw button being pressable a moment too soon. Anything past those three is a
+new piece of work rather than an unfinished one.
 
 ## Shipped: v0.6.29 - the drawer carries the paths, so the line can be changed from a computer
 

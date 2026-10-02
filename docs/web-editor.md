@@ -1023,9 +1023,16 @@ style's background colour and the work draws on top of it.
       driving, and it was the driving's point: the form used to leave a field the rows disagreed on
       *showing* the phone's word for it and then **send** that word as the value, so a rename of six
       tracks would have been a rename to the sentence "More than one" — the word is now a hint beside the
-      field and the save asks for the field to be ticked.
-- [ ] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
-      and changing several assets at once have all shipped.
+      field and the save asks for the field to be ticked. The **published** 0.6.69 APK was then installed
+      over the app removed (`versionName=0.6.69`, 17,736,284 bytes) and driven on its own, with nothing
+      seeded into it because a released build cannot be: `/together.mjs` was **200** to a real browser, a
+      matching pair of rows was made through the page's own "make a new asset" call, and a real bulk edit
+      from the minified page asked `POST /api/assets/together` and read back
+      **"Changed all 2 assets together."** — with the phone's own state then holding both rows renamed, so
+      R8 keeps the request serializer, the route and the new outcome (`rel-together-1.png`).
+- [x] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
+      and changing several assets at once have all shipped. What is left of the plan is the loose ends
+      under *Next action*, and none of them is a phase.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.

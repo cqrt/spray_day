@@ -251,8 +251,18 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
     return linePoints[junction];
   }
 
-  /** Adds the page's own source and layers, once, and shows or hides them from then on. */
+  /**
+   * Adds the page's own source and layers, once, and shows or hides them from then on.
+   *
+   * **A map with no style is not a map to draw on.** Until the phone's style has arrived the map has no
+   * `addSource` to add to, so this says what is actually the case rather than trusting its caller: an
+   * ask that arrives too early is a drawing that cannot be made, and answering it with a thrown error
+   * would leave the page thinking a drawing had started. The page keeps its way in shut until this can
+   * answer yes - see `onStyleLoaded` in `app.js` - so this is a guard against that going wrong, not the
+   * thing that makes it right.
+   */
   function ready() {
+    if (!map.isStyleLoaded()) return false;
     if (!map.getSource(SOURCE_ID)) {
       map.addSource(SOURCE_ID, { type: 'geojson', data: toFeature([]) });
       map.addLayer({
@@ -292,6 +302,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
       });
     }
     show(true);
+    return true;
   }
 
   /** Shows or hides the page's own drawing, without taking it out of the style. */
@@ -555,7 +566,11 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   }
 
   function start(nextMode, id, paths, nextShape = 'LINE') {
-    ready();
+    // A drawing asked for before the map has a style is not a drawing this can make: there is no source
+    // to put the line in. The page opens the way in only once the style is here, so this is a refusal
+    // rather than a start - a caller that got here too early is told so, rather than left believing a
+    // line is being drawn.
+    if (!ready()) return;
     mode = nextMode;
     editingId = id;
     shape = nextShape;

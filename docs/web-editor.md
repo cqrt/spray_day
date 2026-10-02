@@ -36,7 +36,8 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.69** (several assets changed by one form), before it v0.6.68 (a GPX file
+- The last shipped work is **v0.6.70** (the desk's first view made the same every time, and the Draw
+  button waiting for the map), before it v0.6.69 (several assets changed by one form), v0.6.68 (a GPX file
   dropped on the desk), v0.6.67 (the pole gate's glyph), v0.6.63 (the corner box cut down to what it
   says), v0.6.62 (the area's figures on both screens), v0.6.61 (a line carried on from the desk), v0.6.60,
   v0.6.56, v0.6.55 (the editor served without being asked for), v0.6.54, the tracing in v0.6.26, and the
@@ -44,7 +45,7 @@ away.
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
   `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
   can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.69 → **v0.6.70**.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.70 → **v0.6.71**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -1030,46 +1031,78 @@ style's background colour and the work draws on top of it.
       from the minified page asked `POST /api/assets/together` and read back
       **"Changed all 2 assets together."** — with the phone's own state then holding both rows renamed, so
       R8 keeps the request serializer, the route and the new outcome (`rel-together-1.png`).
-- [x] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
-      and changing several assets at once have all shipped. What is left is the three jobs under *Next
-      action* — a release not being tried before it is published, the desk's first view of an area landing
-      wrong, and the Draw button being pressable a moment too soon — and none of them is a phase.
+- [x] **The desk's first view is the same view every time, and the Draw button waits for the map.
+      v0.6.70** — the plan's last two jobs, and one fault seen twice: the page was doing things in the step
+      before the map was ready. The fitting of the area was worked out as the style arrived, while the map
+      was still sizing its canvas, so the **same area opened as a different picture from one load to the
+      next**; and the Draw button was opened when the drawing code had been fetched rather than when the
+      style was here, so a press in between did nothing. Proven **against the page as it was**: the old page
+      was stashed and rebuilt, and two browsers that had never been to the page were opened one after the
+      other — `oldfit-2.png differs from oldfit-1.png in 390,168 px, x 460..1375, y 50..799`, nearly the
+      whole map, one band, which is what a different zoom looks like. The same two fresh browsers against
+      the fix: `newfit-2.png is the same map as newfit-1.png, pixel for pixel`, with the Draw button read
+      as open and one map canvas present. `edit.js`'s `ready()` now answers no to a map with no style
+      rather than throwing, and `start` refuses such a drawing, so the page cannot believe a line is being
+      drawn that is not. Notes in `build/verify/web-firstfit.txt`. The **published** 0.6.70 APK was then
+      downloaded, installed over the app removed and driven on its own — the same two fresh browsers, the
+      same pixel-for-pixel result, and the Draw button pressed on it — which closes the plan's first job as
+      well: from this release the file people download is tried as part of the change.
+- [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70. What
+      remains is one wording job riding with the next code change — the word "farm" in the code's comments
+      and in a handful of names, written out in *Next action* — and anything else is new work rather than
+      unfinished work.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Phase 3 is done.** Snapping is in (with the drawing itself), tracing is in (v0.6.26), side tracks
-reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone's own record is
-`side-tracks.md`), **GPX drag-and-drop shipped as v0.6.68**, and **changing several assets with one form
-shipped as v0.6.69** — the errand that would otherwise be done six times, with the phone writing all of
-them or none. *Show-archived was dropped, not deferred*: see the phase 3 section above for the decision
-and what it leaves alone. What is left of the whole plan is the three jobs below.
+**Phase 3 is done, and so are the three jobs that were left after it.** Snapping is in (with the drawing
+itself), tracing is in (v0.6.26), side tracks reached the wire in v0.6.29 and the desk **draws them as of
+v0.6.31** (the phone's own record is `side-tracks.md`), **GPX drag-and-drop shipped as v0.6.68**, and
+**changing several assets with one form shipped as v0.6.69** — the errand that would otherwise be done six
+times, with the phone writing all of them or none. *Show-archived was dropped, not deferred*: see the
+phase 3 section above for the decision and what it leaves alone.
 
-**Three jobs are left, and none of them is a phase.** In the order they are worth doing:
+**The three jobs that were left, and what was done about each:**
 
-1. **A release goes out without the file people download being tried.** When a version is tagged, the
-   build server makes a shrunken copy of the app and puts it on the releases page. The shrunken copy is
-   not the same program: the tool that shrinks it also strips out anything it thinks nothing uses, and it
-   has twice now stripped out something the editor needs — a field of a document, and a whole way of
-   asking the phone for something — so that the build on the releases page stopped answering where the
-   build on this machine answered perfectly. The rule in `release-and-verification.md` is that the
-   downloaded file is tried on the emulator before the work is called finished. Some releases record
-   doing that and some do not: the three before the GPX file — v0.6.65, v0.6.66 and v0.6.67 — have
-   nothing written down for the file people downloaded, and neither has anything older that the notes
-   folder has since been cleared of. The job is not a program to write: it is doing it every time, and
-   writing one line under the progress entry saying what was done.
-2. **The desk's first view of a whole area can land slightly wrong.** The first time a browser opens the
-   page it fits every asset of the area on the screen at once. That fitting is worked out before the map
-   has finished making room for itself, so the zoom comes out a little different each time — the same
-   area opens somewhere slightly different, and sometimes a track or two is off the edge of the picture.
-   It matters because every check here compares two pictures of the same area, and a view that moved on
-   its own makes that comparison unreliable. It does not matter in the field: a browser that has opened
-   the page before is put back where the operator left it, so the wrong opening view is only ever seen
-   once. The fix is to fit the area at the moment the map finishes arriving rather than in the step
-   before it.
-3. **The Draw button can be pressed a moment too soon** (see below, one line).
+1. **A release went out without the file people download being tried.** This was a habit rather than a
+   program: the build server makes a shrunken copy of the app, the shrunken copy is not the same program,
+   and it has twice stripped out something the desk needs. The rule in `release-and-verification.md` is
+   that the downloaded file is tried on the emulator before the work is called finished. **v0.6.70 is the
+   first release where that was done as part of the same change** - the page was opened twice in fresh
+   browsers against the published build and compared pixel for pixel, the Draw button was pressed on it,
+   and the run is written down in `build/verify/web-firstfit.txt`. The three earlier releases with nothing
+   recorded for them (v0.6.65, v0.6.66, v0.6.67) are left as they are: re-driving an old artifact proves
+   nothing about the code that is here now.
+2. **The desk's first view of a whole area can land slightly wrong.** Fixed in v0.6.70: the fitting waits
+   for the map's own first frame instead of being worked out in the step before it. Proven by opening the
+   page in two browsers that had never been there, before and after: the two pictures were **390,168
+   pixels** apart and are now **none**. See *The first press after the page opens* below, which was the
+   same fault and is closed with it.
+3. **The Draw button can be pressed a moment too soon.** Fixed in v0.6.70: the way into a drawing is
+   opened when the style is actually here, rather than when the drawing module was asked for, and the
+   drawing code refuses a drawing it cannot make instead of throwing. See the same section below.
+
+**Still riding with the next code change:** the word "farm" in the code's comments and in a handful of
+names. It is a wording change and nothing moves, so it goes in with the next change that alters what the
+app does, and is verified as part of that change rather than being tagged on its own. What it covers is
+written out below.
+
+**The first press after the page opens was sometimes wasted, and it was the same window as the wrong
+first view above.** One run in five, the first traced stroke after the desk opened drew nothing, and the
+identical gesture worked either side of that run. **v0.6.36 found a worse version**: a click on a row
+during that window left the desk looking at the whole of New Zealand, because the page's fit is skipped
+when something is already picked out - so the camera was flown to the row and then put back by the map
+finishing. **v0.6.38 narrowed it to browsers that have never opened the page**: a desk that has been here
+before is put back where it was left, so the fit does not run at all and there is nothing to undo.
+**v0.6.54 fixed something else in the same code**: a carpark's ring reaches the desk as a Polygon, the fit
+only knew how to read a line, and picking a carpark off the list fitted `[NaN, NaN]` - a camera nobody
+could move and a ring that snapping could not see. `verticesOf` now walks whatever shape it is handed.
+**v0.6.70 closed the window itself**: the fitting is queued for the map's first frame rather than done in
+the step before it, and the Draw button is opened at the moment the style arrives rather than when the
+drawing code was asked for - so a press during the arrival is a press that cannot be made, rather than one
+that goes nowhere.
 
 **Riding with the next code change, rather than being a release of its own: the word "farm" in the code.**
 The documents and the app's screens now say **area** for the whole set of tracks and places, and the code
@@ -1113,18 +1146,15 @@ and picking a carpark off the list fitted `[NaN, NaN]` - a camera nobody could m
 snapping could not see. `verticesOf` now walks whatever shape it is handed, which is that arithmetic
 fixed and not the window.
 
-**One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
-for and is one line:
+**Two small things were found while reviewing v0.6.24's own page code**, and both are now done. The Draw
+button was the last of them and was fixed in v0.6.70, where the way into a drawing is opened at the moment
+the style arrives rather than when the drawing code was asked for - so the press that used to do nothing
+cannot be made at all. It sat in this file for several releases as one line under a heading that said it
+was not worth a release of its own, which is worth writing down as the cost of leaving a note in a list
+instead of closing it.
 
-1. **The Draw button is enabled a moment too early.** The page enables it as soon as the drawing code
-   has been fetched, which is a moment before the map has its style. Until the style is there the
-   drawing code cannot add its own line to the map and throws, so a press in that moment does nothing
-   and the operator presses again. It is unlikely (fetching the drawing code is a round trip to the
-   phone and the style usually wins the race) and it is mild, but the button belongs with the code that
-   waits for the style, where its own comment already says it is.
-
-*(The second of the two — `editor.points()` having no caller — was done in v0.6.31: the method is gone,
-and the drawing leaves the map through `onFinish` alone.)*
+*(The other — `editor.points()` having no caller — was done in v0.6.31: the method is gone, and the
+drawing leaves the map through `onFinish` alone.)*
 
 **Nothing is owing from v0.6.23.** The published 0.6.23 APK was installed and driven on its own once the
 tag had built (`rel-save2.txt`) — which is the gate, because a minified build is not the debug build's

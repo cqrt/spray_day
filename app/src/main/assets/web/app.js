@@ -439,8 +439,9 @@ async function boot() {
       onFinish: finishDrawing,
       onCancel: abandonDrawing
     });
-    // A drawing needs somewhere to be drawn, so the way in stays shut until the style is here.
-    field('draw').disabled = false;
+    // The way into a drawing is opened by `onStyleLoaded`, not here: asking for the module is a round
+    // trip to the phone and the style usually wins that race, but when it does not, a button that says
+    // it is ready and cannot draw is exactly the press that does nothing.
   } catch (error) {
     showNotice(error.message);
   }
@@ -498,18 +499,51 @@ function onStyleLoaded(style) {
     });
   }
 
-  // Open on the work rather than on an ocean: the phone's own box. With nothing drawn yet the
-  // style's own centre and zoom apply, which are the phone's map's own. Unless something has already
-  // been picked out of the list - the imagery arrives after the list does, so a click that lands while
-  // the map is still opening must not be undone by the map finishing - or this desk has a memory of its
-  // own view, in which case the map was already built looking at it and there is nothing to fit.
-  if (state.bounds && selectedId === null && !rememberedCamera) {
+  // The way into a drawing is opened **here**, where the style actually is, rather than where the
+  // drawing module was asked for: the button says a drawing can be made, and a drawing needs a map with
+  // a style to put its line in. Asking for the module is a round trip to the phone and the style usually
+  // wins that race - but when it does not, the button that was already open is a press that does nothing
+  // and looks like a broken button. `edit.js` refuses such a drawing as well, so this is the second of
+  // two answers to the same question.
+  field('draw').disabled = false;
+
+  // Open on the work rather than on an ocean, and **as the map's own first act rather than as the page's
+  // next one**: see `fitTheWorkOnFirstDraw` below for why the two are not the same moment.
+  fitTheWorkOnFirstDraw();
+
+  placePhone(state.position);
+}
+
+/**
+ * The desk's opening view: the phone's own box around the work, fitted when the map has finished drawing
+ * its first frame.
+ *
+ * **This used to be worked out in the step before, and that was the whole fault.** The fit was called as
+ * the style arrived, while the map was still sizing its canvas for the first draw - so the same area
+ * opened at a slightly different zoom from one load to the next, which is not a wrong view of the work
+ * but a *different* one, and every check that compares two pictures of the same area rests on it being
+ * the same one. Waiting for the first frame means the fit is worked out from the size the map actually
+ * has, which is the size the operator is about to look at.
+ *
+ * The other two conditions are unchanged, and both are about not moving a camera the operator has already
+ * placed: a row picked out of the list before the imagery arrived (that click must not be undone by the
+ * map finishing), and a view this desk remembered from last time (`camera.mjs`, handed to the map as it
+ * was built - there is nothing left to fit). It runs once, because the first draw is the only one that is
+ * the desk's rather than the operator's: a fit on every quiet moment would be a map that moved on its own.
+ */
+function fitTheWorkOnFirstDraw() {
+  if (!state.bounds || selectedId !== null || rememberedCamera) return;
+  let fitted = false;
+  map.once('idle', () => {
+    // Asked again at the moment of fitting, not only when it was queued: a row picked out, or the page
+    // rebuilt, in between is a camera that already means something.
+    if (fitted || selectedId !== null || rememberedCamera) return;
+    fitted = true;
     map.fitBounds(
       [[state.bounds.minLng, state.bounds.minLat], [state.bounds.maxLng, state.bounds.maxLat]],
       { padding: 70, duration: 0 }
     );
-  }
-  placePhone(state.position);
+  });
 }
 
 /*

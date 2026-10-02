@@ -36,8 +36,15 @@
           the drawing, so a fence somebody walked with a handheld arrives ready to name and save
           rather than being traced over the imagery point by point. The same file can be dropped on
           the map, which is the gesture most people try first.
+
+          **This button is never off.** It was, for the same reason the drawing's is - a file becomes a
+          drawing, and a drawing needs a map with a style - and that left it greyed out for good, because
+          the only thing that opened the drawing's button was the code for the drawing's button. What
+          answers the same question instead is `mapIsNotReady` in `app.js`: a press before the map is here
+          opens the picker and says so in words, which is better than a control that cannot be pressed and
+          does not say why. Dropping a file on the map was never held back in the first place.
         -->
-        <button id="import" type="button" disabled>Import a GPX file</button>
+        <button id="import" type="button">Import a GPX file</button>
         <!-- The picker itself: opened by the button above, and never shown. -->
         <input id="import-file" type="file" accept=".gpx,application/gpx+xml" hidden>
       </div>

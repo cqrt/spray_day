@@ -1146,6 +1146,21 @@ function abandonDrawing() {
 /* ---- A file somebody drew somewhere else ------------------------------------------- */
 
 /**
+ * Why the map cannot take a file yet, or null when it can.
+ *
+ * A file becomes a drawing, and a drawing needs a map with the phone's style in it - the line has nowhere
+ * to go until then. This is asked in one place so the two ways in cannot answer it differently: the
+ * button, which says so in words rather than being greyed out, and the drop on the map, which a browser
+ * allows at any moment. **A control that cannot be pressed and does not say why is worse than one that
+ * answers**, which is what a greyed-out Import button turned out to be - see `index.html`.
+ */
+function mapIsNotReady() {
+  return editor
+    ? null
+    : 'The map is still opening. Try that again in a moment.';
+}
+
+/**
  * A GPX file, read by the phone and turned into the drawing: button, picker and drop, one way in.
  *
  * **What the file means is the phone's answer**, not the page's: `POST /api/gpx` reads it with the
@@ -1162,10 +1177,9 @@ async function importGpxFile(file) {
     showNotice(problem);
     return;
   }
-  // A drawing needs the map's style to have arrived, and the button that starts one is off until it
-  // has - so a file that lands in the meantime is answered rather than swallowed.
-  if (!editor) {
-    showNotice('The map is still opening. Drop the file again in a moment.');
+  const early = mapIsNotReady();
+  if (early) {
+    showNotice(early);
     return;
   }
 

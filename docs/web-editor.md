@@ -1031,8 +1031,9 @@ style's background colour and the work draws on top of it.
       **"Changed all 2 assets together."** — with the phone's own state then holding both rows renamed, so
       R8 keeps the request serializer, the route and the new outcome (`rel-together-1.png`).
 - [x] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
-      and changing several assets at once have all shipped. What is left of the plan is the loose ends
-      under *Next action*, and none of them is a phase.
+      and changing several assets at once have all shipped. What is left is the three jobs under *Next
+      action* — a release not being tried before it is published, the desk's first view of a farm landing
+      wrong, and the Draw button being pressable a moment too soon — and none of them is a phase.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
@@ -1044,56 +1045,58 @@ reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone
 `side-tracks.md`), **GPX drag-and-drop shipped as v0.6.68**, and **changing several assets with one form
 shipped as v0.6.69** — the errand that would otherwise be done six times, with the phone writing all of
 them or none. *Show-archived was dropped, not deferred*: see the phase 3 section above for the decision
-and what it leaves alone. What is left of the whole plan is the loose ends below rather than a phase.
+and what it leaves alone. What is left of the whole plan is the three jobs below.
 
-**Loose ends, in the order they are worth doing.** None of them is a phase, and each is small enough to
-be one release:
+**Three jobs are left, and none of them is a phase.** In the order they are worth doing:
 
-1. **The published build of a version is only driven when somebody remembers to.** Four of the last ten
-   releases have a notes file that says the shipped APK was driven; the rest say it was not. The gate
-   exists because R8 changes what the artifact *is*, and the thing it keeps catching — a serializer or a
-   route that the minified build does not carry — is exactly what no local test can see.
-2. **The desk's first fit is still racy** for a browser that has never been here (see below).
-3. **The Draw button is enabled a moment too early** — one line, and the oldest note in this file that
-   has not been done.
+1. **A release goes out without the file people download being tried.** When a version is tagged, the
+   build server makes a shrunken copy of the app and puts it on the releases page. The shrunken copy is
+   not the same program: the tool that shrinks it also strips out anything it thinks nothing uses, and it
+   has twice now stripped out something the editor needs — a field of a document, and a whole way of
+   asking the phone for something — so that the build on the releases page stopped answering where the
+   build on this machine answered perfectly. The rule in `release-and-verification.md` is that the
+   downloaded file is tried on the emulator before the work is called finished. Some releases record
+   doing that and some do not: the three before the GPX file — v0.6.65, v0.6.66 and v0.6.67 — have
+   nothing written down for the file people downloaded, and neither has anything older that the notes
+   folder has since been cleared of. The job is not a program to write: it is doing it every time, and
+   writing one line under the progress entry saying what was done.
+2. **The desk's first view of a farm can land slightly wrong.** The first time a browser opens the page
+   it fits the whole farm on the screen. That fitting is worked out before the map has finished making
+   room for itself, so the zoom comes out a little different each time — the same farm opens somewhere
+   slightly different, and sometimes a track or two is off the edge of the picture. It matters because
+   every check here compares two pictures of the same farm, and a view that moved on its own makes that
+   comparison unreliable. It does not matter in the field: a browser that has opened the page before is
+   put back where the operator left it, so the wrong opening view is only ever seen once. The fix is to
+   fit the farm at the moment the map finishes arriving rather than in the step before it.
+3. **The Draw button can be pressed a moment too soon** (see below, one line).
 
-**The first press after a page load can be wasted.** One run in five, the first traced stroke after the
-desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the
-same window the racy fit below moves in, and the cost is a wasted run rather than a wrong line — but two
-of these now, so it is worth doing with the fit. **v0.6.36 found a worse version of it**: a click on a row
-while the style is still arriving leaves the desk looking at the app's own default camera — the whole of
-New Zealand — because the page's own fit is skipped when something is already picked out, so the fly is
-undone rather than the press being wasted. Two of that work's first pairs landed on different cameras that
-way (see `build/verify/web-glow.txt`); clicking late, after the page has settled, is what makes the runs
-comparable in the meantime. **v0.6.38 narrows it to browsers that have never been here**: the desk's own
-remembered view (the v0.6.38 entry above) means the fit does not run at all on a desk that has been
-opened before, so there is nothing left to undo the fly — the window is still open for a fresh browser,
-and the fix when the fit is next touched is the same as it was: the fly and the fit in the same place
-rather than two decisions. **v0.6.54 touched the fit** for a different reason and closed nothing above: a
-carpark's ring reaches the desk as a Polygon, the fit read vertices only out of a line, and picking a
-carpark off the list fitted `[NaN, NaN]` - so the fly never happened and a ring was invisible to
-snapping. `verticesOf` walks whatever geometry it is handed now. That is the fit's arithmetic fixed, not
-the window: the press still races the style's arrival.
+**The first press after the page opens is sometimes wasted, and it is the same window as the wrong first
+view above.** One run in five, the first traced stroke after the desk opened drew nothing, and the
+identical gesture worked either side of that run. The cost is a wasted run rather than a wrong line, but
+it is the same few hundred milliseconds: the map is still arriving, and a press during it goes nowhere.
+**v0.6.36 found a worse version**: a click on a row during that window left the desk looking at the whole
+of New Zealand, because the page's fit is skipped when something is already picked out - so the camera
+was flown to the row and then put back by the map finishing. **v0.6.38 narrowed it to browsers that have
+never opened the page**: a desk that has been here before is put back where it was left, so the fit does
+not run at all and there is nothing to undo. The fix when the first view is next touched is to do the
+fitting and this in the same place rather than as two separate decisions. **v0.6.54 fixed something else
+in the same code**: a carpark's ring reaches the desk as a Polygon, the fit only knew how to read a line,
+and picking a carpark off the list fitted `[NaN, NaN]` - a camera nobody could move and a ring that
+snapping could not see. `verticesOf` now walks whatever shape it is handed, which is that arithmetic
+fixed and not the window.
 
 **One small thing found while reviewing v0.6.24's own page code**, which is not worth retagging a release
 for and is one line:
 
-1. **The Draw button is enabled a moment too early.** `boot()` enables it as soon as `edit.js` has been
-   imported, which is not the same as the map's style being loaded — `edit.js`'s `ready()` calls
-   `map.addSource`, which throws until the style is there. The failure is mild (the first press does
-   nothing, and the second works, because by then the style has arrived) and it is unlikely (the import is
-   a network round trip and the style usually wins), but the button belongs in `onStyleLoaded` where its
-   comment already claims it is, with a guard in `ready()` beside it.
+1. **The Draw button is enabled a moment too early.** The page enables it as soon as the drawing code
+   has been fetched, which is a moment before the map has its style. Until the style is there the
+   drawing code cannot add its own line to the map and throws, so a press in that moment does nothing
+   and the operator presses again. It is unlikely (fetching the drawing code is a round trip to the
+   phone and the style usually wins the race) and it is mild, but the button belongs with the code that
+   waits for the style, where its own comment already says it is.
 
 *(The second of the two — `editor.points()` having no caller — was done in v0.6.31: the method is gone,
 and the drawing leaves the map through `onFinish` alone.)*
-
-**One wart worth fixing while in there.** The desk's first fit is racy: `fitBounds` runs when the state
-document arrives, and on some loads the container has not finished settling, so the same farm opens at a
-slightly different zoom — the four bearing lines of a run are not always in the same place on the screen,
-which is what made reading a handle's position off one screenshot and clicking it in the next unreliable.
-Nothing is wrong with the farm or the write; the *view* is what moves, and it moves before the operator has
-touched anything.
 
 **Nothing is owing from v0.6.23.** The published 0.6.23 APK was installed and driven on its own once the
 tag had built (`rel-save2.txt`) — which is the gate, because a minified build is not the debug build's

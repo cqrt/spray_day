@@ -6,7 +6,7 @@ rural tracks actually get sprayed: the same lines, roughly three times a year.
 The point of the app is the map: open it and see at a glance **which assets are
 due**, coloured green (not due), yellow (due soon) or red (overdue / never
 sprayed). A box in the map's corner counts what is due and says what the whole
-farm comes to — how long it is and how much ground it covers. The computer's page
+area comes to — how long it is and how much ground it covers. The computer's page
 carries the same box over the same work, and the two agree because every figure in
 them is worked out the one way, on the phone.
 
@@ -68,7 +68,7 @@ them is worked out the one way, on the phone.
   the middle of, and the keys — is a small box in the map's own corner rather than a bar over the work,
   in the phone's own words where the phone has them. Where you were looking is remembered on the
   computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
-  the same zoom rather than to the whole farm again. A carpark reads there as it does on the phone:
+  the same zoom rather than to the whole area again. A carpark reads there as it does on the phone:
   the same ground drawn in the same colour, *Round it* and its metres on the card, and **Carpark** in
   the Type list. From v0.6.54 it can be **drawn there too**: *What it is* is asked while a new asset is
   drawn, so picking Carpark turns the job into *Draw the boundary* — the box counts its corners, its
@@ -76,7 +76,7 @@ them is worked out the one way, on the phone.
   buttons; the form asks it for no swath width or pass count and says why in one line; and the card's
   second button says *Change the boundary*.
   Everything is judged by the phone's own rules and written to the phone's own database, so
-  the laptop and the phone cannot disagree about what is on the farm. It is served from the moment
+  the laptop and the phone cannot disagree about what is on the area. It is served from the moment
   the app is opened — the switch is on by default, and turning it off is remembered — and what the
   card shows is a plain address unless **"Only this address can open it"** is turned on, which makes
   it end in a secret code the phone checks. With the code off, anyone on the Wi-Fi can open the
@@ -128,7 +128,7 @@ them is worked out the one way, on the phone.
   side being missed is worth seeing**. A tap
   on an asset opens it, a tap **inside** a carpark opens the carpark, and the tap radius follows the
   zoom, so it is tappable zoomed
-  out over the farm as well as at spray height. The map does not rotate: north is up,
+  out over the area as well as at spray height. The map does not rotate: north is up,
   which is one less thing to get wrong with gloves on.
 - **Layers you can switch off**: the layers button on the map lists one switch per kind of thing it
   draws — tracks, roads, fencelines and stopbanks, carparks, buildings, signs, bench seats, picnic
@@ -355,7 +355,7 @@ family — and neither of them is the green, amber or red, which are for when so
 **Other place** is the catch-all, and its glyph is a dot in a ring: it says something is here and
 claims nothing more, which is the honest thing to say about a trough, a tank or a standpipe.
 
-**Nothing already recorded is rewritten.** Every fenceline, trough, shed and table on a farm sprayed
+**Nothing already recorded is rewritten.** Every fenceline, trough, shed and table in an area sprayed
 before the kinds existed was stored as one word — *infrastructure* — with the shape beside it. The
 app reads that by the shape: a line of it is a fenceline, and a spot is a place nobody named, so it
 reads as *other place*. The row keeps the old word until somebody edits it, and the first edit of any

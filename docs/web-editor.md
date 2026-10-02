@@ -38,7 +38,7 @@ away.
   recorded against it, and be told the numbers when there is.
 - The last shipped work is **v0.6.69** (several assets changed by one form), before it v0.6.68 (a GPX file
   dropped on the desk), v0.6.67 (the pole gate's glyph), v0.6.63 (the corner box cut down to what it
-  says), v0.6.62 (the farm's figures on both screens), v0.6.61 (a line carried on from the desk), v0.6.60,
+  says), v0.6.62 (the area's figures on both screens), v0.6.61 (a line carried on from the desk), v0.6.60,
   v0.6.56, v0.6.55 (the editor served without being asked for), v0.6.54, the tracing in v0.6.26, and the
   phase 1 and 2 work before that. The state written here was true when the file was written —
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
@@ -199,7 +199,7 @@ that never saw the move rather than silently undoing it.
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. **Landed in v0.6.21.** |
 | `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21**; v0.6.25 made the token **nullable**, where null is a run that asks for nothing at all: the gate route claims nothing, and it is the operator's own switch on the card that decides which of the two a run is. |
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. **v0.6.55**: `ACTION_START` is **idempotent** — a run that is going, or one being built, is the answer to a second ask, so the launcher's own ask repeating after a rotation cannot rebuild the run and hand out a new secret under a page that is open. |
-| `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. **v0.6.40**: the choices carry no shape, because the kind decides the shape (`AssetKind.shape`), and a new asset's defaults are the kind's alone. **v0.6.54** turns that round for the drawing: each kind carries its **shape** beside its label, so the desk draws a ring as ground rather than reading the word *Carpark*, a kind that is ground carries the phone's own sentence in place of the swath and passes hints, and every record carries the **measured ground** (`areaM2`) beside its metres. **v0.6.62**: the document carries the traffic light's own colours (`dueColours`, keyed by the state's own name), so the page's farm key is painted in the phone's own red, amber and green — a state nothing is in has no feature to be coloured by, and the page keeps no palette of its own. **v0.6.68**: the document carries `gpx` — the field name a dropped file travels under and the largest file the phone will take — so neither is written down in JavaScript. |
+| `web/WebEditorJson.kt` | The state document. **Reuses `AssetRecord` / `GroupRecord` / `ProductRecord`** from `domain/backup` — the vocabulary that is already versioned and tested — wrapped with the view fields rather than growing a second asset shape. The geometry travels in `/api/assets.geojson` instead of in here, so it is served once. **Landed in v0.6.21**; v0.6.23 added the `version` on each record and the two answers a write can get (`saved` and `refused`), and `WebEditorChoices` — the kinds, methods and passes taken from the phone's own phrase tables, with the block, swath and separation hints, so the desk's form speaks the phone's vocabulary instead of inventing one. **v0.6.40**: the choices carry no shape, because the kind decides the shape (`AssetKind.shape`), and a new asset's defaults are the kind's alone. **v0.6.54** turns that round for the drawing: each kind carries its **shape** beside its label, so the desk draws a ring as ground rather than reading the word *Carpark*, a kind that is ground carries the phone's own sentence in place of the swath and passes hints, and every record carries the **measured ground** (`areaM2`) beside its metres. **v0.6.62**: the document carries the traffic light's own colours (`dueColours`, keyed by the state's own name), so the page's area key is painted in the phone's own red, amber and green — a state nothing is in has no feature to be coloured by, and the page keeps no palette of its own. **v0.6.68**: the document carries `gpx` — the field name a dropped file travels under and the largest file the phone will take — so neither is written down in JavaScript. |
 | `domain/asset/AssetPathEdits.kt` | The rules a drawn line is judged by, on the phone: consecutive repeats dropped, 2000 vertices the cap, a place is one point, a path is two or more, every vertex on earth — and the sentences, in the app's own words, that come back when one of those is broken. No Android and no page: pure, and unit-tested. **Landed in v0.6.24.** |
 | `domain/asset/AssetRemoval.kt` | `AssetRemovalRules.of(name, sprays, recordings)`: whether a desk may take an asset away, and the sentence saying why not — the counts, and a pointer at the phone where what goes with it can be seen first. **Landed in v0.6.24.** |
 | `domain/gpx/GpxInterchange.kt` | **The one place a GPX file becomes a track** (v0.6.68): a file whose later segments start on the first is a line with its side tracks, and one whose segments do not meet is every point joined into a single line — with the count of side tracks and whether the segments met, so both callers say the same thing about the same file. Pure, so the join rule is held by a JVM test rather than by a browser. **The reading, not the writing**: it hands back the paths and writes nothing, which is what lets `AssetRepository.importAssetGpx` (the phone's own **Import GPX**) and `POST /api/gpx` (the desk's drop) be one rule with two doors. |
@@ -210,11 +210,11 @@ that never saw the move rather than silently undoing it.
 | `app/src/test/js/together.test.mjs` | Those claims, under node: a field the rows agree on and one they do not, nothing to show where nobody has a value, nought as an answer rather than an absence, no block read as no block, ticking and unticking, the list's own order, and the shape of the request. |
 | `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: **the paths** (path 0 the line, the rest its side tracks), which one is being worked on, and the undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the path a click belongs, the vertex to snap onto, the side-track moves (`startSideTrack`/`backToLine`/`dropSideTrack`), the whole track's metres, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z, the junction's exactness and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history); v0.6.31 made the state **multi-path** (`createPaths`, `active`, `activePath`) and added the side-track moves and `pathsFeature`. **v0.6.54**: `verticesOf` follows whatever the geometry nests, so a carpark's **ring** is read for snapping and for the camera fit — a Polygon used to fit the desk's camera to `[NaN, NaN]`, which MapLibre refuses outright. |
 | `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
-| `app/src/main/assets/web/stats.mjs` | The farm's figures, as arithmetic: what the whole farm comes to — how many assets, how many of them are overdue, due soon or not due, the total length, and the total area with how many assets it was worked out from. The phone's own corner box works the same numbers out the same way, from one shared mapping, and the page reads them out of the phone's state document rather than working out its own — so the box on a screen and the box on a desk are one answer. Pure, like `geometry.mjs`, so node can run it and CI does. **v0.6.62; in v0.6.63 the third figure it worked out — the driving still to do — went**, because the counts beside it already say how much of the farm is left and the line cost a fifth of the map to say so again. |
-| `app/src/test/js/stats.test.mjs` | Those claims, under node: a farm of lines, places and a ring counted and totalled, a figure nobody knows **left out rather than said as a nought**, the area of a farm where only some assets know theirs saying how many it came from, and the wording of a length and an area shared with the phone. **v0.6.62; v0.6.63 turned one of them round** — it now pins that a farm with work outstanding says its length and its area and no third line about what is left. |
+| `app/src/main/assets/web/stats.mjs` | The area's figures, as arithmetic: how many assets the whole area holds, how many of them are overdue, due soon or not due, how long it all is, and how much ground it covers with how many assets that was worked out from. The phone's own corner box works the same numbers out the same way, from one shared mapping, and the page reads them out of the phone's state document rather than working out its own — so the box on a screen and the box on a desk are one answer. Pure, like `geometry.mjs`, so node can run it and CI does. **v0.6.62; in v0.6.63 the third figure it worked out — the driving still to do — went**, because the counts beside it already say how much of the area is left and the line cost a fifth of the map to say so again. |
+| `app/src/test/js/stats.test.mjs` | Those claims, under node: an area of lines, places and a ring counted and totalled, a figure nobody knows **left out rather than said as a nought**, the ground of an area where only some assets know theirs saying how many it came from, and the wording of a length and an area shared with the phone. **v0.6.62; v0.6.63 turned one of them round** — it now pins that an area with work outstanding says its length and its area and no third line about what is left. |
 | `web/WebEditorEdit.kt` | What a desk's write may be, as data: `WebEditorEdit` (every field as **text**, the version the form was handed, and `points` — the drawn line, absent when the write says nothing about it), `WebEditorEdits.apply()` delegating to `ui/AssetEdits` and `AssetPathEdits` so the phone's own rules produce the phone's own refusals, `create()` for a new asset judged against a blank row, `WebEditorRefusal` (MISSING 404 / STALE 409 / INVALID 400 / IN_USE 409) and `WebEditorVersion.of()` — a SHA-256 fingerprint over exactly the writable fields, the id, the block name **and every vertex of the path**, so the version needs no column, no migration, does not move when a spray is recorded, and *does* move when the line is drawn again. No database and no Android: the whole thing is unit-tested. **Landed in v0.6.23; the path and `create()` in v0.6.24; v0.6.40 dropped the wire's `shape`** — the kind decides the shape, and the one old word for a kind this build has no value for ("INFRASTRUCTURE") is read by the row's own shape rather than refused, so a page from the build before that still edits a fenceline as a fenceline. |
 | `map/WebStyleJson.kt` | The style the page loads: the basemap raster source with the LAN tile URL, **plus the four asset layers using the very same ids as `AssetLayerIds`**, dashes from `AssetLineStyles`, colours from `AssetColors`, house pictures named as `PlaceIcons` names them, and a geojson source pointing at `/api/assets.geojson`. **v0.6.56**: the ground gained a fourth line - a **white rim** two pixels wider than the boundary and drawn under it, so a pixel of white shows outside a carpark's edge on the desk as it does on the phone. |
-| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic), `wire.mjs` (which of the two drawing shapes a save carries), `glow.mjs` (the mark under a picked-out asset, v0.6.36) and `camera.mjs` (the remembered view, v0.6.38) beside them, with `stats.mjs` (what the whole farm comes to, v0.6.62) since. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24; v0.6.40 removed the form's shape picker** — the kind decides whether a thing is a line or a place. **v0.6.54**: the drawing box asks **What it is** while a new asset is drawn, the picked kind decides the shape (*Draw the boundary*, the ground counted as it is drawn, the closing side drawn for you and no side-track buttons), and the form's swath and passes rows give way to the phone's own sentence. **v0.6.56**: the ground's new white rim is one of the phone's own line layers, so `wantsHalo` gives it a halo like any other line - an unpicked carpark shows the bare hairline, and a picked one reads as a wider soft white edge over it. **v0.6.68**: `gpx.mjs` (the desk's half of a dropped file) beside the rest, the sidebar's second way in, and the map as the drop zone. |
+| `app/src/main/assets/web/` | `index.html`, `app.js`, `style.css`, `vendor/maplibre-gl.js`, `vendor/maplibre-gl.css`, `vendor/LICENSE-mapLibre`, and from v0.6.24 `edit.js` (the handles, the drags, the keys) with `geometry.mjs` (the arithmetic), `wire.mjs` (which of the two drawing shapes a save carries), `glow.mjs` (the mark under a picked-out asset, v0.6.36) and `camera.mjs` (the remembered view, v0.6.38) beside them, with `stats.mjs` (what the whole area comes to, v0.6.62) since. Plain ES modules: the file you edit is the file that runs, and the drawing's arithmetic is a file node can run too. `index.html` loads its own stylesheet, library and modules **by script** rather than by tags, because every request the phone answers needs the token and a browser asks for a stylesheet with no query otherwise — the 403 looks like a page of unstyled text; `edit.js` asks for `./geometry.mjs?k=…` for the same reason. The page's own code is dead simple on purpose: it draws, it does not decide. **Landed in v0.6.22, the drawing in v0.6.24; v0.6.40 removed the form's shape picker** — the kind decides whether a thing is a line or a place. **v0.6.54**: the drawing box asks **What it is** while a new asset is drawn, the picked kind decides the shape (*Draw the boundary*, the ground counted as it is drawn, the closing side drawn for you and no side-track buttons), and the form's swath and passes rows give way to the phone's own sentence. **v0.6.56**: the ground's new white rim is one of the phone's own line layers, so `wantsHalo` gives it a halo like any other line - an unpicked carpark shows the bare hairline, and a picked one reads as a wider soft white edge over it. **v0.6.68**: `gpx.mjs` (the desk's half of a dropped file) beside the rest, the sidebar's second way in, and the map as the drop zone. |
 
 **Changed**
 
@@ -225,7 +225,7 @@ that never saw the move rather than silently undoing it.
 | `MainActivity.kt` | Asks for the editor's run as the app opens, from the composition: `webEditorEnabled` read once, the service started unless the operator has turned it off or a run is already going. Here rather than in the application, because a process woken by a scheduled job has no screen behind it and no right to start a foreground service at all. **v0.6.55.** |
 | `AndroidManifest.xml` | `FOREGROUND_SERVICE_DATA_SYNC` and the service. `INTERNET` is already there. No other permission. |
 | `data/AssetRepository.kt` | `insertAsset(asset, geometry, groupName)` — a new asset and its line in one transaction, the id dropped so the database issues it and the length worked out from the vertices; `saveAssetEdits(asset, blockName, geometry)` gained an optional line written with the row; `allAssetGeometry()`, `recordingCountFor` and `recordingCounts()` for the documents. **v0.6.24.** **v0.6.54**: a carpark with no measured ground — a fenceline kept as one and just re-kinded — has its geometry written again, which is what works the area out from the corners it already has. |
-| `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
+| `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole area at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
 | `web/WebEditorDocuments.kt` | `create` and `remove` beside `save`, the path passed into the transaction, `removal` on each record, the phone's own `newAsset` defaults in the state document, and `mjs` in the content-type table — a browser refuses a module whose type it does not read as JavaScript, and the desk's drawing module is the same file node imports, so the extension is what tells both of them. **v0.6.24.** **v0.6.68**: `gpx(body)` — the dropped file read by `GpxInterchange` and answered with its paths, with nothing written. |
 | `domain/gpx/GpxParser.kt` | **The reading moved to `GpxInterchange` in v0.6.68**, so the phone's own import and the desk's drop cannot disagree: `parseSegments` still reads the file's own track segments and `parse` still flattens every point into one line, and *what those segments mean as a track* is now decided in one place rather than in the repository. Nothing about how a file is read changed. |
 | `data/AssetRepository.kt` | **v0.6.68**: `importAssetGpx` reads the file through `GpxInterchange` and returns the reading itself (`GpxInterchange.Reading` — the paths, the side tracks and whether the segments met) rather than a result type of its own, so the sentence the phone's list screen shows counts the points the import was already handed instead of asking the database again. The repository's own `GpxImportResult` is gone with it: one shape of answer for the one rule. **v0.6.69**: `saveAssetEditsAll(edits)` — several rows' details changed in **one transaction** — and the write both it and a single edit go through is now the private `writeAssetEdits`, so the "every row or none" promise cannot be half-taken by a caller that only wanted one. Nothing about one asset's own edit changed: it is that same body inside one transaction of its own. |
@@ -488,7 +488,7 @@ change re-colours it, so the desk reads the work once instead of taking six reco
    works. An empty token is not offered, and a run with no token is a *state* rather than a missing
    value: `WebEditorServer`'s token is null and its gate claims nothing.
 6. **Where the desk was looking is kept on the desk** (v0.6.38). A refresh, and a basemap switch on the
-   phone, both build the page again, and an operator working one corner of the farm should not have to
+   phone, both build the page again, and an operator working one corner of the area should not have to
    find it again on every basemap — so the camera is written to the *browser's* own store and comes back
    as the map's opening options. Not to the phone: where a particular desk is looking is that desk's own
    business, two laptops on the same phone are two views, and the phone's own map has a camera the page
@@ -540,7 +540,7 @@ ignored by this Edge), then writes the picture **and** the text of the list, the
 the browser's console beside the picture. `-Then "<javascript>"` does something to the page first —
 clicking a row, clicking the locate button — and a run's `.txt` is often the faster read.
 `build/verify/db/pageserve.ps1 -Port 8877` serves the real files out of `app/src/main/assets/web` with a
-fixture farm behind them (`build/verify/db/page-fixture/`), for the corners a four-asset, block-less,
+fixture area behind them (`build/verify/db/page-fixture/`), for the corners a four-asset, block-less,
 phone-less desk cannot reach. What it is not is the phone: its tiles are missing, so the imagery is the
 style's background colour and the work draws on top of it.
 
@@ -571,20 +571,20 @@ style's background colour and the work draws on top of it.
             tile store, the same four assets with the same due colours the app's own map shows
             (amber `Due in 3 days`, red `Never sprayed` ×2, green `Due in 110 days`), the three line
             kinds in their own dash patterns, the place drawn as a red house by the page's canvas
-            port of `HouseMarker.kt`, and the empty-farm list drawn from the phone's own state.
+            port of `HouseMarker.kt`, and the empty-area list drawn from the phone's own state.
             Two bugs came out of it and both are fixed with a test or a border: the page's own files
             were being refused (403) because a browser asks for a stylesheet without the token, and
             `WebStyleJson` put `line-cap`/`line-join` in `paint`, which the Android SDK tolerated and
             MapLibre GL JS refuses outright — the whole style thrown away, a blank desk, and no tile
             ever requested. Blocks, the card after the map has opened, and "Where is the phone?" were
-            driven against a fixture (`build/verify/db/pageserve.ps1`), because the seeded farm has no
+            driven against a fixture (`build/verify/db/pageserve.ps1`), because the seeded area has no
             blocks and the emulator's System UI gave up ANR-ing before those two could be run against
             the phone. Screenshots `page-desk.png`, `page-card.png`, `fx-desk.png`, `fx-card.png`,
             `fx-locate.png`; notes in `build/verify/web-editor-page.txt`, which also says what was
             *not* verified and why.
 - [x] **Phase 2, first slice — the desk's first write. v0.6.23.** `PUT /api/assets/<id>`: metadata
       only, through `AssetRepository`, judged by `ui/AssetEdits`, guarded by the `WebEditorVersion`
-      fingerprint. Proven against the phone on a seeded four-asset farm (`build/verify/db/seedweb.py`),
+      fingerprint. Proven against the phone on a seeded four-asset area (`build/verify/db/seedweb.py`),
       driven through the page's own form by `build/verify/db/pagedump.ps1 -Then`: a real save took
       Waima road's `intervalDays` from 120 to 1, and the desk redrew it as a red `2 days overdue` line
       while the app's own map went from *Overdue 2 / Due soon 1 / Not due 1* to **Overdue 3 / Due soon
@@ -597,7 +597,7 @@ style's background colour and the work draws on top of it.
       `web-form.png`, `web-saved.png`, `web-refused.png`, `web-stale.png`, `web-place.png`,
       `web-phone-map-small.jpg`; notes in `build/verify/web-write.txt`. The **published** 0.6.23 APK
       was then verified on its own, over a clean install — the debug build is signed differently, so
-      the seeded farm went with it and the release install was left empty, and nothing was pushed
+      the seeded area went with it and the release install was left empty, and nothing was pushed
       into it: a track drawn by hand on the phone, the desk served by the minified build, a save from
       its form answering "Saved. The phone has it.", and the phone's own detail screen then reading
       *0 sprays recorded · every 7 days* — so R8 keeps the serializers, the new fields and the write
@@ -608,7 +608,7 @@ style's background colour and the work draws on top of it.
       pill until the rule named its parent.
 - [x] **Phase 2, the rest — the line and the delete. v0.6.24.** `POST /api/assets`, the geometry half of
       `PUT`, `DELETE /api/assets/<id>?version=…`, and the desk's drawing in `edit.js` over `geometry.mjs`.
-      Proven against the phone on a seeded farm, driven with real browser input
+      Proven against the phone on a seeded area, driven with real browser input
       (`pagedump.ps1 -Mouse`, which now sends mouse and key events through the DevTools protocol and can
       read the drawing handles off the page's own picture): three clicks and Enter made a track — asset 5
       `Desk drawn`, TRACK LINE UNSET, three vertices, **270.36 m** worked out by the phone; a drag moved
@@ -789,7 +789,7 @@ style's background colour and the work draws on top of it.
       the published 0.6.59 to **0** with the fix, while a place kept its disc (60 px in 2 runs picked, 0
       closed). `glow.test.mjs` is 14 tests (one new: the names get nothing). Screenshots
       `rel-glow-1-track.png` … `rel-glow-6-place-closed.png`; notes in `build/verify/web-glow.txt`, including
-      what the emulator's own reinstall backup did to the farm while the fixed build was going on. The
+      what the emulator's own reinstall backup did to the area while the fixed build was going on. The
       **published** 0.6.60 APK was then driven on its own over a clean install (`versionName=0.6.60`): the
       served `glow.mjs` carrying the fix, and the same pair **0 wide red runs** picked and closed —
       screenshots `rel-glow-7-published-picked.png` / `rel-glow-8-published-closed.png`.
@@ -811,23 +811,23 @@ style's background colour and the work draws on top of it.
       the box from **5 points · 225 m** to **7 points · 490 m**, Enter answered **"Saved. The phone has it."**,
       and the phone's own list read **490 m** — screenshots `ext-6-published-grown.png` /
       `ext-7-published-saved.png`.
-- [x] **The farm's figures beside the counts, on the phone and on the desk. v0.6.62** — the box in the
+- [x] **The area's figures beside the counts, on the phone and on the desk. v0.6.62** — the box in the
       map's corner counted what was due and said nothing about how big the work is, so planning a day
-      from it meant opening a block, reading its tile, and doing that again for every block on the farm.
-      The box now ends with what the whole farm comes to: **Total length**, **Total area** with how many
+      from it meant opening a block, reading its tile, and doing that again for every block on the area.
+      The box now ends with what the whole area comes to: **Total length**, **Total area** with how many
       assets it was worked out from, and **Left to spray**. The length and the area are the arithmetic a
-      block's tile has always used, taken from one shared mapping now, so a tile and the farm box cannot
+      block's tile has always used, taken from one shared mapping now, so a tile and the area box cannot
       answer one question two ways; a figure nobody knows is **left out rather than said as a nought**,
-      so a farm of troughs is not told it is nought metres long. The desk carries the same box over the
+      so an area of troughs is not told it is nought metres long. The desk carries the same box over the
       same work, worked out from the phone's own state document and sitting above its search box,
-      **hidden until there is anything on the farm** — its own file, `stats.mjs`, pure and tested under
+      **hidden until there is anything on the area** — its own file, `stats.mjs`, pure and tested under
       node like the drawing's arithmetic, and its three dots in the phone's own colours, which now travel
-      in that document. Proven on the emulator over a planted five-asset farm: the phone read
+      in that document. Proven on the emulator over a planted five-asset area: the phone read
       **2.00 km**, **about 1.3 ha from 4 of them**, **1.04 km left**, the page read the same seven lines
-      word for word with the dots in the phone's red, amber and green, and a farm whose assets all know
+      word for word with the dots in the phone's red, amber and green, and an area whose assets all know
       no length said only its counts — screenshots `farm-stats-map.png`, `farm-stats-desk.png`; notes in
       `build/verify/farm-stats.txt`. The **published** 0.6.62 APK was then driven on its own over a clean
-      install (`versionName=0.6.62`), the farm made through the page's own "make a new asset" call
+      install (`versionName=0.6.62`), the area made through the page's own "make a new asset" call
       because a released build's database cannot be pushed into (two lines with swath widths, 1111.95 m
       and 555.98 m, and a place): both boxes read **3 assets · Overdue 3 · Total length 1.67 km · Total
       area about 5782 m² from 2 of them · Left to spray 1.67 km**, the page's dots
@@ -838,7 +838,7 @@ style's background colour and the work draws on top of it.
       Area xx.x ha, delete the 'left to spray' stat. Restrict the box to be as big enough to contain the
       info, no bigger."* **Left to spray** went from both boxes: of the three figures it was the one that
       repeated something the box had already said, because the counts above the rule are what says how
-      much of the farm is left and a block's tile says the distance again for anything that is behind. The
+      much of the area is left and a block's tile says the distance again for anything that is behind. The
       box was also bigger than its own words in both directions — the rule between the counts and the
       figures fills whatever width it is handed, which stretched the card to the width of the map (a
       thousand pixels wide to say six short lines, three quarters of it empty), and the gaps were the
@@ -848,12 +848,12 @@ style's background colour and the work draws on top of it.
       **668 x 374 px, six lines** now — 23.2% of the map's area down to 11.9%, and its share of the map's
       height from 24.6% to 19.3%. The desk's box is the same box in a column that already has a width, so it
       lost the line and nothing else (177.36 to 156.52 px tall, counts, figures and dots unchanged). Proven
-      by putting the same farm in on both builds through the page's own "make a new asset" call — the
+      by putting the same area in on both builds through the page's own "make a new asset" call — the
       released 0.6.62 was on the phone first, so its picture is the genuine before — and reading the phone's
       own interface tree either side: the same two figures (1.67 km, and 5782 m² from 2 of them), and no
       third line. Screenshots `farmbox-before.png`, `farmbox-after2.png`, `farmbox-desk.png`; notes in
       `build/verify/farmbox-size.txt`. The **published** 0.6.63 APK was then driven on its own over a clean
-      install (`versionName=0.6.63`), the farm made through the page's own "make a new asset" call because a
+      install (`versionName=0.6.63`), the area made through the page's own "make a new asset" call because a
       released build's database cannot be pushed into: the phone read the same six lines — **3 assets ·
       Overdue 3 · Due soon 0 · Not due 0 · Total length 1.67 km · Total area about 5782 m² from 2 of them** —
       its box came out **668 x 374 px**, the debug build's own numbers to the pixel, and the page's box
@@ -861,7 +861,7 @@ style's background colour and the work draws on top of it.
       `rgb(249, 168, 37)` / `rgb(46, 125, 50)`, with an empty install drawing no box at all — screenshots
       `pub-farmbox.png` / `pub-farmbox-desk.png`.
 - [x] **The desk comes back to where it was looking. v0.6.38** — a refresh, and a basemap switch on the
-      phone, both build the page again, and every one of them used to open on the whole farm: an operator
+      phone, both build the page again, and every one of them used to open on the whole area: an operator
       who had spent the morning on one corner of it spent it again after every basemap. The camera is now
       kept in the **browser's own store** — never the phone's, because where a particular desk is looking
       is that desk's business, two laptops on one phone are two views, and the plan's rule that the desk's
@@ -870,7 +870,7 @@ style's background colour and the work draws on top of it.
       again as the page goes away, which is the write a refresh must not miss; the fit to the work's own
       box is skipped when there is a memory. What goes in the store is five numbers and nothing else — no
       token, no asset, no name — which `camera.test.mjs` and every run's own probe pin.
-      Proven on the emulator on the seeded farm, in headless-Edge profiles that stand in for the
+      Proven on the emulator on the seeded area, in headless-Edge profiles that stand in for the
       operator's browser (one profile reopened is a refresh; two profiles are two computers): a browser
       that has never been here draws the work's own box, **pixel for pixel** the same as the first fresh
       visit; the same browser reopened draws it **pixel for pixel**; the desk moved by a drag and a wheel
@@ -897,7 +897,7 @@ style's background colour and the work draws on top of it.
       **app's own**, because the app is where the words come from: the button, the search field, the empty
       list and the form for a drawn line are *Draw a new asset*, *Find an asset or block*, *No asset or
       block matches that* and *New asset*, and the card's two ways on are the phone's own menu items *Edit
-      details* and *Change the line*. The old empty-farm sentence sent the operator to the phone to draw,
+      details* and *Change the line*. The old empty-area sentence sent the operator to the phone to draw,
       which stopped being true in v0.6.24; it now says to draw here or on the phone. The drawing's own
       words about "the track" under the hand stay, because those are the phone's own sentences for the same
       gestures. The bar became a box the size of a map control in the map's own top-left corner: the phone's
@@ -905,8 +905,8 @@ style's background colour and the work draws on top of it.
       track*), one short line about whatever the drawing is in the middle of, the keys as pairs (*Del ·
       take the last one off*, *Esc · give up* - with Ctrl+Z greyed while there is nothing to take back) and
       the three side-track buttons under them.
-      Proven on the fixture server for the awkward states (the empty farm, the naming form, the card's two
-      buttons) and on the phone over the seeded farm, so the box is seen over real imagery: *Draw a line ·
+      Proven on the fixture server for the awkward states (the empty area, the naming form, the card's two
+      buttons) and on the phone over the seeded area, so the box is seen over real imagery: *Draw a line ·
       3 points · 477 m*, *Working on the side track*, all three of the box's buttons doing what they say,
       and a save from its own Enter answering *"Saved. The phone has it."* The **published** 0.6.39 APK was
       driven on its own over a clean install (`versionName=0.6.39`, `run-as` refusing it): the button, the
@@ -925,7 +925,7 @@ style's background colour and the work draws on top of it.
       from. Not the application: a process woken by a scheduled job has no screen behind it and no right to
       start a service at all. `web_editor_token_required` is **off** when unset, which reverses v0.6.25's
       promise — the argument for reversing it is the network it is served on, and the card still says out
-      loud what it costs, so an untouched install now hands out a bare address on the farm's own Wi-Fi.
+      loud what it costs, so an untouched install now hands out a bare address on the area's own Wi-Fi.
       **One bug came out of it, in the asking twice**: `ACTION_START` rebuilt the run whenever it arrived,
       so a rotation — which recreates the activity, whose composition asks again — would have torn a run
       down and issued a **new secret** under a page the operator was already reading. `ACTION_START` is
@@ -962,7 +962,7 @@ style's background colour and the work draws on top of it.
       purpose), answers with the paths and what became of the segments, and **writes nothing** — the
       track is made afterwards by the same write every drawn track is made by, so a file dropped by
       mistake costs a reload. Proven by payload, by a driven browser and by the database. By payload, on
-      the emulator over the seeded five-asset farm: a file whose segments meet answered
+      the emulator over the seeded five-asset area: a file whose segments meet answered
       **200** with `paths` (three-vertex line, then the spur off its own last vertex, to the bit) and
       `{"sideTracks":1,"segmentsDidNotMeet":false}`; a file whose segments do not meet answered **200**
       with one four-point line and `{"sideTracks":0,"segmentsDidNotMeet":true}`; and an empty body, a
@@ -1005,7 +1005,7 @@ style's background colour and the work draws on top of it.
       controls with the browser's own mouse (`db/pagedump.ps1` grew `clickjs`, `typejs` and `scrollto`
       steps, with `db/togetherrun.ps1` and its neighbours over them): a real click on a tick box left the
       page's own tick state at `10000`; the tick over the list took the four rows on the screen rather
-      than the five on the farm; the bar read **2 assets picked**; the form opened as a report of two rows
+      than the five on the area; the bar read **2 assets picked**; the form opened as a report of two rows
       from two blocks with **More than one** beside the name, the block, the kind and the method, and the
       `120` and `3` they shared showing in their own fields; and a save answered
       **`{"count":2,"message":"Changed all 2 assets together."}`**. **Three refusals, each of which
@@ -1017,7 +1017,7 @@ style's background colour and the work draws on top of it.
       that body, which was perfectly good, not written either. The database (pulled with its `-wal`,
       `db/gpxcheck2.py`) is the claim in numbers: two rows renamed together, one of them re-kinded from a
       track to a road and taken out of its block, both keeping their own 120 days, 3 m, one pass and their
-      own lengths — and `assets=5 points=13 groups=2 sprays=0`, so nothing else on the farm moved.
+      own lengths — and `assets=5 points=13 groups=2 sprays=0`, so nothing else on the area moved.
       Screenshots `tog-open-2.png`, `tog-shot-5.png`, `tog-save-5.png`, `tog-refuse-2.png`; notes in
       `build/verify/web-together.txt`, including what is **not** proven. One real fault came out of the
       driving, and it was the driving's point: the form used to leave a field the rows disagreed on
@@ -1032,7 +1032,7 @@ style's background colour and the work draws on top of it.
       R8 keeps the request serializer, the route and the new outcome (`rel-together-1.png`).
 - [x] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
       and changing several assets at once have all shipped. What is left is the three jobs under *Next
-      action* — a release not being tried before it is published, the desk's first view of a farm landing
+      action* — a release not being tried before it is published, the desk's first view of an area landing
       wrong, and the Draw button being pressable a moment too soon — and none of them is a phase.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
@@ -1060,14 +1060,15 @@ and what it leaves alone. What is left of the whole plan is the three jobs below
    nothing written down for the file people downloaded, and neither has anything older that the notes
    folder has since been cleared of. The job is not a program to write: it is doing it every time, and
    writing one line under the progress entry saying what was done.
-2. **The desk's first view of a farm can land slightly wrong.** The first time a browser opens the page
-   it fits the whole farm on the screen. That fitting is worked out before the map has finished making
-   room for itself, so the zoom comes out a little different each time — the same farm opens somewhere
-   slightly different, and sometimes a track or two is off the edge of the picture. It matters because
-   every check here compares two pictures of the same farm, and a view that moved on its own makes that
-   comparison unreliable. It does not matter in the field: a browser that has opened the page before is
-   put back where the operator left it, so the wrong opening view is only ever seen once. The fix is to
-   fit the farm at the moment the map finishes arriving rather than in the step before it.
+2. **The desk's first view of a whole area can land slightly wrong.** The first time a browser opens the
+   page it fits every asset of the area on the screen at once. That fitting is worked out before the map
+   has finished making room for itself, so the zoom comes out a little different each time — the same
+   area opens somewhere slightly different, and sometimes a track or two is off the edge of the picture.
+   It matters because every check here compares two pictures of the same area, and a view that moved on
+   its own makes that comparison unreliable. It does not matter in the field: a browser that has opened
+   the page before is put back where the operator left it, so the wrong opening view is only ever seen
+   once. The fix is to fit the area at the moment the map finishes arriving rather than in the step
+   before it.
 3. **The Draw button can be pressed a moment too soon** (see below, one line).
 
 **The first press after the page opens is sometimes wasted, and it is the same window as the wrong first

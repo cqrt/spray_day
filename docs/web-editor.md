@@ -36,16 +36,17 @@ away.
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.70** (the desk's first view made the same every time, and the Draw
-  button waiting for the map), before it v0.6.69 (several assets changed by one form), v0.6.68 (a GPX file
-  dropped on the desk), v0.6.67 (the pole gate's glyph), v0.6.63 (the corner box cut down to what it
-  says), v0.6.62 (the area's figures on both screens), v0.6.61 (a line carried on from the desk), v0.6.60,
-  v0.6.56, v0.6.55 (the editor served without being asked for), v0.6.54, the tracing in v0.6.26, and the
-  phase 1 and 2 work before that. The state written here was true when the file was written —
+- The last shipped work is **v0.6.71** (the Import a GPX file button made pressable), before it v0.6.70
+  (the desk's first view made the same every time, and the Draw button waiting for the map), v0.6.69
+  (several assets changed by one form), v0.6.68 (a GPX file dropped on the desk), v0.6.67 (the pole gate's
+  glyph), v0.6.63 (the corner box cut down to what it says), v0.6.62 (the area's figures on both screens),
+  v0.6.61 (a line carried on from the desk), v0.6.60, v0.6.56, v0.6.55 (the editor served without being
+  asked for), v0.6.54, the tracing in v0.6.26, and the phase 1 and 2 work before that. The state written
+  here was true when the file was written —
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
   `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
   can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.70 → **v0.6.71**.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.71 → **v0.6.72**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -1051,10 +1052,29 @@ style's background colour and the work draws on top of it.
       pressed **on the shipped page** with two points clicked on the map, the drawing's box reading
       *Draw a line | 2 points · 563 m*. That closes the plan's first job as well - the file people download
       was tried as part of this change, and it is written down rather than remembered.
-- [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70. What
-      remains is one wording job riding with the next code change — the word "farm" in the code's comments
-      and in a handful of names, written out in *Next action* — and anything else is new work rather than
-      unfinished work.
+- [x] **The Import a GPX file button can be pressed. v0.6.71** — reported by the operator: *"Import a GPX
+      file on my desktop interface does not work. Button exists but is 'greyed' out, clicking it does
+      nothing. Chrome Windows Version 153.0.8010.55."* It was written with `disabled` in the markup - for
+      the same reason the drawing's own button is, a file becoming a drawing that needs a map with a style
+      - and the only line that took that attribute off named the **drawing's** button, so it was greyed out
+      from the first frame and could never be pressed, while dropping a file on the map worked the whole
+      time because a drop was never held back. The button now starts enabled and a press before the map is
+      here answers in words (*"The map is still opening. Try that again in a moment."*), through one guard
+      both ways in ask. **Why no run here caught it**: every run printed `document.getElementById("import")
+      .disabled => False` and that was read as correct, because the probe asked what the page *is* and
+      nothing compared the markup against the page's own behaviour. There is now
+      `app/src/test/js/page.test.mjs`, run by CI with the desk's other tests: a control that starts disabled
+      must be named in a table with the line of code that turns it on, and that line must exist — so a
+      button nobody can press cannot be written again. Proven on the emulator: the button read as enabled,
+      a real mouse click on it at its own position, and the whole way in from a file handed to the picker —
+      *"chosen-by-the-picker.gpx: one line of 2 points…"*, the name field holding that name, and the box
+      reading **2 points · 213 m**. The **published** 0.6.71 APK was then fetched (17,737,684 bytes),
+      installed over the app removed and driven the same way, with the same three results
+      (`pick-check.png`, `pick-check-rel.png`); notes in `build/verify/web-gpx.txt`.
+- [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70, and
+      v0.6.71 was a fault reported from the field. What remains is one wording job riding with the next
+      code change — the word "farm" in the code's comments and in a handful of names, written out in
+      *Next action* — and anything else is new work rather than unfinished work.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.

@@ -14,6 +14,7 @@ import nz.mckenzie.sprayday.data.db.SprayEventEntity
 import nz.mckenzie.sprayday.data.db.SprayEventProductEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
@@ -302,7 +303,35 @@ class AssetRepository(
         asset: AssetEntity,
         groupName: String?,
         geometry: AssetGeometry? = null
-    ) = db.withTransaction {
+    ) = db.withTransaction { writeAssetEdits(asset, groupName, geometry) }
+
+    /**
+     * The same edit made to several assets, in **one transaction**.
+     *
+     * Judge first, write after: what arrives here has already been through
+     * [nz.mckenzie.sprayday.domain.asset.BulkAssetEdits], so every row in the list is one the phone
+     * will take - and the transaction is what makes the promise whole, because a write that failed on
+     * the fourth of six would otherwise leave three changed and three not with nothing saying which.
+     * Nothing is written here that one asset's own edit does not write, geometry included: a bulk edit
+     * is about the fields a form holds, and a line is moved one asset at a time.
+     */
+    suspend fun saveAssetEditsAll(edits: List<BulkAssetEdits.AssetEdit>) = db.withTransaction {
+        for (edit in edits) writeAssetEdits(edit.after, edit.blockName, geometry = null)
+    }
+
+    /**
+     * One asset's row and, when it is given one, its geometry - the write both of the two above go
+     * through.
+     *
+     * Kept as the body of a transaction rather than as a public method: a caller outside must not be
+     * able to run it on its own, or the "every row or none" promise of a bulk edit would be a promise
+     * about whichever of its halves you happened to look at.
+     */
+    private suspend fun writeAssetEdits(
+        asset: AssetEntity,
+        groupName: String?,
+        geometry: AssetGeometry?
+    ) {
         assetDao.update(asset.copy(groupId = groupIdFor(groupName)))
         when {
             geometry != null -> storeGeometry(asset.id, geometry)

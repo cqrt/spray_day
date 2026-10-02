@@ -1,8 +1,10 @@
 package nz.mckenzie.sprayday.web
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
+import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -531,6 +533,8 @@ class WebEditorEditTest {
         )
     }
 
+    /* ---- Several assets at once --------------------------------------------------------- */
+
     @Test
     fun `a field this build has never heard of does not stop a file being read`() {
         // A page from a later build may carry more than this one knows about, and a file that is
@@ -539,5 +543,139 @@ class WebEditorEditTest {
         val body = Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to file, "somethingNew" to "7"))
 
         assertEquals(file, WebEditorEdits.readGpx(body))
+    }
+
+    /** A row as the phone holds it, for a bulk edit to be judged against. */
+    private fun row(id: Long, name: String, kind: String = "TRACK", shape: String = "LINE") =
+        BulkAssetEdits.AssetRow(
+            asset = AssetEntity(id = id, name = name, kind = kind, shape = shape, createdAtEpochMs = 1L),
+            blockName = null
+        )
+
+    /** What a bulk edit wrote, which every refusal below has to have left empty. */
+    private var bulkWritten: List<BulkAssetEdits.AssetEdit> = emptyList()
+
+    private suspend fun bulk(body: String, rows: List<BulkAssetEdits.AssetRow>): WebEditorWrite {
+        bulkWritten = emptyList()
+        return WebEditorEdits.editTogether(
+            body = body,
+            current = { id -> rows.firstOrNull { it.asset.id == id } },
+            paths = { listOf(path) },
+            save = { bulkWritten = it }
+        )
+    }
+
+    /**
+     * The fields a bulk edit sends: every field, with the name, kind, method, interval and notes as the
+     * caller gives them - which is the shape a page fills in from each row's own values.
+     *
+     * A row's version defaults to the fingerprint the phone would hand out for that row, because that is
+     * what a desk quotes back; a caller that wants a stale one says so.
+     */
+    private fun bulkBody(
+        ids: List<Long>,
+        name: String = "Estuary road",
+        kind: String = "TRACK",
+        method: String = "UNSET",
+        interval: String = "120",
+        notes: String = "",
+        rows: List<BulkAssetEdits.AssetRow> = emptyList(),
+        versions: Map<Long, String> = emptyMap()
+    ): String {
+        val assets = ids.joinToString(prefix = "[", postfix = "]") { id ->
+            val known = rows.firstOrNull { it.asset.id == id }
+            val version = versions[id]
+                ?: known?.let { WebEditorVersion.of(it.asset, it.blockName, listOf(path)) }
+                ?: "v$id"
+            """{"id":$id,"version":"$version"}"""
+        }
+        return """{"assets":$assets,"fields":{"name":"$name","kind":"$kind","method":"$method",""" +
+            """"blockName":"","intervalDays":"$interval","swathWidthM":"","passesRequired":1,""" +
+            """"passSeparationM":"","notes":"$notes"}}"""
+    }
+
+    @Test
+    fun `several assets are changed by one body, and every row is judged first`() {
+        val rows = listOf(row(1L, "One"), row(2L, "Two"), row(3L, "Three"))
+
+        val answer = runBlocking {
+            bulk(bulkBody(ids = listOf(1L, 2L, 3L), name = "Estuary block", rows = rows), rows)
+        }
+
+        assertEquals(
+            WebEditorWrite.EditedTogether(3, "Changed all 3 assets together."),
+            answer
+        )
+        assertEquals(listOf(1L, 2L, 3L), bulkWritten.map { it.after.id })
+        assertTrue("and each one carries the new name", bulkWritten.all { it.after.name == "Estuary block" })
+    }
+
+    @Test
+    fun `a bulk edit is the same judgement as one asset's own, so its refusals are the app's own words`() {
+        // The point of sending every field: the phone runs the very same rules, so a field it will not
+        // take is refused here in the words the phone's own form would use - and named, because the
+        // operator is looking at a list rather than at one card.
+        val rows = listOf(row(1L, "One"), row(2L, "Two"))
+
+        val answer = runBlocking {
+            bulk(bulkBody(ids = listOf(1L, 2L), interval = "soon", rows = rows), rows)
+        }
+
+        assertEquals(
+            WebEditorWrite.Refused(
+                WebEditorRefusal.INVALID,
+                "\"One\": Days between sprays must be a whole number"
+            ),
+            answer
+        )
+        assertTrue("and nothing was written", bulkWritten.isEmpty())
+    }
+
+    @Test
+    fun `a row that moved on the phone stops the lot, as a stale card does`() {
+        val rows = listOf(row(1L, "One"), row(2L, "Two"))
+
+        val answer = runBlocking {
+            bulk(
+                bulkBody(ids = listOf(1L, 2L), rows = rows, versions = mapOf(2L to "somebody-else")),
+                rows
+            )
+        }
+
+        assertTrue("refused as stale: $answer", answer is WebEditorWrite.Refused)
+        assertEquals(WebEditorRefusal.STALE, (answer as WebEditorWrite.Refused).refusal)
+        assertTrue("and nothing was written", bulkWritten.isEmpty())
+    }
+
+    @Test
+    fun `a row the phone does not have is a 404, the same as one asset's own edit`() {
+        val answer = runBlocking { bulk(bulkBody(ids = listOf(1L, 9L), rows = listOf(row(1L, "One"))), listOf(row(1L, "One"))) }
+
+        assertEquals(WebEditorRefusal.MISSING, (answer as WebEditorWrite.Refused).refusal)
+        assertTrue("and nothing was written", bulkWritten.isEmpty())
+    }
+
+    @Test
+    fun `a body with no fields in it says so rather than changing every field to nothing`() {
+        // A body naming rows and no values is a page that has got its own state wrong, and guessing at
+        // it would be guessing with six rows rather than one.
+        val answer = runBlocking { bulk("""{"assets":[{"id":1,"version":"v1"}]}""", listOf(row(1L, "One"))) }
+
+        assertEquals(
+            WebEditorWrite.Refused(
+                WebEditorRefusal.INVALID,
+                "That edit did not say what to change, so nothing was changed."
+            ),
+            answer
+        )
+    }
+
+    @Test
+    fun `a body that is not a bulk edit at all is refused in words`() {
+        for (body in listOf("", "not json at all", """{"assets":"nonsense"}""")) {
+            val answer = runBlocking { bulk(body, listOf(row(1L, "One"))) }
+            assertTrue("refused: $body", answer is WebEditorWrite.Refused)
+            assertTrue("and nothing was written", bulkWritten.isEmpty())
+        }
     }
 }

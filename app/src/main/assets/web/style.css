@@ -54,11 +54,21 @@
   --due-column: 108px;
 
   /*
-   * The four columns in the order a row puts them: said once, and used by the list, by the words over it
-   * and by every row. Three copies of this line would be three chances to line a heading up over the
-   * wrong column.
+   * The tick that picks a row out, in front of the name. Wide enough for the box and its own hit area,
+   * and the row's own padding moves onto the tick cell so the box lines up with the text above it
+   * rather than with the rows below.
    */
-  --list-columns: minmax(0, 1fr) var(--method-column) var(--passes-column) var(--due-column);
+  --tick-column: 22px;
+
+  /*
+   * The columns in the order a row puts them: said once, and used by the list, by the words over it and
+   * by every row. Four copies of this line would be four chances to line a heading up over the wrong
+   * column. `--content-columns` is the same thing without the tick, which is what a row's button is:
+   * the name, the method, the passes and the due date, taking their tracks from the header's own second
+   * column onwards.
+   */
+  --content-columns: minmax(0, 1fr) var(--method-column) var(--passes-column) var(--due-column);
+  --list-columns: var(--tick-column) var(--content-columns);
 }
 
 /*
@@ -348,12 +358,20 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
  * block headings and the rows. A row takes its own cells from the same tracks, which is the whole of what
  * lines the columns up.
  */
+/*
+ * The list is a grid: the words over the columns, the block headings and the rows. A row takes its own
+ * cells from the same tracks, which is the whole of what lines the columns up.
+ *
+ * The 12 px on the left is the row's own margin, moved here when the rows grew a tick cell: the words
+ * over the columns carry the same 12 px, so the first column of a row and the word over it start at the
+ * same place. Nothing on the right, because the last column is read against the edge of the list.
+ */
 #list {
   display: grid;
   align-content: start;
   grid-template-columns: var(--list-columns);
   overflow: auto;
-  padding: 0 0 12px;
+  padding: 0 0 12px 12px;
 }
 
 #list > * { grid-column: 1 / -1; }
@@ -376,17 +394,22 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #list-head[hidden] { display: none; }
 
 /*
- * A row of the work and the row of words over it: the same four tracks and the same gap, so a column
- * lines up the whole way down the list. What the words add is the words, and what a row adds is that it
- * is a button - which is the rule below.
+ * A row of the work and the row of words over it: the same tracks and the same gap, so a column lines up
+ * the whole way down the list. What the words add is the words, and what a row adds is that its name
+ * cell is a button - which is the rule below.
  */
-#list button,
 #list-head {
   display: grid;
   grid-template-columns: var(--list-columns);
   gap: 10px;
   align-items: center;
 }
+
+/*
+ * A row has no box of its own - its tick and its button are the list's own grid items - and the two of
+ * them are its columns: the tick, and everything from the name to the due date.
+ */
+#list .row { display: contents; }
 
 #list h3 {
   margin: 10px 12px 4px;
@@ -396,9 +419,33 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   color: var(--quiet);
 }
 
+/*
+ * The tick, and the four cells beside it. The button is the name and everything after it, so clicking a
+ * row still opens it and the tick is a thing of its own - and the button lays those four cells out in
+ * the header's own tracks, which is what keeps a column straight under the word over it.
+ *
+ * The tick picks up the 12 px the words over the columns have, through the list's own left padding, so a
+ * box sits where the name's text does; the button after it starts at the gap rather than at a second
+ * padding.
+ */
+#list .tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+#list .tick input { margin: 0; cursor: pointer; }
+
 #list button {
+  display: grid;
+  grid-template-columns: var(--content-columns);
+  gap: 10px;
+  align-items: center;
+  grid-column: 2 / -1;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 12px 8px 0;
   border: 0;
   background: none;
   font: inherit;
@@ -422,8 +469,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #list button .due { color: var(--quiet); }
 
 /* The passes and the due are read against the right-hand edge of their column, words and all. */
-.passes,
-.due { text-align: right; }
+#list .passes,
+#list .due { text-align: right; }
 
 #list button:hover { background: var(--shade); }
 #list button[aria-current="true"] { background: var(--accent-soft); }
@@ -438,6 +485,50 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 /* Nothing to show: the page's own sentence, in the ordinary voice rather than as a column of words. */
 #list .empty { margin: 8px 0 0; padding: 0 12px; color: var(--quiet); }
+
+/*
+ * What is picked out, under the list it was picked from: the count, and the one way on. Hidden until a
+ * row is ticked, so an untouched desk has nothing here at all - and the count is the page's own words
+ * because it is about the ticking rather than about the farm.
+ */
+#together-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font-size: 13.5px;
+}
+
+/* A rule that sets the display beats the browser's own `hidden`, so the attribute has to be said too. */
+#together-bar[hidden] { display: none; }
+
+#together-bar .count { flex: 1; }
+
+#together-bar button {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  font: inherit;
+  cursor: pointer;
+}
+
+#together-bar button:hover { background: var(--shade); }
+
+/* The tick column of the words over the list: the box that picks every row the list is showing. No
+   padding of its own, so it lines up with the boxes below it - which the row's button makes up for on
+   the other side of the gap. */
+#list-head .tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#list-head .tick input { margin: 0; cursor: pointer; }
 
 #map { flex: 1; min-width: 0; }
 
@@ -484,7 +575,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #card-actions { margin-top: 10px; }
 
 #card-actions button,
-#edit-buttons button {
+#edit-buttons button,
+#together-buttons button {
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -494,7 +586,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 #card-actions button:hover,
-#edit-buttons button:hover { background: var(--shade); }
+#edit-buttons button:hover,
+#together-buttons button:hover { background: var(--shade); }
 
 /* The two buttons sit in a row, and the row wraps on a narrow card rather than squashing them. */
 #card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -530,8 +623,13 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
  * asset. The fields are the phone's own edit form, field for field, and every word in it - the
  * choices, the sentences under the fields, the message when something is refused - arrives from the
  * phone rather than being written here.
+ *
+ * The form for several assets at once is the same panel again, for the same reason: it is the same
+ * fields in the same order, and the only thing that differs is that each one has to be ticked before it
+ * counts - which is what the styles further down are about.
  */
-#edit {
+#edit,
+#together {
   position: absolute;
   left: calc(var(--side-width) + 16px);
   bottom: 16px;
@@ -545,9 +643,11 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
 }
 
-#edit h2 { margin: 0 0 6px; padding-right: 24px; font-size: 17px; }
+#edit h2,
+#together h2 { margin: 0 0 6px; padding-right: 24px; font-size: 17px; }
 
-#edit-close {
+#edit-close,
+#together-close {
   position: absolute;
   top: 6px;
   right: 8px;
@@ -560,7 +660,9 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 #edit label,
-#edit .label {
+#edit .label,
+#together label,
+#together .label {
   display: block;
   margin: 10px 0 4px;
   font-size: 13px;
@@ -568,7 +670,9 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 #edit input[type="text"],
-#edit textarea {
+#edit textarea,
+#together input[type="text"],
+#together textarea {
   width: 100%;
   padding: 7px 9px;
   border: 1px solid var(--line);
@@ -578,15 +682,19 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   background: var(--paper);
 }
 
-#edit textarea { resize: vertical; }
+#edit textarea,
+#together textarea { resize: vertical; }
 
 /* What the field under it explains, in the phone's own words. */
-#edit .hint { margin: 4px 0 0; font-size: 12.5px; color: var(--quiet); }
+#edit .hint,
+#together .hint { margin: 4px 0 0; font-size: 12.5px; color: var(--quiet); }
 
 /* The choices, drawn as the phone draws them: a row of named states rather than a dropdown. */
-#edit .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+#edit .choices,
+#together .choices { display: flex; flex-wrap: wrap; gap: 6px; }
 
-#edit .choices label {
+#edit .choices label,
+#together .choices label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -599,32 +707,104 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   cursor: pointer;
 }
 
-#edit .choices label:hover { background: var(--shade); }
+#edit .choices label:hover,
+#together .choices label:hover { background: var(--shade); }
 
 /* Only the highlight of the chosen pill needs this, so a browser without it loses nothing. */
-#edit .choices label:has(input:checked) { background: var(--accent-soft); border-color: var(--accent-line); }
+#edit .choices label:has(input:checked),
+#together .choices label:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
 
 #edit .choices input { margin: 0; }
 
-#edit-buttons { display: flex; gap: 8px; margin-top: 12px; }
+#edit-buttons,
+#together-buttons { display: flex; gap: 8px; margin-top: 12px; }
 
 /*
  * The one button that saves, named through its parent as well as itself: the rule above sets the
  * background of every button in the row, and `#edit-save` on its own would lose to it - which is a
  * white label on a white pill, and nothing on the button at all.
  */
-#edit-buttons #edit-save { background: #1f6f3f; border-color: #1f6f3f; color: #ffffff; }
-#edit-buttons #edit-save:hover { background: #1b6136; }
-#edit-buttons #edit-save:disabled { opacity: 0.6; cursor: default; }
+#edit-buttons #edit-save,
+#together-buttons #together-save { background: #1f6f3f; border-color: #1f6f3f; color: #ffffff; }
+
+#edit-buttons #edit-save:hover,
+#together-buttons #together-save:hover { background: #1b6136; }
+
+#edit-buttons #edit-save:disabled,
+#together-buttons #together-save:disabled { opacity: 0.6; cursor: default; }
 
 /* The phone's own sentence about what it refused, where the operator is looking when it happens. */
-#edit-words {
+#edit-words,
+#together-words {
   margin: 10px 0 0;
   padding: 8px 10px;
   background: var(--danger-soft);
   border: 1px solid var(--danger-line);
   border-radius: 6px;
   font-size: 13.5px;
+}
+
+/*
+ * One field of a form about several assets: the tick that says "this one is being changed" beside the
+ * value that will be put on all of them.
+ *
+ * **A field the picked rows disagree on holds no one of their values** - it holds the phone's own word
+ * for "more than one" - and nothing is changed until its tick is on. So the tick is not a way of
+ * choosing between two answers; it is what turns a field that is only a report of what is there into an
+ * instruction about what is to be.
+ */
+#together .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+#together .field > .label {
+  margin: 0;
+  /* Wide enough for the longest name a field has - "Days between sprays" - so the controls all start at
+     the same place rather than at whatever their own label happens to measure. */
+  flex: 0 0 118px;
+  font-size: 13px;
+  color: var(--quiet);
+}
+
+/*
+ * The phone's own word for a field the picked rows disagree on, beside the field rather than in it: a
+ * text box holding "More than one" is a value, and a request carrying it would rename six tracks to a
+ * sentence about themselves. So the word sits outside the control, and the control is left empty.
+ */
+#together .note {
+  font-size: 12.5px;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+#together .field input[type="checkbox"] { margin: 0; cursor: pointer; flex: none; }
+
+/*
+ * The control itself greys out while its tick is off, and the tick does not: a control that is off is
+ * one the operator has not asked to change, while the tick is the only thing on the row that does. A
+ * row of choices has no `disabled` of its own, because disabling a fieldset would disable its legend -
+ * so the dimming is read off the tick beside it.
+ */
+#together .field input[type="text"]:disabled,
+#together .field textarea:disabled,
+#together .field.stacked:has(.tick-label input:not(:checked)) .choices { opacity: 0.5; }
+
+#together .field.stacked:has(.tick-label input:not(:checked)) .choices label { cursor: default; }
+
+/* A field with no room for a label beside its tick: the tick, then the label over the control. */
+#together .field.stacked { display: block; }
+
+#together .field.stacked > .tick-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 #locate {

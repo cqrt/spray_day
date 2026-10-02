@@ -120,6 +120,17 @@ const { importedNote, importProblem, trackName } = await import(
 );
 
 /**
+ * Changing several assets with one form: which rows are picked, and what one form can say about them.
+ *
+ * The arithmetic behind a bulk edit - what a field means when it is about six assets, and the request
+ * that carries them - is a rule rather than a screen, so it is a module node can run, like `find.mjs`
+ * and `stats.mjs` beside it.
+ */
+const { DIFFERENT, NOTHING, bulkBody, bulkFields, commonValue, picked, toggle } = await import(
+  TOKEN ? `./together.mjs?k=${encodeURIComponent(TOKEN)}` : './together.mjs'
+);
+
+/**
  * The browser's own store, or null when this browser will not hand one over.
  *
  * Reading `window.localStorage` is itself a thing that can throw - a browser with storage switched off
@@ -324,6 +335,16 @@ let workFeatures = null;
 
 /** The rows the desk is showing, which are also the assets the map draws. See `paintWork`. */
 let shownAssets = [];
+
+/**
+ * The assets ticked in the list, in the order they were ticked.
+ *
+ * By **id** rather than by record, so the set survives every redraw: the list is drawn again for a
+ * keystroke in the search box, a new type, a save and a reload, and a tick that went with the redraw
+ * would be a tick the operator has to make again every time they narrow the list - which is the very
+ * thing they are doing in order to find the rows they want to change.
+ */
+let selectedIds = [];
 
 /**
  * The map's own data: the work, narrowed to what the desk is showing.
@@ -759,16 +780,41 @@ function drawList() {
     const rows = blocks.get(block).sort((a, b) => a.asset.name.localeCompare(b.asset.name));
     for (const item of rows) list.append(listRow(item));
   }
+
+  // The bar and the tick over the list are about the rows that are on the screen, so they are drawn
+  // after them rather than beside them: a filter that hides every picked row leaves nothing to say.
+  drawTogetherBar();
 }
 
 /**
- * One row of the list: the name, how it is sprayed, how many passes that takes, and when it is next due.
+ * One row of the list: the tick that picks it out, the name, how it is sprayed, how many passes that
+ * takes, and when it is next due.
  *
- * Four cells in the order the words over the list name them, and nothing else: the page keeps no second
- * list of its columns, so a cell cannot drift away from the heading it belongs under. The name carries
- * the dot the phone painted this asset's own feature, which is the row's colour and nothing else's.
+ * The tick and the name are two children of one row and two columns of the list's grid - the row itself
+ * has no box of its own, which is what `display: contents` in the stylesheet is for - so a click on the
+ * name still opens the asset and a click on the tick only ticks it.
+ *
+ * The cells are in the order the words over the list name them, and nothing else: the page keeps no
+ * second list of its columns, so a cell cannot drift away from the heading it belongs under. The name
+ * carries the dot the phone painted this asset's own feature, which is the row's colour and nothing
+ * else's.
  */
 function listRow(item) {
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const tick = document.createElement('label');
+  tick.className = 'tick';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = selectedIds.includes(item.asset.id);
+  box.setAttribute('aria-label', `Pick ${item.asset.name}`);
+  box.addEventListener('change', () => {
+    selectedIds = toggle(selectedIds, item.asset.id);
+    drawTogetherBar();
+  });
+  tick.append(box);
+
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.id = item.asset.id;
@@ -799,7 +845,9 @@ function listRow(item) {
 
   button.append(name, method, passes, due);
   button.addEventListener('click', () => selectAsset(item.asset.id, true));
-  return button;
+
+  row.append(tick, button);
+  return row;
 }
 
 /** Opens an asset: the card, the row highlighted, the track glowing on the map, and the map brought to it. */
@@ -920,7 +968,7 @@ function showCard(item) {
  */
 function startShape(item) {
   if (!editor) return;
-  closeCard();
+  closeForms();
   editor.startOn(item.asset.id, item.paths ?? [], item.asset.shape);
 }
 
@@ -1099,7 +1147,7 @@ async function importGpxFile(file) {
       return;
     }
 
-    closeCard();
+    closeForms();
     // The kind a file is, and the line it holds: a GPX file is a track on the ground, which is what
     // the phone makes of one. Both go to the drawing rather than straight to the form, so the line is
     // on the map while the operator reads the form - a file with a jump in it or a spur in the wrong
@@ -1442,11 +1490,323 @@ function onMethodChange() {
   methodSwath = (chosen && chosen.swathM) || '';
 }
 
+/* ---- Changing several assets with one form ------------------------------------------ */
+
+/**
+ * The one field of a bulk form and the tick that puts it in the change.
+ *
+ * Every field of the form is one of these, so the wiring is said once instead of nine times: which
+ * control the tick is about, what reads the value out of it, and what writes the rows' own answer back
+ * into it.
+ */
+const BULK_FIELDS = [
+  { key: 'name', tick: 'together-tick-name', control: 'together-name', read: (item) => item.asset.name },
+  { key: 'block', tick: 'together-tick-block', control: 'together-block',
+    read: (item) => item.groupName || '' },
+  { key: 'kind', tick: 'together-tick-kind', choices: 'together-kind', read: (item) => item.asset.kind },
+  { key: 'interval', tick: 'together-tick-interval', control: 'together-interval',
+    read: (item) => String(item.asset.intervalDays) },
+  { key: 'method', tick: 'together-tick-method', choices: 'together-method',
+    read: (item) => item.asset.method },
+  { key: 'swath', tick: 'together-tick-swath', control: 'together-swath',
+    read: (item) => (item.asset.swathWidthM === null ? '' : String(item.asset.swathWidthM)) },
+  { key: 'passes', tick: 'together-tick-passes', choices: 'together-passes',
+    read: (item) => String(item.asset.passesRequired) },
+  { key: 'separation', tick: 'together-tick-separation', control: 'together-separation',
+    read: (item) => (item.asset.passSeparationM === null ? '' : String(item.asset.passSeparationM)) },
+  { key: 'notes', tick: 'together-tick-notes', control: 'together-notes',
+    read: (item) => item.asset.notes || '' }
+];
+
+/** What to call each field when the page has to say something about one. */
+const BULK_LABELS = {
+  name: 'Name',
+  block: 'Block or group',
+  kind: 'What it is',
+  interval: 'Days between sprays',
+  method: 'Spray method',
+  swath: 'Swath width',
+  passes: 'Passes to finish it',
+  separation: 'Two passes apart',
+  notes: 'Notes'
+};
+
+/**
+ * The tick that turns a field into a change, and what that field then looks like.
+ *
+ * A control whose tick is off is **off** - not merely ignored - so an operator cannot type into a field
+ * that is not part of the edit and then wonder why nothing happened. The tick itself is left alone: it
+ * is the one thing on the row that is always live.
+ *
+ * **A row of choices is left with nothing chosen** when the picked assets disagreed about it. Defaulting
+ * to the first pill would be the page choosing a kind for rows it has just finished saying it cannot
+ * speak for, and the operator would be looking at "More than one" while a real choice sat under it.
+ * What happens instead is that the save says the choice is missing - see `bulkProblem`.
+ */
+function applyBulkTicks() {
+  for (const one of BULK_FIELDS) {
+    const on = field(one.tick).checked;
+    if (one.choices) {
+      for (const input of document.querySelectorAll(`#${one.choices} input`)) input.disabled = !on;
+    } else {
+      field(one.control).disabled = !on;
+    }
+  }
+}
+
+/**
+ * Why this form cannot be sent yet, in the page's own words, or null when it can.
+ *
+ * Everything here is something the operator can put right without asking the phone, and saying it here
+ * rather than letting the request be refused means the answer arrives at once and in terms of the form
+ * rather than of a body. The phone's own rules are still the judge of every value.
+ *
+ * **A field the picked rows disagree on has to be ticked.** One form carries one value per field, and
+ * the values a bulk edit does not set are supposed to be *each row's own* - so where the rows differ
+ * there is nothing to send that means "leave that alone", and the honest answer is to ask rather than to
+ * pick one: the tick was put there to be the way of saying it. The alternative, sending one row's value
+ * for all of them, is a rename nobody typed.
+ */
+function bulkProblem() {
+  if (!anyBulkTick()) {
+    return 'Tick at least one thing to change, or press Cancel.';
+  }
+  if (selectedIds.length > state.together.maxAssets) {
+    return `That is ${selectedIds.length} assets, and the phone changes up to ` +
+      `${state.together.maxAssets} at a time. Pick fewer and try again.`;
+  }
+
+  const items = picked(state.assets, selectedIds);
+  for (const one of BULK_FIELDS) {
+    if (field(one.tick).checked) {
+      // Ticked: it needs an answer, and a row of choices the rows disagreed on opens with none.
+      if (one.choices && !selectedValue(one.choices)) {
+        return `Pick the ${BULK_LABELS[one.key]} to change it to.`;
+      }
+      continue;
+    }
+    if (commonValue(items, one.read) !== DIFFERENT) continue;
+    return `The assets picked do not agree on the ${BULK_LABELS[one.key]}, so tick it and choose one ` +
+      '- or change them one at a time.';
+  }
+  return null;
+}
+
+/** Whether anything at all is being changed: a form with no tick on it would be a request with no edit. */
+function anyBulkTick() {
+  return BULK_FIELDS.some((one) => field(one.tick).checked);
+}
+
+/** What is being changed, in the page's own words, said over the form. */
+function bulkCountText() {
+  return selectedIds.length === 1
+    ? 'Changing one asset. Tick what to change.'
+    : `Changing ${selectedIds.length} assets. Tick what to change, and leave the rest as they are.`;
+}
+
+/**
+ * The same form, about several rows at once.
+ *
+ * Every field is filled from the picked rows and every tick is off, so the form opens as a **report** of
+ * what is there and becomes an instruction one tick at a time. Where the rows disagree the field says so
+ * in the phone's own word for it - and **says it as a hint rather than as a value**, because a text box
+ * holding "More than one" is a name nobody typed, and a body carrying it would rename six tracks to a
+ * sentence about themselves. So a field they disagree on is left empty with the word beside it, and the
+ * save asks for it to be ticked: see `bulkProblem`.
+ */
+function openTogether() {
+  const items = picked(state.assets, selectedIds);
+  if (!items.length) return;
+
+  closeCard();
+  closeEdit();
+  field('together-what').textContent = bulkCountText();
+
+  for (const one of BULK_FIELDS) {
+    const shared = commonValue(items, one.read);
+    const disagree = shared === DIFFERENT;
+    if (one.choices) {
+      fillChoices(one.choices, choiceListFor(one.choices), disagree ? '' : shared);
+    } else {
+      field(one.control).value = disagree ? '' : shared;
+    }
+    field(one.tick).checked = false;
+    // The word itself, beside the field it is about, and only while the rows disagree.
+    field(`${one.tick}-note`).textContent = disagree ? state.together.different : '';
+  }
+
+  // The blocks that exist, so a name can be picked rather than typed again - the same reason the
+  // details form offers them.
+  const blocks = field('together-blocks');
+  blocks.textContent = '';
+  for (const block of state.groups) {
+    const option = document.createElement('option');
+    option.value = block.name;
+    blocks.append(option);
+  }
+
+  field('together-block-hint').textContent = state.choices.blockHint;
+  field('together-swath-hint').textContent = state.choices.swathHint;
+  field('together-separation-hint').textContent = state.choices.separationHint;
+  field('together-words').hidden = true;
+  applyBulkTicks();
+
+  field('together').hidden = false;
+  field('together-tick-name').focus();
+}
+
+/** The phone's own list of choices for one of the bulk form's three choice rows. */
+function choiceListFor(id) {
+  if (id === 'together-kind') return state.choices.kinds;
+  if (id === 'together-method') return state.choices.methods;
+  return state.choices.passes;
+}
+
+function closeTogether() {
+  field('together').hidden = true;
+  field('together-words').hidden = true;
+}
+
+/**
+ * Save: one request for all of it.
+ *
+ * The body carries every field the rows have - the ones not ticked as themselves - because that is what
+ * makes a bulk edit and a single edit **one judgement on the phone**: the same rules, the same
+ * sentences, one row at a time. And every row quotes its own version, so a row that has moved on the
+ * phone stops the lot: the phone writes all of them or none.
+ */
+async function saveTogether(event) {
+  event.preventDefault();
+
+  const problem = bulkProblem();
+  if (problem) {
+    showTogetherProblem(problem);
+    return;
+  }
+
+  const items = picked(state.assets, selectedIds);
+  if (items.length !== selectedIds.length) {
+    // A tick on a row the list is no longer showing - the filter moved under it - is a tick the page
+    // cannot fill in the values for: what that row holds now is not on the screen to send.
+    showTogetherProblem('One of the assets picked is not in the list any more. Clear and pick again.');
+    return;
+  }
+
+  const save = field('together-save');
+  save.disabled = true;
+  try {
+    const { status, answer } = await sendJson(
+      '/api/assets/together',
+      'POST',
+      bulkBody(items, bulkFields({
+        // A field nothing was picked for still has to carry a value, because the phone's rules read
+        // every field: the row's own is what that value is, and it is what the operator is looking at.
+        name: valueOf('together-name', 'together-tick-name'),
+        kind: valueOf(null, 'together-tick-kind', 'together-kind'),
+        method: valueOf(null, 'together-tick-method', 'together-method'),
+        blockName: valueOf('together-block', 'together-tick-block'),
+        intervalDays: valueOf('together-interval', 'together-tick-interval'),
+        swathWidthM: valueOf('together-swath', 'together-tick-swath'),
+        passesRequired: valueOf(null, 'together-tick-passes', 'together-passes') || '1',
+        passSeparationM: valueOf('together-separation', 'together-tick-separation'),
+        notes: valueOf('together-notes', 'together-tick-notes')
+      }))
+    );
+
+    if (status !== 200) {
+      showTogetherProblem(answer.message || 'The phone would not change them.');
+      // Either a stale row or a row the phone no longer has means the page's copy is the thing that is
+      // wrong, so the work is read again rather than argued with.
+      if (status === 409 || status === 404) {
+        closeTogether();
+        clearTicks();
+        await reloadWork();
+        showNotice(answer.message);
+      }
+      return;
+    }
+
+    closeTogether();
+    // Nothing is picked any more: what was picked has been changed, and a tick left on would make the
+    // next click on *Edit together* about the wrong rows.
+    clearTicks();
+    await reloadWork();
+    showNotice(answer.message);
+  } catch (error) {
+    showTogetherProblem(error.message);
+  } finally {
+    save.disabled = false;
+  }
+}
+
+/**
+ * The value one field of the bulk form is sending.
+ *
+ * There is no branch on the tick here, and that is the point rather than an oversight: a field being
+ * changed holds what the operator typed and a field that is not holds **that row's own answer**, which
+ * `openTogether` put there. The phone's rules read every field - they refuse an asset with no name and
+ * a blank interval is not a whole number - so the untouched ones travel as themselves and the row comes
+ * out the other side identical in everything but what was ticked.
+ */
+function valueOf(control, tick, choices = null) {
+  return choices ? selectedValue(choices) : field(control).value.trim();
+}
+
+function showTogetherProblem(message) {
+  const words = field('together-words');
+  words.textContent = message;
+  words.hidden = false;
+}
+
+/**
+ * Every form shut, and every drawing with it.
+ *
+ * They are all about different things and all sit over the same corner of the map, so opening one is
+ * closing the rest - said once here rather than at each of the ways in, because the way in that forgot
+ * would put two forms on top of each other.
+ */
+function closeForms() {
+  closeEdit();
+  closeTogether();
+}
+
+/**
+ * The details form shut. The card, the drawing and the drawing's own words are not this function's
+ * business: they belong to what the operator was doing before the form opened.
+ */
 function closeEdit() {
   editingId = null;
   drafting = false;
   field('edit').hidden = true;
   field('edit-words').hidden = true;
+}
+
+/**
+ * What is ticked, said under the list, and the one way on with it.
+ *
+ * Drawn from `selectedIds` every time it changes rather than kept in step as rows are ticked: the list is
+ * redrawn for a keystroke, a type, a save and a reload, and a bar that was only updated on a click would
+ * be right until the first of those and wrong afterwards.
+ */
+function drawTogetherBar() {
+  const bar = field('together-bar');
+  const count = selectedIds.length;
+
+  bar.hidden = count === 0;
+  // The tick over the list says whether every row the list is *showing* is picked, which is what "pick
+  // them all" means from there: the rows on the screen, not the whole farm behind a filter. Nothing to
+  // compare before the phone has answered, and nothing picked either.
+  const shown = shownAssets.map((item) => item.asset.id);
+  field('tick-all').checked = shown.length > 0 && shown.every((id) => selectedIds.includes(id));
+
+  if (count === 0) return;
+  field('together-count').textContent = count === 1 ? '1 asset picked' : `${count} assets picked`;
+}
+
+/** Nothing is picked any more. */
+function clearTicks() {
+  selectedIds = [];
+  drawTogetherBar();
 }
 
 /**
@@ -1555,6 +1915,11 @@ async function reloadFeatures() {
 /** The work as the phone holds it now: the document, the features, the list and the card. */
 async function reloadWork() {
   state = await getJson('/api/state');
+  // A tick on a row the phone no longer has is a tick on nothing, and a bar counting six assets when
+  // five of them are gone is a sentence that is not true - so what is picked is narrowed to what is
+  // there rather than cleared: an asset taken away on the phone is not a reason to lose the other five.
+  const ids = new Set(state.assets.map((item) => item.asset.id));
+  selectedIds = selectedIds.filter((id) => ids.has(id));
   // The box first, because a save can move a due date and a due date is a count and a colour:
   // the farm at a glance is the answer the operator saved to see.
   fillFarmBox();
@@ -1625,6 +1990,33 @@ document.getElementById('edit-passes').addEventListener('change', showSeparation
 document.getElementById('edit-method').addEventListener('change', onMethodChange);
 document.getElementById('edit-block').addEventListener('input', updateBlockHint);
 
+/* ---- What is ticked, and changing it ------------------------------------------------- */
+
+// Pick every row the list is showing, or none of them: the tick over the list is the desk's own
+// shortcut for the errand "all of these", which is what a filter is used to narrow to.
+document.getElementById('tick-all').addEventListener('change', (event) => {
+  const shown = shownAssets.map((item) => item.asset.id);
+  selectedIds = event.target.checked
+    ? [...new Set([...selectedIds, ...shown])]
+    : selectedIds.filter((id) => !shown.includes(id));
+  drawList();
+});
+
+document.getElementById('together-open').addEventListener('click', openTogether);
+
+document.getElementById('together-clear').addEventListener('click', () => {
+  clearTicks();
+  closeTogether();
+});
+
+for (const one of BULK_FIELDS) {
+  field(one.tick).addEventListener('change', applyBulkTicks);
+}
+
+document.getElementById('together-close').addEventListener('click', closeTogether);
+document.getElementById('together-cancel').addEventListener('click', closeTogether);
+document.getElementById('together-form').addEventListener('submit', saveTogether);
+
 /**
  * The way into drawing a track: an empty line, with nothing on the map to take hold of yet.
  *
@@ -1634,7 +2026,7 @@ document.getElementById('edit-block').addEventListener('input', updateBlockHint)
  */
 document.getElementById('draw').addEventListener('click', () => {
   if (!editor || editor.isActive()) return;
-  closeCard();
+  closeForms();
   draftPaths = null;
   draftKind = null;
   // The phone's own default, not one remembered from last time: a desk that kept the last pick would be
@@ -1728,9 +2120,14 @@ document.getElementById('drawing-drop').addEventListener('click', () => {
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  // Escape backs out of the form first: it is on top, and it is the one with unsaved typing in it. While a
-  // line is being drawn the drawing has the key itself (see `edit.js`), so this only runs when the form is
-  // open - which is what makes two Escapes in a row mean "back to the drawing, then give it up".
+  // Escape backs out of a form first: they are on top, and they are the ones with unsaved typing in them.
+  // Turning several rows over at once is the newer of the two, so it goes first - and while a line is
+  // being drawn the drawing has the key itself (see `edit.js`), so this only runs when a form is open,
+  // which is what makes two Escapes in a row mean "back to the drawing, then give it up".
+  if (!field('together').hidden) {
+    closeTogether();
+    return;
+  }
   if (!field('edit').hidden) {
     if (drafting) {
       cancelForm();

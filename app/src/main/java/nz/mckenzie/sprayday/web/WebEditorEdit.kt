@@ -7,6 +7,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetPathEdits
 import nz.mckenzie.sprayday.domain.asset.AssetPathResult
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -97,6 +98,50 @@ data class WebEditorEdit(
 /** One vertex, as the wire carries it: the field names the phone's own [GeoPoint] uses. */
 @Serializable
 data class WebEditorPoint(val lat: Double, val lng: Double)
+
+/**
+ * The same edit made to several assets at once, as the desk sends it.
+ *
+ * One form's worth of values and the rows it is about, in one body, because the two together are what
+ * the request *means*: there is no edit without fields and no edit without a row to put them on, and a
+ * body that named rows and no values would be a write asking the phone to guess.
+ *
+ * Every row quotes its own version, so the same one-at-a-time guarantee an ordinary save has holds for
+ * the whole batch: a track changed on the phone while the list was ticked stops the request rather than
+ * being written over with what the desk last saw.
+ */
+@Serializable
+data class WebEditorBulkEdit(
+    /** What the operator ticked, in the order it was ticked - the order they are changed in, too. */
+    val assets: List<WebEditorBulkEntry> = emptyList(),
+    val fields: WebEditorBulkFields? = null
+)
+
+/** One row of a bulk edit: which asset, and the fingerprint of the row the desk read. */
+@Serializable
+data class WebEditorBulkEntry(val id: Long, val version: String)
+
+/**
+ * The fields a bulk edit puts on every row, in the same text an ordinary edit sends.
+ *
+ * One shape with no "absent means unchanged": the desk fills in, for every field it did not tick, the
+ * value that row already has - which it knows, because the row came from the phone in the first place.
+ * That is deliberate, because it makes a bulk edit and a single edit **the same judgement**: the same
+ * [nz.mckenzie.sprayday.ui.AssetEdits] call, the same sentences, one row at a time. A second shape with
+ * holes in it would be a second set of rules about what a missing field means.
+ */
+@Serializable
+data class WebEditorBulkFields(
+    val name: String = "",
+    val kind: String = "",
+    val method: String = "",
+    val blockName: String = "",
+    val intervalDays: String = "",
+    val swathWidthM: String = "",
+    val passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
+    val passSeparationM: String = "",
+    val notes: String = ""
+)
 
 /**
  * Why a write was refused, and the status each reason is answered with.
@@ -204,6 +249,14 @@ sealed interface WebEditorWrite {
      * the same statuses as a refusal about an edit.
      */
     data class GpxRead(val reading: GpxInterchange.Reading) : WebEditorWrite
+
+    /**
+     * Several assets changed together, and the phone's own sentence about it.
+     *
+     * The whole set, or this would be a [Refused]: there is no partial answer to a bulk edit, which is
+     * the point of sending one request rather than six.
+     */
+    data class EditedTogether(val count: Int, val message: String) : WebEditorWrite
 
     data class Refused(val refusal: WebEditorRefusal, val message: String) : WebEditorWrite
 }
@@ -358,6 +411,96 @@ object WebEditorEdits {
                 )
             }
         }
+    }
+
+    /**
+     * The same edit on several assets, judged whole.
+     *
+     * **Every row is judged before any is written**, which is the whole reason this exists rather than
+     * the desk sending six ordinary edits: a loop of six saves refuses on the fourth and leaves three
+     * changed with nothing on the screen saying which. The judgement itself is
+     * [nz.mckenzie.sprayday.domain.asset.BulkAssetEdits]'s - this only reads the body, hands it the
+     * rows and turns the answer into the wire's own outcomes.
+     *
+     * [current] and [paths] are the phone's reads, handed in rather than reached for, so this stays
+     * pure enough to test without a database; [save] is the one write, and it is only reached with rows
+     * that have already been judged.
+     */
+    suspend fun editTogether(
+        body: String?,
+        current: suspend (Long) -> BulkAssetEdits.AssetRow?,
+        paths: suspend (Long) -> List<List<GeoPoint>>,
+        save: suspend (List<BulkAssetEdits.AssetEdit>) -> Unit
+    ): WebEditorWrite {
+        val bulk = parseBulk(body) ?: return WriteRefused(
+            "That edit could not be read, so nothing was changed."
+        )
+        val fields = bulk.fields ?: return WriteRefused(
+            "That edit did not say what to change, so nothing was changed."
+        )
+
+        val outcome = BulkAssetEdits.apply(
+            entries = bulk.assets.map { BulkAssetEdits.Entry(id = it.id, version = it.version) },
+            fields = BulkAssetEdits.Fields(
+                name = fields.name,
+                kind = fields.kind,
+                method = fields.method,
+                blockName = fields.blockName,
+                intervalDays = fields.intervalDays,
+                swathWidthM = fields.swathWidthM,
+                passesRequired = fields.passesRequired,
+                passSeparationM = fields.passSeparationM,
+                notes = fields.notes
+            ),
+            find = current,
+            paths = paths,
+            // What a fingerprint is made of belongs here rather than in the rules about fields: one
+            // asset's own edit and a bulk edit must compare the desk's quote against the same thing.
+            isCurrent = { entry, row, geometry ->
+                entry.version == WebEditorVersion.of(row.asset, row.blockName, geometry)
+            },
+            save = save
+        )
+
+        return when (outcome) {
+            is BulkAssetEdits.Outcome.Edited -> WebEditorWrite.EditedTogether(
+                count = outcome.count,
+                message = BulkAssetEdits.editedMessage(outcome.count)
+            )
+            is BulkAssetEdits.Outcome.Stale -> WriteRefused(
+                "Somebody changed one of those tracks on the phone while they were open here, so " +
+                    "nothing was changed. Reload the page and try again.",
+                WebEditorRefusal.STALE
+            )
+            is BulkAssetEdits.Outcome.Unreadable -> WriteRefused(outcome.message)
+            is BulkAssetEdits.Outcome.Missing -> WriteRefused(
+                "There is no track or place with that number on the phone, so nothing was changed.",
+                WebEditorRefusal.MISSING
+            )
+            is BulkAssetEdits.Outcome.Refused -> WriteRefused(
+                // Named, because "a field is wrong" is no help at all about six rows: the sentence says
+                // which asset stopped it, in the app's own words about the field.
+                "\"${outcome.name}\": ${outcome.message}",
+                WebEditorRefusal.INVALID
+            )
+        }
+    }
+
+    /**
+     * A refusal about a bulk edit, which is a write's refusal rather than an edit's.
+     *
+     * The two refusal types are one sentence and one status each and exist apart because one is the
+     * answer to a body being judged and the other the answer to a request; a bulk edit is the second.
+     */
+    private fun WriteRefused(
+        message: String,
+        refusal: WebEditorRefusal = WebEditorRefusal.INVALID
+    ): WebEditorWrite = WebEditorWrite.Refused(refusal, message)
+
+    /** The bulk body, or null when it is not JSON or is not shaped like one. */
+    private fun parseBulk(body: String?): WebEditorBulkEdit? {
+        if (body.isNullOrBlank()) return null
+        return runCatching { json.decodeFromString(WebEditorBulkEdit.serializer(), body) }.getOrNull()
     }
 
     /**

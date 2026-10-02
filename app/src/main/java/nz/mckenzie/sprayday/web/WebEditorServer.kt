@@ -144,6 +144,13 @@ class WebEditorServer(
             handler = { request -> write(data.gpx(request.body)) }
         ),
         HttpRoute(
+            claims = { it.method == POST && it.path == TOGETHER_PATH },
+            // The same edit on several assets, as one request. Before the route below, which would
+            // otherwise read `together` as an asset id and answer 404: a path of digits and nothing
+            // else is an asset, and this is not one.
+            handler = { request -> write(data.editTogether(request.body)) }
+        ),
+        HttpRoute(
             claims = { it.method == PUT && assetId(it.path) != null },
             // The id is asked for twice, once to decide whether this route answers at all and once
             // to answer with - so a route can never answer for a path it did not claim, and there is
@@ -225,6 +232,8 @@ class WebEditorServer(
         is WebEditorWrite.Removed -> json(WebEditorJson.removed(result.message))
         // A file read, and nothing written: the page is handed the reading and makes it a drawing.
         is WebEditorWrite.GpxRead -> json(WebEditorJson.gpx(result.reading))
+        // Several assets changed at once, with the phone's own sentence about how many.
+        is WebEditorWrite.EditedTogether -> json(WebEditorJson.edited(result.count, result.message))
         is WebEditorWrite.Refused -> HttpResponse.bytes(
             result.refusal.status,
             JSON,
@@ -319,6 +328,17 @@ class WebEditorServer(
          * made afterwards by the same write every drawn track is made by.
          */
         const val GPX_PATH = "/api/gpx"
+
+        /**
+         * Where the same edit is made to several assets: `/api/assets/together`.
+         *
+         * Under the assets it changes rather than at a path of its own, because that is what it is -
+         * the collection's own write, for more than one of them - and because `/api/assets/<id>` parses
+         * strictly enough that a word where a number belongs is already a path nothing serves. The
+         * route is judged before that one, so this is the one path under `/api/assets/` that is not an
+         * asset.
+         */
+        const val TOGETHER_PATH = "/api/assets/together"
 
         /**
          * The longest GPX file the phone will take, in bytes of the file itself.
@@ -464,6 +484,16 @@ interface WebEditorData {
      * nothing else, and there is one way into the database rather than two.
      */
     suspend fun gpx(body: String?): WebEditorWrite
+
+    /**
+     * `POST /api/assets/together`: the same edit on several assets, judged whole.
+     *
+     * One request rather than a loop of ordinary saves, and that is the whole point of it: a loop
+     * refuses on the fourth of six and leaves three changed with nothing saying which. Every row is
+     * read, its version checked and its fields judged before any of them is written, and the write
+     * itself is one transaction.
+     */
+    suspend fun editTogether(body: String?): WebEditorWrite
 
     /**
      * The page and the files it asks for, from `app/src/main/assets/web`.

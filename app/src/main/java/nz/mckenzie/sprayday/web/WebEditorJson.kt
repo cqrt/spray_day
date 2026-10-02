@@ -8,6 +8,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetPhrase
 import nz.mckenzie.sprayday.domain.asset.AssetRemoval
 import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.asset.MethodPhrase
 import nz.mckenzie.sprayday.domain.asset.PassPhrase
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
@@ -143,6 +144,18 @@ object WebEditorJson {
         json.encodeToString(WebEditorRemoved.serializer(), WebEditorRemoved(message))
 
     /**
+     * What a bulk edit answers with: how many rows were changed, and the phone's sentence about it.
+     *
+     * No records travel with it, and that is deliberate rather than lazy. A bulk edit is the one write
+     * whose answer is *cheaper read again*: six rows is more than a list this size wants to carry, and
+     * the page's own copy of the work is out of date in every one of them - a rename changes the row,
+     * a block change moves it, a kind change re-colours it. So the desk reads the work once instead of
+     * taking six records, which is also what keeps a card that was open on one of them honest.
+     */
+    fun edited(count: Int, message: String): String =
+        json.encodeToString(WebEditorEdited.serializer(), WebEditorEdited(count = count, message = message))
+
+    /**
      * What reading a dropped GPX file answers with: the paths the file holds, as the desk draws them.
      *
      * The reading's own facts travel with them rather than being worked out again by the page: how
@@ -204,7 +217,11 @@ data class WebEditorDocument(
      * What a GPX file dropped on the desk has to know: the name it travels under, and the largest
      * file the phone will take. Both the phone's own answers - see [WebEditorGpxRules].
      */
-    val gpx: WebEditorGpxRules = WebEditorGpxRules.ofApp()
+    val gpx: WebEditorGpxRules = WebEditorGpxRules.ofApp(),
+    /**
+     * What changing several assets at once has to know, so the page does not invent either of them.
+     */
+    val together: WebEditorTogetherRules = WebEditorTogetherRules.ofApp()
 )
 
 /**
@@ -294,6 +311,15 @@ data class WebEditorRemoval(val allowed: Boolean, val sentence: String) {
 data class WebEditorRemoved(val message: String)
 
 /**
+ * What a bulk edit answers with: how many rows were changed, and the phone's own sentence about it.
+ *
+ * The count travels beside the sentence rather than inside it so a page can do arithmetic with it
+ * without reading prose - and so the sentence stays the phone's to word.
+ */
+@Serializable
+data class WebEditorEdited(val count: Int, val message: String)
+
+/**
  * What `POST /api/gpx` answers with: the line and side tracks a dropped file holds.
  *
  * [paths] is exactly the shape the write that follows carries them back in, so a drawing read out of
@@ -368,6 +394,30 @@ data class WebEditorGpxRules(
 ) {
     companion object {
         fun ofApp() = WebEditorGpxRules(field = WebEditorServer.GPX_FIELD)
+    }
+}
+
+/**
+ * The facts a bulk edit needs, carried in the state document rather than written into the page.
+ *
+ * [maxAssets] is how many rows one request may carry - the phone refuses more, and the page says so
+ * before sending rather than passing on a refusal about the size of a request. [different] is the word
+ * the page shows for a field the picked assets do not agree on: one word, from the phone, so the desk
+ * and any screen the phone grows later say the same thing about the same state.
+ */
+@Serializable
+data class WebEditorTogetherRules(
+    val maxAssets: Int = BulkAssetEdits.MAX_ASSETS,
+    val different: String = DIFFERENT
+) {
+    companion object {
+        /**
+         * "More than one", because that is what it means and it is said to the operator rather than
+         * about them: a field showing this is a field the picked rows disagree on.
+         */
+        const val DIFFERENT = "More than one"
+
+        fun ofApp() = WebEditorTogetherRules()
     }
 }
 

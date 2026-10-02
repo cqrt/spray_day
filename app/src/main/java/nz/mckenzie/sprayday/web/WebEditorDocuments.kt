@@ -10,6 +10,7 @@ import nz.mckenzie.sprayday.data.db.ProductEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
 import nz.mckenzie.sprayday.domain.asset.AssetShape
+import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueStatus
@@ -272,6 +273,33 @@ class WebEditorDocuments(
                 refused(WebEditorRefusal.INVALID, outcome.message)
             is GpxInterchange.Outcome.Read -> WebEditorWrite.GpxRead(outcome.reading)
         }
+    }
+
+    /**
+     * `POST /api/assets/together`: several assets changed by one form.
+     *
+     * The rules live in [BulkAssetEdits] - every row judged before any is written - and this is the
+     * four reads and the one write they are handed: the row the phone holds now, its geometry (half of
+     * the version the desk quotes), the fingerprint check itself, and `saveAssetEditsAll`, which is one
+     * transaction. Nothing here decides anything about a field; that is `ui/AssetEdits`' business, by
+     * the same call one asset's own edit makes, so a width or an interval means the same thing whether
+     * the operator ticked one row or six.
+     */
+    override suspend fun editTogether(body: String?): WebEditorWrite {
+        // The whole farm's rows and geometry, read once each: a bulk edit names its own rows but the
+        // versions it quotes are made of paths, and reading them one at a time would be one query per
+        // row inside the judgement rather than one for the lot.
+        val work = withDue().associateBy { it.asset.id }
+        val geometries = assets.allAssetGeometry()
+
+        return WebEditorEdits.editTogether(
+            body = body,
+            current = { id ->
+                work[id]?.let { BulkAssetEdits.AssetRow(asset = it.asset, blockName = it.groupName) }
+            },
+            paths = { id -> geometries[id]?.paths.orEmpty() },
+            save = { edits -> assets.saveAssetEditsAll(edits) }
+        )
     }
 
     /**

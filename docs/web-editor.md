@@ -30,18 +30,21 @@ away.
   **Import a GPX file**. The phone reads it by the same rule its own **Import GPX** uses and answers with
   the paths, so what lands on the desk is a drawing — tidyable, extendable, and saved by the write every
   drawn track is saved by. See the phase 3 section for why the reading is the phone's and not the page's.
+- **Several assets are changed at once as of v0.6.69**: a tick in front of every row in the list, one form
+  for every field a single card offers, and one request the phone either writes whole or refuses whole. A
+  field the picked rows disagree on has to be ticked, because one form cannot say "as each of you was".
 - A desk still cannot **archive** an asset, and now never will: that was dropped rather than deferred
   (see the phase 3 section), so what it may do with a track it wants gone is delete it when nothing is
   recorded against it, and be told the numbers when there is.
-- The last shipped work is **v0.6.68** (a GPX file dropped on the desk), before it v0.6.67 (the pole
-  gate's glyph), v0.6.63 (the corner box cut down to what it says), v0.6.62 (the farm's figures on both
-  screens), v0.6.61 (a line carried on from the desk), v0.6.60, v0.6.56, v0.6.55 (the editor served
-  without being asked for), v0.6.54, the tracing in v0.6.26, and the phase 1 and 2 work before that. The
-  state written here was true when the file was written —
+- The last shipped work is **v0.6.69** (several assets changed by one form), before it v0.6.68 (a GPX file
+  dropped on the desk), v0.6.67 (the pole gate's glyph), v0.6.63 (the corner box cut down to what it
+  says), v0.6.62 (the farm's figures on both screens), v0.6.61 (a line carried on from the desk), v0.6.60,
+  v0.6.56, v0.6.55 (the editor served without being asked for), v0.6.54, the tracing in v0.6.26, and the
+  phase 1 and 2 work before that. The state written here was true when the file was written —
   **check it rather than trust it** (`git status`, `HEAD` against `origin/main`,
   `git tag --sort=-v:refname`), because a plan document that claims a clean tree is a plan document that
   can be wrong.
-- The next version to tag is **patch + 1** of the newest tag: v0.6.68 → **v0.6.69**.
+- The next version to tag is **patch + 1** of the newest tag: v0.6.69 → **v0.6.70**.
 - Update the *Progress* section at the bottom as each step is finished, so a third task could pick
   this up as easily as the second.
 
@@ -88,7 +91,7 @@ later: the same editor would sit behind a second storage adapter.
 | **Step 0** | Split the HTTP plumbing out of `LocalTileServer` so a second server can reuse it. Nothing else changes. | **v0.6.20 — shipped** |
 | **1** | The desk view: the phone serves the editor; the map, the imagery, the asset list, due colours. **Read-only.** | **v0.6.21 (the phone) + v0.6.22 (the page)** |
 | **2** | Editing: draw, place, move vertices, rename, metadata, delete/archive — through `AssetRepository`. | **v0.6.23 (metadata) + v0.6.24 (the line, a new track, the delete)** |
-| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, **tracing a line over the imagery**. *Show-archived was dropped* — see below. | tracing **v0.6.26**, side tracks **v0.6.29/v0.6.31**, GPX drop **v0.6.68**, multi-select **left** |
+| **3** | Desk conveniences: GPX drag-and-drop, snapping, multi-select, **tracing a line over the imagery**. *Show-archived was dropped* — see below. | tracing **v0.6.26**, side tracks **v0.6.29/v0.6.31**, GPX drop **v0.6.68**, changing several at once **v0.6.69** — the phase is done |
 
 ### Step 0 — the HTTP split (v0.6.20, shipped)
 
@@ -202,6 +205,9 @@ that never saw the move rather than silently undoing it.
 | `domain/gpx/GpxInterchange.kt` | **The one place a GPX file becomes a track** (v0.6.68): a file whose later segments start on the first is a line with its side tracks, and one whose segments do not meet is every point joined into a single line — with the count of side tracks and whether the segments met, so both callers say the same thing about the same file. Pure, so the join rule is held by a JVM test rather than by a browser. **The reading, not the writing**: it hands back the paths and writes nothing, which is what lets `AssetRepository.importAssetGpx` (the phone's own **Import GPX**) and `POST /api/gpx` (the desk's drop) be one rule with two doors. |
 | `app/src/main/assets/web/gpx.mjs` | The desk's half of a dropped file, which is the half only a browser can know (v0.6.68): whether the thing dropped is a file to send at all (its name ends `.gpx` — the type a computer reports for one is whatever the computer that wrote it decided — and it is no larger than the phone's own stated limit), what name to offer for the track (the file's, without its extension, as the phone's own importer uses a chosen file's), and the words for what came back, including the one case worth saying out loud: a file whose segments did not meet was joined up. Pure, like `wire.mjs`, so node runs it. |
 | `app/src/test/js/gpx.test.mjs` | Those claims, under node: a GPX file taken and a `.kml` refused in words that say what would be taken, the phone's stated limit kept rather than a second one invented, a file too big refused before it is sent, the name off a file's own name (capitals, spaces and a file with no name to speak of), and the note for a plain line, for side tracks and for a file that was joined up. |
+| `domain/asset/BulkAssetEdits.kt` | **The rules for changing several assets with one form** (v0.6.69), pure and unit-tested: the fields (every one as text, since that is what `ui/AssetEdits` reads), the entries with their fingerprints, and the outcome — an edit count, a stale row, a missing row, a request that cannot be taken at all, or a refusal **named by the row that caused it**. The work is two passes on purpose: every row is read and judged before any is written, so a refusal cannot leave three rows changed and three not. What a fingerprint *is* is handed in rather than decided here, because that belongs to the wire. |
+| `app/src/main/assets/web/together.mjs` | The desk's half of a bulk edit, which is the half only the page can know (v0.6.69): what a field means when it is about six assets (`commonValue` — the answer they share, or the word for having none), which rows are picked and in what order, and the request. Pure, like `wire.mjs`, so node runs it. |
+| `app/src/test/js/together.test.mjs` | Those claims, under node: a field the rows agree on and one they do not, nothing to show where nobody has a value, nought as an answer rather than an absence, no block read as no block, ticking and unticking, the list's own order, and the shape of the request. |
 | `app/src/main/assets/web/geometry.mjs` | The drawing, as arithmetic: **the paths** (path 0 the line, the rest its side tracks), which one is being worked on, and the undo/redo stacks, the tolerance a click has to be inside, which vertex is under the cursor, where on the path a click belongs, the vertex to snap onto, the side-track moves (`startSideTrack`/`backToLine`/`dropSideTrack`), the whole track's metres, and GeoJSON in and out. No DOM, no map, no phone — which is why `node --test app/src/test/js/geometry.test.mjs` can hold the history behind Ctrl+Z, the junction's exactness and the `[lng, lat]` trap, and why CI runs it. **Landed in v0.6.24**; v0.6.26 added **tracing** — `TRACE_PX`, `metresPerPixel`, `trace` (the sampling rule), `simplify` (Ramer-Douglas-Peucker, tolerance on the ground) and `traced` (a whole stroke as one step of the history); v0.6.31 made the state **multi-path** (`createPaths`, `active`, `activePath`) and added the side-track moves and `pathsFeature`. **v0.6.54**: `verticesOf` follows whatever the geometry nests, so a carpark's **ring** is read for snapping and for the camera fit — a Polygon used to fit the desk's camera to `[NaN, NaN]`, which MapLibre refuses outright. |
 | `app/src/test/js/geometry.test.mjs` | Those claims, under node: **26 tests**, no framework and no dependencies — `node:test` and `node:assert`. **Landed in v0.6.24; nine of them are tracing's, in v0.6.26.** |
 | `app/src/main/assets/web/stats.mjs` | The farm's figures, as arithmetic: what the whole farm comes to — how many assets, how many of them are overdue, due soon or not due, the total length, and the total area with how many assets it was worked out from. The phone's own corner box works the same numbers out the same way, from one shared mapping, and the page reads them out of the phone's state document rather than working out its own — so the box on a screen and the box on a desk are one answer. Pure, like `geometry.mjs`, so node can run it and CI does. **v0.6.62; in v0.6.63 the third figure it worked out — the driving still to do — went**, because the counts beside it already say how much of the farm is left and the line cost a fifth of the map to say so again. |
@@ -222,13 +228,13 @@ that never saw the move rather than silently undoing it.
 | `data/db/AssetDao.kt`, `data/db/RecordingDao.kt` | `allGeometry()` (every vertex in one query, for the two documents that are built for the whole farm at once), and `countForAsset` / `assetIds()` — what a delete would take with it. **v0.6.24.** |
 | `web/WebEditorDocuments.kt` | `create` and `remove` beside `save`, the path passed into the transaction, `removal` on each record, the phone's own `newAsset` defaults in the state document, and `mjs` in the content-type table — a browser refuses a module whose type it does not read as JavaScript, and the desk's drawing module is the same file node imports, so the extension is what tells both of them. **v0.6.24.** **v0.6.68**: `gpx(body)` — the dropped file read by `GpxInterchange` and answered with its paths, with nothing written. |
 | `domain/gpx/GpxParser.kt` | **The reading moved to `GpxInterchange` in v0.6.68**, so the phone's own import and the desk's drop cannot disagree: `parseSegments` still reads the file's own track segments and `parse` still flattens every point into one line, and *what those segments mean as a track* is now decided in one place rather than in the repository. Nothing about how a file is read changed. |
-| `data/AssetRepository.kt` | **v0.6.68**: `importAssetGpx` reads the file through `GpxInterchange` and returns the reading itself (`GpxInterchange.Reading` — the paths, the side tracks and whether the segments met) rather than a result type of its own, so the sentence the phone's list screen shows counts the points the import was already handed instead of asking the database again. The repository's own `GpxImportResult` is gone with it: one shape of answer for the one rule. |
+| `data/AssetRepository.kt` | **v0.6.68**: `importAssetGpx` reads the file through `GpxInterchange` and returns the reading itself (`GpxInterchange.Reading` — the paths, the side tracks and whether the segments met) rather than a result type of its own, so the sentence the phone's list screen shows counts the points the import was already handed instead of asking the database again. The repository's own `GpxImportResult` is gone with it: one shape of answer for the one rule. **v0.6.69**: `saveAssetEditsAll(edits)` — several rows' details changed in **one transaction** — and the write both it and a single edit go through is now the private `writeAssetEdits`, so the "every row or none" promise cannot be half-taken by a caller that only wanted one. Nothing about one asset's own edit changed: it is that same body inside one transaction of its own. |
 | `viewmodel/AssetListViewModel.kt` | **v0.6.68**: the import message counts the reading's own points, and reads `segmentsDidNotMeet` under the name the shared reading uses. The same words, and one place they come from. |
-| `web/WebEditorServer.kt` | **v0.6.68**: `POST /api/gpx` (`GPX_PATH`), `WebEditorWrite.GpxRead` answered with `WebEditorJson.gpx`, and the two facts the page may not guess at stated where they belong — `GPX_FIELD` (the name the file travels under) and `MAX_GPX_BYTES` (the socket's own limit). `WebEditorData` gained `gpx(body)`, which is the fifth thing a route can ask the data for and the only one that writes nothing. |
-| `web/WebEditorJson.kt` | **v0.6.68**: `WebEditorGpx` (the reading on the wire), `WebEditorGpxBody` (the file as one JSON string) and `WebEditorGpxRules`, which the state document carries so the page is told the field name and the largest file rather than writing either of them down. |
-| `web/WebEditorEdit.kt` | **v0.6.68**: `WebEditorEdits.readGpx(body)` — the GPX body decoded beside the edit bodies it is read with, with `ignoreUnknownKeys` for the same reason, and `WebEditorWrite.GpxRead` beside the other outcomes a write can have. |
-| `app/src/main/assets/web/index.html` | **v0.6.68**: the **Import a GPX file** button and the picker it opens, and the sentence the map shows while a file is over it. |
-| `app/src/main/assets/web/style.css` | **v0.6.68**: the two ways in share one shape, and the drop zone has a rim and a hint in the map's corner. |
+| `web/WebEditorServer.kt` | **v0.6.68**: `POST /api/gpx` (`GPX_PATH`), `WebEditorWrite.GpxRead` answered with `WebEditorJson.gpx`, and the two facts the page may not guess at stated where they belong — `GPX_FIELD` (the name the file travels under) and `MAX_GPX_BYTES` (the socket's own limit). `WebEditorData` gained `gpx(body)`, which is the fifth thing a route can ask the data for and the only one that writes nothing. **v0.6.69**: `POST /api/assets/together` (`TOGETHER_PATH`, judged before the route that reads an id out of the path so `together` is never an asset number), `WebEditorWrite.EditedTogether` answered with `WebEditorJson.edited`, and `WebEditorData.editTogether(body)` — the sixth ask and the second that writes. |
+| `web/WebEditorJson.kt` | **v0.6.68**: `WebEditorGpx` (the reading on the wire), `WebEditorGpxBody` (the file as one JSON string) and `WebEditorGpxRules`, which the state document carries so the page is told the field name and the largest file rather than writing either of them down. **v0.6.69**: `WebEditorBulkEdit` / `WebEditorBulkEntry` / `WebEditorBulkFields` (the request, with every field as text and no "absent means unchanged" — the page fills in each row's own value, which is what makes a bulk edit and a single edit one judgement), `WebEditorEdited` (the count and the phone's sentence), and `WebEditorTogetherRules` in the state document, which is where the page is told the most rows one request may carry and the word it shows for a field the rows disagree on. |
+| `web/WebEditorEdit.kt` | **v0.6.68**: `WebEditorEdits.readGpx(body)` — the GPX body decoded beside the edit bodies it is read with, with `ignoreUnknownKeys` for the same reason, and `WebEditorWrite.GpxRead` beside the other outcomes a write can have. **v0.6.69**: `WebEditorEdits.editTogether(body, current, paths, save)` — the body read, the rows handed to `BulkAssetEdits` and its four outcomes turned into the wire's own (a stale row and a missing row keep their own statuses; a refusal keeps the row's name in the sentence), with the fingerprint check passed in because what a fingerprint is made of belongs here rather than in the rules about fields. |
+| `app/src/main/assets/web/index.html` | **v0.6.68**: the **Import a GPX file** button and the picker it opens, and the sentence the map shows while a file is over it. **v0.6.69**: the tick column in the list (a box per row and one over the list), the bar under it that says what is picked, and the form for changing several assets at once — every field a card offers, each with its own tick and the word for a field the rows disagree on. |
+| `app/src/main/assets/web/style.css` | **v0.6.68**: the two ways in share one shape, and the drop zone has a rim and a hint in the map's corner. **v0.6.69**: the list grew a tick column — a row is now `display: contents` with the tick and the button as its two grid items, laid out on the same tracks the header uses (`--content-columns` is the header's own tracks without the tick), which is what keeps a column straight under the word over it — and the bulk form is the details panel with a tick in front of each field. |
 | `README.md` | A `## Drawing from a computer` section, and the vendored licence note. **v0.6.68**: the GPX bullet became **in and out**, and the editor paragraph says how a dropped file is read. |
 | `.github/workflows/ci.yml` | `node --test app/src/test/js/geometry.test.mjs` beside the Gradle gate: the desk's drawing arithmetic, held by the same file the browser runs. **v0.6.24.** |
 
@@ -284,6 +290,17 @@ that never saw the move rather than silently undoing it.
   point in it, a file that will not parse, a body carrying no file — in the app's own words. The largest
   file is the socket's own **256 KB**, which the state document states so the page can say so before
   anything is sent; a **GET** of the path is nobody's and falls through to the page route's 404.
+- `POST /api/assets/together` — the same edit on several assets, judged whole (v0.6.69). The body is
+  `{"assets":[{"id":7,"version":"…"},…],"fields":{…}}`: the rows with the fingerprint each was read at,
+  and every field as text, in the same shape an ordinary edit sends. **Every row is read, every version
+  checked and every field judged before any is written**, and the write is one transaction — so a refusal
+  is a statement about a request that changed nothing rather than about a half-finished job, and the
+  answer is `{"count":3,"message":"Changed all 3 assets together."}` rather than three records: a rename
+  changes a row, a block change moves it and a kind change re-colours it, so the desk reads the work
+  again instead. Answers **400 `invalid`** with the row named (*"Estuary road": Days between sprays must
+  be a whole number*), **409 `stale`** when any row has moved, **404** for a row the phone does not have,
+  and **400** for a request that names no rows, the same row twice, more than 200 rows, or no fields at
+  all. The path is judged before `/api/assets/<id>`, so `together` is never read as an asset number.
 - **The token is required on everything**; anything without it is 403, including `/`. A run served
   with the token switch off asks for nothing at all: no gate, no token in the address, and none in
   the URLs the style hands to MapLibre (v0.6.25 — see *Defaults taken*, 5).
@@ -411,6 +428,42 @@ tidied - and the box in the corner counts it in the phone's own arithmetic (*5 p
 track*) while the form is open. A form given up on leaves the drawing, which is the drawing's own Cancel
 rule rather than a special case for files. What the phone refuses, it refuses in the words both doors
 use.
+
+**Several assets are changed by one form** (v0.6.69). The phase's last item, and the one the plan had
+never spelled out: it was asked about rather than assumed, and the answer was **bulk detail edits** - the
+errand that would otherwise be done six times, because a paddock's worth of fencelines wants one spray
+method, or a morning's drawing wants putting into a block, or an interval was wrong on everything in one
+block.
+
+The rows are ticked in the list, and one form carries every field one asset's own card offers. Two
+decisions make it more than a loop of ordinary saves.
+
+**The phone writes all of them or none.** `POST /api/assets/together` carries the rows, each with the
+fingerprint it was read at, and the fields to put on them; the phone reads every row, checks every
+version and judges every field *before it writes anything*, and writes them in one transaction. A loop
+of six edits refuses on the fourth and leaves three changed with nothing on the screen saying which -
+which is the failure this exists to prevent, and the one the desk's delete rule already refuses to
+accept in its own small way.
+
+**The values are the same judgement as a single edit.** They travel as text to the same `ui/AssetEdits`
+call the phone's own form and the desk's own card use, so a width, an interval, a kind and a name mean
+exactly what they mean there, and the refusal is the app's own sentence **with the row it was about**
+named - "a field is wrong" being no help at all about six rows. There is no second set of rules with
+holes in it: the page fills in, for every field the operator did not tick, the value that row already
+has, so a row comes out identical in everything but what was ticked.
+
+**A field the picked rows disagree on has to be ticked.** The form opens as a report - where the rows
+share a value the field shows it, and where they do not it is left empty with the phone's own word for
+it (*More than one*) beside the label - and nothing is sent for a field they disagree on unless the
+operator ticks it and chooses. Sending one row's value for all of them would be a rename nobody typed,
+and there is no value that means "as each of you was". So the save asks, in the page's own words, without
+asking the phone at all. This is the one place the plan's own words - *"nothing about the drawing is
+decided in JavaScript"* - do not reach, and deliberately: it is not a rule about what a field may hold,
+it is the page admitting that one form cannot speak for six rows.
+
+The answer carries the count and the phone's sentence and **no records**: a bulk edit is the one write
+whose answer is cheaper read again, because a rename changes the row, a block change moves it and a kind
+change re-colours it, so the desk reads the work once instead of taking six records.
 
 ## Defaults taken (overrule any of these and change this file)
 
@@ -945,21 +998,57 @@ style's background colour and the work draws on top of it.
       answered *"Saved. The phone has it."*, the phone's own **Assets** screen then reading
       **401 m · never sprayed** for the row the desk had just made (`rel-gpx-drop-1.png`,
       `rel-gpx-save-1.png`, `rel-gpx-phone.txt`).
-- [ ] **Phase 3, what is left** — working on more than one asset at once.
-      *Show-archived was dropped* (see the phase 3 section above) and **GPX drag-and-drop landed in
-      v0.6.68**, so the phase's own list is now this one item.
+- [x] **Several assets are changed by one form. v0.6.69** — the phase's last item, asked about in one
+      question because the plan had never said what it was for: *"working on more than one asset at once"*.
+      The answer was **bulk detail edits** — every field one asset's own card offers, set on as many rows
+      as are ticked. Proven by a driven browser and by the database. Driven through the page's own
+      controls with the browser's own mouse (`db/pagedump.ps1` grew `clickjs`, `typejs` and `scrollto`
+      steps, with `db/togetherrun.ps1` and its neighbours over them): a real click on a tick box left the
+      page's own tick state at `10000`; the tick over the list took the four rows on the screen rather
+      than the five on the farm; the bar read **2 assets picked**; the form opened as a report of two rows
+      from two blocks with **More than one** beside the name, the block, the kind and the method, and the
+      `120` and `3` they shared showing in their own fields; and a save answered
+      **`{"count":2,"message":"Changed all 2 assets together."}`**. **Three refusals, each of which
+      changed nothing**: a field the rows disagree on left unticked was refused *by the page* before any
+      request was sent (*"…do not agree on the Name, so tick it and choose one - or change them one at a
+      time."*); an interval of `soon` on two rows that agree on everything was refused **by the phone** in
+      its own words with the row named (*"Estuary road": Days between sprays must be a whole number*); and
+      a body quoting a version the phone no longer held answered **409** `stale` — with the *first* row of
+      that body, which was perfectly good, not written either. The database (pulled with its `-wal`,
+      `db/gpxcheck2.py`) is the claim in numbers: two rows renamed together, one of them re-kinded from a
+      track to a road and taken out of its block, both keeping their own 120 days, 3 m, one pass and their
+      own lengths — and `assets=5 points=13 groups=2 sprays=0`, so nothing else on the farm moved.
+      Screenshots `tog-open-2.png`, `tog-shot-5.png`, `tog-save-5.png`, `tog-refuse-2.png`; notes in
+      `build/verify/web-together.txt`, including what is **not** proven. One real fault came out of the
+      driving, and it was the driving's point: the form used to leave a field the rows disagreed on
+      *showing* the phone's word for it and then **send** that word as the value, so a rename of six
+      tracks would have been a rename to the sentence "More than one" — the word is now a hint beside the
+      field and the save asks for the field to be ticked.
+- [ ] **Phase 3 is done, and there is nothing left in it.** Snapping, tracing, side tracks, the GPX drop
+      and changing several assets at once have all shipped.
 
 Tick a box and add a line under it saying **how it was proven** — the point of this section is that a
 summarised task, or a brand-new one, can see exactly where the work stopped.
 
 ## Next action
 
-**Phase 3 — one item left of it.** Snapping is in (with the drawing itself), tracing is in (v0.6.26),
-side tracks reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone's own record
-is `side-tracks.md`), and **GPX drag-and-drop shipped as v0.6.68** — the file's meaning is read on the
-phone, by the same rule its own **Import GPX** uses, and the page draws the paths it is handed. What
-remains of the phase is **working on more than one asset at once**. *Show-archived was dropped, not
-deferred*: see the phase 3 section above for the decision and what it leaves alone.
+**Phase 3 is done.** Snapping is in (with the drawing itself), tracing is in (v0.6.26), side tracks
+reached the wire in v0.6.29 and the desk **draws them as of v0.6.31** (the phone's own record is
+`side-tracks.md`), **GPX drag-and-drop shipped as v0.6.68**, and **changing several assets with one form
+shipped as v0.6.69** — the errand that would otherwise be done six times, with the phone writing all of
+them or none. *Show-archived was dropped, not deferred*: see the phase 3 section above for the decision
+and what it leaves alone. What is left of the whole plan is the loose ends below rather than a phase.
+
+**Loose ends, in the order they are worth doing.** None of them is a phase, and each is small enough to
+be one release:
+
+1. **The published build of a version is only driven when somebody remembers to.** Four of the last ten
+   releases have a notes file that says the shipped APK was driven; the rest say it was not. The gate
+   exists because R8 changes what the artifact *is*, and the thing it keeps catching — a serializer or a
+   route that the minified build does not carry — is exactly what no local test can see.
+2. **The desk's first fit is still racy** for a browser that has never been here (see below).
+3. **The Draw button is enabled a moment too early** — one line, and the oldest note in this file that
+   has not been done.
 
 **The first press after a page load can be wasted.** One run in five, the first traced stroke after the
 desk opened put nothing on the line, and the identical gesture worked either side of that run. It is the

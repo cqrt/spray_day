@@ -48,7 +48,14 @@ them is worked out the one way, on the phone.
   the one colour the app uses for nothing else, which leaves a line free to go on saying when it is due.
   Closing the card takes the edge away. A line is laid two ways: **click** where a corner is, or **hold
   the button down and follow the fence on the imagery** — the two mix, and a traced fence is one Ctrl+Z
-  rather than twenty. A line that was drawn somewhere else — walked with a handheld, exported from QGIS
+  rather than twenty. **Several assets can be changed at once**: tick the rows in the list — or the tick
+  over it, for every row the list is showing — and one form changes the same thing on all of them, whether
+  that is a paddock's worth of fencelines wanting one spray method, a morning's drawing wanting putting
+  into a block, or an interval that was wrong on everything in one block. A field the picked rows do not
+  agree on is left empty and has to be ticked and chosen, because one form cannot say "as each of you
+  was"; and the phone changes **all of them or none**, so a row somebody has since edited on the phone
+  stops the whole thing rather than being written over. A line that was drawn somewhere else — walked with
+  a handheld, exported from QGIS
   or Google Earth — comes in as a **GPX file**: drop it on the map, or use **Import a GPX file**, and the
   phone reads it and puts it on the map as a drawing. It is a file that arrived as a *track*, so it is
   read by the phone's own rule rather than by a second one kept in the browser: a file whose own track

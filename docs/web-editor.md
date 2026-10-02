@@ -1044,9 +1044,13 @@ style's background colour and the work draws on top of it.
       as open and one map canvas present. `edit.js`'s `ready()` now answers no to a map with no style
       rather than throwing, and `start` refuses such a drawing, so the page cannot believe a line is being
       drawn that is not. Notes in `build/verify/web-firstfit.txt`. The **published** 0.6.70 APK was then
-      downloaded, installed over the app removed and driven on its own — the same two fresh browsers, the
-      same pixel-for-pixel result, and the Draw button pressed on it — which closes the plan's first job as
-      well: from this release the file people download is tried as part of the change.
+      fetched from the releases page (17,737,288 bytes, installed over the app removed,
+      `versionName=0.6.70`), given a small area through the page's own "make a new asset" call because a
+      released build cannot be pushed into, and driven on its own: `/api/state`, `/app.js` and `/edit.js`
+      all **200**; **two fresh browsers drawing the same map, pixel for pixel**; and the Draw button
+      pressed **on the shipped page** with two points clicked on the map, the drawing's box reading
+      *Draw a line | 2 points · 563 m*. That closes the plan's first job as well - the file people download
+      was tried as part of this change, and it is written down rather than remembered.
 - [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70. What
       remains is one wording job riding with the next code change — the word "farm" in the code's comments
       and in a handful of names, written out in *Next action* — and anything else is new work rather than

@@ -17,6 +17,7 @@ import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.doc.ArcGisDocTracks
 import nz.mckenzie.sprayday.doc.DocTrackDownloader
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
 import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
@@ -57,6 +58,11 @@ class OfflineViewModel(
     val docTrackCount: StateFlow<Int> = docStore.observeCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
 
+    private val _docBounds = MutableStateFlow<LatLngBounds?>(null)
+
+    /** The ground the downloaded DOC tracks cover, for the tab's map. Null when none is downloaded. */
+    val docBounds: StateFlow<LatLngBounds?> = _docBounds
+
     init {
         refreshSummary()
 
@@ -72,6 +78,18 @@ class OfflineViewModel(
                 val setChanged = areas.size != previous.size
                 previous = areas
                 if (somethingFinished || setChanged) refreshSummary()
+            }
+        }
+
+        // The DOC cache's own box, worked out from the tracks, refreshed when the count changes rather
+        // than on every frame: it reads and parses every cached track to find the extent.
+        viewModelScope.launch {
+            docStore.observeCount().collect { count ->
+                _docBounds.value = if (count == 0) {
+                    null
+                } else {
+                    runCatching { docStore.bounds() }.getOrNull()
+                }
             }
         }
     }

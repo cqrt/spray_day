@@ -9,7 +9,9 @@ import nz.mckenzie.sprayday.domain.doc.DocBounds
 import nz.mckenzie.sprayday.domain.doc.DocPathsJson
 import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.DocTrackCache
+import nz.mckenzie.sprayday.domain.doc.bounds
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
 /**
  * DOC's tracks kept on the phone, beside the offline imagery.
@@ -44,6 +46,13 @@ class OfflineDocTrackStore(
 
     /** A live count, for the offline screen to say what is stored. */
     fun observeCount(): Flow<Int> = dao.observeCount()
+
+    /**
+     * The ground the downloaded tracks cover, for the offline screen's map, or null when there is
+     * nothing downloaded. Worked out from the vertices, because a cache of tracks has no box of its
+     * own the way an imagery area does.
+     */
+    suspend fun bounds(): LatLngBounds? = cached().bounds()
 
     /**
      * Downloads every track in [bounds] and stores them, however the read went.

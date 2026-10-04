@@ -123,6 +123,11 @@ They choose an area the same way: **Choose an area on the map** opens the picker
 corners are tapped, and the download runs. There is no area offered by location any more — the
 operator says where, on the map, which is the one thing a location guess was standing in for.
 
+Each listing shows **where** as well as what: a small map with the cached ground drawn as a white box
+over the imagery, fitted to the area. An imagery area carries its own box; the DOC cache is a set of
+tracks rather than a rectangle, so its box is the extent of the tracks themselves, worked out from
+their vertices.
+
 - **Download DOC tracks** pulls every track the service has inside the box, a page at a time
   (`DocTrackDownloader`; 2,000 a request, capped at 4,000), and stores them keyed by the service's own
   `OBJECTID` — so two overlapping areas end with one copy, not two. It is independent of the imagery:

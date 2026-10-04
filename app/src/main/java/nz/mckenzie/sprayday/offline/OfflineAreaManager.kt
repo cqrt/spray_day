@@ -18,6 +18,8 @@ import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 data class OfflineArea(
     val id: Long,
     val name: String,
+    /** The box the operator chose on the map, so the list can show where the area is. */
+    val bounds: LatLngBounds,
     val plannedTiles: Int,
     val storedTiles: Int,
     val bytes: Long,
@@ -190,6 +192,7 @@ class OfflineAreaManager(
 private fun OfflineAreaEntity.toOfflineArea() = OfflineArea(
     id = id,
     name = name,
+    bounds = LatLngBounds(minLat = minLat, minLng = minLng, maxLat = maxLat, maxLng = maxLng),
     plannedTiles = plannedTiles.toInt(),
     storedTiles = downloadedTiles.toInt(),
     bytes = bytes,

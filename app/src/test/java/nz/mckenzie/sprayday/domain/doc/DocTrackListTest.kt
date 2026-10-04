@@ -110,4 +110,19 @@ class DocTrackListTest {
 
         assertEquals(tracks, tracks.within(5_000.0, from = null))
     }
+
+    @Test
+    fun `bounds is the box every vertex fits in, and nothing when there are no tracks`() {
+        val a = track(1, "A", "Walking Track", GeoPoint(-46.50, 168.10))
+        val b = track(2, "B", "Walking Track", GeoPoint(-46.40, 168.20))
+
+        val bounds = listOf(a, b).bounds()!!
+        // The track helper adds a diagonal 0.01 either way, so the extent is the corners of both.
+        assertEquals(-46.51, bounds.minLat, 1e-9)
+        assertEquals(168.10, bounds.minLng, 1e-9)
+        assertEquals(-46.39, bounds.maxLat, 1e-9)
+        assertEquals(168.21, bounds.maxLng, 1e-9)
+
+        assertEquals(null, emptyList<DocTrack>().bounds())
+    }
 }

@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.offline
 
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,6 +20,7 @@ class OfflineAreaTest {
     ) = OfflineArea(
         id = 1L,
         name = "Block",
+        bounds = LatLngBounds(minLat = -41.6, minLng = 173.9, maxLat = -41.4, maxLng = 174.1),
         plannedTiles = planned,
         storedTiles = stored,
         bytes = 0L,

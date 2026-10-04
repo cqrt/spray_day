@@ -2,6 +2,7 @@ package nz.mckenzie.sprayday.domain.doc
 
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.haversineMeters
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 
 /** How the DOC browser orders what a search found. */
 enum class DocTrackSort {
@@ -59,4 +60,32 @@ fun List<DocTrack>.showing(kinds: Set<String>, sort: DocTrackSort, from: GeoPoin
         sort == DocTrackSort.NAME || from == null -> ofKind.sortedBy { it.name.lowercase() }
         else -> ofKind.sortedBy { it.distanceM(from) ?: Double.MAX_VALUE }
     }
+}
+
+/**
+ * The box containing every vertex of every track, or null when there are no vertices at all.
+ *
+ * A downloaded cache has no box of its own the way an imagery area does - it is a set of tracks, not
+ * a rectangle - so what the offline screen draws over the map is the ground those tracks actually
+ * cover, worked out from the vertices rather than remembered from the download.
+ */
+fun List<DocTrack>.bounds(): LatLngBounds? {
+    var minLat = Double.MAX_VALUE
+    var minLng = Double.MAX_VALUE
+    var maxLat = -Double.MAX_VALUE
+    var maxLng = -Double.MAX_VALUE
+    var any = false
+
+    for (track in this) {
+        for (path in track.reading.paths) {
+            for (point in path) {
+                any = true
+                if (point.lat < minLat) minLat = point.lat
+                if (point.lat > maxLat) maxLat = point.lat
+                if (point.lng < minLng) minLng = point.lng
+                if (point.lng > maxLng) maxLng = point.lng
+            }
+        }
+    }
+    return if (any) LatLngBounds(minLat, minLng, maxLat, maxLng) else null
 }

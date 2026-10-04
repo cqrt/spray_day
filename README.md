@@ -44,7 +44,8 @@ them is worked out the one way, on the phone.
   nothing is written until you import. The computer editor has the same browser, and the phone does
   the searching there too — the laptop never reaches DOC itself; its map can be the search area
   instead, and the radius is set beside Near me. The **Offline areas** screen has an **Imagery** tab
-  and a **DOC tracks** tab — independent caches, each choosing an area on the map — so the browser
+  and a **DOC tracks** tab — independent caches, each choosing an area on the map, and each listing
+  showing the cached ground on a small map — so the browser
   imports DOC's tracks with no reception: a cache, cleared without a warning, needing no LINZ key. The
   service is named in one place (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current —
   deprecated — dataset it is one line to change.

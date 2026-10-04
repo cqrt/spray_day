@@ -1,10 +1,12 @@
 package nz.mckenzie.sprayday.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
+import nz.mckenzie.sprayday.map.AssetGeoJson
+import nz.mckenzie.sprayday.map.AssetLine
+import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
 
@@ -52,6 +60,7 @@ fun OfflineScreen(
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val docTrackCount by viewModel.docTrackCount.collectAsStateWithLifecycle()
+    val docBounds by viewModel.docBounds.collectAsStateWithLifecycle()
 
     var chosenTab by rememberSaveable { mutableStateOf(0) }
     var confirmingClearImagery by rememberSaveable { mutableStateOf(false) }
@@ -97,7 +106,9 @@ fun OfflineScreen(
                     )
                 } else {
                     DocTracksTab(
+                        apiKey = apiKey,
                         count = docTrackCount,
+                        bounds = docBounds,
                         onChooseArea = onChooseDocArea,
                         onClear = { confirmingClearDoc = true }
                     )
@@ -215,21 +226,26 @@ private fun ImageryTab(
     } else {
         stored.forEach { area ->
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(area.name, style = MaterialTheme.typography.bodyMedium)
-                    Text(areaStatus(area), style = MaterialTheme.typography.bodySmall)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!area.isComplete) {
-                            TextButton(onClick = { onResume(area.id) }, enabled = !working) {
-                                Text("Resume")
+                Column {
+                    // Where the area is, over the imagery it cached: a listing says where as well as
+                    // what, and the white box is the ground the tiles cover.
+                    CachedAreaMap(bounds = area.bounds, apiKey = apiKey)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(area.name, style = MaterialTheme.typography.bodyMedium)
+                        Text(areaStatus(area), style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!area.isComplete) {
+                                TextButton(onClick = { onResume(area.id) }, enabled = !working) {
+                                    Text("Resume")
+                                }
                             }
+                            DestructiveTextButton(text = "Delete", onClick = { onDelete(area.id) })
                         }
-                        DestructiveTextButton(text = "Delete", onClick = { onDelete(area.id) })
                     }
                 }
             }
@@ -244,7 +260,9 @@ private fun ImageryTab(
 /** DOC's tracks, for the DOC tracks browser to import with no reception. */
 @Composable
 private fun DocTracksTab(
+    apiKey: String,
     count: Int,
+    bounds: LatLngBounds?,
     onChooseArea: () -> Unit,
     onClear: () -> Unit
 ) {
@@ -270,25 +288,81 @@ private fun DocTracksTab(
         )
     } else {
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "$count DOC ${if (count == 1) "track" else "tracks"} downloaded",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = "Available to the DOC tracks browser with no reception.",
-                    style = MaterialTheme.typography.bodySmall
-                )
+            Column {
+                // The ground the cached tracks cover: a cache of tracks has no box of its own, so
+                // this is the extent of the tracks themselves.
+                bounds?.let { CachedAreaMap(bounds = it, apiKey = apiKey) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "$count DOC ${if (count == 1) "track" else "tracks"} downloaded",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = "Available to the DOC tracks browser with no reception.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
         DestructiveTextButton(text = "Clear downloaded DOC tracks", onClick = onClear)
     }
 }
+
+/**
+ * Where a cache is: the area drawn over the imagery, fitted so the whole box is in the frame.
+ *
+ * Aerial imagery whatever basemap the operator reads their own maps on, for the same reason the
+ * picker uses it: this is a picture of what was downloaded, and imagery is the only basemap whose
+ * licence allows downloading ahead of time.
+ */
+@Composable
+private fun CachedAreaMap(bounds: LatLngBounds, apiKey: String) {
+    Box {
+        BasemapView(
+            basemap = Basemap.LINZ_AERIAL,
+            apiKey = apiKey,
+            assetGeoJson = boundsOutline(bounds),
+            fitBounds = bounds,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+        )
+        AttributionStrip(
+            basemap = Basemap.LINZ_AERIAL,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 4.dp, bottom = 4.dp)
+        )
+    }
+}
+
+private const val CACHED_AREA_OUTLINE_ID = -1L
+
+/** White, because it is the one colour the app uses for nothing else - see the picker's own outline. */
+private const val CACHED_AREA_OUTLINE_COLOUR = "#FFFFFF"
+
+/** A box as a closed line, which is all the map's line layer needs to draw it. */
+private fun boundsOutline(bounds: LatLngBounds): String = AssetGeoJson.build(
+    listOf(
+        AssetLine(
+            assetId = CACHED_AREA_OUTLINE_ID,
+            name = "Cached area",
+            colorHex = CACHED_AREA_OUTLINE_COLOUR,
+            points = listOf(
+                GeoPoint(bounds.minLat, bounds.minLng),
+                GeoPoint(bounds.maxLat, bounds.minLng),
+                GeoPoint(bounds.maxLat, bounds.maxLng),
+                GeoPoint(bounds.minLat, bounds.maxLng),
+                GeoPoint(bounds.minLat, bounds.minLng)
+            )
+        )
+    )
+)
 
 /** One line describing where an imagery area got to, honest about anything missing. */
 private fun areaStatus(area: OfflineArea): String = when {

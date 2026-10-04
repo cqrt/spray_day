@@ -36,9 +36,12 @@ them is worked out the one way, on the phone.
   what the asset is, next to the colour that says when it is due.
 - **DOC tracks, straight from DOC** — the Department of Conservation publishes its track network as
   a web service, so a **DOC tracks** screen searches it at the source: type part of a name, turn on
-  **Near me** to look around the phone, and import the tracks you tick as ordinary assets, each named
-  as DOC names it. Searching happens at DOC, so the phone asks for the few tracks you want rather
-  than the 3,255 there are; nothing is written until you import. The service is named in one place
+  **Near me** within a distance you set, and import the tracks you tick as ordinary assets, each named
+  as DOC names it. A track already on the phone is shown but cannot be imported twice. Searching
+  happens at DOC, so the phone asks for the few tracks you want rather than the 3,255 there are;
+  nothing is written until you import. The computer editor has the same browser, and the phone does
+  the searching there too — the laptop never reaches DOC itself; its map can be the search area
+  instead, and the radius is set beside Near me. The service is named in one place
   (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current — deprecated — dataset it is one
   line to change.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone

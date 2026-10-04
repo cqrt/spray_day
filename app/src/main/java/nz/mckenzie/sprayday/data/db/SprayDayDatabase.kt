@@ -19,7 +19,7 @@ import androidx.room.RoomDatabase
         RecordedBreakEntity::class,
         OfflineAreaEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class SprayDayDatabase : RoomDatabase() {
@@ -53,7 +53,8 @@ abstract class SprayDayDatabase : RoomDatabase() {
                     MIGRATION_3_4,
                     MIGRATION_4_5,
                     MIGRATION_5_6,
-                    MIGRATION_6_7
+                    MIGRATION_6_7,
+                    MIGRATION_7_8
                 )
                     .build().also { instance = it }
             }

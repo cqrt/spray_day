@@ -190,6 +190,98 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 /*
+ * DOC's track network, in the sidebar beside the other two ways in: a name, a place, and a page of
+ * tracks to tick. A block of its own rather than a floating panel, because it is a way of getting
+ * work in rather than a form about work that is already there.
+ */
+#doc {
+  margin: 10px 10px 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+#doc[hidden] { display: none; }
+
+#doc h2 { margin: 0 0 4px; font-size: 15px; }
+
+#doc .hint { margin: 0 0 8px; font-size: 12.5px; color: var(--quiet); }
+
+#doc label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: var(--quiet);
+}
+
+#doc label.doc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#doc label.doc-radius {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+#doc label.doc-radius input {
+  width: 64px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+#doc input[type="text"] {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+#doc-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+#doc-words { margin: 8px 0 0; font-size: 12.5px; color: var(--quiet); }
+
+#doc-words[hidden] { display: none; }
+
+#doc-list { margin-top: 8px; max-height: 260px; overflow: auto; }
+
+#doc-list:empty { display: none; }
+
+#doc-list .doc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+#doc-list .doc-row .name { font-size: 13.5px; }
+
+/* A track the phone already has: shown, not tickable, and plainly not the operator's to choose. */
+#doc-list .doc-row.imported { cursor: default; opacity: 0.6; }
+
+#doc-list .doc-row .meta {
+  margin-left: auto;
+  color: var(--quiet);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/*
  * The farm at a glance: the phone's own corner box, on a desk. Plain, and carrying no colour of its
  * own: the dots take the colours the phone sent with the document, and every figure is the phone's
  * own arithmetic. A rule that sets the display beats the browser's own `hidden`, so the attribute is

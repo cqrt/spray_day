@@ -66,6 +66,24 @@ class DocTracksUrlTest {
     }
 
     @Test
+    fun `a map's own view is the envelope, west and south first`() {
+        assertEquals(
+            "168.1000000,-46.7000000,168.6000000,-46.5000000",
+            DocTracksUrl.envelope(DocBounds(minLat = -46.7, minLng = 168.1, maxLat = -46.5, maxLng = 168.6))
+        )
+    }
+
+    @Test
+    fun `a map-view search carries an envelope and needs no place of its own`() {
+        val url = DocTracksUrl.of(
+            DocTrackQuery(bounds = DocBounds(minLat = -46.7, minLng = 168.1, maxLat = -46.5, maxLng = 168.6))
+        )
+
+        assertTrue(url.contains("geometry=168.1000000%2C-46.7000000%2C168.6000000%2C-46.5000000"))
+        assertTrue(url.contains("geometryType=esriGeometryEnvelope"))
+    }
+
+    @Test
     fun `the same radius reaches further in longitude the further south you are`() {
         // A degree of longitude is shorter at this latitude, so the box is wider east-west.
         val envelope = DocTracksUrl.envelope(GeoPoint(lat = -46.6, lng = 168.35), radiusKm = 25.0)

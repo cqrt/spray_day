@@ -83,7 +83,17 @@ data class AssetEntity(
      * **measurement** - the one area in this app that is not an estimate from a swath width. Zero for
      * every other kind, which is what a line and a place enclose.
      */
-    val areaM2: Double = 0.0
+    val areaM2: Double = 0.0,
+
+    /**
+     * Where this row came from, when it came from somewhere with a key of its own.
+     *
+     * `doc:35239046` is a track imported from DOC's track service. Null for everything the operator
+     * drew or brought in from a file. It exists so the DOC browser can tell a track it has already
+     * made from one it has not, and it is a plain string so a later source can use its own prefix
+     * without another migration.
+     */
+    val sourceRef: String? = null
 ) {
 
     /**

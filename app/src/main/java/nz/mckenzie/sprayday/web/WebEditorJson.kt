@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
@@ -172,6 +173,40 @@ object WebEditorJson {
             otherTracks = otherTracks
         )
     )
+
+    /**
+     * What a DOC Tracks search answers with: the tracks it matched, and the phone's own word for a
+     * search that could not be made at all.
+     *
+     * The geometry travels here rather than being asked for again at import, because a track ticked on
+     * the desk is imported from the very vertices the desk was shown - so a service that changed
+     * between the search and the import cannot put a different line on the farm.
+     */
+    fun docSearch(tracks: List<DocTrack>, importedRefs: Set<String>, message: String?, capped: Boolean): String =
+        json.encodeToString(
+            WebEditorDocSearch.serializer(),
+            WebEditorDocSearch(
+                tracks = tracks.map { track ->
+                    WebEditorDocTrack(
+                        id = track.objectId,
+                        name = track.name,
+                        kind = track.kind,
+                        points = track.pointCount,
+                        lengthM = track.lengthM,
+                        paths = track.reading.paths.map { path ->
+                            path.map { WebEditorPoint(lat = it.lat, lng = it.lng) }
+                        },
+                        imported = track.sourceRef in importedRefs
+                    )
+                },
+                message = message,
+                capped = capped
+            )
+        )
+
+    /** What importing the ticked tracks answers with: how many were made, and the phone's sentence. */
+    fun docImported(count: Int, message: String): String =
+        json.encodeToString(WebEditorDocImported.serializer(), WebEditorDocImported(imported = count, message = message))
 }
 
 /** Everything `GET /api/state` answers with. */
@@ -407,6 +442,61 @@ data class WebEditorGpxRules(
         fun ofApp() = WebEditorGpxRules(field = WebEditorServer.GPX_FIELD)
     }
 }
+
+/**
+ * A DOC track as the desk's own browser lists it: its key, its name, its kind, its own metres and
+ * points, and the geometry an import sends back.
+ *
+ * The geometry is here - unlike an asset's record, which leaves it to the GeoJSON document - because
+ * these tracks are not on the phone yet: the desk has to be able to draw them, and ticking one has to
+ * be able to make it without a second trip to DOC.
+ */
+@Serializable
+data class WebEditorDocTrack(
+    val id: Long = 0,
+    val name: String = "",
+    val kind: String? = null,
+    val points: Int = 0,
+    val lengthM: Double = 0.0,
+    val paths: List<List<WebEditorPoint>> = emptyList(),
+    /** True when a track with this source is already on the phone: the desk shows it and will not
+     * import it again. */
+    val imported: Boolean = false
+)
+
+/**
+ * The answer to `GET /api/doc`: the tracks a search matched, and the phone's own word when there is
+ * one to say - nothing matched, or the service could not be asked. [capped] is true when the service
+ * returned a full page, so the desk can say the search showed the first of more.
+ */
+@Serializable
+data class WebEditorDocSearch(
+    val tracks: List<WebEditorDocTrack> = emptyList(),
+    val message: String? = null,
+    val capped: Boolean = false
+)
+
+/** One track the desk ticked, on its way back to be made into an asset. */
+@Serializable
+data class WebEditorDocTrackBody(
+    /** The service's own key, kept so the asset records where it came from. */
+    val id: Long = 0,
+    val name: String = "",
+    val paths: List<List<WebEditorPoint>> = emptyList()
+)
+
+/** The body `POST /api/doc/import` carries: the ticked tracks, with the geometry they were shown. */
+@Serializable
+data class WebEditorDocImportBody(
+    val tracks: List<WebEditorDocTrackBody> = emptyList()
+)
+
+/** The answer to an import: how many assets were made, and the phone's own sentence about it. */
+@Serializable
+data class WebEditorDocImported(
+    val imported: Int = 0,
+    val message: String = ""
+)
 
 /**
  * The facts a bulk edit needs, carried in the state document rather than written into the page.

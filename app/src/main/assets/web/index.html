@@ -47,7 +47,39 @@
         <button id="import" type="button">Import a GPX, KML, KMZ or GeoJSON file</button>
         <!-- The picker itself: opened by the button above, and never shown. -->
         <input id="import-file" type="file" accept=".gpx,.kml,.kmz,.geojson,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/geo+json,application/json" hidden>
+        <!--
+          DOC's own track network, searched through the phone. A third way in beside drawing and a
+          file: DOC publishes its tracks as a web service, and the phone asks it on the desk's behalf.
+        -->
+        <button id="doc-open" type="button">Import from DOC tracks</button>
       </div>
+
+      <!--
+        The DOC Tracks browser. A name and a place are the whole question, both answered by the phone:
+        it asks DOC's service, and the desk is handed a page of tracks to draw, tick and import. The
+        place is the **phone's** own fix, not the laptop's - the work is the phone's, and a desk has no
+        business pretending to be the tractor. Hidden until the button above opens it.
+      -->
+      <section id="doc" hidden aria-labelledby="doc-title">
+        <h2 id="doc-title">DOC tracks</h2>
+        <p class="hint">Search DOC's track network and import the tracks you work. The phone does the searching.</p>
+
+        <label for="doc-name">Track name contains</label>
+        <input id="doc-name" type="text" autocomplete="off">
+
+        <label class="doc-check"><input id="doc-near" type="checkbox"> Near the phone</label>
+        <label class="doc-radius">Within <input id="doc-radius" type="text" inputmode="numeric" value="25"> km</label>
+        <label class="doc-check"><input id="doc-view" type="checkbox"> Only what's on the map</label>
+
+        <div id="doc-buttons">
+          <button id="doc-search" type="button">Search</button>
+          <button id="doc-import" type="button" disabled>Import selected</button>
+          <button id="doc-close" type="button">Close</button>
+        </div>
+
+        <p id="doc-words" hidden></p>
+        <div id="doc-list" aria-live="polite"></div>
+      </section>
 
       <!--
         The farm at a glance: the phone's own corner box, above the list because it is about the

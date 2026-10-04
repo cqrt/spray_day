@@ -26,24 +26,69 @@ importer already reads.
 
 - **A name** becomes `UPPER(TechObjectName) LIKE UPPER('%…%')`, case-insensitively. A quote in the
   name is doubled, so it searches for a name rather than ending the clause.
-- **Near me** adds an envelope around the phone's newest fix, 25 km each way. A degree of longitude
-  is shorter this far south, so the box is wider than it is tall; it is a bounding box, not a
-  distance test.
+- **Near me** adds an envelope around the phone's newest fix, **25 km by default and set by the
+  operator** (the phone screen's km field, the desk's "Within … km"). A degree of longitude is shorter
+  this far south, so the box is wider than it is tall; it is a bounding box, not a distance test.
 - Either alone is enough, and both together narrow each other.
 
 The service answers a **page** (300 tracks). A page that comes back full says so, rather than letting
 a capped search look like a complete one.
+
+## Already-imported tracks
+
+A track that is already on the phone is shown in the list but **cannot be ticked or imported again**,
+on either surface. The list says *already imported* beside it, the box is off, and the phone refuses
+it at the door that writes as well as in the list — so a second search cannot double the work.
+
+It is known by an **exact source reference**, not a name: importing writes `doc:<OBJECTID>` into
+`AssetEntity.sourceRef`, and a search reads every such reference once and marks each candidate against
+it. So a renamed asset is still recognised, and deleting the asset makes the track importable again.
+The reference travels in a backup too, so a restore does not forget which tracks are already here.
+
+`sourceRef` arrived with schema **v8** (`MIGRATION_7_8`, an `ALTER TABLE assets ADD COLUMN sourceRef
+TEXT`). Existing rows are left with none — nothing in a v7 database came from a service, and inventing
+a source would claim a provenance nobody gave — and the migration is proved against a populated v7
+database like every migration before it.
 
 ## What it reads, and what it writes
 
 `DocTracksJson` reads the answer with `GeoJsonParser` — the same reader a GeoJSON file gets — and
 turns each feature's paths into a track with `TrackInterchange.reading`, so a DOC track is a line
 with side tracks exactly as a file's is. It keeps what the browser needs beyond the name: `OBJECTID`
-(its key) and `SubObjectType` (its kind).
+(its key) and `SubObjectType` (its kind); `DocTrack.sourceRef` is `doc:<OBJECTID>`.
 
 Importing is the same `AssetRepository.createAsset` every drawn or imported track goes through, one
 asset per ticked track, named as DOC names it. So the moment it lands a DOC track is a track like any
 other: it can be edited, sprayed, blocked, exported.
+
+## On the computer
+
+The editor served to a laptop has the same browser. It is the same search and the same import, and
+**the phone does the asking there too**: the page calls the phone (`GET /api/doc`) and the phone
+calls DOC, so the laptop never reaches the service itself and the service is still named in one place.
+
+There are two answers to "where", and they are one answer:
+
+- **Near the phone** is the **phone's** own fix from the state document, not the browser's location —
+  the work and the service are the phone's, and a desk has no business pretending to be the tractor.
+- **Only what's on the map** is the desk's own view, turned into a box (`map.getBounds()`) and sent as
+  `bounds=minLat,minLng,maxLat,maxLng`. It is a different question — *the paddock I am looking at* —
+  and it is the desk's to answer, because the desk is where the map is.
+- Turning one on turns the other off, so a search never carries both and the operator is never unsure
+  which it used. A view wins if both are somehow given.
+- **Within … km** sets the radius Near the phone searches; 25 is the default. It goes with the place,
+  not with the view, which has no radius to send.
+
+A track the phone already has is marked **already imported** on the desk too: the row is drawn, its
+box is off and disabled, and it is left out of the request even if a page sends it.
+
+- `GET /api/doc?name=…&near=lat,lng&radiusKm=…&bounds=minLat,minLng,maxLat,maxLng` answers with the
+  tracks, which of them are already here, and the phone's own word when there is one to say.
+- `POST /api/doc/import` carries the ticked tracks' keys, names and the geometry the phone already
+  showed, and makes them with the same `createAsset` every drawn track goes through — so each records
+  the `doc:…` reference that keeps it from being imported twice. One request for the lot.
+- `app/src/main/assets/web/doc.mjs` is the desk's half — the query and the import body — pure, and
+  tested under node like `wire.mjs`.
 
 ## Files
 
@@ -54,7 +99,12 @@ other: it can be edited, sprayed, blocked, exported.
 | `domain/doc/DocTracksJson.kt` | The service's answer read as tracks, through `GeoJsonParser` and `TrackInterchange`. |
 | `doc/ArcGisDocTracks.kt` | The live service, asked over HTTP. An interface (`DocTracksSource`) so the screen is tested against a fake. |
 | `viewmodel/DocTracksViewModel.kt` | The search, the ticks, the import, and the phone's own newest fix for "Near me". |
-| `ui/screens/DocTracksScreen.kt` | The screen: a name field, Near me, Search, a tickable list, Import. |
+| `ui/screens/DocTracksScreen.kt` | The screen: a name field, Near me with a km field, Search, a tickable list, Import. |
+| `data/db/AssetEntity.kt`, `Migrations.kt` | `sourceRef`, the exact key a service track was imported under, and `MIGRATION_7_8` that adds it (schema v8). |
+| `web/WebEditorDocuments.kt` | The desk's two asks: `docSearch` runs the same `DocTracksSource` the phone screen does and marks what is already here, and `docImport` makes the ticked tracks with `createAsset`. |
+| `web/WebEditorServer.kt` | `GET /api/doc` and `POST /api/doc/import`, beside the other routes and behind the same token gate. |
+| `web/WebEditorJson.kt` | The documents those two answer with, and the two data shapes `doc.mjs` sends and reads. |
+| `app/src/main/assets/web/doc.mjs` | The desk's half: the query a search is and the body an import is. Pure, tested under node. |
 | `test/.../domain/doc/` | The URL and the answer, held by JVM tests. |
 
 ## Notes and limits

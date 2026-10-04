@@ -428,3 +428,20 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("ALTER TABLE `assets` ADD COLUMN `areaM2` REAL NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * Gives an asset a place to say where it came from, for a track imported from a service.
+ *
+ * Left empty rather than filled in: every asset in a v7 database was drawn on the phone or imported
+ * from a file, and neither has a source key - inventing one would claim a provenance nobody gave. A
+ * DOC track imported after this carries its own (`doc:…`), which is what lets the DOC browser mark a
+ * track it already has and refuse to import it twice.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v7
+ * database, and the schema it produces is the one Room exports for v8.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `assets` ADD COLUMN `sourceRef` TEXT")
+    }
+}

@@ -55,6 +55,19 @@ class DocTracksViewModel(
     private val _searched = MutableStateFlow(false)
     val searched: StateFlow<Boolean> = _searched
 
+    /** The kilometres around the phone "Near me" looks, as typed; nonsense falls back to the default. */
+    private val _radiusKm = MutableStateFlow(DEFAULT_RADIUS_KM.toInt().toString())
+    val radiusKm: StateFlow<String> = _radiusKm
+
+    /**
+     * The source references of DOC tracks already on the phone.
+     *
+     * Read at each search and again after an import, so the list can mark a track it already has and
+     * refuse to tick it - the one thing that keeps a second search from doubling the work.
+     */
+    private val _imported = MutableStateFlow<Set<String>>(emptySet())
+    val imported: StateFlow<Set<String>> = _imported
+
     /** The newest fix, so "Near me" searches from where the phone is. Null until there is one. */
     private val fix = MutableStateFlow<GeoPoint?>(null)
 
@@ -72,12 +85,17 @@ class DocTracksViewModel(
         _nearMe.value = value
     }
 
-    /** Tick or untick a track by its service key. */
-    fun toggle(objectId: Long) {
-        _selected.value = if (objectId in _selected.value) {
-            _selected.value - objectId
+    fun onRadiusChange(value: String) {
+        _radiusKm.value = value
+    }
+
+    /** Tick or untick a track, unless it is one already on the phone - that one is not tickable. */
+    fun toggle(track: DocTrack) {
+        if (track.sourceRef in _imported.value) return
+        _selected.value = if (track.objectId in _selected.value) {
+            _selected.value - track.objectId
         } else {
-            _selected.value + objectId
+            _selected.value + track.objectId
         }
     }
 
@@ -92,15 +110,18 @@ class DocTracksViewModel(
             }
             return
         }
+        val radius = _radiusKm.value.trim().toDoubleOrNull()?.takeIf { it > 0.0 } ?: DEFAULT_RADIUS_KM
 
         viewModelScope.launch {
             _busy.value = true
             _message.value = null
-            when (val result = source.search(DocTrackQuery(nameContains = name, near = near, radiusKm = RADIUS_KM))) {
+            when (val result = source.search(DocTrackQuery(nameContains = name, near = near, radiusKm = radius))) {
                 is DocTracksResult.Found -> {
                     _results.value = result.tracks
                     _selected.value = emptySet()
                     _searched.value = true
+                    // Read once per search, so every row can say whether it is already on the phone.
+                    _imported.value = assets.existingSourceRefs()
                     _message.value = when {
                         result.tracks.isEmpty() -> null
                         // The service hands back a page, not the whole answer; say so rather than
@@ -120,19 +141,27 @@ class DocTracksViewModel(
         }
     }
 
-    /** Import every ticked track as its own asset, named as DOC names it. */
+    /** Import every ticked track as its own asset, named as DOC names it, once each. */
     fun importSelected() {
-        val picked = _results.value.filter { it.objectId in _selected.value }
+        val picked = _results.value.filter {
+            it.objectId in _selected.value && it.sourceRef !in _imported.value
+        }
         if (picked.isEmpty()) return
 
         viewModelScope.launch {
             _busy.value = true
             val imported = picked.count { track ->
                 runCatching {
-                    assets.createAsset(name = track.name, geometry = AssetGeometry(track.reading.paths))
+                    assets.createAsset(
+                        name = track.name,
+                        geometry = AssetGeometry(track.reading.paths),
+                        sourceRef = track.sourceRef
+                    )
                 }.isSuccess
             }
             _selected.value = emptySet()
+            // The tracks just imported are on the phone now: re-read so they read as already here.
+            _imported.value = assets.existingSourceRefs()
             _message.value = if (imported == picked.size) {
                 "Imported $imported DOC ${if (imported == 1) "track" else "tracks"}."
             } else {
@@ -143,7 +172,8 @@ class DocTracksViewModel(
     }
 
     companion object {
-        private const val RADIUS_KM = 25.0
+        /** How far around the phone a "Near me" search looks, until the operator says otherwise. */
+        private const val DEFAULT_RADIUS_KM = 25.0
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

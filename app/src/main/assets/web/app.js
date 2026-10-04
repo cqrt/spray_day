@@ -121,6 +121,16 @@ const { base64Of, importedNote, importProblem, trackName } = await import(
 );
 
 /**
+ * DOC's track network, browsed through the phone: the query a search is, and the body an import is.
+ *
+ * The phone does the asking - the page never reaches DOC itself - so this module holds only the two
+ * small shapes the page and the phone have to agree on. Pure, and tested under node like the rest.
+ */
+const { docImportBody, docSearchNote, docSearchPath } = await import(
+  TOKEN ? `./doc.mjs?k=${encodeURIComponent(TOKEN)}` : './doc.mjs'
+);
+
+/**
  * Changing several assets with one form: which rows are picked, and what one form can say about them.
  *
  * The arithmetic behind a bulk edit - what a field means when it is about six assets, and the request
@@ -1221,6 +1231,151 @@ async function importGpxFile(file) {
 }
 
 /**
+ * DOC's track network, browsed through the phone: search, tick, import.
+ *
+ * **The phone does the searching** (`GET /api/doc`): the page sends a name and, when Near is on, the
+ * phone's own fix from the state document - never the browser's own location, because the work and
+ * the service are the phone's - and is handed a page of tracks to draw. Importing sends the ticked
+ * tracks' geometry straight back (`POST /api/doc/import`), so the line that lands on the farm is the
+ * line the operator was shown, and the whole import is one request rather than a loop.
+ */
+let docTracks = [];
+const docSelected = new Set();
+
+function openDoc() {
+  field('doc').hidden = false;
+  field('doc-words').hidden = true;
+  field('doc-words').textContent = '';
+  field('doc-import').textContent = 'Import selected';
+  field('doc-import').disabled = true;
+  field('doc-name').focus();
+}
+
+function closeDoc() {
+  field('doc').hidden = true;
+}
+
+async function searchDoc() {
+  const nearWanted = field('doc-near').checked;
+  const viewWanted = field('doc-view').checked;
+  const near = nearWanted && state ? state.position : null;
+  const bounds = viewWanted ? docMapBounds() : null;
+
+  if (nearWanted && !near) {
+    showNotice('The phone has not said where it is yet. Try again in a moment, or search by name.');
+    return;
+  }
+  if (viewWanted && !bounds) {
+    showNotice('The map is still opening. Try that again in a moment, or search by name.');
+    return;
+  }
+
+  const button = field('doc-search');
+  button.disabled = true;
+  try {
+    const answer = await getJson(
+      docSearchPath(field('doc-name').value, near, bounds, field('doc-radius').value)
+    );
+    docTracks = answer.tracks || [];
+    docSelected.clear();
+    drawDocList();
+    const words = docSearchNote(answer);
+    field('doc-words').textContent = words;
+    field('doc-words').hidden = words === '';
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/** The desk map's own view as a box, or null while the map is still opening. */
+function docMapBounds() {
+  const bounds = map && typeof map.getBounds === 'function' ? map.getBounds() : null;
+  if (!bounds) return null;
+  return {
+    minLat: bounds.getSouth(),
+    minLng: bounds.getWest(),
+    maxLat: bounds.getNorth(),
+    maxLng: bounds.getEast()
+  };
+}
+
+function drawDocList() {
+  const list = field('doc-list');
+  list.replaceChildren();
+  for (const track of docTracks) {
+    const row = document.createElement('label');
+    // A track the phone already has is shown but not tickable: the box is off, the row says why, and
+    // the click does nothing - so a second search cannot double the work.
+    row.className = track.imported ? 'doc-row imported' : 'doc-row';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = docSelected.has(track.id);
+    box.disabled = track.imported;
+    box.addEventListener('change', () => {
+      if (box.checked) docSelected.add(track.id);
+      else docSelected.delete(track.id);
+      updateDocImport();
+    });
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = track.name;
+
+    // The phone's own numbers, in the drawing's own words: how long the track is and how many
+    // vertices, so two tracks with the same name can be told apart before one is imported.
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = [
+      track.kind,
+      `${track.points} points`,
+      metresText(track.lengthM),
+      track.imported ? 'already imported' : null
+    ]
+      .filter(Boolean)
+      .join(' \u00b7 ');
+
+    row.append(box, name, meta);
+    list.append(row);
+  }
+  updateDocImport();
+}
+
+function updateDocImport() {
+  const count = docSelected.size;
+  field('doc-import').textContent = count === 0 ? 'Import selected' : `Import ${count} selected`;
+  field('doc-import').disabled = count === 0;
+}
+
+async function importDocTracks() {
+  const picked = docTracks.filter((track) => docSelected.has(track.id) && !track.imported);
+  if (picked.length === 0) return;
+
+  const button = field('doc-import');
+  button.disabled = true;
+  try {
+    const { status, answer } = await sendJson('/api/doc/import', 'POST', docImportBody(picked));
+    if (status !== 200) {
+      showNotice(answer.message || 'The phone would not import those tracks.');
+      return;
+    }
+    closeDoc();
+    docTracks = [];
+    docSelected.clear();
+    // The work the phone holds has changed, and every way the page reads it - the list, the box,
+    // the map - is rebuilt from the document rather than guessed at.
+    await reloadWork();
+    showNotice(answer.message || 'Imported.');
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    updateDocImport();
+  }
+}
+
+/**
  * Saves a line the operator has finished drawing.
  *
  * The body is the row the card is showing with the new line in it, which is what the phone wants: one
@@ -2102,6 +2257,29 @@ document.getElementById('import-file').addEventListener('change', (event) => {
   // its own answer, and an input still holding the last file fires no change the second time.
   event.target.value = '';
   if (file) importGpxFile(file);
+});
+
+/*
+ * DOC's tracks: the panel's own controls, and the two acts it has - a search and an import.
+ */
+document.getElementById('doc-open').addEventListener('click', openDoc);
+document.getElementById('doc-close').addEventListener('click', closeDoc);
+document.getElementById('doc-search').addEventListener('click', searchDoc);
+document.getElementById('doc-import').addEventListener('click', importDocTracks);
+document.getElementById('doc-name').addEventListener('keydown', (event) => {
+  // Enter searches, as it saves everywhere else on this page: the field is the whole question.
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    searchDoc();
+  }
+});
+// The two "where" answers are one answer: turning one on turns the other off, so a search never
+// carries a phone's place and a map view at once and the operator is never unsure which it used.
+document.getElementById('doc-near').addEventListener('change', (event) => {
+  if (event.target.checked) field('doc-view').checked = false;
+});
+document.getElementById('doc-view').addEventListener('change', (event) => {
+  if (event.target.checked) field('doc-near').checked = false;
 });
 
 /**

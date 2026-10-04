@@ -12,6 +12,7 @@ import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
+import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
@@ -492,5 +493,70 @@ class WebEditorJsonTest {
         // The desk draws the first; the page has to know the file held three more so it can say so
         // rather than let them vanish without a word.
         assertTrue("the page is told: $text", text.contains("\"otherTracks\":3"))
+    }
+
+    @Test
+    fun `a DOC search carries each track with its geometry, kind and the phone's own figures`() {
+        val text = WebEditorJson.docSearch(
+            tracks = listOf(
+                DocTrack(
+                    objectId = 42,
+                    name = "Glory Tk",
+                    kind = "Walking Track",
+                    reading = TrackInterchange.Reading(
+                        paths = listOf(listOf(GeoPoint(-46.6, 168.3), GeoPoint(-46.61, 168.31))),
+                        sideTracks = 0,
+                        segmentsDidNotMeet = false
+                    )
+                )
+            ),
+            importedRefs = setOf("doc:99"),
+            message = null,
+            capped = false
+        )
+        val read = json.decodeFromString(WebEditorDocSearch.serializer(), text)
+
+        // The geometry travels to the desk because these tracks are not on the phone yet - the desk
+        // draws them, and ticking one has to be able to make it without asking DOC again.
+        assertEquals(1, read.tracks.size)
+        assertEquals(42L, read.tracks[0].id)
+        assertEquals("Glory Tk", read.tracks[0].name)
+        assertEquals("Walking Track", read.tracks[0].kind)
+        assertEquals(2, read.tracks[0].points)
+        assertEquals(1, read.tracks[0].paths.size)
+        assertEquals(2, read.tracks[0].paths[0].size)
+        assertEquals(WebEditorPoint(lat = -46.6, lng = 168.3), read.tracks[0].paths[0].first())
+        assertEquals("a track the phone does not have is not marked imported", false, read.tracks[0].imported)
+    }
+
+    @Test
+    fun `a DOC track the phone already has is marked imported, so the desk will not import it twice`() {
+        val track = DocTrack(
+            objectId = 42,
+            name = "Glory Tk",
+            kind = "Walking Track",
+            reading = TrackInterchange.Reading(
+                paths = listOf(listOf(GeoPoint(-46.6, 168.3), GeoPoint(-46.61, 168.31))),
+                sideTracks = 0,
+                segmentsDidNotMeet = false
+            )
+        )
+
+        val text = WebEditorJson.docSearch(
+            tracks = listOf(track),
+            importedRefs = setOf(track.sourceRef),
+            message = null,
+            capped = false
+        )
+
+        assertTrue("the page is told: $text", text.contains("\"imported\":true"))
+    }
+
+    @Test
+    fun `a DOC import answers with the count and the phone's sentence`() {
+        val text = WebEditorJson.docImported(count = 3, message = "Imported 3 DOC tracks.")
+
+        assertTrue("the page is told: $text", text.contains("\"imported\":3"))
+        assertTrue("and the phone's words: $text", text.contains("Imported 3 DOC tracks."))
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.doc.DocTrack
@@ -51,11 +53,13 @@ fun DocTracksScreen(
 ) {
     val name by viewModel.name.collectAsStateWithLifecycle()
     val nearMe by viewModel.nearMe.collectAsStateWithLifecycle()
+    val radiusKm by viewModel.radiusKm.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val searched by viewModel.searched.collectAsStateWithLifecycle()
+    val imported by viewModel.imported.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
 
     Scaffold(
@@ -96,7 +100,26 @@ fun DocTracksScreen(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = nearMe, onCheckedChange = viewModel::onNearMeChange)
-                Text("Near me (within 25 km)")
+                Text("Near me")
+                if (nearMe) {
+                    OutlinedTextField(
+                        value = radiusKm,
+                        onValueChange = viewModel::onRadiusChange,
+                        label = { Text("km") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Search
+                        ),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            focus.clearFocus()
+                            viewModel.search()
+                        }),
+                        modifier = Modifier
+                            .width(110.dp)
+                            .padding(start = 8.dp)
+                    )
+                }
             }
 
             Button(
@@ -139,7 +162,8 @@ fun DocTracksScreen(
                         DocTrackRow(
                             track = track,
                             checked = track.objectId in selected,
-                            onToggle = { viewModel.toggle(track.objectId) }
+                            imported = track.sourceRef in imported,
+                            onToggle = { viewModel.toggle(track) }
                         )
                     }
                 }
@@ -149,17 +173,22 @@ fun DocTracksScreen(
 }
 
 @Composable
-private fun DocTrackRow(track: DocTrack, checked: Boolean, onToggle: () -> Unit) {
+private fun DocTrackRow(track: DocTrack, checked: Boolean, imported: Boolean, onToggle: () -> Unit) {
     ListItem(
-        modifier = Modifier.clickable(onClick = onToggle),
-        leadingContent = { Checkbox(checked = checked, onCheckedChange = { onToggle() }) },
+        // A track already on the phone is not something to tick: the box and the row are both off, and
+        // the line says why rather than leaving the operator to wonder.
+        modifier = Modifier.clickable(enabled = !imported, onClick = onToggle),
+        leadingContent = {
+            Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = !imported)
+        },
         headlineContent = { Text(track.name, style = MaterialTheme.typography.titleSmall) },
         supportingContent = {
             Text(
                 listOfNotNull(
                     track.kind,
                     "${track.pointCount} points",
-                    formatDistance(track.lengthM)
+                    formatDistance(track.lengthM),
+                    if (imported) "already imported" else null
                 ).joinToString(" \u00b7 ")
             )
         }

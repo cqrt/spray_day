@@ -28,7 +28,8 @@ const pageCode = readFileSync(new URL('../../main/assets/web/app.js', import.met
  * good intentions.
  */
 const STARTS_DISABLED = {
-  draw: "field('draw').disabled = false"
+  draw: "field('draw').disabled = false",
+  'doc-import': "field('doc-import').disabled = count === 0"
 };
 
 test('every control that starts disabled is one the page turns on, and says so', () => {

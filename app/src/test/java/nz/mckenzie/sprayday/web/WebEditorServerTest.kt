@@ -100,7 +100,10 @@ class WebEditorServerTest {
     private data class Response(val code: Int, val body: String, val contentType: String?)
 
     private fun get(path: String, withToken: Boolean = true): Response {
-        val url = "http://127.0.0.1:$port$path" + if (withToken) "?k=$token" else ""
+        // A path that already carries a query gets the token joined onto it rather than asked for
+        // twice, as `send` does: `/api/doc` is read with a name and a place in its query.
+        val url = "http://127.0.0.1:$port$path" +
+            if (withToken) (if (path.contains('?')) "&k=$token" else "?k=$token") else ""
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 5_000
             readTimeout = 5_000
@@ -268,6 +271,30 @@ class WebEditorServerTest {
                     count = 3,
                     message = BulkAssetEdits.editedMessage(3)
                 )
+            }
+        }
+
+        /** What a DOC search asked for, and a document for it - or the phone's word for a failure. */
+        var lastDocName: String? = null
+        var lastDocNear: String? = null
+        var lastDocBounds: String? = null
+
+        override suspend fun docSearch(name: String, near: String?, radiusKm: Double?, bounds: String?): String {
+            lastDocName = name
+            lastDocNear = near
+            lastDocBounds = bounds
+            return """{"tracks":[],"message":"no tracks here","capped":false}"""
+        }
+
+        /** The body a DOC import arrived as, and the count it made - or a refusal. */
+        var lastDocImport: String? = null
+
+        override suspend fun docImport(body: String?): WebEditorWrite {
+            lastDocImport = body
+            return if (body.isNullOrBlank()) {
+                WebEditorWrite.Refused(WebEditorRefusal.INVALID, "that request carried no tracks")
+            } else {
+                WebEditorWrite.DocImported(count = 2, message = "Imported 2 DOC tracks.")
             }
         }
 
@@ -771,5 +798,52 @@ class WebEditorServerTest {
             """{"reason":"invalid","message":"that request changed nothing"}""",
             refused.body
         )
+    }
+
+    @Test
+    fun `DOC's tracks are searched at their own path, with the name and place the page asked for`() {
+        start()
+
+        val response = get("${WebEditorServer.DOC_PATH}?name=Glory&near=-46.6,168.35&bounds=-46.7,168.1,-46.5,168.6")
+
+        assertEquals(200, response.code)
+        assertEquals("application/json; charset=utf-8", response.contentType)
+        assertEquals("the name reached the phone", "Glory", data.lastDocName)
+        assertEquals("and the place too", "-46.6,168.35", data.lastDocNear)
+        assertEquals("and the map's own view", "-46.7,168.1,-46.5,168.6", data.lastDocBounds)
+        assertEquals("""{"tracks":[],"message":"no tracks here","capped":false}""", response.body)
+    }
+
+    @Test
+    fun `importing DOC's tracks is one request, answered with the count and the phone's sentence`() {
+        start()
+
+        val body = """{"tracks":[{"name":"Glory Tk","paths":[[{"lat":-46.6,"lng":168.3}]]}]}"""
+        val response = send(WebEditorServer.DOC_IMPORT_PATH, "POST", body)
+
+        assertEquals(200, response.code)
+        assertEquals("the body arrived whole", body, data.lastDocImport)
+        assertEquals(
+            """{"imported":2,"message":"Imported 2 DOC tracks."}""",
+            response.body
+        )
+    }
+
+    @Test
+    fun `DOC's tracks need the token as surely as a write does, and a GET of the import path is not a route`() {
+        start()
+
+        assertEquals(403, get("${WebEditorServer.DOC_PATH}?name=x", withToken = false).code)
+        assertNull("a refused search never reached the data", data.lastDocName)
+
+        assertEquals(
+            403,
+            send(WebEditorServer.DOC_IMPORT_PATH, "POST", """{"tracks":[]}""", withToken = false).code
+        )
+        assertNull("a refused import never reached the data", data.lastDocImport)
+
+        // The import path names a thing done, so a GET of it falls through to the page route, which
+        // serves no such file: a 404 rather than an import with no tracks.
+        assertEquals(404, get(WebEditorServer.DOC_IMPORT_PATH).code)
     }
 }

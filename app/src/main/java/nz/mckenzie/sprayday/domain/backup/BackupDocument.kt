@@ -121,6 +121,15 @@ data class AssetRecord(
      * anything, so an absent key and a zero mean the same thing.
      */
     val areaM2: Double = 0.0,
+    /**
+     * Where the asset came from, when it came from a service: `doc:35239046` for a DOC track.
+     *
+     * Optional and added without a version bump, like the two-pass fields and the side tracks before
+     * it: a file written before this has no such key, and an asset restored from one simply has no
+     * source - which is exactly what an asset drawn or imported from a file has. It travels in the
+     * backup so that restoring does not lose which DOC tracks are already on the farm.
+     */
+    val sourceRef: String? = null,
     val points: List<LinePointRecord> = emptyList(),
     /**
      * The side tracks hanging off [points], in the order they were drawn.

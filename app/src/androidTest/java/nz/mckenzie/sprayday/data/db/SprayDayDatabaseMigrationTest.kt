@@ -479,6 +479,46 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v7 -> v8 migration: a place to say where an asset came from.
+     *
+     * Left empty rather than filled in, because nothing in a v7 database came from a service - what has
+     * to be proved is that a v7 row comes out of it **exactly as it was**, with no source invented for
+     * it, and that a source written afterwards is kept. `runMigrationsAndValidate` also checks the
+     * schema it produces against the one Room exports for v8.
+     */
+    @Test
+    fun migrationFrom7To8AddsTheSourceWithoutInventingOne() {
+        helper.createDatabase(TEST_DB, 7).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                    "swathWidthM, passesRequired, passSeparationM, active, createdAtEpochMs, " +
+                    "lastSprayedAtEpochMs, lengthM, areaM2) " +
+                    "VALUES (5, 'Glory Tk', 'TRACK', 'LINE', 'UNSET', NULL, NULL, 120, NULL, 1, " +
+                    "NULL, 1, 1000, NULL, 222.4, 0.0)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 8, true, MIGRATION_7_8)
+
+        migrated.query("SELECT name, sourceRef FROM assets WHERE id = 5").use { cursor ->
+            assertTrue("the track is still there", cursor.moveToFirst())
+            assertEquals("Glory Tk", cursor.getString(0))
+            assertTrue("and nothing claims where it came from", cursor.isNull(1))
+        }
+
+        // A source written after the migration is kept: the column is writable, which is the other
+        // half of what a migration has to leave behind.
+        migrated.execSQL("UPDATE assets SET sourceRef = 'doc:35239046' WHERE id = 5")
+        migrated.query("SELECT sourceRef FROM assets WHERE id = 5").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("doc:35239046", cursor.getString(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

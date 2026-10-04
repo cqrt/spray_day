@@ -22,4 +22,16 @@ data class DocTrack(
     val lengthM: Double get() = AssetGeometry(reading.paths).lengthM
 
     val pointCount: Int get() = reading.paths.sumOf { it.size }
+
+    /**
+     * The source reference the asset it becomes carries: `doc:<OBJECTID>`.
+     *
+     * This is what lets the browser tell a track it has already imported from one it has not - see
+     * [nz.mckenzie.sprayday.data.db.AssetEntity.sourceRef] - and it is derived rather than stored so
+     * the phone and the desk cannot disagree about what a track's reference is.
+     */
+    val sourceRef: String get() = docSourceRef(objectId)
 }
+
+/** The source reference an asset imported from DOC carries, from the track's own service key. */
+fun docSourceRef(objectId: Long): String = "doc:$objectId"

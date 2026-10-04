@@ -48,6 +48,13 @@ abstract class AssetDao {
     abstract suspend fun getAsset(id: Long): AssetEntity?
 
     /**
+     * Every source reference any asset carries, for telling a service track already imported from one
+     * that has not. Nulls are left out: nothing drawn or imported from a file has a source.
+     */
+    @Query("SELECT sourceRef FROM assets WHERE sourceRef IS NOT NULL")
+    abstract suspend fun sourceRefs(): List<String>
+
+    /**
      * The name of the group an asset belongs to, or null when it stands alone.
      *
      * The edit form asks for this rather than the id, because the operator edits the

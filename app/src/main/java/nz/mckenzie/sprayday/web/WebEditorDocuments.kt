@@ -7,12 +7,18 @@ import nz.mckenzie.sprayday.data.AssetWithDue
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.db.GroupEntity
 import nz.mckenzie.sprayday.data.db.ProductEntity
+import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocTracksResult
+import nz.mckenzie.sprayday.doc.DocTracksSource
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetRemovalRules
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.doc.DocBounds
+import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
+import nz.mckenzie.sprayday.domain.doc.docSourceRef
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -57,6 +63,11 @@ class WebEditorDocuments(
     private val position: suspend () -> GeoPoint?,
     /** One file of the page, from the APK's own assets, or null when it ships no such file. */
     private val readPageFile: (String) -> ByteArray?,
+    /**
+     * Where DOC's tracks are searched from. The live service by default; a test hands in its own, so
+     * the desk's search can be proved without a network.
+     */
+    private val docTracks: DocTracksSource = ArcGisDocTracks(),
     private val now: () -> Long = System::currentTimeMillis
 ) : WebEditorData {
 
@@ -283,6 +294,114 @@ class WebEditorDocuments(
     }
 
     /**
+     * `GET /api/doc`: DOC's track network, searched by the phone on the desk's behalf.
+     *
+     * The desk never reaches DOC itself: the service, the query and the reading of what a track is are
+     * all the phone's, and the page is handed a document it can draw and tick. A search with neither a
+     * name nor a place is refused before DOC is asked, because "all 3,255 tracks" is not a search.
+     */
+    override suspend fun docSearch(name: String, near: String?, radiusKm: Double?, bounds: String?): String {
+        val point = pointOf(near)
+        val box = boundsOf(bounds)
+        if (name.isBlank() && point == null && box == null) {
+            return WebEditorJson.docSearch(
+                tracks = emptyList(),
+                importedRefs = emptySet(),
+                message = "Type part of a track's name, turn on Near the phone, or search the map's view.",
+                capped = false
+            )
+        }
+
+        val limit = DocTrackQuery.DEFAULT_LIMIT
+        val query = DocTrackQuery(
+            nameContains = name.trim(),
+            near = point,
+            radiusKm = radiusKm ?: DEFAULT_DOC_RADIUS_KM,
+            bounds = box,
+            limit = limit
+        )
+        return when (val result = docTracks.search(query)) {
+            is DocTracksResult.Found -> {
+                // Read once, so every row can be told whether the phone already has it.
+                val imported = assets.existingSourceRefs()
+                WebEditorJson.docSearch(
+                    tracks = result.tracks,
+                    importedRefs = imported,
+                    message = if (result.tracks.isEmpty()) "No DOC tracks matched." else null,
+                    capped = result.tracks.size >= limit
+                )
+            }
+            is DocTracksResult.Failed -> WebEditorJson.docSearch(
+                tracks = emptyList(),
+                importedRefs = emptySet(),
+                message = result.message,
+                capped = false
+            )
+        }
+    }
+
+    /**
+     * `POST /api/doc/import`: the tracks ticked on the desk, made into assets.
+     *
+     * The geometry the search returned comes straight back and is created by the same `createAsset`
+     * every drawn track goes through - so a DOC track is an asset like any other the moment it lands,
+     * and there is no second trip to DOC that could put a different line on the farm. The whole request
+     * is capped: a page that asked to import a thousand tracks is a page to refuse, not to obey.
+     */
+    override suspend fun docImport(body: String?): WebEditorWrite {
+        val parsed = WebEditorEdits.readDocImport(body) ?: return refused(
+            WebEditorRefusal.INVALID,
+            "That request did not carry any tracks to import."
+        )
+        val tracks = parsed.tracks.take(MAX_DOC_IMPORT)
+        if (tracks.isEmpty()) return refused(
+            WebEditorRefusal.INVALID,
+            "That request did not carry any tracks to import."
+        )
+
+        var imported = 0
+        // A track the phone already has is not imported again, whatever the page sent: the page
+        // disables it, and this is the same promise kept at the door that writes.
+        val already = assets.existingSourceRefs()
+        for (track in tracks) {
+            val paths = track.paths.map { path -> path.map { GeoPoint(lat = it.lat, lng = it.lng) } }
+            if (paths.isEmpty()) continue
+            val sourceRef = if (track.id != 0L) docSourceRef(track.id) else null
+            if (sourceRef != null && sourceRef in already) continue
+            val name = track.name.trim().ifBlank { "DOC track" }
+            runCatching {
+                assets.createAsset(name = name, geometry = AssetGeometry(paths), sourceRef = sourceRef)
+            }.onSuccess { imported++ }
+        }
+
+        val message = if (imported == tracks.size) {
+            "Imported $imported DOC ${if (imported == 1) "track" else "tracks"}."
+        } else {
+            "Imported $imported of ${tracks.size} DOC tracks."
+        }
+        return WebEditorWrite.DocImported(count = imported, message = message)
+    }
+
+    /** A `lat,lng` query value as a point, or null when it is absent or would not read. */
+    private fun pointOf(near: String?): GeoPoint? {
+        val parts = near?.split(",") ?: return null
+        val lat = parts.getOrNull(0)?.trim()?.toDoubleOrNull() ?: return null
+        val lng = parts.getOrNull(1)?.trim()?.toDoubleOrNull() ?: return null
+        return GeoPoint(lat = lat, lng = lng)
+    }
+
+    /** A `minLat,minLng,maxLat,maxLng` query value as a box, or null when it is absent or would not read. */
+    private fun boundsOf(bounds: String?): DocBounds? {
+        val parts = bounds?.split(",") ?: return null
+        if (parts.size != 4) return null
+        val minLat = parts[0].trim().toDoubleOrNull() ?: return null
+        val minLng = parts[1].trim().toDoubleOrNull() ?: return null
+        val maxLat = parts[2].trim().toDoubleOrNull() ?: return null
+        val maxLng = parts[3].trim().toDoubleOrNull() ?: return null
+        return DocBounds(minLat = minLat, minLng = minLng, maxLat = maxLat, maxLng = maxLng)
+    }
+
+    /**
      * `POST /api/assets/together`: several assets changed by one form.
      *
      * The rules live in [BulkAssetEdits] - every row judged before any is written - and this is the
@@ -388,6 +507,12 @@ class WebEditorDocuments(
         private const val INDEX = "index.html"
 
         private const val TOKEN_PARAM = WebEditorServer.TOKEN_PARAM
+
+        /** How far around the phone "Near the phone" looks, when the page does not say. */
+        private const val DEFAULT_DOC_RADIUS_KM = 25.0
+
+        /** The most tracks one import may carry: more than a page of them is a request to refuse. */
+        private const val MAX_DOC_IMPORT = 100
 
         /**
          * The file types the page uses, by extension.

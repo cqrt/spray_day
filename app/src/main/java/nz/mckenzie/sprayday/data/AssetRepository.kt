@@ -218,7 +218,9 @@ class AssetRepository(
         swathWidthM: Double? = null,
         passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
         passSeparationM: Double? = null,
-        createdAtEpochMs: Long = System.currentTimeMillis()
+        createdAtEpochMs: Long = System.currentTimeMillis(),
+        /** Where it came from, when it came from a service: see [AssetEntity.sourceRef]. */
+        sourceRef: String? = null
     ): Long = createAsset(
         name = name,
         geometry = AssetGeometry.of(geometry),
@@ -231,7 +233,8 @@ class AssetRepository(
         swathWidthM = swathWidthM,
         passesRequired = passesRequired,
         passSeparationM = passSeparationM,
-        createdAtEpochMs = createdAtEpochMs
+        createdAtEpochMs = createdAtEpochMs,
+        sourceRef = sourceRef
     )
 
     /** The same, for a track that is a line with side tracks hanging off it: what the drawing saves. */
@@ -247,7 +250,9 @@ class AssetRepository(
         swathWidthM: Double? = null,
         passesRequired: Int = AssetEntity.DEFAULT_PASSES_REQUIRED,
         passSeparationM: Double? = null,
-        createdAtEpochMs: Long = System.currentTimeMillis()
+        createdAtEpochMs: Long = System.currentTimeMillis(),
+        /** Where it came from, when it came from a service: see [AssetEntity.sourceRef]. */
+        sourceRef: String? = null
     ): Long = insertAsset(
         asset = AssetEntity(
             name = name,
@@ -259,11 +264,20 @@ class AssetRepository(
             swathWidthM = swathWidthM,
             passesRequired = passesRequired,
             passSeparationM = passSeparationM,
-            createdAtEpochMs = createdAtEpochMs
+            createdAtEpochMs = createdAtEpochMs,
+            sourceRef = sourceRef
         ),
         geometry = geometry,
         groupName = groupName
     )
+
+    /**
+     * Every source reference an asset carries, for the DOC browser to mark what it already has.
+     *
+     * A set, read once, because a search returns a page of candidate tracks and each one asks the
+     * same question - is a `doc:…` already here - rather than a query per row.
+     */
+    suspend fun existingSourceRefs(): Set<String> = assetDao.sourceRefs().toSet()
 
     /**
      * Inserts an asset that has already been built, with its geometry, in one transaction.

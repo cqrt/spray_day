@@ -28,7 +28,7 @@ them is worked out the one way, on the phone.
   rather than by shipping a new build. **Check** asks LINZ about the key in force
   and reports LINZ's own answer — accepted, expired, or rate limited.
 - **Assets** — tracks, roads, fencelines, ground with an edge, and the places you stop at, in one list:
-  import GPX, KML or KMZ, draw them by tapping the map, or record them by driving the line. The drawing screen
+  import GPX, KML, KMZ or GeoJSON, draw them by tapping the map, or record them by driving the line. The drawing screen
   asks what you are making as you make it, and that answer decides the shape: a track, a road or a
   fenceline is tapped out as a line, a carpark is tapped out corner by corner and joined up when it is
   saved, and a shed, a sign, a seat, a table or anything else you stop at is placed with a single tap.
@@ -56,8 +56,8 @@ them is worked out the one way, on the phone.
   was"; and the phone changes **all of them or none**, so a row somebody has since edited on the phone
   stops the whole thing rather than being written over. A line that was drawn somewhere else — walked with
   a handheld, exported from QGIS
-  or Google Earth — comes in as a **track file**: a **GPX**, **KML** or zipped **KMZ** file, dropped on the map or
-  chosen from **Import a GPX, KML or KMZ file**, and the
+  or Google Earth — comes in as a **track file**: a **GPX**, **KML**, zipped **KMZ** or **GeoJSON** file, dropped on the map or
+  chosen from **Import a GPX, KML, KMZ or GeoJSON file**, and the
   phone reads it and puts it on the map as a drawing. It is a file that arrived as a *track*, so it is
   read by the phone's own rule rather than by a second one kept in the browser: a file whose own track
   segments meet becomes the line with its **side tracks**, and one whose segments do not meet is joined
@@ -183,10 +183,13 @@ them is worked out the one way, on the phone.
 - **GPX in and out** of any asset, shareable to QGIS/Google Earth/forestry tools. GPX carries tracks
   rather than areas, so a carpark goes out as its **corners** — a closed track, which is what any
   other tool reads it as — and comes back as a line; one edit turns it into a carpark again, because
-  the app does not guess at the shape on the way in. A file — GPX, KML or KMZ, the last a zipped KML —
-  comes in from the phone's own **Import GPX, KML or KMZ**
+  the app does not guess at the shape on the way in. A file — GPX, KML, KMZ (a zipped KML) or GeoJSON —
+  comes in from the phone's own **Import GPX, KML, KMZ or GeoJSON**
   or by being dropped on the map of the computer editor, and both of them read it the same way, by the
-  same rule, so the same file makes the same track whichever door it came through.
+  same rule, so the same file makes the same track whichever door it came through. A GeoJSON file is a
+  collection of tracks rather than one, so each feature becomes its own asset, named from the feature
+  where the file names it; the computer editor, which draws one at a time, brings in the first and says
+  how many more the file held.
 - **Recordings browser**: every GPS recording kept as evidence, showing the line
   that was driven, the plan it was for, and how much of the planned line it
   covered. Deleting a plan never deletes the recording.

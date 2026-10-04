@@ -229,7 +229,7 @@ class WebEditorServerTest {
         }
 
         /**
-         * The body a GPX file arrived as, and a reading for it - or a refusal, so a file the phone
+         * The body a track file arrived as, and a reading for it - or a refusal, so a file the phone
          * will not take has a route to travel as well.
          */
         var lastGpx: String? = null
@@ -237,17 +237,21 @@ class WebEditorServerTest {
         override suspend fun gpx(body: String?): WebEditorWrite {
             lastGpx = body
             return if (body.isNullOrBlank()) {
-                WebEditorWrite.Refused(WebEditorRefusal.INVALID, "that request carried no GPX file")
+                WebEditorWrite.Refused(WebEditorRefusal.INVALID, "that request carried no track file")
             } else {
                 WebEditorWrite.GpxRead(
-                    TrackInterchange.Reading(
-                        paths = listOf(
-                            listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9)),
-                            listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.4, 173.7))
-                        ),
-                        sideTracks = 1,
-                        segmentsDidNotMeet = false
-                    )
+                    track = TrackInterchange.Track(
+                        name = null,
+                        reading = TrackInterchange.Reading(
+                            paths = listOf(
+                                listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9)),
+                                listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.4, 173.7))
+                            ),
+                            sideTracks = 1,
+                            segmentsDidNotMeet = false
+                        )
+                    ),
+                    otherTracks = 0
                 )
             }
         }
@@ -700,26 +704,26 @@ class WebEditorServerTest {
         assertEquals(
             """{"paths":[[{"lat":-41.5,"lng":173.8},{"lat":-41.6,"lng":173.9}],""" +
                 """[{"lat":-41.5,"lng":173.8},{"lat":-41.4,"lng":173.7}]],""" +
-                """"sideTracks":1,"segmentsDidNotMeet":false}""",
+                """"sideTracks":1,"segmentsDidNotMeet":false,"otherTracks":0}""",
             response.body
         )
     }
 
     @Test
-    fun `a GPX file the phone will not read keeps the refusal's own status and words`() {
+    fun `a track file the phone will not read keeps the refusal's own status and words`() {
         start()
 
         val refused = send(WebEditorServer.GPX_PATH, "POST", "")
 
         assertEquals(400, refused.code)
         assertEquals(
-            """{"reason":"invalid","message":"that request carried no GPX file"}""",
+            """{"reason":"invalid","message":"that request carried no track file"}""",
             refused.body
         )
     }
 
     @Test
-    fun `reading a GPX file needs the token as surely as a write does`() {
+    fun `reading a track file needs the token as surely as a write does`() {
         start()
 
         assertEquals(403, send(WebEditorServer.GPX_PATH, "POST", """{"gpx":"x"}""", withToken = false).code)

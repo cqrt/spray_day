@@ -51,7 +51,7 @@ class AssetPathEditsTest {
 
     @Test
     fun `a line of one point is refused in the app's own words`() {
-        // `AssetRepository.importAssetTrack` says this about a one-point file, word for word: a desk must
+        // `AssetRepository.importAssetTracks` says this about a one-point file, word for word: a desk must
         // not be told about a one-point line in words nothing else in the app uses.
         assertEquals("A line needs at least two points", refused(AssetShape.LINE, line.take(1)))
         // And a page that finished a drawing with nothing on it says the same thing, which is right:

@@ -35,7 +35,7 @@ object TrackFile {
 
     /** Said when a `.kmz` cannot be opened at all - not a ZIP, or a broken one. */
     const val ARCHIVE_UNREADABLE =
-        "That .kmz file could not be opened. Pick a GPX, KML or KMZ file and try again."
+        "That .kmz file could not be opened. Pick a GPX, KML, KMZ or GeoJSON file and try again."
 
     /** Said when the KML inside a `.kmz` is larger than the phone will read. */
     const val KML_TOO_LARGE =

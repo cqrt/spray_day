@@ -31,11 +31,20 @@ test('a dropped KMZ file is taken, which is what a zipped KML file is', () => {
   assert.equal(importProblem(file('block.kmz')), null);
 });
 
+test('a dropped GeoJSON file is taken, under either of its two extensions', () => {
+  assert.equal(importProblem(file('DOC_Tracks.geojson')), null);
+  assert.equal(importProblem(file('tracks.json')), null);
+});
+
 test('a file that is not a track file is not sent, and is said so in words', () => {
   const problem = importProblem(file('fence.gif'));
 
-  assert.match(problem, /not a GPX, KML or KMZ file/);
-  assert.match(problem, /ends in \.gpx, \.kml or \.kmz/, 'and the words say what would be taken instead');
+  assert.match(problem, /not a GPX, KML, KMZ or GeoJSON file/);
+  assert.match(
+    problem,
+    /ends in \.gpx, \.kml, \.kmz or \.geojson/,
+    'and the words say what would be taken instead'
+  );
   assert.match(problem, /fence\.gif/, 'naming the file it was handed');
 });
 
@@ -74,6 +83,7 @@ test('the track is offered the file\'s own name, without its extension', () => {
   assert.equal(trackName(file('gully track.gpx')), 'gully track');
   assert.equal(trackName(file('fence line.kml')), 'fence line', 'a KML file loses its own extension too');
   assert.equal(trackName(file('block.kmz')), 'block', 'and so does a zipped one');
+  assert.equal(trackName(file('DOC_Tracks.geojson')), 'DOC_Tracks', 'and so does a GeoJSON file');
   assert.equal(trackName(file('Gully Track.GPX')), 'Gully Track', 'the name keeps its own capitals');
   assert.equal(trackName(file('  spaced  .gpx')), 'spaced', 'and its own spaces are trimmed off it');
 });
@@ -140,4 +150,26 @@ test('a file the phone read as nothing at all is still answered about', () => {
   // in front of the operator with a file already dropped.
   assert.match(importedNote('odd.gpx', { paths: [] }), /one line of 0 points/);
   assert.match(importedNote('odd.gpx', undefined), /one line of 0 points/);
+});
+
+test('a file of several tracks says how many more it held, rather than shrinking to its first', () => {
+  // The desk draws one track at a time. A GeoJSON collection is many, so the note has to say the rest
+  // are there and where to get them - otherwise the operator sees one drawing and thinks that was all.
+  const read = {
+    paths: [[{ lat: -46.6, lng: 168.3 }, { lat: -46.61, lng: 168.31 }]],
+    sideTracks: 0,
+    otherTracks: 3
+  };
+
+  const note = importedNote('DOC_Tracks.geojson', read);
+
+  assert.match(note, /one line of 2 points/);
+  assert.match(note, /holds 3 more tracks/);
+  assert.match(note, /import it on the phone/);
+
+  assert.doesNotMatch(
+    importedNote('one.gpx', { paths: read.paths, sideTracks: 0, otherTracks: 0 }),
+    /more tracks/,
+    'a single-track file says nothing about other tracks'
+  );
 });

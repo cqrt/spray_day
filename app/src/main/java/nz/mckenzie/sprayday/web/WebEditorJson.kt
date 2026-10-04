@@ -156,18 +156,20 @@ object WebEditorJson {
         json.encodeToString(WebEditorEdited.serializer(), WebEditorEdited(count = count, message = message))
 
     /**
-     * What reading a dropped track file answers with: the paths the file holds, as the desk draws them.
+     * What reading a dropped track file answers with: the first track's paths, as the desk draws them.
      *
      * The reading's own facts travel with them rather than being worked out again by the page: how
-     * many of the file's paths became side tracks, and whether they had to be joined up instead.
-     * The page says what happened in words, and the numbers in those words are the phone's.
+     * many of the file's paths became side tracks, whether they had to be joined up instead, and how
+     * many further tracks the file held - the desk draws one, and the page says so rather than letting
+     * the rest vanish. The numbers in those words are the phone's.
      */
-    fun gpx(reading: TrackInterchange.Reading): String = json.encodeToString(
+    fun gpx(track: TrackInterchange.Track, otherTracks: Int): String = json.encodeToString(
         WebEditorGpx.serializer(),
         WebEditorGpx(
-            paths = reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
-            sideTracks = reading.sideTracks,
-            segmentsDidNotMeet = reading.segmentsDidNotMeet
+            paths = track.reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
+            sideTracks = track.reading.sideTracks,
+            segmentsDidNotMeet = track.reading.segmentsDidNotMeet,
+            otherTracks = otherTracks
         )
     )
 }
@@ -214,7 +216,7 @@ data class WebEditorDocument(
      */
     val newAsset: WebEditorNewAsset = WebEditorNewAsset.ofApp(),
     /**
-     * What a GPX or KML file dropped on the desk has to know: the name it travels under, and the
+     * What a dropped track file (GPX, KML, KMZ or GeoJSON) has to know: the name it travels under, and the
      * largest file the phone will take. Both the phone's own answers - see [WebEditorGpxRules].
      */
     val gpx: WebEditorGpxRules = WebEditorGpxRules.ofApp(),
@@ -339,7 +341,15 @@ data class WebEditorGpx(
      * file with one segment and a file whose segments could not be joined is a difference the page
      * cannot see, and it is the one an operator wants told about.
      */
-    val segmentsDidNotMeet: Boolean = false
+    val segmentsDidNotMeet: Boolean = false,
+    /**
+     * How many further tracks the file held beyond the one the desk is drawing.
+     *
+     * The desk holds a single drawing, so a file of named tracks - a GeoJSON FeatureCollection - is
+     * drawn one track at a time; this is what lets the page say the rest are there rather than
+     * leaving the operator to think the whole file was four times smaller than it was.
+     */
+    val otherTracks: Int = 0
 )
 
 /** A box on the ground, in the order a person would say it. */
@@ -367,10 +377,10 @@ data class WebEditorPosition(val lat: Double, val lng: Double)
 /**
  * The body `POST /api/gpx` carries: the file the operator dropped, base64-encoded.
  *
- * Base64 rather than the file's own characters, because a KMZ is a zip and not text - a GPX or KML
- * file would survive as text, but a zipped one would not, and one wire for every file is simpler than
- * two. The bytes are the file exactly as it was on disk, so nothing about a track's name, its
- * coordinates or its compression is changed by the trip.
+ * Base64 rather than the file's own characters, because a KMZ is a zip and not text - a GPX, KML or
+ * GeoJSON file would survive as text, but a zipped one would not, and one wire for every file is
+ * simpler than two. The bytes are the file exactly as it was on disk, so nothing about a track's name,
+ * its coordinates or its compression is changed by the trip.
  */
 @Serializable
 data class WebEditorGpxBody(
@@ -383,8 +393,8 @@ data class WebEditorGpxBody(
  *
  * The field a dropped file travels under, and how large a file the phone will take. Both are the
  * phone's answers: a page that guessed the field name would send a file the phone read as absent,
- * which is indistinguishable from a GPX, KML or KMZ file with no track in it, and a page that guessed
- * the size would pass on a refusal about a request that never arrived. The largest is
+ * which is indistinguishable from a GPX, KML, KMZ or GeoJSON file with no track in it, and a page that
+ * guessed the size would pass on a refusal about a request that never arrived. The largest is
  * [WebEditorServer.MAX_GPX_BYTES] - the file's own size, which is what the page can check before
  * anything is sent.
  */

@@ -461,37 +461,56 @@ class AssetRepository(
     }
 
     /**
-     * Imports a GPX, KML or KMZ file as a new track, and says what the file turned out to hold.
+     * Imports a GPX, KML, KMZ or GeoJSON file as one or more new tracks, and says what it held.
      *
-     * Throws when the file is not a line at all - one point, or no readable track in it - in the
-     * app's own words. What the file *is* - a line and its side tracks, or one line joined up out of
-     * paths that never met - is [TrackInterchange]'s reading, handed back whole so the caller can
-     * say what happened rather than working it out again.
+     * A file that names its own tracks - a GeoJSON FeatureCollection - becomes one asset per track,
+     * named from the feature where it has a name and from the file where it does not. Every other
+     * format is one track, imported under the file's own name as it always was. Throws when the file
+     * is not a line at all - one point, or no readable track in it - in the app's own words.
      */
-    suspend fun importAssetTrack(
-        name: String,
+    suspend fun importAssetTracks(
+        fileName: String,
         file: ByteArray,
         createdAtEpochMs: Long = System.currentTimeMillis()
-    ): TrackInterchange.Reading {
+    ): List<ImportedTrack> {
         // The same reading a file dropped on the desk's map gets: the two are one import, and a rule
         // kept in two places is a rule that drifts.
-        val reading = when (val outcome = TrackInterchange.readBytes(file)) {
-            is TrackInterchange.Outcome.Invalid -> throw IllegalArgumentException(outcome.message)
-            is TrackInterchange.Outcome.Read -> outcome.reading
+        val tracks = when (val outcome = TrackInterchange.readFile(file)) {
+            is TrackInterchange.FileOutcome.Invalid -> throw IllegalArgumentException(outcome.message)
+            is TrackInterchange.FileOutcome.Read -> outcome.tracks
         }
+        if (tracks.isEmpty()) throw IllegalArgumentException(TrackInterchange.TOO_SHORT)
 
-        createAsset(
-            name = name,
-            // A file whose later paths start on the line's own vertices is a track with side
-            // tracks, and the reading has already decided that; anything else arrives as one line.
-            geometry = AssetGeometry(reading.paths),
-            createdAtEpochMs = createdAtEpochMs
-        )
-        return reading
+        // A file's own name, for a track that has none of its own; numbered only when one file holds
+        // several unnamed tracks, so they can still be told apart.
+        val base = fileName.trim().ifBlank { "Imported track" }
+        return tracks.mapIndexed { index, track ->
+            val name = track.name?.trim()?.takeIf { it.isNotBlank() }
+                ?: if (tracks.size == 1) base else "$base ${index + 1}"
+            createAsset(
+                name = name,
+                // A file whose later paths start on the line's own vertices is a track with side
+                // tracks, and the reading has already decided that; anything else arrives as one line.
+                geometry = AssetGeometry(track.reading.paths),
+                createdAtEpochMs = createdAtEpochMs
+            )
+            ImportedTrack(name = name, reading = track.reading)
+        }
     }
 }
 
 private fun AssetPointEntity.toGeoPoint() = GeoPoint(lat = lat, lng = lng)
+
+/**
+ * One track a file was imported as: the name its asset was given, and what the file held for it.
+ *
+ * The name is what the repository decided - a feature's own, or the file's - so the caller can say
+ * "Imported …" in the words the asset now carries rather than working the rule out again.
+ */
+data class ImportedTrack(
+    val name: String,
+    val reading: TrackInterchange.Reading
+)
 
 /**
  * Rows back into geometry, a path at a time.

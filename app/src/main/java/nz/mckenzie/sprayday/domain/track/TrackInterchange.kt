@@ -3,20 +3,24 @@ package nz.mckenzie.sprayday.domain.track
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 
 /**
- * What a track file is read as: a track on the ground, or why the file is not one.
+ * What a track file is read as: the track or tracks on the ground, or why the file is not one.
  *
- * **The one place a track file becomes a track.** The phone's own list screen imports a GPX or KML
- * file from a picker and the desk imports one dragged onto a map, and both have to mean the same
- * thing by it: a file whose later paths start on the first is a line with side tracks hanging off it,
- * and a file whose paths do not meet is the file of a tool that cuts a line up for its own reasons,
- * which this app has always read as one line with a jump in it. Two copies of that rule would be two
- * copies to keep in step, and the one that fell behind would be whichever of the two routes is the
- * rarer - so it is written once, here, and both callers are told the same thing about the same file.
+ * **The one place a track file becomes a track.** The phone's own list screen imports a file from a
+ * picker and the desk imports one dragged onto a map, and both have to mean the same thing by it: a
+ * file whose later paths start on the first is a line with side tracks hanging off it, and a file
+ * whose paths do not meet is the file of a tool that cuts a line up for its own reasons, which this
+ * app has always read as one line with a jump in it. Two copies of that rule would be two copies to
+ * keep in step, and the one that fell behind would be whichever of the two routes is the rarer - so
+ * it is written once, here, and both callers are told the same thing about the same file.
  *
- * The format is not the caller's business: the root element says whether the file is GPX or KML, and
- * [GpxParser] or [KmlParser] hands back the same kind of paths either way. It decides nothing itself:
- * the paths it hands back are the paths to store, and what to say about the file is left to the
- * caller, whose words are the ones the operator is looking at.
+ * The format is not the caller's business: a `{` or `[` says GeoJSON, and an XML root of `<kml>` or
+ * `<gpx>` says which XML reader to use, and every one of them hands back the same kind of paths.
+ * It decides nothing itself: the paths it hands back are the paths to store, and what to say about
+ * the file is left to the caller, whose words are the ones the operator is looking at.
+ *
+ * **A file may hold more than one track.** A GeoJSON FeatureCollection is a set of named tracks, and
+ * each feature becomes its own asset rather than being flattened with the rest - see [readFile]. A
+ * GPX or KML file is one track, so [readFile] hands back one.
  */
 object TrackInterchange {
 
@@ -40,13 +44,29 @@ object TrackInterchange {
         val segmentsDidNotMeet: Boolean
     )
 
+    /**
+     * One track a file holds: what to call it where the format names it, and its reading.
+     *
+     * [name] is null when the format gives no name - a GPX or KML track is imported under the file's
+     * own name, as it always was - and a GeoJSON feature carries its own when its properties have one.
+     */
+    data class Track(val name: String?, val reading: Reading)
+
     /** The paths to store, or why this file is not a track. */
     sealed interface Outcome {
 
         data class Read(val reading: Reading) : Outcome
 
-        /** In the app's own words, from `AssetRepository.importAssetTrack`: one sentence for both callers. */
+        /** In the app's own words, from the repository's import: one sentence for both callers. */
         data class Invalid(val message: String) : Outcome
+    }
+
+    /** Every track the file holds, or why it holds none. */
+    sealed interface FileOutcome {
+
+        data class Read(val tracks: List<Track>) : FileOutcome
+
+        data class Invalid(val message: String) : FileOutcome
     }
 
     /**
@@ -57,8 +77,88 @@ object TrackInterchange {
      * that is read as the paths it wrote; one that does not is read the way this app has always read
      * one - every point in document order, joined up, as a single line.
      */
-    fun read(xml: String): Outcome {
-        val segments = runCatching { segmentsOf(xml) }.getOrElse { return Outcome.Invalid(MALFORMED) }
+    fun read(file: String): Outcome = firstOf(readText(file))
+
+    /**
+     * The first (or only) track a file's **bytes** hold.
+     *
+     * Kept for callers that want one reading and nothing else; the desk and the phone both use
+     * [readFile], which hands back every track a file holds. A file that is not a readable archive is
+     * refused in [TrackFile]'s own words rather than with a stack trace.
+     */
+    fun readBytes(file: ByteArray): Outcome {
+        val text = runCatching { TrackFile.text(file) }
+            .getOrElse { return Outcome.Invalid(it.message ?: MALFORMED) }
+        return firstOf(readText(text))
+    }
+
+    /**
+     * Every track a file's bytes hold, once a zipped `.kmz` has been opened.
+     *
+     * The picker and the desk both start with bytes, because a KMZ is not text; this opens the
+     * archive (see [TrackFile]) and then reads the GeoJSON, KML or GPX inside, so a zipped file means
+     * exactly what the same file unzipped means.
+     */
+    fun readFile(file: ByteArray): FileOutcome {
+        val text = runCatching { TrackFile.text(file) }
+            .getOrElse { return FileOutcome.Invalid(it.message ?: MALFORMED) }
+        return readText(text)
+    }
+
+    /**
+     * The file's text read by whichever format it is.
+     *
+     * GeoJSON announces itself with a `{` or `[`; anything else is XML, read by [KmlParser] or
+     * [GpxParser] according to its root element. A document that is neither is refused in one place,
+     * so what a file that is not a track reads as is decided once.
+     */
+    private fun readText(text: String): FileOutcome {
+        val trimmed = text.trimStart('\uFEFF', ' ', '\t', '\n', '\r')
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) return geoJson(trimmed)
+
+        val document = runCatching { xmlDocument(text) }.getOrElse { return FileOutcome.Invalid(MALFORMED) }
+        val root = document.documentElement
+        val name = root?.localName ?: root?.nodeName?.substringAfterLast(':')
+        val segments = if (name.equals("kml", ignoreCase = true)) {
+            KmlParser.segmentsOf(document)
+        } else {
+            GpxParser.segmentsOf(document)
+        }
+        return when (val outcome = readingOf(segments)) {
+            is Outcome.Read -> FileOutcome.Read(listOf(Track(null, outcome.reading)))
+            is Outcome.Invalid -> FileOutcome.Invalid(outcome.message)
+        }
+    }
+
+    /** A GeoJSON FeatureCollection read as one track per feature, each under its own name. */
+    private fun geoJson(text: String): FileOutcome {
+        val features = runCatching { GeoJsonParser.parse(text) }
+            .getOrElse { return FileOutcome.Invalid(MALFORMED) }
+        // A feature that is not a line at all - a Point, or a stray single vertex - is dropped rather
+        // than refusing the whole file: a set of tracks with one odd member is still a set of tracks.
+        val tracks = features.mapNotNull { feature ->
+            when (val outcome = readingOf(feature.paths)) {
+                is Outcome.Read -> Track(feature.name, outcome.reading)
+                is Outcome.Invalid -> null
+            }
+        }
+        if (tracks.isEmpty()) return FileOutcome.Invalid(TOO_SHORT)
+        return FileOutcome.Read(tracks)
+    }
+
+    private fun firstOf(outcome: FileOutcome): Outcome = when (outcome) {
+        is FileOutcome.Invalid -> Outcome.Invalid(outcome.message)
+        is FileOutcome.Read ->
+            outcome.tracks.firstOrNull()?.let { Outcome.Read(it.reading) } ?: Outcome.Invalid(TOO_SHORT)
+    }
+
+    /**
+     * The join rule itself, over one track's paths.
+     *
+     * Shared by every format: an XML file has one track's paths and a GeoJSON feature has one track's
+     * paths, and the rule does not care which it was.
+     */
+    private fun readingOf(segments: List<List<GeoPoint>>): Outcome {
         val line = segments.firstOrNull().orEmpty()
         val sideTracks = segments.drop(1)
 
@@ -83,38 +183,6 @@ object TrackInterchange {
         )
     }
 
-    /**
-     * What a file's **bytes** hold, once a zipped `.kmz` has been opened.
-     *
-     * The picker and the desk both start with bytes, because a KMZ is not text; this opens the
-     * archive (see [TrackFile]) and then reads the KML or GPX it finds with [read], so a zipped file
-     * means exactly what the same file unzipped means. A file that is not a readable archive is
-     * refused in [TrackFile]'s own words rather than with a stack trace.
-     */
-    fun readBytes(file: ByteArray): Outcome {
-        val text = runCatching { TrackFile.text(file) }
-            .getOrElse { return Outcome.Invalid(it.message ?: MALFORMED) }
-        return read(text)
-    }
-
-    /**
-     * The file's paths, read by the reader for whichever format its root element names.
-     *
-     * The document is parsed once and then handed to the reader, so a file is not read twice to find
-     * out what it is; a root that is neither `<gpx>` nor `<kml>` goes to the GPX reader, whose own
-     * failure is what refuses it - one place decides what a file that is not a track reads as.
-     */
-    private fun segmentsOf(xml: String): List<List<GeoPoint>> {
-        val document = xmlDocument(xml)
-        val root = document.documentElement
-        val name = root?.localName ?: root?.nodeName?.substringAfterLast(':')
-        return if (name.equals("kml", ignoreCase = true)) {
-            KmlParser.segmentsOf(document)
-        } else {
-            GpxParser.segmentsOf(document)
-        }
-    }
-
     /** A line of one point is not a line, in the words the repository has always thrown this in. */
     const val TOO_SHORT = "A line needs at least two points"
 
@@ -124,5 +192,6 @@ object TrackInterchange {
      * Said in words rather than thrown, because both callers are showing it to somebody: the phone's
      * picker puts it in a message and the desk puts it on the page, and neither wants a stack trace.
      */
-    const val MALFORMED = "That file could not be read as a track. Pick a GPX or KML file and try again."
+    const val MALFORMED =
+        "That file could not be read as a track. Pick a GPX, KML, KMZ or GeoJSON file and try again."
 }

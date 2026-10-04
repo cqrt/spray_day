@@ -119,7 +119,7 @@ fun AssetListScreen(
                     onClick = { importLauncher.launch(TRACK_MIME_TYPES) },
                     enabled = !busy
                 ) {
-                    Text("Import GPX, KML or KMZ")
+                    Text("Import GPX, KML, KMZ or GeoJSON")
                 }
             }
 
@@ -154,8 +154,8 @@ fun AssetListScreen(
                 EmptyState(
                     glyph = IconGlyph.ASSETS,
                     title = "No assets yet",
-                    body = "Import a GPX, KML or KMZ file, or draw one on the map. Every asset then " +
-                        "keeps its own spray history.",
+                    body = "Import a GPX, KML, KMZ or GeoJSON file, or draw one on the map. Every " +
+                        "asset then keeps its own spray history.",
                     actionLabel = "Draw one",
                     onAction = onDrawAsset
                 )
@@ -198,6 +198,8 @@ private val TRACK_MIME_TYPES = arrayOf(
     "application/gpx+xml",
     "application/vnd.google-earth.kml+xml",
     "application/vnd.google-earth.kmz",
+    "application/geo+json",
+    "application/json",
     "application/xml",
     "text/xml",
     "text/plain",

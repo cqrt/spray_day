@@ -251,27 +251,34 @@ class WebEditorDocuments(
     }
 
     /**
-     * `POST /api/gpx`: the paths a dropped GPX, KML or KMZ file holds, and nothing written.
+     * `POST /api/gpx`: the first track a dropped GPX, KML, KMZ or GeoJSON file holds, and nothing
+     * written.
      *
      * The file is read by [TrackInterchange], which is the same reading the phone's own list screen
      * imports a file with: so a file the desk refuses and a file the phone refuses are the same files,
      * refused in the same words, and a track made from a dropped file is the track the phone would
-     * have made from a picked one. What it may *do* is deliberately nothing: no row, no id, no block -
-     * the desk draws the paths it is handed, so a file dropped by mistake is a page reload and not a
-     * track somebody has to find and delete.
+     * have made from a picked one. A file of several tracks - a GeoJSON collection - is answered with
+     * its first and the count of the rest, because the desk draws one drawing at a time; the phone
+     * imports them all. What it may *do* is deliberately nothing: no row, no id, no block - the desk
+     * draws the paths it is handed, so a file dropped by mistake is a page reload and not a track
+     * somebody has to find and delete.
      */
     override suspend fun gpx(body: String?): WebEditorWrite {
         // A body the phone cannot read is not an empty file: it is a request made of something else,
         // and saying "there was no track in that" would send the operator looking at the file.
         val file = WebEditorEdits.readTrackFile(body) ?: return refused(
             WebEditorRefusal.INVALID,
-            "That request did not carry a GPX, KML or KMZ file, so nothing was read."
+            "That request did not carry a track file, so nothing was read."
         )
 
-        return when (val outcome = TrackInterchange.readBytes(file)) {
-            is TrackInterchange.Outcome.Invalid ->
+        return when (val outcome = TrackInterchange.readFile(file)) {
+            is TrackInterchange.FileOutcome.Invalid ->
                 refused(WebEditorRefusal.INVALID, outcome.message)
-            is TrackInterchange.Outcome.Read -> WebEditorWrite.GpxRead(outcome.reading)
+            is TrackInterchange.FileOutcome.Read -> {
+                val first = outcome.tracks.firstOrNull()
+                    ?: return refused(WebEditorRefusal.INVALID, TrackInterchange.TOO_SHORT)
+                WebEditorWrite.GpxRead(first, otherTracks = outcome.tracks.size - 1)
+            }
         }
     }
 

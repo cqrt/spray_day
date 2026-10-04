@@ -119,7 +119,7 @@ object AssetPathEdits {
                 else -> AssetPathResult.Ok(listOf(Ring.closed(clean.firstOrNull().orEmpty())))
             }
 
-            // The app's own sentence, word for word, from `AssetRepository.importAssetTrack`: a desk
+            // The app's own sentence, word for word, from `AssetRepository.importAssetTracks`: a desk
             // must not be told about a one-point line in words no other part of the app uses.
             AssetShape.LINE -> when {
                 clean.firstOrNull().orEmpty().size < 2 -> AssetPathResult.Invalid(

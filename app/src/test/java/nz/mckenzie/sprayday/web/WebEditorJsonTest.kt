@@ -433,11 +433,15 @@ class WebEditorJsonTest {
         val sideTrack = listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.7, 173.9))
 
         val text = WebEditorJson.gpx(
-            TrackInterchange.Reading(
-                paths = listOf(line, sideTrack),
-                sideTracks = 1,
-                segmentsDidNotMeet = false
-            )
+            track = TrackInterchange.Track(
+                name = null,
+                reading = TrackInterchange.Reading(
+                    paths = listOf(line, sideTrack),
+                    sideTracks = 1,
+                    segmentsDidNotMeet = false
+                )
+            ),
+            otherTracks = 0
         )
         val read = json.decodeFromString(WebEditorGpx.serializer(), text)
 
@@ -455,15 +459,38 @@ class WebEditorJsonTest {
     @Test
     fun `a file whose segments did not meet says so, rather than being left to be worked out`() {
         val text = WebEditorJson.gpx(
-            TrackInterchange.Reading(
-                paths = listOf(listOf(GeoPoint(-41.5, 173.8), GeoPoint(-42.0, 174.0))),
-                sideTracks = 0,
-                segmentsDidNotMeet = true
-            )
+            track = TrackInterchange.Track(
+                name = null,
+                reading = TrackInterchange.Reading(
+                    paths = listOf(listOf(GeoPoint(-41.5, 173.8), GeoPoint(-42.0, 174.0))),
+                    sideTracks = 0,
+                    segmentsDidNotMeet = true
+                )
+            ),
+            otherTracks = 0
         )
 
         // The page cannot see this from a count of paths: a file with one segment and a file whose
         // segments could not be joined are both one line, and only the second is worth saying out loud.
         assertTrue("the page is told: $text", text.contains("\"segmentsDidNotMeet\":true"))
+    }
+
+    @Test
+    fun `a file of several tracks tells the page how many more there were`() {
+        val text = WebEditorJson.gpx(
+            track = TrackInterchange.Track(
+                name = "Boundary Fence/Ocean Beach Tk",
+                reading = TrackInterchange.Reading(
+                    paths = listOf(listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9))),
+                    sideTracks = 0,
+                    segmentsDidNotMeet = false
+                )
+            ),
+            otherTracks = 3
+        )
+
+        // The desk draws the first; the page has to know the file held three more so it can say so
+        // rather than let them vanish without a word.
+        assertTrue("the page is told: $text", text.contains("\"otherTracks\":3"))
     }
 }

@@ -5,8 +5,8 @@
  * browser (`app/src/test/js/track.test.mjs`, which CI runs), so what the page will and will not take
  * is pinned by a test rather than reviewed by eye.
  *
- * **What the file *is* is not decided here.** A GPX, KML or KMZ file becomes a line and its side
- * tracks on the phone, by the same reading the phone's own list screen imports a file with - the page
+ * **What the file *is* is not decided here.** A GPX, KML, KMZ or GeoJSON file becomes a line and its
+ * side tracks on the phone, by the same reading the phone's own list screen imports a file with - the page
  * could only decide that for itself by keeping a second copy of the rule, and the copy that fell
  * behind would be whichever side of the wire is the rarer. What is here is what only a browser can
  * know: whether the thing dropped is a file this desk should send at all, what name to offer for it,
@@ -24,7 +24,7 @@
 export const TRACK_LIMIT = 256 * 1024;
 
 /** What a track file is allowed to be called, on every computer. */
-const TRACK_EXTENSIONS = ['.gpx', '.kml', '.kmz'];
+const TRACK_EXTENSIONS = ['.gpx', '.kml', '.kmz', '.geojson', '.json'];
 
 /** What a file with no name of its own is read as, off the file's own name. */
 const FALLBACK_NAME = 'Imported track';
@@ -42,11 +42,11 @@ function limitOf(maxBytes) {
  * call it something else. The name is the one thing every track file has.
  */
 export function importProblem(file, maxBytes = TRACK_LIMIT) {
-  if (!file) return 'There was no file in that. Drop a GPX, KML or KMZ file on the map and try again.';
+  if (!file) return 'There was no file in that. Drop a GPX, KML, KMZ or GeoJSON file on the map and try again.';
   const name = String(file.name || '').toLowerCase();
   if (!TRACK_EXTENSIONS.some((extension) => name.endsWith(extension))) {
-    return `"${file.name}" is not a GPX, KML or KMZ file. Drop a file whose name ends in ` +
-      '.gpx, .kml or .kmz.';
+    return `"${file.name}" is not a GPX, KML, KMZ or GeoJSON file. Drop a file whose name ends in ` +
+      '.gpx, .kml, .kmz or .geojson.';
   }
   const limit = limitOf(maxBytes);
   if (typeof file.size === 'number' && file.size > limit) {
@@ -106,6 +106,7 @@ export function importedNote(fileName, read) {
   const points = paths.reduce((total, path) => total + path.length, 0);
   const sideTracks = (read && read.sideTracks) || 0;
   const joined = read && read.segmentsDidNotMeet;
+  const others = read && Number.isInteger(read.otherTracks) ? read.otherTracks : 0;
 
   const said = joined
     ? `read as one line of ${points} points, because the file's own segments do not meet`
@@ -115,7 +116,14 @@ export function importedNote(fileName, read) {
         ? `one line of ${points} points with 1 side track`
         : `one line of ${points} points with ${sideTracks} side tracks`;
 
-  return `${fileName}: ${said}. Give it a name, then save it to the phone.`;
+  // The desk draws one track; a file of several is not silently shrunk to its first, so the operator
+  // is told the rest are there and where to get them.
+  const rest = others === 0
+    ? ''
+    : ` This file holds ${others} more ${others === 1 ? 'track' : 'tracks'} - ` +
+      'import it on the phone to bring them all in.';
+
+  return `${fileName}: ${said}. Give it a name, then save it to the phone.${rest}`;
 }
 
 /** A size in words an operator reads at a glance: whole kilobytes, and never "0 KB". */

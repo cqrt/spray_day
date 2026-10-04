@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * The two track-file facts are here for the one thing the page has to get right without being able to
  * check it: the name a dropped file travels under, and how large a file the phone will take. Both are
  * the phone's answers rather than the page's guesses, and a page that guessed the name would send a
- * file the phone found empty - which reads exactly like a GPX or KML file with nothing in it.
+ * file the phone found empty - which reads exactly like a GPX, KML, KMZ or GeoJSON file with nothing
+ * in it.
  *
  * A process-wide holder in the same spirit as `TrackingState` and `TileServerHolder`: there is one
  * editor, one address and one token, the token lives only here and in the running server, and
@@ -30,7 +31,7 @@ object WebEditorState {
 
     val isOn: Boolean get() = _url.value != null
 
-    /** What a dropped GPX or KML file is called in the body the page sends: see [WebEditorServer.GPX_FIELD]. */
+    /** What a dropped track file is called in the body the page sends: see [WebEditorServer.GPX_FIELD]. */
     val gpxField: String get() = WebEditorServer.GPX_FIELD
 
     /** How large a track file the phone will take: see [WebEditorServer.MAX_GPX_BYTES]. */

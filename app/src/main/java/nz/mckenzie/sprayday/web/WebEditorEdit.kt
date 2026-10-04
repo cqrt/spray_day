@@ -242,14 +242,18 @@ sealed interface WebEditorWrite {
     data class Removed(val message: String) : WebEditorWrite
 
     /**
-     * A track file was read, and nothing was written: the paths it holds, and what became of its
-     * segments - see [nz.mckenzie.sprayday.domain.track.TrackInterchange.Reading].
+     * A track file was read, and nothing was written: the first track it holds, how many more it
+     * held, and what became of the paths - see [nz.mckenzie.sprayday.domain.track.TrackInterchange].
+     *
+     * The desk draws one track at a time, so a file of several - a GeoJSON FeatureCollection - is
+     * answered with its first and the count of the rest, which the page says out loud rather than
+     * dropping in silence.
      *
      * A write in the routing's own sense rather than the database's: it is a POST with a body, judged
      * and answered like the others, and it is here so a refusal about a file keeps the same shape and
      * the same statuses as a refusal about an edit.
      */
-    data class GpxRead(val reading: TrackInterchange.Reading) : WebEditorWrite
+    data class GpxRead(val track: TrackInterchange.Track, val otherTracks: Int) : WebEditorWrite
 
     /**
      * Several assets changed together, and the phone's own sentence about it.

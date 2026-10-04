@@ -218,7 +218,7 @@ class WebEditorServer(
 
     /**
      * A write's outcome as an answer: the new record, the sentence about what is gone, the paths a
-     * dropped GPX or KML file turned out to hold, or the refusal with its own status.
+     * dropped track file turned out to hold, or the refusal with its own status.
      *
      * The status is [WebEditorRefusal]'s and [WebEditorWrite]'s, not this class's guess, so what a page
      * is told when a save is refused is decided where the refusal is decided - and a new asset is told
@@ -230,8 +230,8 @@ class WebEditorServer(
         is WebEditorWrite.Saved -> json(WebEditorJson.saved(result.record))
         is WebEditorWrite.Created -> json(WebEditorJson.saved(result.record), status = 201)
         is WebEditorWrite.Removed -> json(WebEditorJson.removed(result.message))
-        // A file read, and nothing written: the page is handed the reading and makes it a drawing.
-        is WebEditorWrite.GpxRead -> json(WebEditorJson.gpx(result.reading))
+        // A file read, and nothing written: the page is handed the first track and the count of the rest.
+        is WebEditorWrite.GpxRead -> json(WebEditorJson.gpx(result.track, result.otherTracks))
         // Several assets changed at once, with the phone's own sentence about how many.
         is WebEditorWrite.EditedTogether -> json(WebEditorJson.edited(result.count, result.message))
         is WebEditorWrite.Refused -> HttpResponse.bytes(
@@ -321,7 +321,7 @@ class WebEditorServer(
         const val COLLECTION_PATH = "/api/assets"
 
         /**
-         * Where a GPX or KML file is read: `/api/gpx`.
+         * Where a track file (GPX, KML, KMZ or GeoJSON) is read: `/api/gpx`.
          *
          * A path of its own rather than a field in the new asset's own body, because what it answers
          * is not a write: the desk is handed the file's own line to draw, and the track it becomes is
@@ -477,7 +477,7 @@ interface WebEditorData {
     suspend fun remove(id: Long, version: String?): WebEditorWrite
 
     /**
-     * `POST /api/gpx`: a GPX or KML file read as the paths of a track that is not on the phone yet.
+     * `POST /api/gpx`: a track file read as the paths of a track that is not on the phone yet.
      *
      * The body is the file the operator dropped on the desk, as JSON, because that is the only body
      * either server takes. **Nothing is written**: the answer is the line and its side tracks, and the

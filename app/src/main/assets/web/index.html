@@ -44,9 +44,9 @@
           opens the picker and says so in words, which is better than a control that cannot be pressed and
           does not say why. Dropping a file on the map was never held back in the first place.
         -->
-        <button id="import" type="button">Import a GPX, KML or KMZ file</button>
+        <button id="import" type="button">Import a GPX, KML, KMZ or GeoJSON file</button>
         <!-- The picker itself: opened by the button above, and never shown. -->
-        <input id="import-file" type="file" accept=".gpx,.kml,.kmz,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz" hidden>
+        <input id="import-file" type="file" accept=".gpx,.kml,.kmz,.geojson,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/geo+json,application/json" hidden>
       </div>
 
       <!--
@@ -100,7 +100,7 @@
       else in the browser is opened as a page, and an operator who does not know the map is the target
       would watch the work disappear. Shown by `app.js` only while something is being dragged.
     -->
-    <p id="drop-hint" hidden>Drop the GPX, KML or KMZ file to put its line on the map</p>
+    <p id="drop-hint" hidden>Drop the GPX, KML, KMZ or GeoJSON file to put its line on the map</p>
 
     <!--
       What the drawing is doing, in the corner of the map rather than across the top of the page: a box

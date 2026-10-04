@@ -96,7 +96,7 @@ class AssetListViewModel(
     }
 
     /**
-     * Imports a GPX, KML or KMZ file chosen through the system file picker.
+     * Imports a GPX, KML, KMZ or GeoJSON file chosen through the system file picker.
      *
      * Failures are surfaced as messages rather than crashes: a malformed or
      * empty track file is a normal thing for an operator to pick by mistake.
@@ -114,20 +114,28 @@ class AssetListViewModel(
                     ?.takeIf { it.isNotBlank() }
                     ?: "Imported track"
 
-                val imported = assetRepository.importAssetTrack(name = name, file = bytes)
+                val imported = assetRepository.importAssetTracks(fileName = name, file = bytes)
                 // The points are the reading's own, so the sentence counts what the file held rather
                 // than asking the database again for a number the import has just been handed.
-                val points = imported.paths.sumOf { it.size }
-                _message.value = when {
-                    imported.segmentsDidNotMeet ->
-                        "Imported \"$name\" with $points points as one line: the file's own track " +
-                            "segments do not meet, so they were joined up."
-                    imported.sideTracks == 1 ->
-                        "Imported \"$name\" with $points points: the line and 1 side track."
-                    imported.sideTracks > 1 ->
-                        "Imported \"$name\" with $points points: the line and " +
-                            "${imported.sideTracks} side tracks."
-                    else -> "Imported \"$name\" with $points points"
+                _message.value = if (imported.size == 1) {
+                    val track = imported.single()
+                    val points = track.reading.paths.sumOf { it.size }
+                    when {
+                        track.reading.segmentsDidNotMeet ->
+                            "Imported \"${track.name}\" with $points points as one line: the file's " +
+                                "own track segments do not meet, so they were joined up."
+                        track.reading.sideTracks == 1 ->
+                            "Imported \"${track.name}\" with $points points: the line and 1 side track."
+                        track.reading.sideTracks > 1 ->
+                            "Imported \"${track.name}\" with $points points: the line and " +
+                                "${track.reading.sideTracks} side tracks."
+                        else -> "Imported \"${track.name}\" with $points points"
+                    }
+                } else {
+                    // A file of named tracks - a GeoJSON collection - arrives as that many assets, so
+                    // the sentence says how many rather than pretending there was only ever one.
+                    val points = imported.sumOf { track -> track.reading.paths.sumOf { it.size } }
+                    "Imported ${imported.size} tracks, $points points between them"
                 }
             } catch (failure: Throwable) {
                 _message.value = failure.message ?: "Import failed"

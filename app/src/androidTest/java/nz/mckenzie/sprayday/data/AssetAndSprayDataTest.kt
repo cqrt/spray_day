@@ -384,13 +384,14 @@ class AssetAndSprayDataTest {
         val source = assetRepository.createAsset(name = "Planned", geometry = line)
         val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val imported = assetRepository.importAssetTrack(name = "Imported", file = gpx.toByteArray())
+        val imported = assetRepository.importAssetTracks(fileName = "Imported", file = gpx.toByteArray())
         val id = newestAssetId()
 
         assertEquals(2, assetRepository.getAssetGeometry(id).pointCount)
         assertEquals(111.19, assetRepository.getAsset(id)!!.lengthM, 1.0)
-        assertEquals("one line, and nothing else was in the file", 0, imported.sideTracks)
-        assertFalse(imported.segmentsDidNotMeet)
+        assertEquals(1, imported.size)
+        assertEquals("one line, and nothing else was in the file", 0, imported.single().reading.sideTracks)
+        assertFalse(imported.single().reading.segmentsDidNotMeet)
     }
 
     /**
@@ -411,15 +412,15 @@ class AssetAndSprayDataTest {
         )
         val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val imported = assetRepository.importAssetTrack(name = "Gully track again", file = gpx.toByteArray())
+        val imported = assetRepository.importAssetTracks(fileName = "Gully track again", file = gpx.toByteArray())
         val id = newestAssetId()
 
         val stored = assetRepository.getAssetGeometry(id)
         assertEquals("the line and its side track", 2, stored.paths.size)
         assertEquals(listOf(spur), stored.sideTracks)
         assertEquals("and the side track starts on the line's own vertex", stored.line[1], stored.sideTracks[0].first())
-        assertEquals(1, imported.sideTracks)
-        assertFalse(imported.segmentsDidNotMeet)
+        assertEquals(1, imported.single().reading.sideTracks)
+        assertFalse(imported.single().reading.segmentsDidNotMeet)
         assertEquals(
             "222 m of track, each path counted once",
             222.3,
@@ -441,13 +442,13 @@ class AssetAndSprayDataTest {
             </trk></gpx>
         """.trimIndent()
 
-        val imported = assetRepository.importAssetTrack(name = "Two fences", file = gpx.toByteArray())
+        val imported = assetRepository.importAssetTracks(fileName = "Two fences", file = gpx.toByteArray())
 
         val stored = assetRepository.getAssetGeometry(newestAssetId())
         assertEquals("one line, every point in it", 1, stored.paths.size)
         assertEquals(4, stored.pointCount)
-        assertEquals(0, imported.sideTracks)
-        assertTrue("and the answer says the file's segments did not meet", imported.segmentsDidNotMeet)
+        assertEquals(0, imported.single().reading.sideTracks)
+        assertTrue("and the answer says the file's segments did not meet", imported.single().reading.segmentsDidNotMeet)
     }
 
     @Test
@@ -457,7 +458,7 @@ class AssetAndSprayDataTest {
             <gpx version="1.1"><trk><trkseg><trkpt lat="-41.0" lon="174.0"/></trkseg></trk></gpx>
         """.trimIndent()
 
-        val failure = runCatching { assetRepository.importAssetTrack(name = "Bad", file = gpx.toByteArray()) }
+        val failure = runCatching { assetRepository.importAssetTracks(fileName = "Bad", file = gpx.toByteArray()) }
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }

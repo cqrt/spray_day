@@ -1196,7 +1196,7 @@ async function importGpxFile(file) {
     });
     if (status !== 200) {
       // The phone's own sentence about the file, in the phone's own words: a file with no line in it,
-      // or one that is not a GPX, KML or KMZ file at all, is refused where both callers refuse it.
+      // or one that is not a GPX, KML, KMZ or GeoJSON file at all, is refused where both callers refuse it.
       showNotice(answer.message || 'The phone would not read that file.');
       return;
     }

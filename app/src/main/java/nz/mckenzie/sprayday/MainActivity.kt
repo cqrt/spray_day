@@ -46,11 +46,12 @@ import nz.mckenzie.sprayday.viewmodel.AssetDetailViewModel
 import nz.mckenzie.sprayday.viewmodel.AssetListViewModel
 import nz.mckenzie.sprayday.viewmodel.BlockEditViewModel
 import nz.mckenzie.sprayday.viewmodel.BlocksViewModel
+import nz.mckenzie.sprayday.offline.OfflinePickerMode
 import nz.mckenzie.sprayday.web.WebEditorService
 import nz.mckenzie.sprayday.web.WebEditorState
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS, DOC_TRACKS }
+private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, OFFLINE_DOC_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS, DOC_TRACKS }
 
 class MainActivity : ComponentActivity() {
 
@@ -369,13 +370,31 @@ class MainActivity : ComponentActivity() {
                         OfflineScreen(
                             viewModel = offlineViewModel,
                             onOpenTab = { destination = destinationOf(it) },
-                            onChooseArea = { destination = Destination.OFFLINE_PICKER }
+                            onChooseArea = { destination = Destination.OFFLINE_PICKER },
+                            onChooseDocArea = { destination = Destination.OFFLINE_DOC_PICKER }
                         )
                     }
 
                     Destination.OFFLINE_PICKER -> {
                         val pickerViewModel: OfflineAreaPickerViewModel = viewModel(
-                            factory = OfflineAreaPickerViewModel.factory(applicationContext)
+                            factory = OfflineAreaPickerViewModel.factory(
+                                applicationContext,
+                                OfflinePickerMode.IMAGERY
+                            )
+                        )
+                        OfflineAreaPickerScreen(
+                            viewModel = pickerViewModel,
+                            onBack = { destination = Destination.OFFLINE },
+                            onSaved = { destination = Destination.OFFLINE }
+                        )
+                    }
+
+                    Destination.OFFLINE_DOC_PICKER -> {
+                        val pickerViewModel: OfflineAreaPickerViewModel = viewModel(
+                            factory = OfflineAreaPickerViewModel.factory(
+                                applicationContext,
+                                OfflinePickerMode.DOC_TRACKS
+                            )
                         )
                         OfflineAreaPickerScreen(
                             viewModel = pickerViewModel,

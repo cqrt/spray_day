@@ -31,6 +31,7 @@ import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaDraft
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
 import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
+import nz.mckenzie.sprayday.offline.OfflinePickerMode
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.offline.docDownloadedMessage
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
@@ -51,7 +52,9 @@ class OfflineAreaPickerViewModel(
     private val locationSource: LocationSource,
     private val settings: SettingsRepository,
     /** The DOC tracks kept for offline use, downloaded for the box drawn here. */
-    private val docStore: OfflineDocTrackStore
+    private val docStore: OfflineDocTrackStore,
+    /** Which pack this run is choosing an area for. */
+    val mode: OfflinePickerMode
 ) : ViewModel() {
 
     private val _draft = MutableStateFlow(
@@ -171,6 +174,10 @@ class OfflineAreaPickerViewModel(
      * already on disk.
      */
     fun download() {
+        if (mode == OfflinePickerMode.DOC_TRACKS) downloadTracks() else downloadImagery()
+    }
+
+    private fun downloadImagery() {
         if (_working.value) return
 
         val current = _draft.value
@@ -221,10 +228,10 @@ class OfflineAreaPickerViewModel(
      * Downloads every DOC track in the box drawn here, so the browser can import them with no
      * reception.
      *
-     * Independent of the imagery download above: no LINZ key is needed, and the box is the one the
-     * operator drew rather than the area offered by location.
+     * Independent of the imagery: no LINZ key is needed, and nothing is stored but the tracks
+     * themselves - the DOC cache is global, not an area record.
      */
-    fun downloadDocTracks() {
+    private fun downloadTracks() {
         if (_docWorking.value) return
         val current = _draft.value
         val plan = current.plan(name = current.name, fallbackName = defaultName())
@@ -238,8 +245,12 @@ class OfflineAreaPickerViewModel(
             _docMessage.value = null
             try {
                 when (val result = docStore.download(plan.bounds.toDocBounds())) {
-                    is DocDownloadResult.Done -> _docMessage.value = docDownloadedMessage(result.tracks.size)
-                    // A download that stopped short still kept what arrived, so say both.
+                    is DocDownloadResult.Done -> {
+                        _docMessage.value = docDownloadedMessage(result.tracks.size)
+                        _saved.value = true
+                    }
+                    // A download that stopped short still kept what arrived, so say both and stay,
+                    // so the operator can see it rather than being sent back with half an answer.
                     is DocDownloadResult.Failed ->
                         _docMessage.value = "${result.message} ${docDownloadedMessage(result.tracks.size)}"
                 }
@@ -251,13 +262,6 @@ class OfflineAreaPickerViewModel(
             } finally {
                 _docWorking.value = false
             }
-        }
-    }
-
-    fun clearDocTracks() {
-        viewModelScope.launch {
-            runCatching { docStore.clear() }
-            _docMessage.value = null
         }
     }
 
@@ -290,7 +294,7 @@ class OfflineAreaPickerViewModel(
             GeoPoint(bounds.minLat, bounds.minLng)
         )
 
-        fun factory(context: Context): ViewModelProvider.Factory {
+        fun factory(context: Context, mode: OfflinePickerMode): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
@@ -307,7 +311,8 @@ class OfflineAreaPickerViewModel(
                         docStore = OfflineDocTrackStore(
                             dao = database.offlineDocTrackDao(),
                             downloader = DocTrackDownloader(ArcGisDocTracks())
-                        )
+                        ),
+                        mode = mode
                     )
                 }
             }

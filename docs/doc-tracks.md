@@ -92,14 +92,19 @@ box is off and disabled, and it is left out of the request even if a page sends 
 
 ## Offline
 
-The browser is useless with no reception unless the tracks are already on the phone, so the
-**Offline areas** screen can download them for the area it is about — and so can the map picker, for
-a box drawn by hand. Both ask for the same thing: every track inside that box.
+The browser is useless with no reception unless the tracks are already on the phone. The **Offline
+areas** screen has two tabs — **Imagery** and **DOC tracks** — because the two are **independent
+caches**: imagery makes the map work offline, DOC's tracks make this browser work offline, and neither
+has anything to do with the other. They are counted, cleared and filled separately.
+
+They choose an area the same way: **Choose an area on the map** opens the picker, two opposite
+corners are tapped, and the download runs. There is no area offered by location any more — the
+operator says where, on the map, which is the one thing a location guess was standing in for.
 
 - **Download DOC tracks** pulls every track the service has inside the box, a page at a time
   (`DocTrackDownloader`; 2,000 a request, capped at 4,000), and stores them keyed by the service's own
-  `OBJECTID` — so two overlapping areas end with one copy, not two. It is **independent of the
-  imagery**: no LINZ key is needed, and an operator who only wants tracks pays for nothing else.
+  `OBJECTID` — so two overlapping areas end with one copy, not two. It is independent of the imagery:
+  no LINZ key is needed, and an operator who only wants tracks pays for nothing else.
 - The store is a **cache**, not the record of the farm: it is not backed up, and *Clear downloaded DOC
   tracks* costs nothing but the download.
 - With no service, both browsers fall back to the cache: the search is filtered by name — the download

@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -21,7 +20,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,17 +31,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.offline.OfflineAreaDraft
+import nz.mckenzie.sprayday.offline.OfflinePickerMode
 import nz.mckenzie.sprayday.viewmodel.OfflineAreaPickerViewModel
 import kotlin.math.roundToInt
 
 /**
- * Picks an offline area on the map: two taps for the corners, the zoom levels to
- * cache, and a name to find it by.
+ * Picks an offline area on the map: two taps for the corners, then a download.
  *
- * Every choice shows its cost immediately. That matters more than it sounds: the
- * difference between caching to zoom 16 and to zoom 17 is the difference between a
- * minute and a quarter of an hour on a farm connection, and the operator is the only
- * one who knows whether they need to see individual rows.
+ * **One screen, two packs.** The offline imagery and DOC's tracks are independent caches, but they
+ * are chosen the same way - a box on the map - so this is the same screen choosing for either, and
+ * [OfflinePickerMode] decides what the download does and which questions are worth asking. A DOC area
+ * is only the box; an imagery area also wants a name and a zoom range, and those are the only rows
+ * that appear for it.
+ *
+ * Every imagery choice shows its cost immediately. That matters more than it sounds: the difference
+ * between caching to zoom 16 and to zoom 17 is the difference between a minute and a quarter of an
+ * hour on a farm connection, and the operator is the only one who knows whether they need to see
+ * individual rows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,9 +64,10 @@ fun OfflineAreaPickerScreen(
     val working by viewModel.working.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
-    val docTrackCount by viewModel.docTrackCount.collectAsStateWithLifecycle()
     val docWorking by viewModel.docWorking.collectAsStateWithLifecycle()
     val docMessage by viewModel.docMessage.collectAsStateWithLifecycle()
+
+    val imagery = viewModel.mode == OfflinePickerMode.IMAGERY
 
     LaunchedEffect(saved) {
         if (saved) {
@@ -76,7 +81,7 @@ fun OfflineAreaPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Choose an area") },
+                title = { Text(if (imagery) "Choose an offline area" else "Choose a DOC tracks area") },
                 navigationIcon = { IconButton(onClick = onBack) { AppIcon(IconGlyph.BACK, contentDescription = "Back") } }
             )
         }
@@ -86,8 +91,8 @@ fun OfflineAreaPickerScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Aerial imagery, whichever basemap the operator reads their own maps on: what is
-            // picked here is what gets downloaded, and only imagery can be downloaded.
+            // Aerial imagery, whichever basemap the operator reads their own maps on: it is what an
+            // imagery area downloads, and it is a fine thing to draw a DOC area on besides.
             BasemapView(
                 basemap = Basemap.LINZ_AERIAL,
                 apiKey = apiKey,
@@ -119,115 +124,112 @@ fun OfflineAreaPickerScreen(
                 ) {
                     Text(
                         text = when (draft.corners.size) {
-                            0 -> "Tap one corner of the block you want to cache"
+                            0 -> "Tap one corner of the area"
                             1 -> "Now tap the opposite corner"
                             else -> "Tap again to start a new box, or drag the map to check it"
                         },
                         style = MaterialTheme.typography.titleSmall
                     )
 
-                    OutlinedTextField(
-                        value = draft.name,
-                        onValueChange = viewModel::setName,
-                        label = { Text("Area name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // A name and a zoom range are an imagery area's own questions. A DOC area is the
+                    // box and nothing else, so the picker asks nothing else of it.
+                    if (imagery) {
+                        OutlinedTextField(
+                            value = draft.name,
+                            onValueChange = viewModel::setName,
+                            label = { Text("Area name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                    ZoomSlider(
-                        label = "Shallowest level",
-                        value = draft.minZoom,
-                        onChange = { viewModel.setZoomRange(it, draft.maxZoom) }
-                    )
-                    ZoomSlider(
-                        label = "Deepest level",
-                        value = draft.maxZoom,
-                        onChange = { viewModel.setZoomRange(draft.minZoom, it) }
-                    )
+                        ZoomSlider(
+                            label = "Shallowest level",
+                            value = draft.minZoom,
+                            onChange = { viewModel.setZoomRange(it, draft.maxZoom) }
+                        )
+                        ZoomSlider(
+                            label = "Deepest level",
+                            value = draft.maxZoom,
+                            onChange = { viewModel.setZoomRange(draft.minZoom, it) }
+                        )
 
-                    Text(
-                        text = if (draft.isComplete) {
-                            "${draft.tileCount} aerial tiles, roughly ${draft.estimatedSizeLabel} " +
-                                "· zoom ${draft.minZoom} to ${draft.maxZoom}"
-                        } else {
-                            "Tap two corners to see how many tiles that is."
-                        },
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Each deeper level multiplies the download. The shallow ones are " +
-                            "nearly free, and are what let the map open on a zoomed-out view " +
-                            "with no reception.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-
-                    if (draft.isTooBig) {
                         Text(
-                            text = "That is too much to cache in one go. Narrow the box or the " +
-                                "zoom range.",
-                            color = MaterialTheme.colorScheme.error,
+                            text = if (draft.isComplete) {
+                                "${draft.tileCount} aerial tiles, roughly ${draft.estimatedSizeLabel} " +
+                                    "· zoom ${draft.minZoom} to ${draft.maxZoom}"
+                            } else {
+                                "Tap two corners to see how many tiles that is."
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Each deeper level multiplies the download. The shallow ones are " +
+                                "nearly free, and are what let the map open on a zoomed-out view " +
+                                "with no reception.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                    }
 
-                    active?.let { area ->
+                        if (draft.isTooBig) {
+                            Text(
+                                text = "That is too much to cache in one go. Narrow the box or the " +
+                                    "zoom range.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        active?.let { area ->
+                            Text(
+                                text = if (area.isComplete) {
+                                    "Downloaded ${area.sizeLabel}"
+                                } else {
+                                    "Downloading ${area.percent}%"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        error?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    } else {
                         Text(
-                            text = if (area.isComplete) "Downloaded ${area.sizeLabel}" else "Downloading ${area.percent}%",
+                            text = "Every DOC track inside the box is downloaded, so the DOC tracks " +
+                                "browser can import them with no reception. Nothing else is fetched, " +
+                                "and no LINZ key is needed.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                    }
-
-                    error?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        docMessage?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = viewModel::clearCorners,
-                            enabled = draft.corners.isNotEmpty() && !working
+                            enabled = draft.corners.isNotEmpty() && !working && !docWorking
                         ) { Text("Start over") }
                         Button(
                             onClick = viewModel::download,
-                            enabled = apiKey.isNotBlank() && draft.isComplete &&
-                                !draft.isTooBig && !working
-                        ) { Text("Download area") }
-                    }
-
-                    /*
-                     * DOC's own tracks for this box, independent of the imagery above: no LINZ key,
-                     * and these are what the DOC tracks browser imports with no reception.
-                     */
-                    HorizontalDivider()
-                    Text("DOC tracks", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        text = if (docTrackCount == 0) {
-                            "None downloaded. Download DOC's tracks for this box and the DOC " +
-                                "tracks browser can import them with no reception."
-                        } else {
-                            "$docTrackCount DOC ${if (docTrackCount == 1) "track" else "tracks"} " +
-                                "downloaded for offline use."
-                        },
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = viewModel::downloadDocTracks,
-                            enabled = draft.isComplete && !docWorking
+                            enabled = if (imagery) {
+                                apiKey.isNotBlank() && draft.isComplete && !draft.isTooBig && !working
+                            } else {
+                                draft.isComplete && !docWorking
+                            }
                         ) {
-                            Text(if (docWorking) "Downloading DOC tracks…" else "Download DOC tracks")
-                        }
-                        if (docTrackCount > 0) {
-                            DestructiveTextButton(
-                                text = "Clear DOC tracks",
-                                onClick = viewModel::clearDocTracks
+                            Text(
+                                when {
+                                    !imagery && docWorking -> "Downloading DOC tracks…"
+                                    !imagery -> "Download DOC tracks"
+                                    else -> "Download area"
+                                }
                             )
                         }
                     }
-                    docMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }

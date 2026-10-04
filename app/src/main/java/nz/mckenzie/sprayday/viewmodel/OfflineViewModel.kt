@@ -11,94 +11,38 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.data.SettingsRepository
-import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.doc.ArcGisDocTracks
-import nz.mckenzie.sprayday.doc.DocDownloadResult
 import nz.mckenzie.sprayday.doc.DocTrackDownloader
-import nz.mckenzie.sprayday.domain.doc.DocBounds
-import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
-import nz.mckenzie.sprayday.map.AssetColors
-import nz.mckenzie.sprayday.map.AssetGeoJson
-import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
-import nz.mckenzie.sprayday.offline.OfflineAreaPlan
 import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.offline.TileStoreSummary
-import nz.mckenzie.sprayday.offline.docDownloadedMessage
-import nz.mckenzie.sprayday.tracking.FusedLocationSource
-import nz.mckenzie.sprayday.tracking.LocationSource
 
 /**
- * Where the area offered for download came from. The screen says which, because a
- * download used to appear with no clue where it was - naming it "Spray area" while
- * sitting on a hard-coded patch of Marlborough.
- */
-enum class AreaSource { MY_LOCATION, MY_TRACKS, UNKNOWN }
-
-/**
- * Drives the offline-area screen: shows exactly which area would be cached and what
- * it would cost, then reports progress live and manages what is stored on the device.
+ * The offline screen: the two caches, and what can be done with what is in them.
  *
- * The area is centred on the operator, not on a guess: their current location if the
- * app may know it, otherwise the middle of their own tracks. With neither there is
- * nothing sensible to offer, and the screen says so instead of quietly caching
- * somewhere they have never been.
+ * Choosing an area is **not** done here any more - it is the map picker, reached from either tab -
+ * so this manages only what is already stored: the imagery areas (resume, delete, clear) and the DOC
+ * tracks (count, clear). The two caches are independent, so they are managed independently, and the
+ * screen shows one tab each.
  */
 class OfflineViewModel(
     private val manager: OfflineAreaManager,
-    private val assetRepository: AssetRepository,
-    private val locationSource: LocationSource,
     private val settings: SettingsRepository,
-    /** The DOC tracks kept for offline use, downloaded and cleared from this screen. */
     private val docStore: OfflineDocTrackStore
 ) : ViewModel() {
 
     val apiKey: StateFlow<String> = settings.linzApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    private val _plan = MutableStateFlow<OfflineAreaPlan?>(null)
-
-    /** The area that would be downloaded, or null when we cannot tell where to put it. */
-    val plan: StateFlow<OfflineAreaPlan?> = _plan
-
-    private val _areaSource = MutableStateFlow(AreaSource.UNKNOWN)
-    val areaSource: StateFlow<AreaSource> = _areaSource
-
-    /** The outline of the area, drawn on the preview map so it is unmistakable. */
-    val previewGeoJson: StateFlow<String> = _plan
-        .map { area ->
-            if (area == null) {
-                AssetGeoJson.build(emptyList())
-            } else {
-                AssetGeoJson.build(
-                    listOf(
-                        AssetLine(
-                            assetId = AREA_OUTLINE_ID,
-                            name = area.name,
-                            colorHex = AREA_OUTLINE_COLOUR,
-                            points = outlineOf(area.bounds)
-                        )
-                    )
-                )
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AssetGeoJson.build(emptyList()))
-
+    /** The imagery areas on the device. Chosen elsewhere; managed here. */
     val stored: StateFlow<List<OfflineArea>> = manager.observeAreas()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
-
-    /** The area this session is working on, so the screen can feature it. */
-    private val _activeId = MutableStateFlow<Long?>(null)
-    val activeId: StateFlow<Long?> = _activeId
 
     private val _working = MutableStateFlow(false)
     val working: StateFlow<Boolean> = _working
@@ -113,20 +57,12 @@ class OfflineViewModel(
     val docTrackCount: StateFlow<Int> = docStore.observeCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
 
-    private val _docWorking = MutableStateFlow(false)
-    val docWorking: StateFlow<Boolean> = _docWorking
-
-    /** The phone's own sentence about the last DOC download, or null when there is nothing to say. */
-    private val _docMessage = MutableStateFlow<String?>(null)
-    val docMessage: StateFlow<String?> = _docMessage
-
     init {
         refreshSummary()
 
-        // Keep "what is on the device" honest when an area is downloaded elsewhere: the
-        // picker is a different view model, so its download left this figure stale. It
-        // refreshes when the set of areas changes or one finishes - not on every
-        // progress write, which would walk the tile directory once a second.
+        // Keep "what is on the device" honest when an area is downloaded from the picker: its
+        // download left this figure stale. Refreshed when the set of areas changes or one finishes -
+        // not on every progress write, which would walk the tile directory once a second.
         viewModelScope.launch {
             var previous = emptyList<OfflineArea>()
             manager.observeAreas().collect { areas ->
@@ -138,144 +74,23 @@ class OfflineViewModel(
                 if (somethingFinished || setChanged) refreshSummary()
             }
         }
-
-        resolveArea()
     }
 
-    /** Decides where the area goes: where the device is, else where the tracks are. */
-    private fun resolveArea() {
-        viewModelScope.launch {
-            val fix = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-                runCatching { locationSource.currentLocation() }.getOrNull()
-            }
-            if (fix != null) {
-                setArea(GeoPoint(fix.lat, fix.lng), AreaSource.MY_LOCATION)
-                return@launch
-            }
-
-            val bounds = runCatching { assetRepository.assetBounds() }.getOrNull()
-            if (bounds != null) {
-                setArea(
-                    centre = GeoPoint(
-                        lat = (bounds.minLat + bounds.maxLat) / 2.0,
-                        lng = (bounds.minLng + bounds.maxLng) / 2.0
-                    ),
-                    source = AreaSource.MY_TRACKS
-                )
-                return@launch
-            }
-
-            _areaSource.value = AreaSource.UNKNOWN
-            _error.value = "I do not know where you are yet, so there is nothing sensible " +
-                "to cache. Allow location access by recording a track, or import a track, " +
-                "and the right area will be offered here."
-        }
-    }
-
-    private fun setArea(centre: GeoPoint, source: AreaSource) {
-        // The area first, then where it came from: anything observing these two must
-        // never see a source without the area it describes.
-        _plan.value = OfflineAreaPlan.aroundCentre(
-            name = when (source) {
-                AreaSource.MY_LOCATION -> "Around my location"
-                else -> "Around my assets"
-            },
-            centre = centre,
-            radiusKm = DEFAULT_RADIUS_KM
-        )
-        _areaSource.value = source
-        _error.value = null
-    }
-
-    fun download() = runDownload(existingId = null)
-
-    /** Continues an area that stopped short; tiles already held are skipped. */
-    fun resume(areaId: Long) = runDownload(existingId = areaId)
-
-    fun delete(areaId: Long) {
-        viewModelScope.launch {
-            runCatching { manager.deleteArea(areaId) }
-            if (_activeId.value == areaId) _activeId.value = null
-            refreshSummary()
-        }
-    }
-
-    /** Reclaims the disk space held by every downloaded tile. */
-    fun clearTiles() {
-        viewModelScope.launch {
-            runCatching { manager.clearTiles() }
-            _activeId.value = null
-            refreshSummary()
-        }
-    }
-
-    /**
-     * Downloads every DOC track in the area on offer, so the browser can import them with no reception.
-     *
-     * The same box the imagery download uses, and independent of it: a LINZ key is not needed for
-     * DOC's tracks, and an operator who only wants tracks does not pay for imagery.
-     */
-    fun downloadDocTracks() {
-        if (_docWorking.value) return
-        val area = _plan.value
-        if (area == null) {
-            _docMessage.value = "There is no area to download yet."
-            return
-        }
-
-        viewModelScope.launch {
-            _docWorking.value = true
-            _docMessage.value = null
-            try {
-                when (val result = docStore.download(area.bounds.toDocBounds())) {
-                    is DocDownloadResult.Done -> _docMessage.value = docDownloadedMessage(result.tracks.size)
-                    // A download that stopped short still kept what arrived, so say both.
-                    is DocDownloadResult.Failed ->
-                        _docMessage.value = "${result.message} ${docDownloadedMessage(result.tracks.size)}"
-                }
-            } catch (cancelled: CancellationException) {
-                // Leaving the screen is not a failure; what already arrived is kept.
-                throw cancelled
-            } catch (failure: Throwable) {
-                _docMessage.value = failure.message ?: "Download failed"
-            } finally {
-                _docWorking.value = false
-            }
-        }
-    }
-
-    /** Forgets every downloaded DOC track. Costs nothing but the download. */
-    fun clearDocTracks() {
-        viewModelScope.launch {
-            runCatching { docStore.clear() }
-            _docMessage.value = null
-        }
-    }
-
-    private fun runDownload(existingId: Long?) {
+    /** Continues an imagery area that stopped short; tiles already held are skipped. */
+    fun resume(areaId: Long) {
         if (_working.value) return
-
-        val area = _plan.value
-        if (existingId == null && area == null) {
-            _error.value = "There is no area to download yet."
-            return
-        }
-
         viewModelScope.launch {
             _working.value = true
             _error.value = null
             try {
-                // Read the key from settings now rather than from a cached flow: the
-                // button can be tapped before the first read has landed.
+                // Read the key now rather than from a cached flow: the button can be tapped before
+                // the first read has landed.
                 val key = settings.linzApiKey.first()
                 if (key.isBlank()) {
                     _error.value = "Add a LINZ Basemaps key before downloading an area."
                     return@launch
                 }
-
-                val id = existingId ?: manager.createArea(area!!).id
-                _activeId.value = id
-                manager.download(id, key)
+                manager.download(areaId, key)
             } catch (cancelled: CancellationException) {
                 // Leaving the screen is not a failure; the download resumes later.
                 throw cancelled
@@ -288,6 +103,29 @@ class OfflineViewModel(
         }
     }
 
+    /** Forgets an imagery area. The tiles stay: they are shared, and this frees no space. */
+    fun delete(areaId: Long) {
+        viewModelScope.launch {
+            runCatching { manager.deleteArea(areaId) }
+            refreshSummary()
+        }
+    }
+
+    /** Reclaims the disk space held by every downloaded tile. */
+    fun clearTiles() {
+        viewModelScope.launch {
+            runCatching { manager.clearTiles() }
+            refreshSummary()
+        }
+    }
+
+    /** Forgets every downloaded DOC track. Costs nothing but the download. */
+    fun clearDocTracks() {
+        viewModelScope.launch {
+            runCatching { docStore.clear() }
+        }
+    }
+
     private fun refreshSummary() {
         viewModelScope.launch {
             _summary.value = runCatching { manager.summary() }.getOrDefault(TileStoreSummary(0, 0))
@@ -296,24 +134,6 @@ class OfflineViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
-        private const val LOCATION_TIMEOUT_MS = 5_000L
-
-        /** A block big enough to spray from, small enough to be quick to download. */
-        const val DEFAULT_RADIUS_KM = 3.0
-
-        private const val AREA_OUTLINE_ID = -1L
-
-        /** White reads over aerial imagery at any zoom, where a due-status colour would not. */
-        private const val AREA_OUTLINE_COLOUR = "#FFFFFF"
-
-        /** The area as a closed loop, which is all the map's line layer needs. */
-        private fun outlineOf(bounds: LatLngBounds): List<GeoPoint> = listOf(
-            GeoPoint(bounds.minLat, bounds.minLng),
-            GeoPoint(bounds.maxLat, bounds.minLng),
-            GeoPoint(bounds.maxLat, bounds.maxLng),
-            GeoPoint(bounds.minLat, bounds.maxLng),
-            GeoPoint(bounds.minLat, bounds.minLng)
-        )
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
@@ -327,11 +147,9 @@ class OfflineViewModel(
                             store = TileServerHolder.imageryStore(appContext),
                             dao = database.offlineAreaDao()
                         ),
-                        assetRepository = AssetRepository(database),
-                        locationSource = FusedLocationSource(appContext),
                         settings = SettingsRepository(appContext),
-                        // DOC's tracks, downloaded into the same cache the editor's browser
-                        // falls back to when the service cannot be reached.
+                        // DOC's tracks, downloaded by the picker into the same cache the browsers
+                        // fall back to when the service cannot be reached.
                         docStore = OfflineDocTrackStore(
                             dao = database.offlineDocTrackDao(),
                             downloader = DocTrackDownloader(ArcGisDocTracks())
@@ -342,11 +160,3 @@ class OfflineViewModel(
         }
     }
 }
-
-/** The offline area's box as the DOC query's own box: one rectangle, two names. */
-private fun LatLngBounds.toDocBounds() = DocBounds(
-    minLat = minLat,
-    minLng = minLng,
-    maxLat = maxLat,
-    maxLng = maxLng
-)

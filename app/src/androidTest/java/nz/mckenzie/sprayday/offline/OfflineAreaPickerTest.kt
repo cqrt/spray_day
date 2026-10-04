@@ -83,7 +83,9 @@ class OfflineAreaPickerTest {
         docStore = OfflineDocTrackStore(
             dao = db.offlineDocTrackDao(),
             downloader = DocTrackDownloader(ArcGisDocTracks())
-        )
+        ),
+        // This test is about the imagery area the picker stores.
+        mode = OfflinePickerMode.IMAGERY
     )
 
     @Test

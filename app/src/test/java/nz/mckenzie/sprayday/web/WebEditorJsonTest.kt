@@ -511,6 +511,7 @@ class WebEditorJsonTest {
                 )
             ),
             importedRefs = setOf("doc:99"),
+            from = GeoPoint(-46.62, 168.32),
             message = null,
             capped = false
         )
@@ -527,6 +528,33 @@ class WebEditorJsonTest {
         assertEquals(2, read.tracks[0].paths[0].size)
         assertEquals(WebEditorPoint(lat = -46.6, lng = 168.3), read.tracks[0].paths[0].first())
         assertEquals("a track the phone does not have is not marked imported", false, read.tracks[0].imported)
+        assertTrue("and its distance to the phone travels so the desk can order by it",
+            (read.tracks[0].distanceM ?: 0.0) > 0.0)
+    }
+
+    @Test
+    fun `with no fix the distance is left out, and the desk falls back to by name`() {
+        val track = DocTrack(
+            objectId = 42,
+            name = "Glory Tk",
+            kind = "Walking Track",
+            reading = TrackInterchange.Reading(
+                paths = listOf(listOf(GeoPoint(-46.6, 168.3), GeoPoint(-46.61, 168.31))),
+                sideTracks = 0,
+                segmentsDidNotMeet = false
+            )
+        )
+
+        val text = WebEditorJson.docSearch(
+            tracks = listOf(track),
+            importedRefs = emptySet(),
+            from = null,
+            message = null,
+            capped = false
+        )
+        val read = json.decodeFromString(WebEditorDocSearch.serializer(), text)
+
+        assertTrue("no fix means no distance", read.tracks[0].distanceM == null)
     }
 
     @Test
@@ -545,6 +573,7 @@ class WebEditorJsonTest {
         val text = WebEditorJson.docSearch(
             tracks = listOf(track),
             importedRefs = setOf(track.sourceRef),
+            from = null,
             message = null,
             capped = false
         )

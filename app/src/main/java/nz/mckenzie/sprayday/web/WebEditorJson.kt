@@ -16,6 +16,7 @@ import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.doc.DocTrack
+import nz.mckenzie.sprayday.domain.doc.distanceM
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
@@ -182,7 +183,13 @@ object WebEditorJson {
      * the desk is imported from the very vertices the desk was shown - so a service that changed
      * between the search and the import cannot put a different line on the farm.
      */
-    fun docSearch(tracks: List<DocTrack>, importedRefs: Set<String>, message: String?, capped: Boolean): String =
+    fun docSearch(
+        tracks: List<DocTrack>,
+        importedRefs: Set<String>,
+        from: GeoPoint?,
+        message: String?,
+        capped: Boolean
+    ): String =
         json.encodeToString(
             WebEditorDocSearch.serializer(),
             WebEditorDocSearch(
@@ -196,7 +203,10 @@ object WebEditorJson {
                         paths = track.reading.paths.map { path ->
                             path.map { WebEditorPoint(lat = it.lat, lng = it.lng) }
                         },
-                        imported = track.sourceRef in importedRefs
+                        imported = track.sourceRef in importedRefs,
+                        // The phone's own fix, so the desk can order by "nearest to phone" without
+                        // its own distance arithmetic - and cannot disagree with the phone's order.
+                        distanceM = from?.let { track.distanceM(it) }
                     )
                 },
                 message = message,
@@ -461,7 +471,12 @@ data class WebEditorDocTrack(
     val paths: List<List<WebEditorPoint>> = emptyList(),
     /** True when a track with this source is already on the phone: the desk shows it and will not
      * import it again. */
-    val imported: Boolean = false
+    val imported: Boolean = false,
+    /**
+     * The metres from the phone's own fix to the nearest vertex of this track, or null when the phone
+     * has no fix. Worked out on the phone so the desk's "nearest" order is the phone's.
+     */
+    val distanceM: Double? = null
 )
 
 /**

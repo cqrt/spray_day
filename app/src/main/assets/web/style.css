@@ -273,6 +273,42 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 /* A track the phone already has: shown, not tickable, and plainly not the operator's to choose. */
 #doc-list .doc-row.imported { cursor: default; opacity: 0.6; }
 
+/*
+ * What a search found, narrowed and ordered: the kinds the page actually holds as chips, and the two
+ * orders beside them. A chip that is on says so with `aria-pressed`, which is also what colours it.
+ */
+#doc-filters,
+#doc-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+#doc-filters[hidden],
+#doc-sort[hidden] { display: none; }
+
+#doc-filters .doc-chip,
+#doc-sort .doc-chip {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+#doc-filters .doc-chip:hover,
+#doc-sort .doc-chip:hover { background: var(--shade); }
+
+#doc-filters .doc-chip[aria-pressed="true"],
+#doc-sort .doc-chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
 #doc-list .doc-row .meta {
   margin-left: auto;
   color: var(--quiet);

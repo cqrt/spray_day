@@ -62,3 +62,41 @@ export function docSearchNote(search) {
   if (search.capped) return `Showing the first ${count} matches. Narrow the search to see the rest.`;
   return count === 1 ? '1 track' : `${count} tracks`;
 }
+
+/**
+ * The kinds present in these tracks, each once, sorted, for a filter row to offer.
+ *
+ * Taken from what a search returned rather than from a list of DOC's taxonomy kept here: the filter
+ * offers what is actually on the page, so it cannot offer a kind the service no longer uses or miss
+ * one it has learned since.
+ */
+export function docKindsOf(tracks) {
+  const kinds = [];
+  for (const track of tracks || []) {
+    const kind = track.kind ? String(track.kind).trim() : '';
+    if (kind && !kinds.includes(kind)) kinds.push(kind);
+  }
+  return kinds.sort();
+}
+
+/**
+ * The tracks to show: those of the picked `kinds` (all when none is picked), ordered by `sort`.
+ *
+ * `nearest` uses the `distanceM` the phone sent - so the desk's order is the phone's, computed from
+ * the phone's own fix. A track with no distance, because the phone had no fix, sorts last rather than
+ * first, and ties fall back to the name.
+ */
+export function docShowing(tracks, kinds, sort) {
+  const chosen = kinds || [];
+  const all = tracks || [];
+  const ofKind = chosen.length === 0 ? all : all.filter((track) => chosen.includes(track.kind));
+  const byName = (a, b) => a.name.localeCompare(b.name);
+
+  if (sort !== 'nearest') return [...ofKind].sort(byName);
+  return [...ofKind].sort((a, b) => {
+    const da = typeof a.distanceM === 'number' ? a.distanceM : Infinity;
+    const db = typeof b.distanceM === 'number' ? b.distanceM : Infinity;
+    // `da - db` is NaN when both are Infinity; `|| byName` then takes over.
+    return da - db || byName(a, b);
+  });
+}

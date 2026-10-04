@@ -315,6 +315,7 @@ class WebEditorDocuments(
             return WebEditorJson.docSearch(
                 tracks = emptyList(),
                 importedRefs = emptySet(),
+                from = null,
                 message = "Type part of a track's name, turn on Near the phone, or search the map's view.",
                 capped = false
             )
@@ -328,6 +329,9 @@ class WebEditorDocuments(
             bounds = box,
             limit = limit
         )
+        // The phone's own fix, for the distance order the desk offers. Read once, so every row's
+        // distance is from the same fix.
+        val from = position()
         return when (val result = docTracks.search(query)) {
             is DocTracksResult.Found -> {
                 // Read once, so every row can be told whether the phone already has it.
@@ -335,6 +339,7 @@ class WebEditorDocuments(
                 WebEditorJson.docSearch(
                     tracks = result.tracks,
                     importedRefs = imported,
+                    from = from,
                     message = if (result.tracks.isEmpty()) "No DOC tracks matched." else null,
                     capped = result.tracks.size >= limit
                 )
@@ -346,6 +351,7 @@ class WebEditorDocuments(
                 WebEditorJson.docSearch(
                     tracks = cached,
                     importedRefs = assets.existingSourceRefs(),
+                    from = from,
                     message = when {
                         cached.isNotEmpty() ->
                             "Could not reach DOC. Showing ${cached.size} downloaded " +

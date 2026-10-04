@@ -7,7 +7,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
@@ -18,7 +22,10 @@ import nz.mckenzie.sprayday.doc.DocTracksSource
 import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.DocTrackCache
 import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
+import nz.mckenzie.sprayday.domain.doc.DocTrackSort
+import nz.mckenzie.sprayday.domain.doc.kindsPresent
 import nz.mckenzie.sprayday.domain.doc.matching
+import nz.mckenzie.sprayday.domain.doc.showing
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
@@ -77,6 +84,29 @@ class DocTracksViewModel(
     /** The newest fix, so "Near me" searches from where the phone is. Null until there is one. */
     private val fix = MutableStateFlow<GeoPoint?>(null)
 
+    /** The kinds the operator has filtered to; empty is "no filter". */
+    private val _kinds = MutableStateFlow<Set<String>>(emptySet())
+    val kinds: StateFlow<Set<String>> = _kinds
+
+    private val _sort = MutableStateFlow(DocTrackSort.NEAREST)
+    val sort: StateFlow<DocTrackSort> = _sort
+
+    /** The kinds a filter row should offer, from what the search actually returned. */
+    val kindChoices: StateFlow<List<String>> = _results
+        .map { tracks -> tracks.kindsPresent() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * The tracks the screen shows: the search's results, filtered by kind and ordered by the sort.
+     *
+     * Derived rather than stored, because the fix moves: standing still and turning "Nearest" on
+     * re-orders the page without asking DOC again.
+     */
+    val visible: StateFlow<List<DocTrack>> =
+        combine(_results, _kinds, _sort, fix) { results, kinds, sort, position ->
+            results.showing(kinds, sort, position)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
     init {
         viewModelScope.launch {
             DevicePosition.updates(viewModelScope).collect { position -> fix.value = position }
@@ -93,6 +123,19 @@ class DocTracksViewModel(
 
     fun onRadiusChange(value: String) {
         _radiusKm.value = value
+    }
+
+    /** Tick or untick a kind in the filter; an empty set shows every kind. */
+    fun toggleKind(kind: String) {
+        _kinds.value = if (kind in _kinds.value) _kinds.value - kind else _kinds.value + kind
+    }
+
+    fun clearKinds() {
+        _kinds.value = emptySet()
+    }
+
+    fun setSort(sort: DocTrackSort) {
+        _sort.value = sort
     }
 
     /** Tick or untick a track, unless it is one already on the phone - that one is not tickable. */
@@ -125,6 +168,8 @@ class DocTracksViewModel(
                 is DocTracksResult.Found -> {
                     _results.value = result.tracks
                     _selected.value = emptySet()
+                    // A new set of results, so a filter from the last search is not carried onto it.
+                    _kinds.value = emptySet()
                     _searched.value = true
                     // Read once per search, so every row can say whether it is already on the phone.
                     _imported.value = assets.existingSourceRefs()
@@ -144,6 +189,7 @@ class DocTracksViewModel(
                     val cached = cache.cached().matching(name)
                     _results.value = cached
                     _selected.value = emptySet()
+                    _kinds.value = emptySet()
                     _searched.value = true
                     _imported.value = assets.existingSourceRefs()
                     _message.value = when {
@@ -192,6 +238,9 @@ class DocTracksViewModel(
     companion object {
         /** How far around the phone a "Near me" search looks, until the operator says otherwise. */
         private const val DEFAULT_RADIUS_KM = 25.0
+
+        /** How long the derived flows stay warm after the screen stops looking. */
+        private const val STOP_TIMEOUT_MS = 5_000L
 
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext

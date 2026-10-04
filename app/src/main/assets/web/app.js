@@ -126,7 +126,7 @@ const { base64Of, importedNote, importProblem, trackName } = await import(
  * The phone does the asking - the page never reaches DOC itself - so this module holds only the two
  * small shapes the page and the phone have to agree on. Pure, and tested under node like the rest.
  */
-const { docImportBody, docSearchNote, docSearchPath } = await import(
+const { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing } = await import(
   TOKEN ? `./doc.mjs?k=${encodeURIComponent(TOKEN)}` : './doc.mjs'
 );
 
@@ -1241,6 +1241,9 @@ async function importGpxFile(file) {
  */
 let docTracks = [];
 const docSelected = new Set();
+// The kinds ticked in the filter (empty is all of them), and the order: nearest to the phone first.
+const docKinds = new Set();
+let docSort = 'nearest';
 
 function openDoc() {
   field('doc').hidden = false;
@@ -1278,6 +1281,9 @@ async function searchDoc() {
     );
     docTracks = answer.tracks || [];
     docSelected.clear();
+    // A new set of results, so a filter from the last search is not carried onto it.
+    docKinds.clear();
+    drawDocFilters();
     drawDocList();
     const words = docSearchNote(answer);
     field('doc-words').textContent = words;
@@ -1301,10 +1307,67 @@ function docMapBounds() {
   };
 }
 
+/**
+ * The filter row: a chip per kind the search actually returned, and the two orders.
+ *
+ * Offered from the results rather than from a list of DOC's taxonomy kept here, so the filter is
+ * always a fact about the page. Changing a chip re-draws the list and asks DOC nothing.
+ */
+function drawDocFilters() {
+  const kinds = field('doc-filters');
+  kinds.replaceChildren();
+  const choices = docKindsOf(docTracks);
+  kinds.hidden = choices.length === 0;
+  if (choices.length > 0) {
+    kinds.append(docChip('All kinds', docKinds.size === 0, () => {
+      docKinds.clear();
+      drawDocFilters();
+      drawDocList();
+    }));
+    for (const kind of choices) {
+      kinds.append(docChip(kind, docKinds.has(kind), () => {
+        if (docKinds.has(kind)) docKinds.delete(kind);
+        else docKinds.add(kind);
+        drawDocFilters();
+        drawDocList();
+      }));
+    }
+  }
+
+  const sorts = field('doc-sort');
+  sorts.replaceChildren();
+  sorts.hidden = docTracks.length === 0;
+  if (docTracks.length > 0) {
+    sorts.append(docChip('Nearest to phone', docSort === 'nearest', () => {
+      docSort = 'nearest';
+      drawDocFilters();
+      drawDocList();
+    }));
+    sorts.append(docChip('Name', docSort === 'name', () => {
+      docSort = 'name';
+      drawDocFilters();
+      drawDocList();
+    }));
+  }
+}
+
+/** One filter chip: a button that says whether it is on with `aria-pressed`. */
+function docChip(label, on, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'doc-chip';
+  button.textContent = label;
+  button.setAttribute('aria-pressed', on ? 'true' : 'false');
+  button.addEventListener('click', onClick);
+  return button;
+}
+
 function drawDocList() {
   const list = field('doc-list');
   list.replaceChildren();
-  for (const track of docTracks) {
+  // Filtered and ordered on the page, from the phone's own distances: changing a chip narrows the
+  // page it already has rather than asking DOC again.
+  for (const track of docShowing(docTracks, [...docKinds], docSort)) {
     const row = document.createElement('label');
     // A track the phone already has is shown but not tickable: the box is off, the row says why, and
     // the click does nothing - so a second search cannot double the work.
@@ -1364,6 +1427,7 @@ async function importDocTracks() {
     closeDoc();
     docTracks = [];
     docSelected.clear();
+    docKinds.clear();
     // The work the phone holds has changed, and every way the page reads it - the list, the box,
     // the map - is rebuilt from the document rather than guessed at.
     await reloadWork();

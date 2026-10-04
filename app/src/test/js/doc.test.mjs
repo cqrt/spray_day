@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { docImportBody, docSearchNote, docSearchPath } from '../../main/assets/web/doc.mjs';
+import { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing } from '../../main/assets/web/doc.mjs';
 
 test('a search with neither a name nor a place is the plain path', () => {
   assert.equal(docSearchPath('', null), '/api/doc');
@@ -89,4 +89,51 @@ test('a page that was only the first of more says so', () => {
 test('nothing to say is said as nothing, rather than a crash', () => {
   assert.equal(docSearchNote(null), '');
   assert.equal(docSearchNote(undefined), '');
+});
+
+test('the kinds present are each once, sorted, and blanks are left out', () => {
+  const tracks = [
+    { kind: 'Tramping Track' },
+    { kind: 'Short Walk' },
+    { kind: 'Tramping Track' },
+    { kind: null },
+    { kind: '  ' }
+  ];
+
+  assert.deepEqual(docKindsOf(tracks), ['Short Walk', 'Tramping Track']);
+  assert.deepEqual(docKindsOf(undefined), []);
+});
+
+test('nearest orders by the distance the phone sent', () => {
+  const near = { name: 'Near', kind: 'Walking Track', distanceM: 10 };
+  const far = { name: 'Far', kind: 'Walking Track', distanceM: 9000 };
+
+  assert.deepEqual(docShowing([far, near], [], 'nearest'), [near, far]);
+});
+
+test('a track with no distance sorts last, and a tie falls back to the name', () => {
+  const known = { name: 'B', kind: 'Walking Track', distanceM: 5 };
+  const unknown = { name: 'A', kind: 'Walking Track', distanceM: null };
+  const alsoUnknown = { name: 'C', kind: 'Walking Track' };
+
+  const shown = docShowing([unknown, known, alsoUnknown], [], 'nearest');
+
+  assert.deepEqual(shown.map((t) => t.name), ['B', 'A', 'C']);
+});
+
+test('picking kinds keeps only those; none picked keeps them all', () => {
+  const walk = { name: 'Walk', kind: 'Walking Track' };
+  const tramp = { name: 'Tramp', kind: 'Tramping Track' };
+
+  assert.deepEqual(docShowing([walk, tramp], ['Tramping Track'], 'name'), [tramp]);
+  assert.equal(docShowing([walk, tramp], [], 'name').length, 2);
+});
+
+test('by name is A to Z, and the input is not reordered underneath the caller', () => {
+  const b = { name: 'b', kind: 'Walking Track' };
+  const a = { name: 'A', kind: 'Walking Track' };
+  const original = [b, a];
+
+  assert.deepEqual(docShowing(original, [], 'name').map((t) => t.name), ['A', 'b']);
+  assert.deepEqual(original, [b, a], 'the page keeps its own array');
 });

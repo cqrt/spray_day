@@ -34,6 +34,23 @@ importer already reads.
 The service answers a **page** (300 tracks). A page that comes back full says so, rather than letting
 a capped search look like a complete one.
 
+## Filtering and ordering
+
+A search's results are narrowed and reordered **without asking DOC again** — the page already holds
+what it found:
+
+- **Kinds** are offered as chips taken from what the search actually returned — `Tramping Track`,
+  `Short Walk`, `Walking Track`, `Great Walk`, `Easy Tramping Track`, `Route` — and any of them can be
+  picked, together or alone. Picking none is every kind. The list is built from the results rather than
+  from DOC's taxonomy kept here, so a filter can only ever offer a kind that is on the page.
+- **Nearest to phone** orders by the distance from the phone's own fix to the **nearest vertex** of
+  each track — a long line passing beside you is near you, where its middle would not be — and it
+  needs no second request: the phone sends each track's distance, so the desk's order is the phone's.
+  With no fix it falls back to **Name**, A to Z.
+
+It is all the phone's arithmetic and the phone's answers, so both browsers order the same list the
+same way, and the nearest order re-sorts as the phone moves.
+
 ## Already-imported tracks
 
 A track that is already on the phone is shown in the list but **cannot be ticked or imported again**,

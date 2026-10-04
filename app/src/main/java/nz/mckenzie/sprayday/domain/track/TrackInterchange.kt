@@ -183,6 +183,14 @@ object TrackInterchange {
         )
     }
 
+    /**
+     * One track's paths read by the join rule, for a caller that already has the paths.
+     *
+     * The DOC Tracks browser queries tracks from a web service and already holds each feature's
+     * geometry, so it needs the rule without a file to read first. One rule, whichever door.
+     */
+    fun reading(paths: List<List<GeoPoint>>): Outcome = readingOf(paths)
+
     /** A line of one point is not a line, in the words the repository has always thrown this in. */
     const val TOO_SHORT = "A line needs at least two points"
 

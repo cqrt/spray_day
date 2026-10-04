@@ -34,6 +34,13 @@ them is worked out the one way, on the phone.
   saved, and a shed, a sign, a seat, a table or anything else you stop at is placed with a single tap.
   Each row carries a coloured icon of
   what the asset is, next to the colour that says when it is due.
+- **DOC tracks, straight from DOC** — the Department of Conservation publishes its track network as
+  a web service, so a **DOC tracks** screen searches it at the source: type part of a name, turn on
+  **Near me** to look around the phone, and import the tracks you tick as ordinary assets, each named
+  as DOC names it. Searching happens at DOC, so the phone asks for the few tracks you want rather
+  than the 3,255 there are; nothing is written until you import. The service is named in one place
+  (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current — deprecated — dataset it is one
+  line to change.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone
   holds, and change it. A track's details can be changed from its card; its line can be tidied by
   hand, by dragging the handles, clicking the line to put a vertex in the middle of it, clicking

@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.first
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.ui.screens.DrawAssetScreen
+import nz.mckenzie.sprayday.ui.screens.DocTracksScreen
 import nz.mckenzie.sprayday.ui.screens.MapScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineAreaPickerScreen
 import nz.mckenzie.sprayday.ui.screens.OfflineScreen
@@ -31,6 +32,7 @@ import nz.mckenzie.sprayday.ui.screens.BlockEditScreen
 import nz.mckenzie.sprayday.ui.screens.BlocksScreen
 import nz.mckenzie.sprayday.ui.theme.SprayDayTheme
 import nz.mckenzie.sprayday.viewmodel.DrawAssetViewModel
+import nz.mckenzie.sprayday.viewmodel.DocTracksViewModel
 import nz.mckenzie.sprayday.viewmodel.MapViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineAreaPickerViewModel
 import nz.mckenzie.sprayday.viewmodel.OfflineViewModel
@@ -48,7 +50,7 @@ import nz.mckenzie.sprayday.web.WebEditorService
 import nz.mckenzie.sprayday.web.WebEditorState
 
 /** Destinations for now; swap for a NavHost when routes need arguments. */
-private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS }
+private enum class Destination { MAP, ASSETS, DRAW, CHANGE_LINE, RECORD, OFFLINE, OFFLINE_PICKER, ASSET_DETAIL, ASSET_EDIT, BLOCKS, BLOCK_EDIT, SPRAY_ENTRY, RECORDINGS, RECORDING_DETAIL, SETTINGS, DOC_TRACKS }
 
 class MainActivity : ComponentActivity() {
 
@@ -141,8 +143,19 @@ class MainActivity : ComponentActivity() {
                                 drawVisit++
                                 destination = Destination.DRAW
                             },
+                            onImportDocTracks = { destination = Destination.DOC_TRACKS },
                             onOpenBlocks = { destination = Destination.BLOCKS },
                             onOpenSettings = { destination = Destination.SETTINGS }
+                        )
+                    }
+
+                    Destination.DOC_TRACKS -> {
+                        val docViewModel: DocTracksViewModel = viewModel(
+                            factory = DocTracksViewModel.factory(applicationContext)
+                        )
+                        DocTracksScreen(
+                            viewModel = docViewModel,
+                            onBack = { destination = Destination.ASSETS }
                         )
                     }
 

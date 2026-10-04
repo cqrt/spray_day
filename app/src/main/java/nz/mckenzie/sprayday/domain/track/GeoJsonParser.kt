@@ -24,8 +24,19 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
  */
 object GeoJsonParser {
 
-    /** One feature's geometry as the paths it holds, and the name its properties give it. */
-    data class Feature(val name: String?, val paths: List<List<GeoPoint>>)
+    /**
+     * One feature's geometry as the paths it holds, the name its properties give it, and its
+     * **scalar properties** as text.
+     *
+     * The properties are carried for callers that need more than a track's name - the DOC Tracks
+     * browser reads `SubObjectType` and `OBJECTID` from the same document - while the parser stays
+     * generic: only the primitive values are kept, nested objects and arrays are ignored.
+     */
+    data class Feature(
+        val name: String?,
+        val paths: List<List<GeoPoint>>,
+        val properties: Map<String, String> = emptyMap()
+    )
 
     /**
      * The keys a feature may carry its own name under, in the order worth trying.
@@ -64,7 +75,17 @@ object GeoJsonParser {
         } else {
             feature
         }
-        return Feature(nameOf(feature["properties"] as? JsonObject), pathsOf(geometry))
+        val properties = feature["properties"] as? JsonObject
+        return Feature(nameOf(properties), pathsOf(geometry), scalarsOf(properties))
+    }
+
+    /** A feature's properties as plain text, keeping only the values that are a single scalar. */
+    private fun scalarsOf(properties: JsonObject?): Map<String, String> {
+        properties ?: return emptyMap()
+        return properties.mapNotNull { (key, value) ->
+            val text = (value as? JsonPrimitive)?.contentOrNull
+            if (text == null) null else key to text
+        }.toMap()
     }
 
     /** The paths a geometry element holds, whichever shape it is written as. */

@@ -61,6 +61,7 @@ fun AssetListScreen(
     onOpenTab: (Tab) -> Unit = {},
     onOpenAsset: (Long) -> Unit,
     onDrawAsset: () -> Unit,
+    onImportDocTracks: () -> Unit,
     onOpenBlocks: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -120,6 +121,9 @@ fun AssetListScreen(
                     enabled = !busy
                 ) {
                     Text("Import GPX, KML, KMZ or GeoJSON")
+                }
+                OutlinedButton(onClick = onImportDocTracks) {
+                    Text("DOC tracks")
                 }
             }
 

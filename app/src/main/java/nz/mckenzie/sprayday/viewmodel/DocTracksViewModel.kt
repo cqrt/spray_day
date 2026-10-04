@@ -12,12 +12,16 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
 import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocTrackDownloader
 import nz.mckenzie.sprayday.doc.DocTracksResult
 import nz.mckenzie.sprayday.doc.DocTracksSource
 import nz.mckenzie.sprayday.domain.doc.DocTrack
+import nz.mckenzie.sprayday.domain.doc.DocTrackCache
 import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
+import nz.mckenzie.sprayday.domain.doc.matching
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
 import nz.mckenzie.sprayday.tracking.DevicePosition
 
 /**
@@ -30,7 +34,9 @@ import nz.mckenzie.sprayday.tracking.DevicePosition
  */
 class DocTracksViewModel(
     private val assets: AssetRepository,
-    private val source: DocTracksSource
+    private val source: DocTracksSource,
+    /** The tracks downloaded for offline use, searched when DOC cannot be reached. */
+    private val cache: DocTrackCache
 ) : ViewModel() {
 
     private val _name = MutableStateFlow("")
@@ -132,9 +138,21 @@ class DocTracksViewModel(
                     }
                 }
                 is DocTracksResult.Failed -> {
-                    _results.value = emptyList()
+                    // No service: fall back to what was downloaded for offline use, so a track can
+                    // still be imported with no reception. Filtered by name; the download is the
+                    // place filter, because the cache only holds the areas asked for.
+                    val cached = cache.cached().matching(name)
+                    _results.value = cached
+                    _selected.value = emptySet()
                     _searched.value = true
-                    _message.value = result.message
+                    _imported.value = assets.existingSourceRefs()
+                    _message.value = when {
+                        cached.isNotEmpty() ->
+                            "Could not reach DOC. Showing ${cached.size} downloaded " +
+                                (if (cached.size == 1) "track" else "tracks") + "."
+                        cache.count() > 0 -> "Could not reach DOC, and nothing downloaded matches."
+                        else -> result.message
+                    }
                 }
             }
             _busy.value = false
@@ -179,9 +197,15 @@ class DocTracksViewModel(
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
+                    val database = SprayDayDatabase.get(appContext)
                     DocTracksViewModel(
-                        assets = AssetRepository(SprayDayDatabase.get(appContext)),
-                        source = ArcGisDocTracks()
+                        assets = AssetRepository(database),
+                        source = ArcGisDocTracks(),
+                        // The same cache the offline screen downloads into.
+                        cache = OfflineDocTrackStore(
+                            dao = database.offlineDocTrackDao(),
+                            downloader = DocTrackDownloader(ArcGisDocTracks())
+                        )
                     )
                 }
             }

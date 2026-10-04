@@ -18,6 +18,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocDownloadResult
+import nz.mckenzie.sprayday.doc.DocTrackDownloader
+import nz.mckenzie.sprayday.domain.doc.DocBounds
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
@@ -26,7 +30,9 @@ import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaDraft
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
+import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
 import nz.mckenzie.sprayday.offline.TileServerHolder
+import nz.mckenzie.sprayday.offline.docDownloadedMessage
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
 import nz.mckenzie.sprayday.ui.formatShortDate
@@ -43,7 +49,9 @@ class OfflineAreaPickerViewModel(
     private val manager: OfflineAreaManager,
     private val assetRepository: AssetRepository,
     private val locationSource: LocationSource,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    /** The DOC tracks kept for offline use, downloaded for the box drawn here. */
+    private val docStore: OfflineDocTrackStore
 ) : ViewModel() {
 
     private val _draft = MutableStateFlow(
@@ -106,6 +114,16 @@ class OfflineAreaPickerViewModel(
      * back out.
      */
     val saved: StateFlow<Boolean> = _saved
+
+    /** How many DOC tracks are downloaded for offline use, live from the database. */
+    val docTrackCount: StateFlow<Int> = docStore.observeCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
+
+    private val _docWorking = MutableStateFlow(false)
+    val docWorking: StateFlow<Boolean> = _docWorking
+
+    private val _docMessage = MutableStateFlow<String?>(null)
+    val docMessage: StateFlow<String?> = _docMessage
 
     fun consumeSaved() {
         _saved.value = false
@@ -199,6 +217,50 @@ class OfflineAreaPickerViewModel(
 
     private fun defaultName(): String = "Area " + formatShortDate(System.currentTimeMillis())
 
+    /**
+     * Downloads every DOC track in the box drawn here, so the browser can import them with no
+     * reception.
+     *
+     * Independent of the imagery download above: no LINZ key is needed, and the box is the one the
+     * operator drew rather than the area offered by location.
+     */
+    fun downloadDocTracks() {
+        if (_docWorking.value) return
+        val current = _draft.value
+        val plan = current.plan(name = current.name, fallbackName = defaultName())
+        if (plan == null) {
+            _docMessage.value = "Tap two opposite corners on the map to choose the area."
+            return
+        }
+
+        viewModelScope.launch {
+            _docWorking.value = true
+            _docMessage.value = null
+            try {
+                when (val result = docStore.download(plan.bounds.toDocBounds())) {
+                    is DocDownloadResult.Done -> _docMessage.value = docDownloadedMessage(result.tracks.size)
+                    // A download that stopped short still kept what arrived, so say both.
+                    is DocDownloadResult.Failed ->
+                        _docMessage.value = "${result.message} ${docDownloadedMessage(result.tracks.size)}"
+                }
+            } catch (cancelled: CancellationException) {
+                // Leaving the screen is not a failure; what already arrived is kept.
+                throw cancelled
+            } catch (failure: Throwable) {
+                _docMessage.value = failure.message ?: "Download failed"
+            } finally {
+                _docWorking.value = false
+            }
+        }
+    }
+
+    fun clearDocTracks() {
+        viewModelScope.launch {
+            runCatching { docStore.clear() }
+            _docMessage.value = null
+        }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val LOCATION_TIMEOUT_MS = 5_000L
@@ -240,10 +302,23 @@ class OfflineAreaPickerViewModel(
                         ),
                         assetRepository = AssetRepository(database),
                         locationSource = FusedLocationSource(appContext),
-                        settings = SettingsRepository(appContext)
+                        settings = SettingsRepository(appContext),
+                        // The tracks the DOC browser falls back to when the service cannot be reached.
+                        docStore = OfflineDocTrackStore(
+                            dao = database.offlineDocTrackDao(),
+                            downloader = DocTrackDownloader(ArcGisDocTracks())
+                        )
                     )
                 }
             }
         }
     }
 }
+
+/** The picker's box as the DOC query's own box: one rectangle, two names. */
+private fun LatLngBounds.toDocBounds() = DocBounds(
+    minLat = minLat,
+    minLng = minLng,
+    maxLat = maxLat,
+    maxLng = maxLng
+)

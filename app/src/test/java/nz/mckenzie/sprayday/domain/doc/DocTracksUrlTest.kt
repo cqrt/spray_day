@@ -84,6 +84,20 @@ class DocTracksUrlTest {
     }
 
     @Test
+    fun `a page beyond the first asks from where the last ended`() {
+        val url = DocTracksUrl.of(
+            DocTrackQuery(
+                bounds = DocBounds(minLat = -46.7, minLng = 168.1, maxLat = -46.5, maxLng = 168.6),
+                limit = 2000,
+                offset = 2000
+            )
+        )
+
+        assertTrue(url.contains("resultOffset=2000"))
+        assertTrue(url.contains("resultRecordCount=2000"))
+    }
+
+    @Test
     fun `the same radius reaches further in longitude the further south you are`() {
         // A degree of longitude is shorter at this latitude, so the box is wider east-west.
         val envelope = DocTracksUrl.envelope(GeoPoint(lat = -46.6, lng = 168.35), radiusKm = 25.0)

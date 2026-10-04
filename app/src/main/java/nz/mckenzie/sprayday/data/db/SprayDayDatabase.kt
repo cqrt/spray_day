@@ -17,9 +17,10 @@ import androidx.room.RoomDatabase
         RecordedSessionEntity::class,
         RecordedPointEntity::class,
         RecordedBreakEntity::class,
-        OfflineAreaEntity::class
+        OfflineAreaEntity::class,
+        OfflineDocTrackEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class SprayDayDatabase : RoomDatabase() {
@@ -30,6 +31,9 @@ abstract class SprayDayDatabase : RoomDatabase() {
     abstract fun sprayEventDao(): SprayEventDao
     abstract fun recordingDao(): RecordingDao
     abstract fun offlineAreaDao(): OfflineAreaDao
+
+    /** The DOC tracks kept for offline use. */
+    abstract fun offlineDocTrackDao(): OfflineDocTrackDao
 
     /** Reads and writes everything, for backup and restore. */
     abstract fun backupDao(): BackupDao
@@ -54,7 +58,8 @@ abstract class SprayDayDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
-                    MIGRATION_7_8
+                    MIGRATION_7_8,
+                    MIGRATION_8_9
                 )
                     .build().also { instance = it }
             }

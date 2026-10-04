@@ -41,9 +41,11 @@ them is worked out the one way, on the phone.
   happens at DOC, so the phone asks for the few tracks you want rather than the 3,255 there are;
   nothing is written until you import. The computer editor has the same browser, and the phone does
   the searching there too — the laptop never reaches DOC itself; its map can be the search area
-  instead, and the radius is set beside Near me. The service is named in one place
-  (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current — deprecated — dataset it is one
-  line to change.
+  instead, and the radius is set beside Near me. The **Offline areas** screen can **download the DOC
+  tracks for a box** as well, so the browser imports them with no reception at all: a cache, cleared
+  without a warning, independent of the imagery and needing no LINZ key. The service is named in one
+  place (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current — deprecated — dataset it is
+  one line to change.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone
   holds, and change it. A track's details can be changed from its card; its line can be tidied by
   hand, by dragging the handles, clicking the line to put a vertex in the middle of it, clicking

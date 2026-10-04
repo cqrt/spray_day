@@ -17,8 +17,11 @@ import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.doc.DocBounds
+import nz.mckenzie.sprayday.domain.doc.DocTrackCache
 import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
+import nz.mckenzie.sprayday.domain.doc.EmptyDocTrackCache
 import nz.mckenzie.sprayday.domain.doc.docSourceRef
+import nz.mckenzie.sprayday.domain.doc.matching
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -68,6 +71,11 @@ class WebEditorDocuments(
      * the desk's search can be proved without a network.
      */
     private val docTracks: DocTracksSource = ArcGisDocTracks(),
+    /**
+     * The DOC tracks downloaded for offline use, searched when the service cannot be reached - the
+     * desk can import a downloaded track as readily as the phone can.
+     */
+    private val docCache: DocTrackCache = EmptyDocTrackCache,
     private val now: () -> Long = System::currentTimeMillis
 ) : WebEditorData {
 
@@ -331,12 +339,23 @@ class WebEditorDocuments(
                     capped = result.tracks.size >= limit
                 )
             }
-            is DocTracksResult.Failed -> WebEditorJson.docSearch(
-                tracks = emptyList(),
-                importedRefs = emptySet(),
-                message = result.message,
-                capped = false
-            )
+            is DocTracksResult.Failed -> {
+                // No service: fall back to the tracks downloaded for offline use, so the desk can
+                // still import one. Filtered by name; the download is the place filter.
+                val cached = docCache.cached().matching(name)
+                WebEditorJson.docSearch(
+                    tracks = cached,
+                    importedRefs = assets.existingSourceRefs(),
+                    message = when {
+                        cached.isNotEmpty() ->
+                            "Could not reach DOC. Showing ${cached.size} downloaded " +
+                                (if (cached.size == 1) "track" else "tracks") + "."
+                        docCache.count() > 0 -> "Could not reach DOC, and nothing downloaded matches."
+                        else -> result.message
+                    },
+                    capped = false
+                )
+            }
         }
     }
 

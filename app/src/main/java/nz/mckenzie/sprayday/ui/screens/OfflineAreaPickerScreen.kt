@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +60,9 @@ fun OfflineAreaPickerScreen(
     val working by viewModel.working.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
+    val docTrackCount by viewModel.docTrackCount.collectAsStateWithLifecycle()
+    val docWorking by viewModel.docWorking.collectAsStateWithLifecycle()
+    val docMessage by viewModel.docMessage.collectAsStateWithLifecycle()
 
     LaunchedEffect(saved) {
         if (saved) {
@@ -192,6 +196,38 @@ fun OfflineAreaPickerScreen(
                                 !draft.isTooBig && !working
                         ) { Text("Download area") }
                     }
+
+                    /*
+                     * DOC's own tracks for this box, independent of the imagery above: no LINZ key,
+                     * and these are what the DOC tracks browser imports with no reception.
+                     */
+                    HorizontalDivider()
+                    Text("DOC tracks", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = if (docTrackCount == 0) {
+                            "None downloaded. Download DOC's tracks for this box and the DOC " +
+                                "tracks browser can import them with no reception."
+                        } else {
+                            "$docTrackCount DOC ${if (docTrackCount == 1) "track" else "tracks"} " +
+                                "downloaded for offline use."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = viewModel::downloadDocTracks,
+                            enabled = draft.isComplete && !docWorking
+                        ) {
+                            Text(if (docWorking) "Downloading DOC tracks…" else "Download DOC tracks")
+                        }
+                        if (docTrackCount > 0) {
+                            DestructiveTextButton(
+                                text = "Clear DOC tracks",
+                                onClick = viewModel::clearDocTracks
+                            )
+                        }
+                    }
+                    docMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }

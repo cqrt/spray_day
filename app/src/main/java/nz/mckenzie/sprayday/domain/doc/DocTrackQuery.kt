@@ -19,7 +19,9 @@ data class DocTrackQuery(
     val near: GeoPoint? = null,
     val radiusKm: Double = 25.0,
     val bounds: DocBounds? = null,
-    val limit: Int = DEFAULT_LIMIT
+    val limit: Int = DEFAULT_LIMIT,
+    /** Where to start in the service's own order, for reading more than one page. */
+    val offset: Int = 0
 ) {
     companion object {
         /** How many tracks one search asks for. The service's own ceiling is 2,000. */
@@ -76,7 +78,7 @@ object DocTracksUrl {
         parameters["returnGeometry"] = "true"
         parameters["outSR"] = "4326"
         parameters["orderByFields"] = "OBJECTID"
-        parameters["resultOffset"] = "0"
+        parameters["resultOffset"] = query.offset.coerceAtLeast(0).toString()
         parameters["resultRecordCount"] = query.limit.coerceIn(1, MAX_RECORD_COUNT).toString()
         parameters["f"] = "geojson"
 

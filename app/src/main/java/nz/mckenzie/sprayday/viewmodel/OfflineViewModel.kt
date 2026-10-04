@@ -18,6 +18,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocDownloadResult
+import nz.mckenzie.sprayday.doc.DocTrackDownloader
+import nz.mckenzie.sprayday.domain.doc.DocBounds
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
@@ -26,8 +30,10 @@ import nz.mckenzie.sprayday.map.AssetLine
 import nz.mckenzie.sprayday.offline.OfflineArea
 import nz.mckenzie.sprayday.offline.OfflineAreaManager
 import nz.mckenzie.sprayday.offline.OfflineAreaPlan
+import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.offline.TileStoreSummary
+import nz.mckenzie.sprayday.offline.docDownloadedMessage
 import nz.mckenzie.sprayday.tracking.FusedLocationSource
 import nz.mckenzie.sprayday.tracking.LocationSource
 
@@ -51,7 +57,9 @@ class OfflineViewModel(
     private val manager: OfflineAreaManager,
     private val assetRepository: AssetRepository,
     private val locationSource: LocationSource,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    /** The DOC tracks kept for offline use, downloaded and cleared from this screen. */
+    private val docStore: OfflineDocTrackStore
 ) : ViewModel() {
 
     val apiKey: StateFlow<String> = settings.linzApiKey
@@ -100,6 +108,17 @@ class OfflineViewModel(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    /** How many DOC tracks are kept for offline use, live from the database. */
+    val docTrackCount: StateFlow<Int> = docStore.observeCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
+
+    private val _docWorking = MutableStateFlow(false)
+    val docWorking: StateFlow<Boolean> = _docWorking
+
+    /** The phone's own sentence about the last DOC download, or null when there is nothing to say. */
+    private val _docMessage = MutableStateFlow<String?>(null)
+    val docMessage: StateFlow<String?> = _docMessage
 
     init {
         refreshSummary()
@@ -190,6 +209,49 @@ class OfflineViewModel(
         }
     }
 
+    /**
+     * Downloads every DOC track in the area on offer, so the browser can import them with no reception.
+     *
+     * The same box the imagery download uses, and independent of it: a LINZ key is not needed for
+     * DOC's tracks, and an operator who only wants tracks does not pay for imagery.
+     */
+    fun downloadDocTracks() {
+        if (_docWorking.value) return
+        val area = _plan.value
+        if (area == null) {
+            _docMessage.value = "There is no area to download yet."
+            return
+        }
+
+        viewModelScope.launch {
+            _docWorking.value = true
+            _docMessage.value = null
+            try {
+                when (val result = docStore.download(area.bounds.toDocBounds())) {
+                    is DocDownloadResult.Done -> _docMessage.value = docDownloadedMessage(result.tracks.size)
+                    // A download that stopped short still kept what arrived, so say both.
+                    is DocDownloadResult.Failed ->
+                        _docMessage.value = "${result.message} ${docDownloadedMessage(result.tracks.size)}"
+                }
+            } catch (cancelled: CancellationException) {
+                // Leaving the screen is not a failure; what already arrived is kept.
+                throw cancelled
+            } catch (failure: Throwable) {
+                _docMessage.value = failure.message ?: "Download failed"
+            } finally {
+                _docWorking.value = false
+            }
+        }
+    }
+
+    /** Forgets every downloaded DOC track. Costs nothing but the download. */
+    fun clearDocTracks() {
+        viewModelScope.launch {
+            runCatching { docStore.clear() }
+            _docMessage.value = null
+        }
+    }
+
     private fun runDownload(existingId: Long?) {
         if (_working.value) return
 
@@ -267,10 +329,24 @@ class OfflineViewModel(
                         ),
                         assetRepository = AssetRepository(database),
                         locationSource = FusedLocationSource(appContext),
-                        settings = SettingsRepository(appContext)
+                        settings = SettingsRepository(appContext),
+                        // DOC's tracks, downloaded into the same cache the editor's browser
+                        // falls back to when the service cannot be reached.
+                        docStore = OfflineDocTrackStore(
+                            dao = database.offlineDocTrackDao(),
+                            downloader = DocTrackDownloader(ArcGisDocTracks())
+                        )
                     )
                 }
             }
         }
     }
 }
+
+/** The offline area's box as the DOC query's own box: one rectangle, two names. */
+private fun LatLngBounds.toDocBounds() = DocBounds(
+    minLat = minLat,
+    minLng = minLng,
+    maxLat = maxLat,
+    maxLng = maxLng
+)

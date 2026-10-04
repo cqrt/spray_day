@@ -33,8 +33,11 @@ import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.SprayRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocTrackDownloader
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.offline.LocalTileServer
+import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
 import nz.mckenzie.sprayday.offline.TileServerHolder
 import nz.mckenzie.sprayday.tracking.DevicePosition
 
@@ -170,7 +173,13 @@ class WebEditorService : Service() {
             token = token,
             basemap = { settings.basemap.first() },
             position = { position.value },
-            readPageFile = ::readPageFile
+            readPageFile = ::readPageFile,
+            // The tracks downloaded for offline use, so the desk's browser falls back to them when
+            // DOC cannot be reached - the same cache the offline screen fills.
+            docCache = OfflineDocTrackStore(
+                dao = database.offlineDocTrackDao(),
+                downloader = DocTrackDownloader(ArcGisDocTracks())
+            )
         )
 
         val started = WebEditorServer(

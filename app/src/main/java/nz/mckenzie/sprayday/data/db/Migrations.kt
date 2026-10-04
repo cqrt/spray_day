@@ -445,3 +445,34 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("ALTER TABLE `assets` ADD COLUMN `sourceRef` TEXT")
     }
 }
+
+/**
+ * Adds the DOC tracks kept for offline use.
+ *
+ * A new table and nothing else: it is a cache of tracks DOC published, so there is nothing to carry
+ * over from a v8 database and nothing to fill in. `offline_doc_tracks` is the track and its name,
+ * kind and metres, and its geometry as one JSON column - see
+ * [nz.mckenzie.sprayday.domain.doc.DocPathsJson] for why a cache row is not a points table.
+ *
+ * The SQL is written out in the shape Room exports (see app/schemas/.../9.json), and
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v8
+ * database.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `offline_doc_tracks` (" +
+                "`objectId` INTEGER NOT NULL, " +
+                "`name` TEXT NOT NULL, " +
+                "`kind` TEXT, " +
+                "`lengthM` REAL NOT NULL, " +
+                "`pathsJson` TEXT NOT NULL, " +
+                "`downloadedAtEpochMs` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`objectId`))"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_offline_doc_tracks_downloadedAtEpochMs` " +
+                "ON `offline_doc_tracks` (`downloadedAtEpochMs`)"
+        )
+    }
+}

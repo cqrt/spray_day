@@ -90,6 +90,30 @@ box is off and disabled, and it is left out of the request even if a page sends 
 - `app/src/main/assets/web/doc.mjs` is the desk's half — the query and the import body — pure, and
   tested under node like `wire.mjs`.
 
+## Offline
+
+The browser is useless with no reception unless the tracks are already on the phone, so the
+**Offline areas** screen can download them for the area it is about — and so can the map picker, for
+a box drawn by hand. Both ask for the same thing: every track inside that box.
+
+- **Download DOC tracks** pulls every track the service has inside the box, a page at a time
+  (`DocTrackDownloader`; 2,000 a request, capped at 4,000), and stores them keyed by the service's own
+  `OBJECTID` — so two overlapping areas end with one copy, not two. It is **independent of the
+  imagery**: no LINZ key is needed, and an operator who only wants tracks pays for nothing else.
+- The store is a **cache**, not the record of the farm: it is not backed up, and *Clear downloaded DOC
+  tracks* costs nothing but the download.
+- With no service, both browsers fall back to the cache: the search is filtered by name — the download
+  is the place filter, because the cache only holds the areas asked for — and the list says
+  *Could not reach DOC. Showing N downloaded tracks.* Importing works exactly as it does online,
+  because it always did: the geometry is already in hand.
+
+`DocTrackCache` is the interface the browsers depend on; `OfflineDocTrackStore` is the Room-backed
+one, beside the offline imagery. `DocPathsJson` is how a cached track's geometry travels — `[lat, lng]`
+pairs in one JSON column — because a cache row is written once and read whole and nothing joins to it.
+
+The table arrived with schema **v9** (`MIGRATION_8_9`), proved against a populated v8 database like
+every migration before it.
+
 ## Files
 
 | File | What it is |
@@ -101,6 +125,11 @@ box is off and disabled, and it is left out of the request even if a page sends 
 | `viewmodel/DocTracksViewModel.kt` | The search, the ticks, the import, and the phone's own newest fix for "Near me". |
 | `ui/screens/DocTracksScreen.kt` | The screen: a name field, Near me with a km field, Search, a tickable list, Import. |
 | `data/db/AssetEntity.kt`, `Migrations.kt` | `sourceRef`, the exact key a service track was imported under, and `MIGRATION_7_8` that adds it (schema v8). |
+| `data/db/OfflineDocTrackEntity.kt`, `OfflineDocTrackDao.kt`, `MIGRATION_8_9` | The offline DOC cache table and its v9 migration. |
+| `domain/doc/DocTrackCache.kt` | The cache the browsers depend on, and the name filter used when DOC cannot be reached. |
+| `domain/doc/DocPathsJson.kt` | A cached track's geometry as `[lat, lng]` pairs in one JSON column. |
+| `doc/DocTrackDownloader.kt` | Reading a whole area's tracks a page at a time, keeping what arrived when it stops short. |
+| `offline/OfflineDocTrackStore.kt` | The Room-backed cache beside the offline imagery, and the download that fills it. |
 | `web/WebEditorDocuments.kt` | The desk's two asks: `docSearch` runs the same `DocTracksSource` the phone screen does and marks what is already here, and `docImport` makes the ticked tracks with `createAsset`. |
 | `web/WebEditorServer.kt` | `GET /api/doc` and `POST /api/doc/import`, beside the other routes and behind the same token gate. |
 | `web/WebEditorJson.kt` | The documents those two answer with, and the two data shapes `doc.mjs` sends and reads. |

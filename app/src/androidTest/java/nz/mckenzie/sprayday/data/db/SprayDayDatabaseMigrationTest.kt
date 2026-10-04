@@ -519,6 +519,49 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v8 -> v9 migration: the DOC tracks kept for offline use.
+     *
+     * A new table, so what has to be proved is that a v8 database comes through it untouched and that
+     * the table is usable afterwards. `runMigrationsAndValidate` also checks the schema it produces
+     * against the one Room exports for v9.
+     */
+    @Test
+    fun migrationFrom8To9AddsTheOfflineDocTracks() {
+        helper.createDatabase(TEST_DB, 8).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, groupId, notes, intervalDays, " +
+                    "swathWidthM, passesRequired, passSeparationM, active, createdAtEpochMs, " +
+                    "lastSprayedAtEpochMs, lengthM, areaM2, sourceRef) " +
+                    "VALUES (6, 'Glory Tk', 'TRACK', 'LINE', 'UNSET', NULL, NULL, 120, NULL, 1, " +
+                    "NULL, 1, 1000, NULL, 222.4, 0.0, 'doc:35239046')"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 9, true, MIGRATION_8_9)
+
+        migrated.query("SELECT name, sourceRef FROM assets WHERE id = 6").use { cursor ->
+            assertTrue("the track is still there", cursor.moveToFirst())
+            assertEquals("Glory Tk", cursor.getString(0))
+            assertEquals("and its source", "doc:35239046", cursor.getString(1))
+        }
+
+        // The new table is present and usable, including its index.
+        migrated.execSQL(
+            "INSERT INTO offline_doc_tracks (objectId, name, kind, lengthM, pathsJson, " +
+                "downloadedAtEpochMs) " +
+                "VALUES (35239046, 'Glory Tk', 'Walking Track', 222.4, '[[[-46.6,168.3]]]', 2000)"
+        )
+        migrated.query("SELECT name, lengthM FROM offline_doc_tracks").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Glory Tk", cursor.getString(0))
+            assertEquals(222.4, cursor.getDouble(1), 0.01)
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

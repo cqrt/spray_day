@@ -12,6 +12,8 @@ import kotlinx.coroutines.withTimeout
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.data.AssetRepository
 import nz.mckenzie.sprayday.data.db.SprayDayDatabase
+import nz.mckenzie.sprayday.doc.ArcGisDocTracks
+import nz.mckenzie.sprayday.doc.DocTrackDownloader
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -79,7 +81,12 @@ class OfflineAreaSourceTest {
         manager = OfflineAreaManager(store = store, dao = db.offlineAreaDao()),
         assetRepository = assetRepository,
         locationSource = FakeLocationSource(fix),
-        settings = SettingsRepository(context)
+        settings = SettingsRepository(context),
+        // The DOC cache is not what this test is about; it is wired so the view model can be built.
+        docStore = OfflineDocTrackStore(
+            dao = db.offlineDocTrackDao(),
+            downloader = DocTrackDownloader(ArcGisDocTracks())
+        )
     )
 
     @Test

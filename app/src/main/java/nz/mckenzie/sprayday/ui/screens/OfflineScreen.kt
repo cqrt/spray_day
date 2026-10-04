@@ -61,6 +61,9 @@ fun OfflineScreen(
     val working by viewModel.working.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val docTrackCount by viewModel.docTrackCount.collectAsStateWithLifecycle()
+    val docWorking by viewModel.docWorking.collectAsStateWithLifecycle()
+    val docMessage by viewModel.docMessage.collectAsStateWithLifecycle()
 
     // Taken from the list, which is the database, so the bar tracks the download as it
     // writes its progress rather than needing a second source of truth.
@@ -213,6 +216,50 @@ fun OfflineScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+
+            /*
+             * DOC's own tracks, downloaded for the same box as the imagery and independent of it: a
+             * LINZ key is not needed, and these are what the DOC tracks browser imports with no
+             * reception. A cache rather than a record, so it is cleared without a warning about losing
+             * work.
+             */
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("DOC tracks", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = if (docTrackCount == 0) {
+                            "None downloaded. Download the Department of Conservation's tracks for " +
+                                "this area, and the DOC tracks browser can import them with no reception."
+                        } else {
+                            "$docTrackCount DOC ${if (docTrackCount == 1) "track" else "tracks"} " +
+                                "downloaded for offline use."
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(
+                        onClick = { viewModel.downloadDocTracks() },
+                        enabled = !docWorking && plan != null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (docWorking) "Downloading DOC tracks…"
+                            else "Download DOC tracks for this area"
+                        )
+                    }
+                    docMessage?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (docTrackCount > 0) {
+                        DestructiveTextButton(
+                            text = "Clear downloaded DOC tracks",
+                            onClick = { viewModel.clearDocTracks() }
+                        )
+                    }
+                }
             }
 
             Row(

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.DocTrackSort
+import nz.mckenzie.sprayday.domain.doc.distanceM
 import nz.mckenzie.sprayday.ui.formatDistance
 import nz.mckenzie.sprayday.viewmodel.DocTracksViewModel
 
@@ -65,6 +66,7 @@ fun DocTracksScreen(
     val kindChoices by viewModel.kindChoices.collectAsStateWithLifecycle()
     val kinds by viewModel.kinds.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val phoneFix by viewModel.phoneFix.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val searched by viewModel.searched.collectAsStateWithLifecycle()
     val imported by viewModel.imported.collectAsStateWithLifecycle()
@@ -218,6 +220,7 @@ fun DocTracksScreen(
                             track = track,
                             checked = track.objectId in selected,
                             imported = track.sourceRef in imported,
+                            distanceM = phoneFix?.let { position -> track.distanceM(position) },
                             onToggle = { viewModel.toggle(track) }
                         )
                     }
@@ -228,7 +231,13 @@ fun DocTracksScreen(
 }
 
 @Composable
-private fun DocTrackRow(track: DocTrack, checked: Boolean, imported: Boolean, onToggle: () -> Unit) {
+private fun DocTrackRow(
+    track: DocTrack,
+    checked: Boolean,
+    imported: Boolean,
+    distanceM: Double?,
+    onToggle: () -> Unit
+) {
     ListItem(
         // A track already on the phone is not something to tick: the box and the row are both off, and
         // the line says why rather than leaving the operator to wonder.
@@ -243,6 +252,9 @@ private fun DocTrackRow(track: DocTrack, checked: Boolean, imported: Boolean, on
                     track.kind,
                     "${track.pointCount} points",
                     formatDistance(track.lengthM),
+                    // How far away it is, from the phone's own fix - so "Near me" can be seen to be
+                    // the radius it says it is.
+                    distanceM?.let { distance -> "${formatDistance(distance)} away" },
                     if (imported) "already imported" else null
                 ).joinToString(" \u00b7 ")
             )

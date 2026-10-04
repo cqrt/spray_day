@@ -35,6 +35,19 @@ fun List<DocTrack>.kindsPresent(): List<String> =
         .sorted()
 
 /**
+ * The tracks whose nearest vertex is within [radiusM] of [from], or all of them when [from] is null.
+ *
+ * The service's own filter is a **bounding box**, and a box reaches its corners about 1.4 times its
+ * half-width, so a "50 km" box can hand back a track whose nearest point is 70 km away - and a long
+ * track that only clips the corner can stretch far beyond it. This is the circle the operator
+ * actually asked for, applied to what the service returned.
+ */
+fun List<DocTrack>.within(radiusM: Double, from: GeoPoint?): List<DocTrack> {
+    from ?: return this
+    return filter { track -> (track.distanceM(from) ?: Double.MAX_VALUE) <= radiusM }
+}
+
+/**
  * The tracks to show: those of the picked [kinds] (all of them when none is picked), ordered by [sort].
  *
  * A nearest sort with no [from] - the phone has no fix yet - falls back to by name, because with

@@ -28,7 +28,12 @@ importer already reads.
   name is doubled, so it searches for a name rather than ending the clause.
 - **Near me** adds an envelope around the phone's newest fix, **25 km by default and set by the
   operator** (the phone screen's km field, the desk's "Within … km"). A degree of longitude is shorter
-  this far south, so the box is wider than it is tall; it is a bounding box, not a distance test.
+  this far south, so the box is wider than it is tall. The box is only the service's quick filter,
+  though: its corners reach about 1.4× the radius, and any long track that clips it passes right
+  through, so what comes back is then **kept only where the nearest point is truly within the radius**
+  — the circle the operator asked for. A near-me search with no fix yet is refused rather than done
+  without the place, which is how tracks 80 km away used to turn up under a 50 km radius. Each row
+  says how far away it is, from the phone's own fix.
 - Either alone is enough, and both together narrow each other.
 
 The service answers a **page** (300 tracks). A page that comes back full says so, rather than letting

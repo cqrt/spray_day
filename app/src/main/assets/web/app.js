@@ -1395,6 +1395,8 @@ function drawDocList() {
       track.kind,
       `${track.points} points`,
       metresText(track.lengthM),
+      // How far the phone says it is, so "Near the phone" can be seen to be the radius it says.
+      typeof track.distanceM === 'number' ? `${metresText(track.distanceM)} away` : null,
       track.imported ? 'already imported' : null
     ]
       .filter(Boolean)

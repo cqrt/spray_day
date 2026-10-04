@@ -26,6 +26,7 @@ import nz.mckenzie.sprayday.domain.doc.DocTrackSort
 import nz.mckenzie.sprayday.domain.doc.kindsPresent
 import nz.mckenzie.sprayday.domain.doc.matching
 import nz.mckenzie.sprayday.domain.doc.showing
+import nz.mckenzie.sprayday.domain.doc.within
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.offline.OfflineDocTrackStore
@@ -83,6 +84,9 @@ class DocTracksViewModel(
 
     /** The newest fix, so "Near me" searches from where the phone is. Null until there is one. */
     private val fix = MutableStateFlow<GeoPoint?>(null)
+
+    /** The phone's newest fix, for a row that wants to say how far away its track is. */
+    val phoneFix: StateFlow<GeoPoint?> = fix
 
     /** The kinds the operator has filtered to; empty is "no filter". */
     private val _kinds = MutableStateFlow<Set<String>>(emptySet())
@@ -149,14 +153,18 @@ class DocTracksViewModel(
     }
 
     fun search() {
+        val nearMe = _nearMe.value
+        val position = if (nearMe) fix.value else null
+        if (nearMe && position == null) {
+            // Near me with no fix is not a name search: the place is the whole question, and dropping
+            // it silently is how a track 80 km away turns up under a 50 km radius.
+            _message.value = "Waiting for a location fix. Try again in a moment, or turn off Near me " +
+                "to search by name."
+            return
+        }
         val name = _name.value.trim()
-        val near = if (_nearMe.value) fix.value else null
-        if (name.isEmpty() && near == null) {
-            _message.value = if (_nearMe.value) {
-                "Waiting for a location fix. Try again in a moment."
-            } else {
-                "Type part of a track's name, or turn on Near me."
-            }
+        if (name.isEmpty() && position == null) {
+            _message.value = "Type part of a track's name, or turn on Near me."
             return
         }
         val radius = _radiusKm.value.trim().toDoubleOrNull()?.takeIf { it > 0.0 } ?: DEFAULT_RADIUS_KM
@@ -164,9 +172,11 @@ class DocTracksViewModel(
         viewModelScope.launch {
             _busy.value = true
             _message.value = null
-            when (val result = source.search(DocTrackQuery(nameContains = name, near = near, radiusKm = radius))) {
+            when (val result = source.search(DocTrackQuery(nameContains = name, near = position, radiusKm = radius))) {
                 is DocTracksResult.Found -> {
-                    _results.value = result.tracks
+                    // The service filters by a box, whose corners reach about 1.4x the radius and which
+                    // any long track clipping it passes through; keep only what is truly within it.
+                    _results.value = result.tracks.within(radius * 1000.0, position)
                     _selected.value = emptySet()
                     // A new set of results, so a filter from the last search is not carried onto it.
                     _kinds.value = emptySet()
@@ -186,7 +196,7 @@ class DocTracksViewModel(
                     // No service: fall back to what was downloaded for offline use, so a track can
                     // still be imported with no reception. Filtered by name; the download is the
                     // place filter, because the cache only holds the areas asked for.
-                    val cached = cache.cached().matching(name)
+                    val cached = cache.cached().matching(name).within(radius * 1000.0, position)
                     _results.value = cached
                     _selected.value = emptySet()
                     _kinds.value = emptySet()

@@ -92,4 +92,22 @@ class DocTrackListTest {
 
         assertTrue(shown.containsAll(listOf(walk, tramp)))
     }
+
+    @Test
+    fun `within keeps only what is truly in the radius, unlike the service's box`() {
+        // The service's box would have handed both back; the circle keeps only the one inside it.
+        val near = track(1, "Near", "Walking Track", GeoPoint(-46.4130, 168.3538))
+        val far = track(2, "Far", "Walking Track", GeoPoint(-46.30, 168.20))
+
+        val shown = listOf(near, far).within(radiusM = 5_000.0, from = invercargill)
+
+        assertEquals(listOf(near), shown)
+    }
+
+    @Test
+    fun `within with no fix keeps everything, because there is no centre to measure from`() {
+        val tracks = listOf(track(1, "A", "Walking Track", GeoPoint(-46.30, 168.20)))
+
+        assertEquals(tracks, tracks.within(5_000.0, from = null))
+    }
 }

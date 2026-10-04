@@ -22,6 +22,7 @@ import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
 import nz.mckenzie.sprayday.domain.doc.EmptyDocTrackCache
 import nz.mckenzie.sprayday.domain.doc.docSourceRef
 import nz.mckenzie.sprayday.domain.doc.matching
+import nz.mckenzie.sprayday.domain.doc.within
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -322,25 +323,31 @@ class WebEditorDocuments(
         }
 
         val limit = DocTrackQuery.DEFAULT_LIMIT
+        val radius = radiusKm ?: DEFAULT_DOC_RADIUS_KM
         val query = DocTrackQuery(
             nameContains = name.trim(),
             near = point,
-            radiusKm = radiusKm ?: DEFAULT_DOC_RADIUS_KM,
+            radiusKm = radius,
             bounds = box,
             limit = limit
         )
-        // The phone's own fix, for the distance order the desk offers. Read once, so every row's
-        // distance is from the same fix.
-        val from = position()
+        // The distance the desk is told is measured from the place the desk asked about, else the
+        // phone's own fix. Read once, so every row's distance is from the same point.
+        val from = point ?: position()
+        // The service filters by a box, whose corners reach about 1.4x the radius and which any long
+        // track clipping it passes through. Keep only what is truly within the radius - and only when
+        // the search was "near", because a map view's own box is the answer.
+        val radiusM = radius * 1000.0
         return when (val result = docTracks.search(query)) {
             is DocTracksResult.Found -> {
                 // Read once, so every row can be told whether the phone already has it.
                 val imported = assets.existingSourceRefs()
+                val tracks = if (point != null) result.tracks.within(radiusM, point) else result.tracks
                 WebEditorJson.docSearch(
-                    tracks = result.tracks,
+                    tracks = tracks,
                     importedRefs = imported,
                     from = from,
-                    message = if (result.tracks.isEmpty()) "No DOC tracks matched." else null,
+                    message = if (tracks.isEmpty()) "No DOC tracks matched." else null,
                     capped = result.tracks.size >= limit
                 )
             }
@@ -348,6 +355,7 @@ class WebEditorDocuments(
                 // No service: fall back to the tracks downloaded for offline use, so the desk can
                 // still import one. Filtered by name; the download is the place filter.
                 val cached = docCache.cached().matching(name)
+                    .let { if (point != null) it.within(radiusM, point) else it }
                 WebEditorJson.docSearch(
                     tracks = cached,
                     importedRefs = assets.existingSourceRefs(),

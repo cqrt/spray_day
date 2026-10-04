@@ -484,8 +484,8 @@ internal fun MapLibreMap.loadSprayDayStyle(
                     .withProperties(
                         PropertyFactory.circleColor(Expression.literal(AssetColors.POSITION)),
                         PropertyFactory.circleRadius(Expression.literal(7f)),
-                        // The white ring the asset dots wear, for the same reason: a dark dot
-                        // over dark imagery needs one, and this is the darkest thing on the map.
+                        // The white ring the asset dots wear, for the same reason: the dot has
+                        // to separate from whatever imagery is behind it, light or dark.
                         PropertyFactory.circleStrokeColor(Expression.literal("#FFFFFF")),
                         PropertyFactory.circleStrokeWidth(Expression.literal(2.5f))
                     )

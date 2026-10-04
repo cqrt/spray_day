@@ -108,13 +108,12 @@ object AssetColors {
     /**
      * Where the phone is.
      *
-     * Charcoal with a white ring, which is what a device marker looks like everywhere else -
-     * and here that convention is also the requirement. It must not be readable as a due
-     * colour or as a kind colour, and the obvious choice for "you are here" is the one thing
-     * it cannot be: a blue dot would sit beside [TRACK_KIND] and be taken for one. Nothing
-     * else on this map is this dark, so a dot this dark is the phone.
+     * Blue with a white ring, the way a device marker reads everywhere else. It must not be
+     * readable as a due colour or as a kind colour: the blue here is deliberately not
+     * [TRACK_KIND]'s, and the white ring - plus the fact that only one such dot is ever on the
+     * map at a time - is what keeps it from being taken for a track.
      */
-    const val POSITION = "#212121"
+    const val POSITION = "#1A73E8"
 
     /**
      * Never-sprayed tracks are drawn red: they still need spraying, but the

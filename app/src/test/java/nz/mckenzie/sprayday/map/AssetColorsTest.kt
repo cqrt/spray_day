@@ -91,7 +91,7 @@ class AssetColorsTest {
     }
 
     @Test
-    fun `and not a kind colour either, which is why it is not blue`() {
+    fun `and not a kind colour either, even though it is now blue`() {
         AssetKind.entries.forEach { kind ->
             assertTrue(
                 "$kind and the position marker are the same colour",

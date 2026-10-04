@@ -241,7 +241,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #import:disabled { color: var(--quiet); background: var(--shade); cursor: default; }
 
 /*
- * A GPX file over the map. The hint is the page's own words about what letting go will do, and it sits
+ * A track file over the map. The hint is the page's own words about what letting go will do, and it sits
  * in the map's corner rather than its middle: the operator is watching the line they are about to land
  * there, not reading a message.
  */

@@ -12,7 +12,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxParser
+import nz.mckenzie.sprayday.domain.track.GpxParser
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -384,7 +384,7 @@ class AssetAndSprayDataTest {
         val source = assetRepository.createAsset(name = "Planned", geometry = line)
         val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val imported = assetRepository.importAssetGpx(name = "Imported", gpx = gpx)
+        val imported = assetRepository.importAssetTrack(name = "Imported", file = gpx.toByteArray())
         val id = newestAssetId()
 
         assertEquals(2, assetRepository.getAssetGeometry(id).pointCount)
@@ -411,7 +411,7 @@ class AssetAndSprayDataTest {
         )
         val gpx = assetRepository.exportAssetGpx(source)!!
 
-        val imported = assetRepository.importAssetGpx(name = "Gully track again", gpx = gpx)
+        val imported = assetRepository.importAssetTrack(name = "Gully track again", file = gpx.toByteArray())
         val id = newestAssetId()
 
         val stored = assetRepository.getAssetGeometry(id)
@@ -441,7 +441,7 @@ class AssetAndSprayDataTest {
             </trk></gpx>
         """.trimIndent()
 
-        val imported = assetRepository.importAssetGpx(name = "Two fences", gpx = gpx)
+        val imported = assetRepository.importAssetTrack(name = "Two fences", file = gpx.toByteArray())
 
         val stored = assetRepository.getAssetGeometry(newestAssetId())
         assertEquals("one line, every point in it", 1, stored.paths.size)
@@ -457,7 +457,7 @@ class AssetAndSprayDataTest {
             <gpx version="1.1"><trk><trkseg><trkpt lat="-41.0" lon="174.0"/></trkseg></trk></gpx>
         """.trimIndent()
 
-        val failure = runCatching { assetRepository.importAssetGpx(name = "Bad", gpx = gpx) }
+        val failure = runCatching { assetRepository.importAssetTrack(name = "Bad", file = gpx.toByteArray()) }
 
         assertTrue(failure.exceptionOrNull() is IllegalArgumentException)
     }

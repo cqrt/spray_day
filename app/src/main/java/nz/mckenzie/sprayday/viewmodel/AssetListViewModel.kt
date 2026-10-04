@@ -96,17 +96,17 @@ class AssetListViewModel(
     }
 
     /**
-     * Imports a GPX file chosen through the system file picker.
+     * Imports a GPX, KML or KMZ file chosen through the system file picker.
      *
      * Failures are surfaced as messages rather than crashes: a malformed or
-     * empty GPX is a normal thing for an operator to pick by mistake.
+     * empty track file is a normal thing for an operator to pick by mistake.
      */
-    fun importGpx(uri: Uri) {
+    fun importTrackFile(uri: Uri) {
         viewModelScope.launch {
             _busy.value = true
             try {
-                val text = context.contentResolver.openInputStream(uri)?.use { input ->
-                    input.readBytes().toString(Charsets.UTF_8)
+                val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+                    input.readBytes()
                 } ?: throw IllegalStateException("Could not open the selected file")
 
                 val name = displayName(uri)
@@ -114,7 +114,7 @@ class AssetListViewModel(
                     ?.takeIf { it.isNotBlank() }
                     ?: "Imported track"
 
-                val imported = assetRepository.importAssetGpx(name = name, gpx = text)
+                val imported = assetRepository.importAssetTrack(name = name, file = bytes)
                 // The points are the reading's own, so the sentence counts what the file held rather
                 // than asking the database again for a number the import has just been handed.
                 val points = imported.paths.sumOf { it.size }

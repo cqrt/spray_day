@@ -17,7 +17,7 @@ import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.ui.AssetEdits
 
@@ -156,13 +156,13 @@ object WebEditorJson {
         json.encodeToString(WebEditorEdited.serializer(), WebEditorEdited(count = count, message = message))
 
     /**
-     * What reading a dropped GPX file answers with: the paths the file holds, as the desk draws them.
+     * What reading a dropped track file answers with: the paths the file holds, as the desk draws them.
      *
      * The reading's own facts travel with them rather than being worked out again by the page: how
-     * many of the file's segments became side tracks, and whether they had to be joined up instead.
+     * many of the file's paths became side tracks, and whether they had to be joined up instead.
      * The page says what happened in words, and the numbers in those words are the phone's.
      */
-    fun gpx(reading: GpxInterchange.Reading): String = json.encodeToString(
+    fun gpx(reading: TrackInterchange.Reading): String = json.encodeToString(
         WebEditorGpx.serializer(),
         WebEditorGpx(
             paths = reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
@@ -214,8 +214,8 @@ data class WebEditorDocument(
      */
     val newAsset: WebEditorNewAsset = WebEditorNewAsset.ofApp(),
     /**
-     * What a GPX file dropped on the desk has to know: the name it travels under, and the largest
-     * file the phone will take. Both the phone's own answers - see [WebEditorGpxRules].
+     * What a GPX or KML file dropped on the desk has to know: the name it travels under, and the
+     * largest file the phone will take. Both the phone's own answers - see [WebEditorGpxRules].
      */
     val gpx: WebEditorGpxRules = WebEditorGpxRules.ofApp(),
     /**
@@ -365,11 +365,12 @@ data class WebEditorBounds(
 data class WebEditorPosition(val lat: Double, val lng: Double)
 
 /**
- * The body `POST /api/gpx` carries: the file the operator dropped, as text.
+ * The body `POST /api/gpx` carries: the file the operator dropped, base64-encoded.
  *
- * One JSON string, because a body here is a JSON document and nothing else - and because a GPX file
- * is text, so a track's name and every coordinate in it survive the trip as themselves rather than
- * as bytes something has to decode on the other side.
+ * Base64 rather than the file's own characters, because a KMZ is a zip and not text - a GPX or KML
+ * file would survive as text, but a zipped one would not, and one wire for every file is simpler than
+ * two. The bytes are the file exactly as it was on disk, so nothing about a track's name, its
+ * coordinates or its compression is changed by the trip.
  */
 @Serializable
 data class WebEditorGpxBody(
@@ -378,13 +379,13 @@ data class WebEditorGpxBody(
 )
 
 /**
- * The GPX facts the page has to know, carried in the state document.
+ * The track-file facts the page has to know, carried in the state document.
  *
  * The field a dropped file travels under, and how large a file the phone will take. Both are the
  * phone's answers: a page that guessed the field name would send a file the phone read as absent,
- * which is indistinguishable from a GPX file with no track in it, and a page that guessed the size
- * would pass on a refusal about a request that never arrived. The largest is
- * [WebEditorServer.MAX_GPX_BYTES] - the socket's own limit - so the page can say so in words before
+ * which is indistinguishable from a GPX, KML or KMZ file with no track in it, and a page that guessed
+ * the size would pass on a refusal about a request that never arrived. The largest is
+ * [WebEditorServer.MAX_GPX_BYTES] - the file's own size, which is what the page can check before
  * anything is sent.
  */
 @Serializable

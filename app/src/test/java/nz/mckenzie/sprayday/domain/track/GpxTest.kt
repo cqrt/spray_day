@@ -1,4 +1,4 @@
-package nz.mckenzie.sprayday.domain.gpx
+package nz.mckenzie.sprayday.domain.track
 
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals

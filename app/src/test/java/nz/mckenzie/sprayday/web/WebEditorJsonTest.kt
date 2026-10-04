@@ -13,7 +13,7 @@ import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueCalculator
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.ui.AssetEdits
@@ -433,7 +433,7 @@ class WebEditorJsonTest {
         val sideTrack = listOf(GeoPoint(-41.6, 173.9), GeoPoint(-41.7, 173.9))
 
         val text = WebEditorJson.gpx(
-            GpxInterchange.Reading(
+            TrackInterchange.Reading(
                 paths = listOf(line, sideTrack),
                 sideTracks = 1,
                 segmentsDidNotMeet = false
@@ -455,7 +455,7 @@ class WebEditorJsonTest {
     @Test
     fun `a file whose segments did not meet says so, rather than being left to be worked out`() {
         val text = WebEditorJson.gpx(
-            GpxInterchange.Reading(
+            TrackInterchange.Reading(
                 paths = listOf(listOf(GeoPoint(-41.5, 173.8), GeoPoint(-42.0, 174.0))),
                 sideTracks = 0,
                 segmentsDidNotMeet = true

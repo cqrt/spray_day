@@ -1,7 +1,7 @@
 /*
  * Working on several assets at once: which rows are picked, and what one form can say about them.
  *
- * Pure, and separate from `app.js` for the same reason `wire.mjs` and `gpx.mjs` are: node can run it
+ * Pure, and separate from `app.js` for the same reason `wire.mjs` and `track.mjs` are: node can run it
  * without a browser (`app/src/test/js/together.test.mjs`, which CI runs), so the arithmetic behind a
  * bulk edit is pinned by a test rather than reviewed by eye.
  *

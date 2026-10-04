@@ -1,4 +1,4 @@
-package nz.mckenzie.sprayday.domain.gpx
+package nz.mckenzie.sprayday.domain.track
 
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import org.junit.Assert.assertEquals
@@ -6,15 +6,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What a GPX file is read as, once, for the phone's own importer and the desk's drop alike.
+ * What a track file is read as, once, for the phone's own importer and the desk's drop alike, whether
+ * the file is GPX or KML.
  *
- * The join is the rule worth holding still: a file whose later segments start on the line's own
- * vertices is a track with side tracks, and one whose segments are somewhere else entirely is a
+ * The join is the rule worth holding still: a file whose later paths start on the line's own
+ * vertices is a track with side tracks, and one whose paths are somewhere else entirely is a
  * single line with a jump in it - the way this app has always read a file from a tool that cuts a
  * line up for its own reasons. Both callers say what happened in their own words, so what is pinned
- * here is the reading itself: the paths, how many side tracks, and whether the segments met.
+ * here is the reading itself: the paths, how many side tracks, and whether the paths met.
  */
-class GpxInterchangeTest {
+class TrackInterchangeTest {
 
     private fun gpx(segments: List<List<Pair<Double, Double>>>): String = buildString {
         append("""<?xml version="1.0"?><gpx version="1.1"><trk><name>Fence</name>""")
@@ -26,7 +27,7 @@ class GpxInterchangeTest {
         append("</trk></gpx>")
     }
 
-    private fun read(xml: String) = (GpxInterchange.read(xml) as GpxInterchange.Outcome.Read).reading
+    private fun read(xml: String) = (TrackInterchange.read(xml) as TrackInterchange.Outcome.Read).reading
 
     @Test
     fun `one segment is one line and nothing else`() {
@@ -125,11 +126,11 @@ class GpxInterchangeTest {
 
     @Test
     fun `a file with one point in it is not a line`() {
-        val outcome = GpxInterchange.read(gpx(listOf(listOf(-41.0 to 174.0))))
+        val outcome = TrackInterchange.read(gpx(listOf(listOf(-41.0 to 174.0))))
 
         assertEquals(
             "the app's own sentence, word for word, from the repository's own import",
-            GpxInterchange.Outcome.Invalid(GpxInterchange.TOO_SHORT),
+            TrackInterchange.Outcome.Invalid(TrackInterchange.TOO_SHORT),
             outcome
         )
     }
@@ -138,16 +139,16 @@ class GpxInterchangeTest {
     fun `a file with no track points at all is not a line`() {
         val xml = """<?xml version="1.0"?><gpx version="1.1"><trk><name>empty</name></trk></gpx>"""
 
-        assertEquals(GpxInterchange.Outcome.Invalid(GpxInterchange.TOO_SHORT), GpxInterchange.read(xml))
+        assertEquals(TrackInterchange.Outcome.Invalid(TrackInterchange.TOO_SHORT), TrackInterchange.read(xml))
     }
 
     @Test
     fun `a file that will not parse is refused in words rather than thrown`() {
         // The desk shows this sentence on the page and the phone's picker shows it in a message, so
         // both get words rather than an exception to interpret.
-        val outcome = GpxInterchange.read("<gpx version=\"1.1\"><trk><trkseg></gpx>")
+        val outcome = TrackInterchange.read("<gpx version=\"1.1\"><trk><trkseg></gpx>")
 
-        assertEquals(GpxInterchange.Outcome.Invalid(GpxInterchange.MALFORMED), outcome)
+        assertEquals(TrackInterchange.Outcome.Invalid(TrackInterchange.MALFORMED), outcome)
     }
 
     @Test

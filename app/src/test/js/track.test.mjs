@@ -1,20 +1,21 @@
 /*
- * A GPX file dropped on the desk, from the desk's side of it.
+ * A track file dropped on the desk, from the desk's side of it.
  *
- * `gpx.mjs` is pure, so node runs the very file the browser does: what the desk will send, what name
+ * `track.mjs` is pure, so node runs the very file the browser does: what the desk will send, what name
  * it offers for the file, and what it says about the answer are tested here rather than read by eye
  * in `app.js`.
  *
- * What is *not* here is what a GPX file means - the line, the side tracks, whether the file's own
- * segments meet. That is the phone's reading (`GpxInterchange`), reached through `POST /api/gpx`,
- * and it is tested there. The page's half is the part only a browser can do: a file that is not a
- * GPX file at all, a file too big for the phone to take, and the words for what came back.
+ * What is *not* here is what a track file means - the line, the side tracks, whether the file's own
+ * paths meet. That is the phone's reading (`TrackInterchange`), reached through `POST /api/gpx`, and
+ * it is tested there. The page's half is the part only a browser can do: a file that is not a GPX,
+ * KML or KMZ file at all, a file too big for the phone to take, the bytes turned into the base64 the
+ * phone takes, and the words for what came back.
  */
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { GPX_LIMIT, importedNote, importProblem, trackName } from '../../main/assets/web/gpx.mjs';
+import { TRACK_LIMIT, base64Of, importedNote, importProblem, trackName } from '../../main/assets/web/track.mjs';
 
 const file = (name, size = 1024) => ({ name, size });
 
@@ -22,26 +23,35 @@ test('a dropped GPX file is taken', () => {
   assert.equal(importProblem(file('gully track.gpx')), null);
 });
 
-test('a file that is not a GPX file is not sent, and is said so in words', () => {
-  const problem = importProblem(file('fence.kml'));
+test('a dropped KML file is taken, which is what a Google Earth file is', () => {
+  assert.equal(importProblem(file('fence.kml')), null);
+});
 
-  assert.match(problem, /not a GPX file/);
-  assert.match(problem, /ends in \.gpx/, 'and the words say what would be taken instead');
-  assert.match(problem, /fence\.kml/, 'naming the file it was handed');
+test('a dropped KMZ file is taken, which is what a zipped KML file is', () => {
+  assert.equal(importProblem(file('block.kmz')), null);
+});
+
+test('a file that is not a track file is not sent, and is said so in words', () => {
+  const problem = importProblem(file('fence.gif'));
+
+  assert.match(problem, /not a GPX, KML or KMZ file/);
+  assert.match(problem, /ends in \.gpx, \.kml or \.kmz/, 'and the words say what would be taken instead');
+  assert.match(problem, /fence\.gif/, 'naming the file it was handed');
 });
 
 test('the file type a computer reports is not asked about, because half of them are wrong', () => {
   // A GPX file exported by a tool that calls it application/octet-stream is still a GPX file, and the
-  // name is the one thing every GPX file has.
+  // name is the one thing every track file has.
   assert.equal(importProblem({ name: 'fence.GPX', size: 20, type: 'application/octet-stream' }), null);
+  assert.equal(importProblem({ name: 'Block.KMZ', size: 20, type: 'application/zip' }), null);
 });
 
 test('a file too big for the phone is refused here rather than by the socket', () => {
-  const problem = importProblem(file('great big ride.gpx', GPX_LIMIT + 1));
+  const problem = importProblem(file('great big ride.gpx', TRACK_LIMIT + 1));
 
   assert.match(problem, /great big ride\.gpx/);
   assert.match(problem, /256 KB/, 'the limit in the same words the phone would use');
-  assert.equal(importProblem(file('just fits.gpx', GPX_LIMIT)), null, 'and the limit itself is taken');
+  assert.equal(importProblem(file('just fits.gpx', TRACK_LIMIT)), null, 'and the limit itself is taken');
 });
 
 test('the limit the phone states is the limit the desk keeps', () => {
@@ -50,9 +60,9 @@ test('the limit the phone states is the limit the desk keeps', () => {
   // the phone's own rather than taking everything.
   assert.match(importProblem(file('ride.gpx', 3000), 2048), /2 KB/);
   assert.equal(importProblem(file('ride.gpx', 3000), 4096), null);
-  assert.match(importProblem(file('ride.gpx', GPX_LIMIT + 1), undefined), /256 KB/);
-  assert.match(importProblem(file('ride.gpx', GPX_LIMIT + 1), 'not a number'), /256 KB/);
-  assert.match(importProblem(file('ride.gpx', GPX_LIMIT + 1), 0), /256 KB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), undefined), /256 KB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 'not a number'), /256 KB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 0), /256 KB/);
 });
 
 test('nothing dropped at all is said rather than thrown', () => {
@@ -62,6 +72,8 @@ test('nothing dropped at all is said rather than thrown', () => {
 
 test('the track is offered the file\'s own name, without its extension', () => {
   assert.equal(trackName(file('gully track.gpx')), 'gully track');
+  assert.equal(trackName(file('fence line.kml')), 'fence line', 'a KML file loses its own extension too');
+  assert.equal(trackName(file('block.kmz')), 'block', 'and so does a zipped one');
   assert.equal(trackName(file('Gully Track.GPX')), 'Gully Track', 'the name keeps its own capitals');
   assert.equal(trackName(file('  spaced  .gpx')), 'spaced', 'and its own spaces are trimmed off it');
 });
@@ -69,6 +81,19 @@ test('the track is offered the file\'s own name, without its extension', () => {
 test('a file with no name to speak of still offers one', () => {
   assert.equal(trackName(file('.gpx')), 'Imported track', 'the phone\'s own fallback, word for word');
   assert.equal(trackName({}), 'Imported track');
+});
+
+test('a file\'s bytes are base64, which is how the phone takes a zipped file', () => {
+  // A KMZ is a zip and not text, so the page cannot hand the phone characters: it hands it the bytes,
+  // base64-encoded. The bytes have to survive exactly - a zip header or a UTF-8 accent is not a
+  // character a naive encoder may guess at.
+  const zipHeader = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  assert.equal(base64Of(zipHeader), Buffer.from(zipHeader).toString('base64'));
+
+  const accented = new TextEncoder().encode('Culvert — Waihōpai');
+  assert.equal(base64Of(accented), Buffer.from(accented).toString('base64'));
+
+  assert.equal(base64Of(new Uint8Array([])), '', 'and an empty file is an empty string, not a throw');
 });
 
 test('a file read as one line says how many points it has', () => {
@@ -90,7 +115,7 @@ test('a file with side tracks says how many, in the drawing\'s own words', () =>
     /one line of 4 points with 1 side track\./
   );
   assert.match(
-    importedNote('b.gpx', { paths: [line, spur, spur], sideTracks: 2 }),
+    importedNote('b.kml', { paths: [line, spur, spur], sideTracks: 2 }),
     /one line of 6 points with 2 side tracks\./
   );
 });
@@ -102,7 +127,7 @@ test('a file whose segments did not meet is said to have been joined up', () => 
     segmentsDidNotMeet: true
   };
 
-  const note = importedNote('two fences.gpx', read);
+  const note = importedNote('two fences.kml', read);
 
   assert.match(note, /the file's own segments do not meet/);
   assert.match(note, /one line of 4 points/);

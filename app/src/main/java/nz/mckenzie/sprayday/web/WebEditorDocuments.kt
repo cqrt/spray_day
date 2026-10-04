@@ -16,7 +16,7 @@ import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.AssetGeoJson
@@ -251,9 +251,9 @@ class WebEditorDocuments(
     }
 
     /**
-     * `POST /api/gpx`: the paths a dropped GPX file holds, and nothing written.
+     * `POST /api/gpx`: the paths a dropped GPX, KML or KMZ file holds, and nothing written.
      *
-     * The file is read by [GpxInterchange], which is the same reading the phone's own list screen
+     * The file is read by [TrackInterchange], which is the same reading the phone's own list screen
      * imports a file with: so a file the desk refuses and a file the phone refuses are the same files,
      * refused in the same words, and a track made from a dropped file is the track the phone would
      * have made from a picked one. What it may *do* is deliberately nothing: no row, no id, no block -
@@ -262,16 +262,16 @@ class WebEditorDocuments(
      */
     override suspend fun gpx(body: String?): WebEditorWrite {
         // A body the phone cannot read is not an empty file: it is a request made of something else,
-        // and saying "there was no GPX in that" would send the operator looking at the file.
-        val file = WebEditorEdits.readGpx(body) ?: return refused(
+        // and saying "there was no track in that" would send the operator looking at the file.
+        val file = WebEditorEdits.readTrackFile(body) ?: return refused(
             WebEditorRefusal.INVALID,
-            "That request did not carry a GPX file, so nothing was read."
+            "That request did not carry a GPX, KML or KMZ file, so nothing was read."
         )
 
-        return when (val outcome = GpxInterchange.read(file)) {
-            is GpxInterchange.Outcome.Invalid ->
+        return when (val outcome = TrackInterchange.readBytes(file)) {
+            is TrackInterchange.Outcome.Invalid ->
                 refused(WebEditorRefusal.INVALID, outcome.message)
-            is GpxInterchange.Outcome.Read -> WebEditorWrite.GpxRead(outcome.reading)
+            is TrackInterchange.Outcome.Read -> WebEditorWrite.GpxRead(outcome.reading)
         }
     }
 

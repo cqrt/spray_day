@@ -137,7 +137,7 @@ class WebEditorServer(
         HttpRoute(
             claims = { it.method == POST && it.path == GPX_PATH },
             // A file the operator dropped on the desk's map, read as a line and its side tracks. The
-            // route is here rather than the page because what a GPX file *is* is the phone's own rule
+            // route is here rather than the page because what a track file *is* is the phone's own rule
             // - the same reading the phone's list screen imports a file with - and a second copy of it
             // in JavaScript is the one that would drift. Nothing is written: the paths go back to the
             // page, which draws them and saves them as the track they are.
@@ -218,7 +218,7 @@ class WebEditorServer(
 
     /**
      * A write's outcome as an answer: the new record, the sentence about what is gone, the paths a
-     * dropped GPX file turned out to hold, or the refusal with its own status.
+     * dropped GPX or KML file turned out to hold, or the refusal with its own status.
      *
      * The status is [WebEditorRefusal]'s and [WebEditorWrite]'s, not this class's guess, so what a page
      * is told when a save is refused is decided where the refusal is decided - and a new asset is told
@@ -321,7 +321,7 @@ class WebEditorServer(
         const val COLLECTION_PATH = "/api/assets"
 
         /**
-         * Where a GPX file is read: `/api/gpx`.
+         * Where a GPX or KML file is read: `/api/gpx`.
          *
          * A path of its own rather than a field in the new asset's own body, because what it answers
          * is not a write: the desk is handed the file's own line to draw, and the track it becomes is
@@ -341,20 +341,22 @@ class WebEditorServer(
         const val TOGETHER_PATH = "/api/assets/together"
 
         /**
-         * The longest GPX file the phone will take, in bytes of the file itself.
+         * The longest track file the phone will take, in bytes of the file itself.
          *
-         * The socket's own limit is what decides this - a body over it is refused before any route
-         * sees it - and it is stated here so the page can say so in words, before a file is sent,
-         * rather than passing on a refusal about the size of a request that never arrived.
+         * The file's own size, not the request's: the page checks the size of the file the operator
+         * picked. The body it sends is larger, because the file's bytes travel base64-encoded - which
+         * is why the socket's own cap (`HttpServer.MAX_BODY_BYTES`) sits above this to give the
+         * encoding room. Stated here so the page can say the limit in words, in the operator's own
+         * term, before a file is sent.
          */
         const val MAX_GPX_BYTES = 256 * 1024
 
         /**
-         * What a GPX file is called in a body: one JSON string, escaped as JSON escapes any text.
+         * What a track file is called in a body: one base64 JSON string - the file's own bytes.
          *
-         * JSON rather than the file's own bytes because a body here is a JSON document and nothing
-         * else, and a GPX file is text: a track's name, and every coordinate in it, survive the
-         * round trip as themselves.
+         * Base64 rather than the raw bytes because a body here is a JSON document and nothing else,
+         * and a KMZ is a zip rather than text: encoding the bytes lets a zipped track and a plain
+         * one travel the same way.
          */
         const val GPX_FIELD = "gpx"
 
@@ -475,7 +477,7 @@ interface WebEditorData {
     suspend fun remove(id: Long, version: String?): WebEditorWrite
 
     /**
-     * `POST /api/gpx`: a GPX file read as the paths of a track that is not on the phone yet.
+     * `POST /api/gpx`: a GPX or KML file read as the paths of a track that is not on the phone yet.
      *
      * The body is the file the operator dropped on the desk, as JSON, because that is the only body
      * either server takes. **Nothing is written**: the answer is the line and its side tracks, and the

@@ -22,8 +22,8 @@ import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.geo.RecordedPass
 import nz.mckenzie.sprayday.domain.geo.Ring
 import nz.mckenzie.sprayday.domain.geo.polylineLengthMeters
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
-import nz.mckenzie.sprayday.domain.gpx.GpxWriter
+import nz.mckenzie.sprayday.domain.track.GpxWriter
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
 import nz.mckenzie.sprayday.domain.tiles.withMinimumSpan
 import java.time.ZoneId
@@ -461,28 +461,28 @@ class AssetRepository(
     }
 
     /**
-     * Imports a GPX file as a new track, and says what the file turned out to hold.
+     * Imports a GPX, KML or KMZ file as a new track, and says what the file turned out to hold.
      *
      * Throws when the file is not a line at all - one point, or no readable track in it - in the
      * app's own words. What the file *is* - a line and its side tracks, or one line joined up out of
-     * segments that never met - is [GpxInterchange]'s reading, handed back whole so the caller can
+     * paths that never met - is [TrackInterchange]'s reading, handed back whole so the caller can
      * say what happened rather than working it out again.
      */
-    suspend fun importAssetGpx(
+    suspend fun importAssetTrack(
         name: String,
-        gpx: String,
+        file: ByteArray,
         createdAtEpochMs: Long = System.currentTimeMillis()
-    ): GpxInterchange.Reading {
+    ): TrackInterchange.Reading {
         // The same reading a file dropped on the desk's map gets: the two are one import, and a rule
         // kept in two places is a rule that drifts.
-        val reading = when (val outcome = GpxInterchange.read(gpx)) {
-            is GpxInterchange.Outcome.Invalid -> throw IllegalArgumentException(outcome.message)
-            is GpxInterchange.Outcome.Read -> outcome.reading
+        val reading = when (val outcome = TrackInterchange.readBytes(file)) {
+            is TrackInterchange.Outcome.Invalid -> throw IllegalArgumentException(outcome.message)
+            is TrackInterchange.Outcome.Read -> outcome.reading
         }
 
         createAsset(
             name = name,
-            // A file whose later segments start on the line's own vertices is a track with side
+            // A file whose later paths start on the line's own vertices is a track with side
             // tracks, and the reading has already decided that; anything else arrives as one line.
             geometry = AssetGeometry(reading.paths),
             createdAtEpochMs = createdAtEpochMs

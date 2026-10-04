@@ -4,7 +4,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.map.AssetColors
 import nz.mckenzie.sprayday.map.PlaceIcons
 import nz.mckenzie.sprayday.offline.HttpRequest
@@ -240,7 +240,7 @@ class WebEditorServerTest {
                 WebEditorWrite.Refused(WebEditorRefusal.INVALID, "that request carried no GPX file")
             } else {
                 WebEditorWrite.GpxRead(
-                    GpxInterchange.Reading(
+                    TrackInterchange.Reading(
                         paths = listOf(
                             listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9)),
                             listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.4, 173.7))

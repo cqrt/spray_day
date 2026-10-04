@@ -108,15 +108,16 @@ const { areaText, farmStats, farmStatsLines, metresText } = await import(
 );
 
 /**
- * A GPX file dropped on the desk: what the page will send, what name it offers, and what it says
+ * A track file dropped on the desk: what the page will send, what name it offers, and what it says
  * about the answer.
  *
  * The file's *meaning* is not here - the phone reads it, by the same rule its own file picker uses -
  * so what this module holds is the half only a browser knows: whether the thing dropped is a file
- * this desk should send, and how to say what came back. Pure, and tested under node like the rest.
+ * this desk should send, how to hand its bytes over, and how to say what came back. Pure, and tested
+ * under node like the rest.
  */
-const { importedNote, importProblem, trackName } = await import(
-  TOKEN ? `./gpx.mjs?k=${encodeURIComponent(TOKEN)}` : './gpx.mjs'
+const { base64Of, importedNote, importProblem, trackName } = await import(
+  TOKEN ? `./track.mjs?k=${encodeURIComponent(TOKEN)}` : './track.mjs'
 );
 
 /**
@@ -1161,15 +1162,18 @@ function mapIsNotReady() {
 }
 
 /**
- * A GPX file, read by the phone and turned into the drawing: button, picker and drop, one way in.
+ * A track file, read by the phone and turned into the drawing: button, picker and drop, one way in.
  *
  * **What the file means is the phone's answer**, not the page's: `POST /api/gpx` reads it with the
  * same rule the phone's own list screen imports a file with - a line and its side tracks, or a file
- * whose segments never met joined into one line - and answers with the paths. The page draws them as
+ * whose paths never met joined into one line - and answers with the paths. The page draws them as
  * the drawing it would have made by hand, which is the whole point: once the line is on the map it
  * can be traced onto, extended, have a side track hung off it, be given a kind and a block, and be
  * saved by the one path every drawn track takes. Nothing is written until the operator says so, so a
  * file dropped by mistake costs a reload and nothing else.
+ *
+ * The file travels as base64 of its own bytes, because a KMZ is a zip and not text: the page cannot
+ * turn it into characters, and the phone would rather have the bytes it would have read off disk.
  */
 async function importGpxFile(file) {
   const problem = importProblem(file, state.gpx.maxBytes);
@@ -1186,17 +1190,19 @@ async function importGpxFile(file) {
   const button = field('import');
   button.disabled = true;
   try {
-    const text = await file.text();
-    const { status, answer } = await sendJson('/api/gpx', 'POST', { [state.gpx.field]: text });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const { status, answer } = await sendJson('/api/gpx', 'POST', {
+      [state.gpx.field]: base64Of(bytes)
+    });
     if (status !== 200) {
       // The phone's own sentence about the file, in the phone's own words: a file with no line in it,
-      // or one that is not a GPX file at all, is refused where both callers refuse it.
+      // or one that is not a GPX, KML or KMZ file at all, is refused where both callers refuse it.
       showNotice(answer.message || 'The phone would not read that file.');
       return;
     }
 
     closeForms();
-    // The kind a file is, and the line it holds: a GPX file is a track on the ground, which is what
+    // The kind a file is, and the line it holds: a track file is a track on the ground, which is what
     // the phone makes of one. Both go to the drawing rather than straight to the form, so the line is
     // on the map while the operator reads the form - a file with a jump in it or a spur in the wrong
     // place is a thing to be seen before it is named, not after - and so a form given up on comes back
@@ -1865,7 +1871,7 @@ function clearTicks() {
  * here is the same form the card opens: the same fields, the same choices, the same rules underneath, and
  * the same sentences when the phone refuses something.
  *
- * [name] is for a track that came out of a GPX file, which has a name to start with - the file's own,
+ * [name] is for a track that came out of a track file, which has a name to start with - the file's own,
  * which the phone's own importer uses too. A line drawn here starts with the field empty, because
  * nothing has said what it is called yet and the phone will not keep an asset that has no name.
  */
@@ -2105,7 +2111,7 @@ document.getElementById('import-file').addEventListener('change', (event) => {
  * away mid-job - so letting go is prevented on the map and only there: a drop anywhere else on the page
  * still does whatever the browser does with it, which is not this page's business. A drag that carries
  * no file at all - text dragged out of another window - is left alone rather than being answered with
- * a sentence about GPX files.
+ * a sentence about track files.
  */
 const mapContainer = document.getElementById('map');
 const dropHint = field('drop-hint');
@@ -2139,7 +2145,7 @@ mapContainer.addEventListener('drop', (event) => {
 });
 
 // The page itself takes no dropped file outside the map: without this the browser navigates away to
-// the GPX file and the work that was on the screen is gone.
+// the track file and the work that was on the screen is gone.
 window.addEventListener('dragover', (event) => {
   if (carryingAFile(event)) event.preventDefault();
 });

@@ -11,11 +11,12 @@ import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
-import nz.mckenzie.sprayday.domain.gpx.GpxInterchange
+import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.ui.AssetEditFields
 import nz.mckenzie.sprayday.ui.AssetEditResult
 import nz.mckenzie.sprayday.ui.AssetEdits
 import java.security.MessageDigest
+import java.util.Base64
 
 /*
  * What a write to the editor is, and what the phone does with it.
@@ -241,14 +242,14 @@ sealed interface WebEditorWrite {
     data class Removed(val message: String) : WebEditorWrite
 
     /**
-     * A GPX file was read, and nothing was written: the paths it holds, and what became of its
-     * segments - see [nz.mckenzie.sprayday.domain.gpx.GpxInterchange.Reading].
+     * A track file was read, and nothing was written: the paths it holds, and what became of its
+     * segments - see [nz.mckenzie.sprayday.domain.track.TrackInterchange.Reading].
      *
      * A write in the routing's own sense rather than the database's: it is a POST with a body, judged
      * and answered like the others, and it is here so a refusal about a file keeps the same shape and
      * the same statuses as a refusal about an edit.
      */
-    data class GpxRead(val reading: GpxInterchange.Reading) : WebEditorWrite
+    data class GpxRead(val reading: TrackInterchange.Reading) : WebEditorWrite
 
     /**
      * Several assets changed together, and the phone's own sentence about it.
@@ -339,16 +340,21 @@ object WebEditorEdits {
     private const val UNREADABLE = "That edit could not be read, so nothing was saved."
 
     /**
-     * The GPX file a page sent, or null when the body carried none this build can read.
+     * The track file a page sent, as its own bytes, or null when the body carried none this build can
+     * read.
      *
      * Read here, beside [parse], so every JSON body the editor takes is decoded in one place with one
-     * `Json` - and so the reading of a body is the same whether it describes a write or a file. What
-     * the *file* means is a question about the ground and is answered by
-     * [nz.mckenzie.sprayday.domain.gpx.GpxInterchange], not here.
+     * `Json` - and so the reading of a body is the same whether it describes a write or a file. The
+     * file travels base64-encoded, because a KMZ is a zip and not text: the page hands over the bytes
+     * it read, and this decodes them back, so a zipped track survives the trip. What the *file* means
+     * is a question about the ground and is answered by
+     * [nz.mckenzie.sprayday.domain.track.TrackInterchange], not here.
      */
-    fun readGpx(body: String?): String? = body
+    fun readTrackFile(body: String?): ByteArray? = body
         ?.let { runCatching { json.decodeFromString(WebEditorGpxBody.serializer(), it).gpx }.getOrNull() }
         ?.takeIf { it.isNotBlank() }
+        ?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() }
+        ?.takeIf { it.isNotEmpty() }
 
     /**
      * An edit to an asset the phone already has.

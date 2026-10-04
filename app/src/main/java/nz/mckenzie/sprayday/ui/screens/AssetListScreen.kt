@@ -78,7 +78,7 @@ fun AssetListScreen(
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let(viewModel::importGpx) }
+    ) { uri -> uri?.let(viewModel::importTrackFile) }
 
     Scaffold(
         topBar = {
@@ -116,10 +116,10 @@ fun AssetListScreen(
             ) {
                 Button(onClick = onDrawAsset) { Text("Draw") }
                 OutlinedButton(
-                    onClick = { importLauncher.launch(GPX_MIME_TYPES) },
+                    onClick = { importLauncher.launch(TRACK_MIME_TYPES) },
                     enabled = !busy
                 ) {
-                    Text("Import GPX")
+                    Text("Import GPX, KML or KMZ")
                 }
             }
 
@@ -154,8 +154,8 @@ fun AssetListScreen(
                 EmptyState(
                     glyph = IconGlyph.ASSETS,
                     title = "No assets yet",
-                    body = "Import a GPX file, or draw one on the map. Every asset then keeps " +
-                        "its own spray history.",
+                    body = "Import a GPX, KML or KMZ file, or draw one on the map. Every asset then " +
+                        "keeps its own spray history.",
                     actionLabel = "Draw one",
                     onAction = onDrawAsset
                 )
@@ -194,8 +194,10 @@ fun AssetListScreen(
     }
 }
 
-private val GPX_MIME_TYPES = arrayOf(
+private val TRACK_MIME_TYPES = arrayOf(
     "application/gpx+xml",
+    "application/vnd.google-earth.kml+xml",
+    "application/vnd.google-earth.kmz",
     "application/xml",
     "text/xml",
     "text/plain",

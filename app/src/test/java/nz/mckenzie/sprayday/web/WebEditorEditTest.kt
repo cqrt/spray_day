@@ -6,12 +6,14 @@ import nz.mckenzie.sprayday.data.db.AssetEntity
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Base64
 
 /**
  * What the phone does with an edit from a desk.
@@ -500,36 +502,47 @@ class WebEditorEditTest {
         assertEquals("the same corners, with the closing side added", yard + yard.first(), changed.paths!!.single())
     }
 
-    /* ---- A GPX file dropped on the desk ------------------------------------------------ */
+    /* ---- A track file dropped on the desk ----------------------------------------------- */
 
-    /** The body `POST /api/gpx` carries: the file itself, as JSON, under the name the state document gave. */
+    /**
+     * The body `POST /api/gpx` carries: the file's own bytes, base64-encoded, under the name the
+     * state document gave. Base64 because a KMZ is a zip and not text, so every file travels the same
+     * way rather than two wires for two kinds of file.
+     */
     private fun gpxBody(file: String): String =
-        Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to file))
+        Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to base64(file)))
+
+    private fun base64(file: String): String =
+        Base64.getEncoder().encodeToString(file.toByteArray(Charsets.UTF_8))
 
     @Test
-    fun `a GPX file arrives as the text it is, newlines and quotes and all`() {
-        // The file is a JSON string rather than the request's own bytes, so what comes back out has to
-        // be the file exactly as it was: a track's name with a quote in it, the XML's own line breaks,
-        // and every coordinate, all of which a second escaping would quietly change.
+    fun `a GPX file arrives as the bytes it is, newlines and quotes and all`() {
+        // The file travels as base64 of its own bytes, so what comes back out has to be the file
+        // exactly as it was: a track's name with a quote in it, the XML's own line breaks, and every
+        // coordinate, none of which a second encoding may quietly change.
         val file = "<?xml version=\"1.0\"?>\n<gpx version=\"1.1\"><trk><name>Gully \"track\"</name>\n" +
             "<trkseg><trkpt lat=\"-41.0\" lon=\"174.0\"/><trkpt lat=\"-41.1\" lon=\"174.1\"/>" +
             "</trkseg></trk></gpx>\n"
 
-        assertEquals(file, WebEditorEdits.readGpx(gpxBody(file)))
+        assertArrayEquals(file.toByteArray(Charsets.UTF_8), WebEditorEdits.readTrackFile(gpxBody(file)))
     }
 
     @Test
-    fun `a body with no GPX file in it is nothing to read, rather than an empty file`() {
-        // Null rather than "": the caller refuses both, and a missing one is what a page that sent the
-        // wrong field name would produce - which is a page to be told about, not a file to read.
-        assertNull(WebEditorEdits.readGpx(null))
-        assertNull(WebEditorEdits.readGpx(""))
-        assertNull(WebEditorEdits.readGpx("not json at all"))
-        assertNull(WebEditorEdits.readGpx("""{"gpx":""}"""))
-        assertNull(WebEditorEdits.readGpx("""{"gpx":"   "}"""))
+    fun `a body with no track file in it is nothing to read, rather than an empty file`() {
+        // Null rather than an empty array: the caller refuses both, and a missing one is what a page
+        // that sent the wrong field name would produce - which is a page to be told about, not a file.
+        assertNull(WebEditorEdits.readTrackFile(null))
+        assertNull(WebEditorEdits.readTrackFile(""))
+        assertNull(WebEditorEdits.readTrackFile("not json at all"))
+        assertNull(WebEditorEdits.readTrackFile("""{"gpx":""}"""))
+        assertNull(WebEditorEdits.readTrackFile("""{"gpx":"   "}"""))
         assertNull(
             "the edit bodies' own field name is not this one",
-            WebEditorEdits.readGpx("""{"points":[]}""")
+            WebEditorEdits.readTrackFile("""{"points":[]}""")
+        )
+        assertNull(
+            "and text that is not base64 is not a file either",
+            WebEditorEdits.readTrackFile("""{"gpx":"not base64 !!"}""")
         )
     }
 
@@ -540,9 +553,11 @@ class WebEditorEditTest {
         // A page from a later build may carry more than this one knows about, and a file that is
         // perfectly readable must not be refused over a field nothing here reads.
         val file = "<gpx version=\"1.1\"><trk><trkseg><trkpt lat=\"-41.0\" lon=\"174.0\"/></trkseg></trk></gpx>"
-        val body = Json.encodeToString(mapOf(WebEditorServer.GPX_FIELD to file, "somethingNew" to "7"))
+        val body = Json.encodeToString(
+            mapOf(WebEditorServer.GPX_FIELD to base64(file), "somethingNew" to "7")
+        )
 
-        assertEquals(file, WebEditorEdits.readGpx(body))
+        assertArrayEquals(file.toByteArray(Charsets.UTF_8), WebEditorEdits.readTrackFile(body))
     }
 
     /** A row as the phone holds it, for a bulk edit to be judged against. */

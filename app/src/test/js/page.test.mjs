@@ -57,7 +57,7 @@ test('every control that starts disabled is one the page turns on, and says so',
   }
 });
 
-test('the Import a GPX file button is not one of them', () => {
+test('the Import a track file button is not one of them', () => {
   // The fault this file was written for, pinned on its own: a file becomes a drawing, a drawing needs a
   // map with a style - and that is a question for the press to answer, not a reason to grey the button
   // out. The page says so in words instead: `mapIsNotReady`.

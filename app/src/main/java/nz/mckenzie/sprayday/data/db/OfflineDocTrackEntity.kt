@@ -20,6 +20,8 @@ data class OfflineDocTrackEntity(
     @PrimaryKey val objectId: Long,
     val name: String,
     val kind: String?,
+    /** The asset's `FlocID`, so an import from the cache can prefix its place too. */
+    val flocId: String?,
     val lengthM: Double,
     /** The paths as `[lat, lng]` pairs, JSON: written once, read whole. */
     val pathsJson: String,

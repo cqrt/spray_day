@@ -17,6 +17,7 @@ import nz.mckenzie.sprayday.domain.asset.BulkAssetEdits
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
 import nz.mckenzie.sprayday.domain.doc.DocBounds
+import nz.mckenzie.sprayday.domain.doc.DocPlaces
 import nz.mckenzie.sprayday.domain.doc.DocTrackCache
 import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
 import nz.mckenzie.sprayday.domain.doc.EmptyDocTrackCache
@@ -401,7 +402,7 @@ class WebEditorDocuments(
             if (paths.isEmpty()) continue
             val sourceRef = if (track.id != 0L) docSourceRef(track.id) else null
             if (sourceRef != null && sourceRef in already) continue
-            val name = track.name.trim().ifBlank { "DOC track" }
+            val name = DocPlaces.assetName(track.name.trim().ifBlank { "DOC track" }, track.flocId)
             runCatching {
                 assets.createAsset(name = name, geometry = AssetGeometry(paths), sourceRef = sourceRef)
             }.onSuccess { imported++ }

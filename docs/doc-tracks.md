@@ -72,6 +72,22 @@ TEXT`). Existing rows are left with none — nothing in a v7 database came from 
 a source would claim a provenance nobody gave — and the migration is proved against a populated v7
 database like every migration before it.
 
+## Place names on import
+
+DOC's tracks carry **no place name**, and nothing DOC publishes expands its `FlocID` site codes — there
+is no reference table in the open data, and DOC's own place boundaries are far coarser than a site
+("Lowlands Te Rā a Takitimu Place" for a Waipapa Point track). So the app keeps its own map,
+`DocPlaces`, from `FlocID` prefix to place, in one file.
+
+Importing names the asset **place-first**: `CATLNSCO-TK11` "Historic House Walk" becomes
+**Catlins Coast Historic House Walk**, so the list reads by where the work is. A prefix the map does not
+know gives no place and the track keeps the name DOC gave it — better the name alone than the wrong
+place — and a track already named after its place is left alone rather than named twice. **The map is
+the thing to edit** as new sites are met; the seed is the sites seen in the data so far.
+
+The site travels with a track everywhere it goes, so the name is the same however it is brought in: on
+the wire to the desk, and in the offline cache (schema **v10**, `MIGRATION_9_10`).
+
 ## What it reads, and what it writes
 
 `DocTracksJson` reads the answer with `GeoJsonParser` — the same reader a GeoJSON file gets — and
@@ -152,7 +168,8 @@ every migration before it.
 | File | What it is |
 | --- | --- |
 | `domain/doc/DocTrackQuery.kt` | The question and the URL that asks it: the `where` clause, the near-me envelope, `f=geojson&outSR=4326`. Pure, so the URL is held by a JVM test. |
-| `domain/doc/DocTrack.kt` | One track the service holds: its key, name, kind, and the reading of its paths; its own metres and points. |
+| `domain/doc/DocTrack.kt` | One track the service holds: its key, name, kind, `FlocID` and the reading of its paths; its own metres and points. |
+| `domain/doc/DocPlaces.kt` | The app's own `FlocID` prefix → place map, and the place-first asset name an import is given. |
 | `domain/doc/DocTracksJson.kt` | The service's answer read as tracks, through `GeoJsonParser` and `TrackInterchange`. |
 | `doc/ArcGisDocTracks.kt` | The live service, asked over HTTP. An interface (`DocTracksSource`) so the screen is tested against a fake. |
 | `viewmodel/DocTracksViewModel.kt` | The search, the ticks, the import, and the phone's own newest fix for "Near me". |

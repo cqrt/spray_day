@@ -17,6 +17,13 @@ data class DocTrack(
     val name: String,
     /** `SubObjectType`: Walking Track, Tramping Track, Route, Short Walk. Null when the service omits it. */
     val kind: String?,
+    /**
+     * `FlocID`: the asset's functional-location key, e.g. `CATLNSCO-TK11`.
+     *
+     * Its prefix names the site the track is at - see [DocPlaces] - which is how an imported asset is
+     * given a place: the record itself carries no place name.
+     */
+    val flocId: String? = null,
     val reading: TrackInterchange.Reading
 ) {
     val lengthM: Double get() = AssetGeometry(reading.paths).lengthM

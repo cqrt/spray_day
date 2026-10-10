@@ -18,7 +18,7 @@ class DocTracksJsonTest {
         {"type":"FeatureCollection","crs":{"type":"name","properties":{"name":"EPSG:4326"}},"features":[
           {"type":"Feature","id":35239046,"geometry":{"type":"LineString","coordinates":[
               [168.349159886,-46.6222429467],[168.349244881,-46.622198892]
-          ]},"properties":{"OBJECTID":35239046,"TechObjectName":"Glory Tk","SubObjectType":"Walking Track"}},
+          ]},"properties":{"OBJECTID":35239046,"TechObjectName":"Glory Tk","SubObjectType":"Walking Track","FlocID":"BLUFFHIL-TK02"}},
           {"type":"Feature","id":1,"geometry":{"type":"Point","coordinates":[168.3,-46.6]},
            "properties":{"OBJECTID":1,"TechObjectName":"A gate","SubObjectType":"Short Walk"}}
         ]}
@@ -33,6 +33,7 @@ class DocTracksJsonTest {
         assertEquals(35239046L, track.objectId)
         assertEquals("Glory Tk", track.name)
         assertEquals("Walking Track", track.kind)
+        assertEquals("the site key is carried, for the imported asset's place", "BLUFFHIL-TK02", track.flocId)
         assertTrue("its own arithmetic over the vertices", track.lengthM > 0.0)
         assertEquals(2, track.pointCount)
     }

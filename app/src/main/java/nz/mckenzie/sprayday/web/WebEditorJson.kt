@@ -198,6 +198,7 @@ object WebEditorJson {
                         id = track.objectId,
                         name = track.name,
                         kind = track.kind,
+                        flocId = track.flocId,
                         points = track.pointCount,
                         lengthM = track.lengthM,
                         paths = track.reading.paths.map { path ->
@@ -466,6 +467,8 @@ data class WebEditorDocTrack(
     val id: Long = 0,
     val name: String = "",
     val kind: String? = null,
+    /** The asset's `FlocID`, carried back with an import so the phone can prefix the place. */
+    val flocId: String? = null,
     val points: Int = 0,
     val lengthM: Double = 0.0,
     val paths: List<List<WebEditorPoint>> = emptyList(),
@@ -497,6 +500,8 @@ data class WebEditorDocTrackBody(
     /** The service's own key, kept so the asset records where it came from. */
     val id: Long = 0,
     val name: String = "",
+    /** The `FlocID`, so the phone can prefix the place the site names. */
+    val flocId: String? = null,
     val paths: List<List<WebEditorPoint>> = emptyList()
 )
 

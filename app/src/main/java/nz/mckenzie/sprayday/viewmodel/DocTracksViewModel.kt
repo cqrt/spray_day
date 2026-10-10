@@ -23,6 +23,7 @@ import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.DocTrackCache
 import nz.mckenzie.sprayday.domain.doc.DocTrackQuery
 import nz.mckenzie.sprayday.domain.doc.DocTrackSort
+import nz.mckenzie.sprayday.domain.doc.DocPlaces
 import nz.mckenzie.sprayday.domain.doc.kindsPresent
 import nz.mckenzie.sprayday.domain.doc.matching
 import nz.mckenzie.sprayday.domain.doc.showing
@@ -227,7 +228,9 @@ class DocTracksViewModel(
             val imported = picked.count { track ->
                 runCatching {
                     assets.createAsset(
-                        name = track.name,
+                        // The place the FlocID names, then the track's own name, so the list reads by
+                        // where the work is.
+                        name = DocPlaces.assetName(track.name, track.flocId),
                         geometry = AssetGeometry(track.reading.paths),
                         sourceRef = track.sourceRef
                     )

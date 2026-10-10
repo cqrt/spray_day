@@ -63,12 +63,17 @@ test('and both together narrow each other', () => {
   assert.match(path, /near=-46\.6%2C168\.35/);
 });
 
-test('an import carries each ticked track\'s key, name and the geometry it was shown', () => {
+test('an import carries each ticked track\'s key, name, site and the geometry it was shown', () => {
   const sky = [{ lat: -46.6, lng: 168.3 }, { lat: -46.61, lng: 168.31 }];
 
   assert.deepEqual(
-    docImportBody([{ id: 1, name: 'Glory Tk', paths: [sky] }]),
-    { tracks: [{ id: 1, name: 'Glory Tk', paths: [sky] }] }
+    docImportBody([{ id: 1, name: 'Glory Tk', flocId: 'BLUFFHIL-TK02', paths: [sky] }]),
+    { tracks: [{ id: 1, name: 'Glory Tk', flocId: 'BLUFFHIL-TK02', paths: [sky] }] }
+  );
+  assert.deepEqual(
+    docImportBody([{ id: 2, name: 'No site', paths: [sky] }]),
+    { tracks: [{ id: 2, name: 'No site', flocId: null, paths: [sky] }] },
+    'a track with no site key carries an explicit null'
   );
 });
 

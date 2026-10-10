@@ -46,7 +46,9 @@ them is worked out the one way, on the phone.
   instead, and the radius is set beside Near me. The **Offline areas** screen has an **Imagery** tab
   and a **DOC tracks** tab — independent caches, each choosing an area on the map, and each listing
   showing the cached ground on a small map — so the browser
-  imports DOC's tracks with no reception: a cache, cleared without a warning, needing no LINZ key. The
+  imports DOC's tracks with no reception: a cache, cleared without a warning, needing no LINZ key. An
+  imported track is named **place-first** — *Catlins Coast Historic House Walk* — from the app's own
+  `FlocID` map, because a DOC record carries no place name of its own. The
   service is named in one place (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current —
   deprecated — dataset it is one line to change.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone

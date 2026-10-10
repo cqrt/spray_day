@@ -562,6 +562,43 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v9 -> v10 migration: a cached DOC track keeps the `FlocID` it came with, so importing it
+     * offline can prefix the place its site names, exactly as importing from the service does.
+     *
+     * Left empty for a v9 row: nothing about a downloaded track used the site before this, and a place
+     * invented now would be a place nobody gave. `runMigrationsAndValidate` also checks the schema it
+     * produces against the one Room exports for v10.
+     */
+    @Test
+    fun migrationFrom9To10AddsTheSiteToCachedTracksWithoutInventingOne() {
+        helper.createDatabase(TEST_DB, 9).apply {
+            execSQL(
+                "INSERT INTO offline_doc_tracks (objectId, name, kind, lengthM, pathsJson, " +
+                    "downloadedAtEpochMs) " +
+                    "VALUES (35238050, 'Historic House Walk', 'Short Walk', 85.7, '[[[-46.6,168.8]]]', 2000)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 10, true, MIGRATION_9_10)
+
+        migrated.query("SELECT name, flocId FROM offline_doc_tracks WHERE objectId = 35238050").use { cursor ->
+            assertTrue("the cached track is still there", cursor.moveToFirst())
+            assertEquals("Historic House Walk", cursor.getString(0))
+            assertTrue("and nothing claims its site", cursor.isNull(1))
+        }
+
+        // A site written after the migration is kept: the column is writable.
+        migrated.execSQL("UPDATE offline_doc_tracks SET flocId = 'CATLNSCO-TK11' WHERE objectId = 35238050")
+        migrated.query("SELECT flocId FROM offline_doc_tracks WHERE objectId = 35238050").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("CATLNSCO-TK11", cursor.getString(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

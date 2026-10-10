@@ -28,6 +28,8 @@ object DocTracksJson {
             objectId = objectId,
             name = name,
             kind = feature.properties["SubObjectType"]?.takeIf { it.isNotBlank() },
+            // Carried so an imported asset can be given the place its FlocID prefix names.
+            flocId = feature.properties["FlocID"]?.takeIf { it.isNotBlank() },
             reading = reading
         )
     }

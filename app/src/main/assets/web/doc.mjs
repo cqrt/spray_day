@@ -44,6 +44,8 @@ export function docImportBody(tracks) {
     tracks: tracks.map((track) => ({
       id: track.id,
       name: track.name,
+      // The site key, so the phone can prefix the place the FlocID names: "Catlins Coast <track>".
+      flocId: track.flocId ?? null,
       paths: track.paths
     }))
   };

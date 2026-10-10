@@ -476,3 +476,19 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+/**
+ * Gives a cached DOC track the `FlocID` it came with, so importing it offline can prefix the place its
+ * site names, exactly as importing one from the service does.
+ *
+ * Left empty for rows already there: nothing about an imported track depended on the site before this,
+ * and a place invented now would be a place nobody gave. The next download fills it in.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v9
+ * database, and the schema it produces is the one Room exports for v10.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `offline_doc_tracks` ADD COLUMN `flocId` TEXT")
+    }
+}

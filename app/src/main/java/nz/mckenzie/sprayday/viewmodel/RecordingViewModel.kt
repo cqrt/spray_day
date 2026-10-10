@@ -494,6 +494,11 @@ class RecordingViewModel(
             // from every fix of the pass - and the coverage would be the honest one.
             val progress = runCatching { recordings.recordingProgress(unfinished.id) }
                 .getOrDefault(RecordingProgress.EMPTY)
+            // Those two reads suspend, so the operator may have begun a pass - or finished one
+            // and begun another - while they were in flight. Taking them back to the session
+            // found a moment ago would then be wrong: the pass they started is the one they
+            // mean. Reattach only if nothing is being mirrored yet.
+            if (TrackingState.current.sessionId != null) return@launch
             TrackingState.begin(
                 sessionId = unfinished.id,
                 startedAtEpochMs = unfinished.startedAtEpochMs,

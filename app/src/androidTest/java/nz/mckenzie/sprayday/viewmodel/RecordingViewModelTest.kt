@@ -420,6 +420,42 @@ class RecordingViewModelTest {
     }
 
     /**
+     * The other side of the reattach: it must not take over a pass the operator has already
+     * begun. Its two reads of the database suspend, so a pass can start - and even finish -
+     * while they are in flight; a screen that then began the older session it found a moment
+     * ago would put the operator on the wrong pass, with the wrong length beside it.
+     */
+    @Test
+    fun aReattachDoesNotTakeOverAPassBegunWhileItWasLooking() = runBlocking {
+        // A session left behind by a kill: still unfinished in the database, so it is what a
+        // reattach would find. Its fixes are the whole line, which is how a takeover would show.
+        val leftOver = recordings.startRecording(name = "Left over")
+        line.forEach { recordings.appendPoint(leftOver, it) }
+
+        // The pass in the operator's hand, begun - and so already mirrored - before the screen
+        // arrives. Finished in the database so the reattach cannot find it, only the leftover.
+        val ownPass = recordings.startRecording(name = "Spray run")
+        recordings.finishRecording(ownPass, distanceM = 0.0)
+        TrackingState.begin(ownPass, System.currentTimeMillis())
+
+        val viewModel = viewModel()
+        // Let the reattach's reads come back before judging what the screen settled on.
+        delay(500)
+
+        val state = viewModel.tracking.value
+        assertEquals(
+            "the reattach must not take over a pass that has already begun",
+            ownPass,
+            state.sessionId
+        )
+        assertEquals(
+            "nor put the older session's points beside this pass",
+            0,
+            state.pointCount
+        )
+    }
+
+    /**
      * With no track chosen there is nothing to compare the recording with, so the recording
      * itself is drawn: that is the "record a new line" case, where the line being made is the
      * only thing there is to see.

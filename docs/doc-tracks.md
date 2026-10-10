@@ -126,7 +126,8 @@ operator says where, on the map, which is the one thing a location guess was sta
 Each listing shows **where** as well as what: a small map with the cached ground drawn as a white box
 over the imagery, fitted to the area. An imagery area carries its own box; the DOC cache is a set of
 tracks rather than a rectangle, so its box is the extent of the tracks themselves, worked out from
-their vertices.
+their vertices. The previews are **pictures, not maps**: nothing on them can be dragged, and the
+phone's own dot is not drawn, because neither is what a thumbnail of a downloaded area is about.
 
 - **Download DOC tracks** pulls every track the service has inside the box, a page at a time
   (`DocTrackDownloader`; 2,000 a request, capped at 4,000), and stores them keyed by the service's own

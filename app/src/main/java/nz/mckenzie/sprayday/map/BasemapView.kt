@@ -166,6 +166,22 @@ fun BasemapView(
      */
     fitBoundsMaxZoom: Double? = null,
     /**
+     * Whether the operator may move this map.
+     *
+     * True on every map the work is read on. False for a **preview** - the thumbnail in a listing
+     * that says where a downloaded area is - where there is nothing to explore and a drag would only
+     * move the picture off the thing it is a picture of.
+     */
+    interactive: Boolean = true,
+    /**
+     * Whether the phone's own dot is drawn on this map.
+     *
+     * True on every map the work is read on: where you are standing is the first thing a map of a
+     * block is for. False for a preview, which is about a downloaded area rather than about the
+     * phone, and where a dot would be one more thing to read in a picture nobody can move.
+     */
+    showPosition: Boolean = true,
+    /**
      * The layers of the work this map is not drawing.
      *
      * Empty by default, which is what every map that is not the operator's own home map wants: a
@@ -218,7 +234,11 @@ fun BasemapView(
     val positionScope = rememberCoroutineScope()
     val fixes = remember(positionScope) { DevicePosition.updates(positionScope) }
     val fix by fixes.collectAsStateWithLifecycle()
-    val positionGeoJson = remember(fix) { PositionGeoJson.build(fix) }
+    // A preview shows no dot: the position is not what it is about, and drawing it would be the one
+    // moving thing in a picture nobody can move.
+    val positionGeoJson = remember(fix, showPosition) {
+        PositionGeoJson.build(if (showPosition) fix else null)
+    }
 
     AndroidView(
         modifier = modifier,
@@ -233,6 +253,12 @@ fun BasemapView(
                     // The licence requires attribution to be visible; MapLibre's own
                     // control is backed up by an always-visible overlay in MapScreen.
                     map.uiSettings.isAttributionEnabled = true
+                    // A preview is a picture of somewhere, not a place to explore: every gesture off,
+                    // so a drag on the list cannot move the thumbnail off what it is a picture of.
+                    map.uiSettings.isScrollGesturesEnabled = interactive
+                    map.uiSettings.isZoomGesturesEnabled = interactive
+                    map.uiSettings.isDoubleTapGesturesEnabled = interactive
+                    map.uiSettings.isQuickZoomGesturesEnabled = interactive
                     // North stays up. A gloved hand rotates this map by accident, and the
                     // mistake is invisible until a fenceline points the wrong way - while
                     // nothing on it is easier to read at an angle.

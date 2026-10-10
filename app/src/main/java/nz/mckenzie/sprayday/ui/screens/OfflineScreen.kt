@@ -328,6 +328,10 @@ private fun CachedAreaMap(bounds: LatLngBounds, apiKey: String) {
             apiKey = apiKey,
             assetGeoJson = boundsOutline(bounds),
             fitBounds = bounds,
+            // A picture of what was downloaded, not a map to explore: no dragging, and no dot for
+            // where the phone happens to be - neither is what the thumbnail is about.
+            interactive = false,
+            showPosition = false,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(150.dp)

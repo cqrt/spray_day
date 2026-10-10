@@ -86,6 +86,7 @@ private fun OfflineDocTrackEntity.toDocTrack(): DocTrack? {
         objectId = objectId,
         name = name,
         kind = kind,
+        trackType = trackType,
         flocId = flocId,
         reading = TrackInterchange.Reading(
             paths = paths,
@@ -99,6 +100,7 @@ private fun DocTrack.toEntity(at: Long) = OfflineDocTrackEntity(
     objectId = objectId,
     name = name,
     kind = kind,
+    trackType = trackType,
     flocId = flocId,
     lengthM = lengthM,
     pathsJson = DocPathsJson.write(reading.paths),

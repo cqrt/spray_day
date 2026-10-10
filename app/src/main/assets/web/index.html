@@ -77,9 +77,22 @@
           <button id="doc-close" type="button">Close</button>
         </div>
 
-        <!-- What the search found, narrowed and ordered: a chip per kind, and the two orders. -->
-        <div id="doc-filters" hidden></div>
-        <div id="doc-sort" hidden></div>
+        <!--
+          What the search found, narrowed and ordered. Labelled controls rather than a row of sliding
+          chips: a Filter group of the kinds and track types the search returned, and a Sort group of
+          the two orders. Both are drawn from the answer, so a filter is always a fact about the page.
+        -->
+        <div id="doc-controls" hidden>
+          <div class="doc-control">
+            <span class="doc-label" id="doc-filter-label">Filter</span>
+            <div class="doc-choices" id="doc-kinds" role="group" aria-labelledby="doc-filter-label"></div>
+            <div class="doc-choices" id="doc-types" role="group" aria-labelledby="doc-filter-label"></div>
+          </div>
+          <div class="doc-control">
+            <span class="doc-label" id="doc-sort-label">Sort</span>
+            <div class="doc-choices" id="doc-sort" role="group" aria-labelledby="doc-sort-label"></div>
+          </div>
+        </div>
 
         <p id="doc-words" hidden></p>
         <div id="doc-list" aria-live="polite"></div>

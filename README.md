@@ -37,18 +37,21 @@ them is worked out the one way, on the phone.
 - **DOC tracks, straight from DOC** — the Department of Conservation publishes its track network as
   a web service, so a **DOC tracks** screen searches it at the source: type part of a name, turn on
   **Near me** within a distance you set, and import the tracks you tick as ordinary assets, each named
-  as DOC names it. Narrow the list by what a track is — Tramping Track, Short Walk, Walking Track and
-  so on, the kinds the search itself returned — and order it by distance to the phone. A track already
-  on the phone is shown but cannot be imported twice. Searching
+  **place-first**. Every row shows that name — *Catlins Coast Historic House Walk* — so a site the app
+  names wrongly is seen before the import, with the kind, the **track type** (*One way*, *Loop*) and the
+  distance to the phone beneath it. Narrow the list by kind and by how it is walked — the filters the
+  search itself returned, under labelled **Filter** and **Sort** controls rather than a row of chips —
+  and order it by distance to the phone. A track already on the phone is shown but cannot be imported
+  twice. Searching
   happens at DOC, so the phone asks for the few tracks you want rather than the 3,255 there are;
   nothing is written until you import. The computer editor has the same browser, and the phone does
   the searching there too — the laptop never reaches DOC itself; its map can be the search area
   instead, and the radius is set beside Near me. The **Offline areas** screen has an **Imagery** tab
   and a **DOC tracks** tab — independent caches, each choosing an area on the map, and each listing
   showing the cached ground on a small map — so the browser
-  imports DOC's tracks with no reception: a cache, cleared without a warning, needing no LINZ key. An
-  imported track is named **place-first** — *Catlins Coast Historic House Walk* — from the app's own
-  `FlocID` map, because a DOC record carries no place name of its own. The
+  imports DOC's tracks with no reception: a cache, cleared without a warning, needing no LINZ key. The
+  place in an imported track's name comes from the app's own `FlocID` map, because a DOC record carries
+  no place name of its own. The
   service is named in one place (`DocTracksUrl.SERVICE_URL`), so when DOC replaces the current —
   deprecated — dataset it is one line to change.
 - **Drawing from a computer** — a laptop on the same Wi-Fi can be served the same work the phone

@@ -43,6 +43,6 @@ class DocPlacesTest {
 
     @Test
     fun `a track already named after its place is not named twice`() {
-        assertEquals("Foveaux Walkway", DocPlaces.assetName("Foveaux Walkway", "FOVEAUXW-TK01"))
+        assertEquals("Bluff Hill Walkway", DocPlaces.assetName("Bluff Hill Walkway", "BLUFFHIL-TK01"))
     }
 }

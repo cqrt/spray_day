@@ -15,10 +15,11 @@ import org.junit.Test
  */
 class DocTrackListTest {
 
-    private fun track(id: Long, name: String, kind: String?, at: GeoPoint) = DocTrack(
+    private fun track(id: Long, name: String, kind: String?, at: GeoPoint, type: String? = null) = DocTrack(
         objectId = id,
         name = name,
         kind = kind,
+        trackType = type,
         reading = TrackInterchange.Reading(
             paths = listOf(
                 listOf(at, GeoPoint(at.lat + 0.01, at.lng + 0.01)),
@@ -45,6 +46,48 @@ class DocTrackListTest {
     }
 
     @Test
+    fun `the types present are each once, sorted, and blanks are left out`() {
+        val tracks = listOf(
+            track(1, "A", "Walking Track", invercargill, type = "One way"),
+            track(2, "B", "Walking Track", invercargill, type = "Loop"),
+            track(3, "C", "Walking Track", invercargill, type = "One way"),
+            track(4, "D", "Walking Track", invercargill),
+            track(5, "E", "Walking Track", invercargill, type = "  ")
+        )
+
+        assertEquals(listOf("Loop", "One way"), tracks.typesPresent())
+    }
+
+    @Test
+    fun `a kind and a type together narrow to the tracks that are both`() {
+        val oneWayWalk = track(1, "One way walk", "Walking Track", invercargill, type = "One way")
+        val loopWalk = track(2, "Loop walk", "Walking Track", invercargill, type = "Loop")
+        val loopTramp = track(3, "Loop tramp", "Tramping Track", invercargill, type = "Loop")
+        val tracks = listOf(oneWayWalk, loopWalk, loopTramp)
+
+        assertEquals(
+            "the type alone keeps every kind of it (ordered by name, as asked)",
+            listOf(loopTramp, loopWalk),
+            tracks.showing(
+                kinds = emptySet(),
+                types = setOf("Loop"),
+                sort = DocTrackSort.NAME,
+                from = invercargill
+            )
+        )
+        assertEquals(
+            "and both together keep only what is both",
+            listOf(loopTramp),
+            tracks.showing(
+                kinds = setOf("Tramping Track"),
+                types = setOf("Loop"),
+                sort = DocTrackSort.NAME,
+                from = invercargill
+            )
+        )
+    }
+
+    @Test
     fun `nearest is measured to the closest vertex, not the middle of the line`() {
         // The second path starts exactly at the fix, so the track is nought metres away even though
         // its other end is a kilometre off.
@@ -58,7 +101,12 @@ class DocTrackListTest {
         val near = track(1, "Near", "Walking Track", GeoPoint(-46.4130, 168.3538))
         val far = track(2, "Far", "Walking Track", GeoPoint(-46.30, 168.20))
 
-        val shown = listOf(far, near).showing(kinds = emptySet(), sort = DocTrackSort.NEAREST, from = invercargill)
+        val shown = listOf(far, near).showing(
+            kinds = emptySet(),
+            types = emptySet(),
+            sort = DocTrackSort.NEAREST,
+            from = invercargill
+        )
 
         assertEquals(listOf(near, far), shown)
     }
@@ -68,7 +116,12 @@ class DocTrackListTest {
         val b = track(1, "B", "Walking Track", invercargill)
         val a = track(2, "A", "Walking Track", invercargill)
 
-        val shown = listOf(b, a).showing(kinds = emptySet(), sort = DocTrackSort.NEAREST, from = null)
+        val shown = listOf(b, a).showing(
+            kinds = emptySet(),
+            types = emptySet(),
+            sort = DocTrackSort.NEAREST,
+            from = null
+        )
 
         assertEquals(listOf(a, b), shown)
     }
@@ -78,7 +131,7 @@ class DocTrackListTest {
         val walk = track(1, "Walk", "Walking Track", invercargill)
         val tramp = track(2, "Tramp", "Tramping Track", invercargill)
 
-        val shown = listOf(walk, tramp).showing(setOf("Tramping Track"), DocTrackSort.NAME, invercargill)
+        val shown = listOf(walk, tramp).showing(setOf("Tramping Track"), emptySet(), DocTrackSort.NAME, invercargill)
 
         assertEquals(listOf(tramp), shown)
     }
@@ -88,7 +141,7 @@ class DocTrackListTest {
         val walk = track(1, "Walk", "Walking Track", invercargill)
         val tramp = track(2, "Tramp", "Tramping Track", invercargill)
 
-        val shown = listOf(walk, tramp).showing(emptySet(), DocTrackSort.NAME, invercargill)
+        val shown = listOf(walk, tramp).showing(emptySet(), emptySet(), DocTrackSort.NAME, invercargill)
 
         assertTrue(shown.containsAll(listOf(walk, tramp)))
     }

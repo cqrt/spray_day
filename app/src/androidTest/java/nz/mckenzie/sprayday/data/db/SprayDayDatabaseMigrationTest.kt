@@ -599,6 +599,44 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v10 -> v11 migration: a cached DOC track keeps the `WEB_TRACK_TYPE` it came with, so the
+     * browser can show and filter by how a track is walked offline, exactly as it does from the service.
+     *
+     * Left empty for a v10 row: the type was never read before this, and a value invented now would be
+     * a value nobody gave. `runMigrationsAndValidate` also checks the schema it produces against the one
+     * Room exports for v11.
+     */
+    @Test
+    fun migrationFrom10To11AddsTheTrackTypeWithoutInventingOne() {
+        helper.createDatabase(TEST_DB, 10).apply {
+            execSQL(
+                "INSERT INTO offline_doc_tracks (objectId, name, kind, lengthM, pathsJson, " +
+                    "downloadedAtEpochMs, flocId) " +
+                    "VALUES (35238050, 'Glory Tk', 'Walking Track', 2075.4, '[[[-46.6,168.3]]]', 2000, " +
+                    "'BLUFFHIL-TK02')"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 11, true, MIGRATION_10_11)
+
+        migrated.query("SELECT name, trackType FROM offline_doc_tracks WHERE objectId = 35238050").use { cursor ->
+            assertTrue("the cached track is still there", cursor.moveToFirst())
+            assertEquals("Glory Tk", cursor.getString(0))
+            assertTrue("and nothing claims how it is walked", cursor.isNull(1))
+        }
+
+        // A type written after the migration is kept: the column is writable.
+        migrated.execSQL("UPDATE offline_doc_tracks SET trackType = 'One way' WHERE objectId = 35238050")
+        migrated.query("SELECT trackType FROM offline_doc_tracks WHERE objectId = 35238050").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("One way", cursor.getString(0))
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

@@ -27,6 +27,7 @@ import nz.mckenzie.sprayday.domain.doc.DocPlaces
 import nz.mckenzie.sprayday.domain.doc.kindsPresent
 import nz.mckenzie.sprayday.domain.doc.matching
 import nz.mckenzie.sprayday.domain.doc.showing
+import nz.mckenzie.sprayday.domain.doc.typesPresent
 import nz.mckenzie.sprayday.domain.doc.within
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
@@ -93,23 +94,32 @@ class DocTracksViewModel(
     private val _kinds = MutableStateFlow<Set<String>>(emptySet())
     val kinds: StateFlow<Set<String>> = _kinds
 
+    /** The track types the operator has filtered to - "One way", "Loop", and the like; empty is all. */
+    private val _types = MutableStateFlow<Set<String>>(emptySet())
+    val types: StateFlow<Set<String>> = _types
+
     private val _sort = MutableStateFlow(DocTrackSort.NEAREST)
     val sort: StateFlow<DocTrackSort> = _sort
 
-    /** The kinds a filter row should offer, from what the search actually returned. */
+    /** The kinds a filter should offer, from what the search actually returned. */
     val kindChoices: StateFlow<List<String>> = _results
         .map { tracks -> tracks.kindsPresent() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
+    /** The track types a filter should offer, from what the search actually returned. */
+    val typeChoices: StateFlow<List<String>> = _results
+        .map { tracks -> tracks.typesPresent() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
     /**
-     * The tracks the screen shows: the search's results, filtered by kind and ordered by the sort.
+     * The tracks the screen shows: the search's results, filtered by kind and type, ordered by the sort.
      *
      * Derived rather than stored, because the fix moves: standing still and turning "Nearest" on
      * re-orders the page without asking DOC again.
      */
     val visible: StateFlow<List<DocTrack>> =
-        combine(_results, _kinds, _sort, fix) { results, kinds, sort, position ->
-            results.showing(kinds, sort, position)
+        combine(_results, _kinds, _types, _sort, fix) { results, kinds, types, sort, position ->
+            results.showing(kinds, types, sort, position)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     init {
@@ -137,6 +147,15 @@ class DocTracksViewModel(
 
     fun clearKinds() {
         _kinds.value = emptySet()
+    }
+
+    /** Tick or untick a track type in the filter; an empty set shows every type. */
+    fun toggleType(type: String) {
+        _types.value = if (type in _types.value) _types.value - type else _types.value + type
+    }
+
+    fun clearTypes() {
+        _types.value = emptySet()
     }
 
     fun setSort(sort: DocTrackSort) {
@@ -181,6 +200,7 @@ class DocTracksViewModel(
                     _selected.value = emptySet()
                     // A new set of results, so a filter from the last search is not carried onto it.
                     _kinds.value = emptySet()
+                    _types.value = emptySet()
                     _searched.value = true
                     // Read once per search, so every row can say whether it is already on the phone.
                     _imported.value = assets.existingSourceRefs()
@@ -201,6 +221,7 @@ class DocTracksViewModel(
                     _results.value = cached
                     _selected.value = emptySet()
                     _kinds.value = emptySet()
+                    _types.value = emptySet()
                     _searched.value = true
                     _imported.value = assets.existingSourceRefs()
                     _message.value = when {

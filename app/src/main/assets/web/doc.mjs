@@ -82,20 +82,43 @@ export function docKindsOf(tracks) {
 }
 
 /**
- * The tracks to show: those of the picked `kinds` (all when none is picked), ordered by `sort`.
+ * The track types present in these tracks - "One way", "Loop" and the like - each once, sorted, for a
+ * filter to offer.
  *
- * `nearest` uses the `distanceM` the phone sent - so the desk's order is the phone's, computed from
- * the phone's own fix. A track with no distance, because the phone had no fix, sorts last rather than
- * first, and ties fall back to the name.
+ * Like the kinds, taken from what the search returned rather than from a list kept here, so the filter
+ * is always a fact about the page.
  */
-export function docShowing(tracks, kinds, sort) {
-  const chosen = kinds || [];
+export function docTypesOf(tracks) {
+  const types = [];
+  for (const track of tracks || []) {
+    const type = track.trackType ? String(track.trackType).trim() : '';
+    if (type && !types.includes(type)) types.push(type);
+  }
+  return types.sort();
+}
+
+/**
+ * The tracks to show: those whose kind and type are both picked (each filter unset meaning every one),
+ * ordered by `sort`.
+ *
+ * The two filters are independent: a kind narrows to Walking Track, a type narrows to One way, and
+ * asking for both narrows to the tracks that are both. `nearest` uses the `distanceM` the phone sent -
+ * so the desk's order is the phone's, computed from the phone's own fix. A track with no distance,
+ * because the phone had no fix, sorts last rather than first, and ties fall back to the name.
+ */
+export function docShowing(tracks, kinds, types, sort) {
+  const chosenKinds = kinds || [];
+  const chosenTypes = types || [];
   const all = tracks || [];
-  const ofKind = chosen.length === 0 ? all : all.filter((track) => chosen.includes(track.kind));
+  const chosen = all.filter(
+    (track) =>
+      (chosenKinds.length === 0 || chosenKinds.includes(track.kind)) &&
+      (chosenTypes.length === 0 || chosenTypes.includes(track.trackType))
+  );
   const byName = (a, b) => a.name.localeCompare(b.name);
 
-  if (sort !== 'nearest') return [...ofKind].sort(byName);
-  return [...ofKind].sort((a, b) => {
+  if (sort !== 'nearest') return [...chosen].sort(byName);
+  return [...chosen].sort((a, b) => {
     const da = typeof a.distanceM === 'number' ? a.distanceM : Infinity;
     const db = typeof b.distanceM === 'number' ? b.distanceM : Infinity;
     // `da - db` is NaN when both are Infinity; `|| byName` then takes over.

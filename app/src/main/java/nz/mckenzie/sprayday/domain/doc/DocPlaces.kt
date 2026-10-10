@@ -18,7 +18,7 @@ object DocPlaces {
     private val PLACES = mapOf(
         "CATLNSCO" to "Catlins Coast",
         "BLUFFHIL" to "Bluff Hill",
-        "FOVEAUXW" to "Foveaux",
+        "FOVEAUXW" to "Bluff Hill",
         "INVERCWK" to "Invercargill"
     )
 

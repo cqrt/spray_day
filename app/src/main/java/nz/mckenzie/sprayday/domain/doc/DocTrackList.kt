@@ -36,6 +36,18 @@ fun List<DocTrack>.kindsPresent(): List<String> =
         .sorted()
 
 /**
+ * The track types present in these tracks, in a stable order, for a filter to offer: "One way", "Loop",
+ * "Return" and the like.
+ *
+ * Like the kinds, taken from what the search returned rather than from a list kept here, so the filter
+ * is always a fact about the page.
+ */
+fun List<DocTrack>.typesPresent(): List<String> =
+    mapNotNull { track -> track.trackType?.takeIf { it.isNotBlank() } }
+        .distinct()
+        .sorted()
+
+/**
  * The tracks whose nearest vertex is within [radiusM] of [from], or all of them when [from] is null.
  *
  * The service's own filter is a **bounding box**, and a box reaches its corners about 1.4 times its
@@ -49,16 +61,26 @@ fun List<DocTrack>.within(radiusM: Double, from: GeoPoint?): List<DocTrack> {
 }
 
 /**
- * The tracks to show: those of the picked [kinds] (all of them when none is picked), ordered by [sort].
+ * The tracks to show: those whose kind and type are both picked (each filter unset meaning every one),
+ * ordered by [sort].
  *
- * A nearest sort with no [from] - the phone has no fix yet - falls back to by name, because with
- * nothing to be near to, the nearest order is no order at all.
+ * The two filters are independent: a kind narrows to Walking Track, a type narrows to One way, and
+ * asking for both narrows to the tracks that are both. A nearest sort with no [from] - the phone has
+ * no fix yet - falls back to by name, because with nothing to be near to, the nearest order is no
+ * order at all.
  */
-fun List<DocTrack>.showing(kinds: Set<String>, sort: DocTrackSort, from: GeoPoint?): List<DocTrack> {
-    val ofKind = if (kinds.isEmpty()) this else filter { it.kind in kinds }
+fun List<DocTrack>.showing(
+    kinds: Set<String>,
+    types: Set<String>,
+    sort: DocTrackSort,
+    from: GeoPoint?
+): List<DocTrack> {
+    val chosen = filter { track ->
+        (kinds.isEmpty() || track.kind in kinds) && (types.isEmpty() || track.trackType in types)
+    }
     return when {
-        sort == DocTrackSort.NAME || from == null -> ofKind.sortedBy { it.name.lowercase() }
-        else -> ofKind.sortedBy { it.distanceM(from) ?: Double.MAX_VALUE }
+        sort == DocTrackSort.NAME || from == null -> chosen.sortedBy { it.name.lowercase() }
+        else -> chosen.sortedBy { it.distanceM(from) ?: Double.MAX_VALUE }
     }
 }
 

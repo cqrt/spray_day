@@ -15,6 +15,7 @@ import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.backup.AssetRecord
 import nz.mckenzie.sprayday.domain.backup.GroupRecord
 import nz.mckenzie.sprayday.domain.backup.ProductRecord
+import nz.mckenzie.sprayday.domain.doc.DocPlaces
 import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.distanceM
 import nz.mckenzie.sprayday.domain.due.DueInfo
@@ -197,7 +198,11 @@ object WebEditorJson {
                     WebEditorDocTrack(
                         id = track.objectId,
                         name = track.name,
+                        // The name the import will give it - place first - so the desk shows what the
+                        // asset will be called, and a wrong place is seen before it is imported.
+                        assetName = DocPlaces.assetName(track.name, track.flocId),
                         kind = track.kind,
+                        trackType = track.trackType,
                         flocId = track.flocId,
                         points = track.pointCount,
                         lengthM = track.lengthM,
@@ -466,7 +471,15 @@ data class WebEditorGpxRules(
 data class WebEditorDocTrack(
     val id: Long = 0,
     val name: String = "",
+    /**
+     * The name the import will give the asset, place first (`DocPlaces`): "Catlins Coast Historic House
+     * Walk". The desk shows this as the track's title, so a place the map names wrongly is seen before
+     * it is imported rather than after.
+     */
+    val assetName: String = "",
     val kind: String? = null,
+    /** `WEB_TRACK_TYPE`: how the track is walked - "One way", "Loop" - for the desk to show and filter. */
+    val trackType: String? = null,
     /** The asset's `FlocID`, carried back with an import so the phone can prefix the place. */
     val flocId: String? = null,
     val points: Int = 0,

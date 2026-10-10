@@ -44,17 +44,33 @@ a capped search look like a complete one.
 A search's results are narrowed and reordered **without asking DOC again** — the page already holds
 what it found:
 
-- **Kinds** are offered as chips taken from what the search actually returned — `Tramping Track`,
-  `Short Walk`, `Walking Track`, `Great Walk`, `Easy Tramping Track`, `Route` — and any of them can be
-  picked, together or alone. Picking none is every kind. The list is built from the results rather than
-  from DOC's taxonomy kept here, so a filter can only ever offer a kind that is on the page.
+- **Kinds** and **track types** are offered as filters, each taken from what the search actually
+  returned: the kinds (`Tramping Track`, `Short Walk`, `Walking Track`, `Great Walk`, `Easy Tramping
+  Track`, `Route`) and DOC's own `WEB_TRACK_TYPE` (`One way`, `Loop`, `Return`, and the like). Any of
+  them can be picked, together or alone, and a kind and a type together keep only the tracks that are
+  both. Picking none is every one. The choices come from the results rather than from DOC's taxonomy
+  kept here, so a filter can only ever offer what is on the page.
 - **Nearest to phone** orders by the distance from the phone's own fix to the **nearest vertex** of
   each track — a long line passing beside you is near you, where its middle would not be — and it
   needs no second request: the phone sends each track's distance, so the desk's order is the phone's.
   With no fix it falls back to **Name**, A to Z.
 
+They are **labelled controls rather than a row of sliding chips**: on the phone a **Filter** menu — its
+count on the button, so a list that looks short says why — and a **Sort** menu; on the desk a **Filter**
+group and a **Sort** group. A row to read is a row to tick, so the chrome stays thin and the list takes
+the screen.
+
 It is all the phone's arithmetic and the phone's answers, so both browsers order the same list the
 same way, and the nearest order re-sorts as the phone moves.
+
+## What a row says
+
+Each row is titled with **the name the import will give the asset** — the place the `FlocID` names,
+then DOC's own name, "Catlins Coast Historic House Walk" — rather than DOC's bare name, so a site the
+app names wrongly is seen at a glance here, before the track lands. Beneath it are the kind, the track
+type, the length and, from the phone's own fix, how far away it is. The **track type** stands where a
+vertex count used to: "584 points" is nothing an operator acts on, where *One way* tells them what
+they are taking on.
 
 ## Already-imported tracks
 
@@ -93,7 +109,14 @@ the wire to the desk, and in the offline cache (schema **v10**, `MIGRATION_9_10`
 `DocTracksJson` reads the answer with `GeoJsonParser` — the same reader a GeoJSON file gets — and
 turns each feature's paths into a track with `TrackInterchange.reading`, so a DOC track is a line
 with side tracks exactly as a file's is. It keeps what the browser needs beyond the name: `OBJECTID`
-(its key) and `SubObjectType` (its kind); `DocTrack.sourceRef` is `doc:<OBJECTID>`.
+(its key), `SubObjectType` (its kind), `FlocID` (its site), and its **track type**; `DocTrack.sourceRef`
+is `doc:<OBJECTID>`.
+
+DOC keeps the type as one of **eleven characteristic slots** (`CharName1..11` paired with
+`CharValue1..11`) rather than as a column, and which slot holds it varies by row — so
+`DocTracksUrl.OUT_FIELDS` asks for all of them and the reader finds `WEB_TRACK_TYPE` by its name. That
+is the one field worth the extra columns: it is what a row shows in place of a vertex count, and what
+the type filter narrows by.
 
 Importing is the same `AssetRepository.createAsset` every drawn or imported track goes through, one
 asset per ticked track, named as DOC names it. So the moment it lands a DOC track is a track like any
@@ -119,6 +142,11 @@ There are two answers to "where", and they are one answer:
 
 A track the phone already has is marked **already imported** on the desk too: the row is drawn, its
 box is off and disabled, and it is left out of the request even if a page sends it.
+
+A row is titled with the **name the import will give the asset**, and carries the kind, the track type,
+the length and the distance the phone measured — the same row the phone shows, from the same figures.
+Filtering and ordering are **labelled controls** (`Filter`, `Sort`) rather than chips, and the list
+takes the panel.
 
 - `GET /api/doc?name=…&near=lat,lng&radiusKm=…&bounds=minLat,minLng,maxLat,maxLng` answers with the
   tracks, which of them are already here, and the phone's own word when there is one to say.
@@ -160,20 +188,22 @@ phone's own dot is not drawn, because neither is what a thumbnail of a downloade
 one, beside the offline imagery. `DocPathsJson` is how a cached track's geometry travels — `[lat, lng]`
 pairs in one JSON column — because a cache row is written once and read whole and nothing joins to it.
 
-The table arrived with schema **v9** (`MIGRATION_8_9`), proved against a populated v8 database like
-every migration before it.
+The table arrived with schema **v9** (`MIGRATION_8_9`), and has grown as the browser learned more
+about a track: its `FlocID` in **v10** (`MIGRATION_9_10`), so an offline import is named by its place,
+and its `WEB_TRACK_TYPE` in **v11** (`MIGRATION_10_11`), so the type filter works offline too. Each is
+proved against a populated database of the version before it, like every migration in the app.
 
 ## Files
 
 | File | What it is |
 | --- | --- |
-| `domain/doc/DocTrackQuery.kt` | The question and the URL that asks it: the `where` clause, the near-me envelope, `f=geojson&outSR=4326`. Pure, so the URL is held by a JVM test. |
-| `domain/doc/DocTrack.kt` | One track the service holds: its key, name, kind, `FlocID` and the reading of its paths; its own metres and points. |
+| `domain/doc/DocTrackQuery.kt` | The question and the URL that asks it: the `where` clause, the near-me envelope, the characteristic slots the type is read from, `f=geojson&outSR=4326`. Pure, so the URL is held by a JVM test. |
+| `domain/doc/DocTrack.kt` | One track the service holds: its key, name, kind, track type, `FlocID` and the reading of its paths; its own metres and points. |
 | `domain/doc/DocPlaces.kt` | The app's own `FlocID` prefix → place map, and the place-first asset name an import is given. |
 | `domain/doc/DocTracksJson.kt` | The service's answer read as tracks, through `GeoJsonParser` and `TrackInterchange`. |
 | `doc/ArcGisDocTracks.kt` | The live service, asked over HTTP. An interface (`DocTracksSource`) so the screen is tested against a fake. |
 | `viewmodel/DocTracksViewModel.kt` | The search, the ticks, the import, and the phone's own newest fix for "Near me". |
-| `ui/screens/DocTracksScreen.kt` | The screen: a name field, Near me with a km field, Search, a tickable list, Import. |
+| `ui/screens/DocTracksScreen.kt` | The screen: a name field, Near me with a km field, Search, labelled Filter and Sort menus, a tickable list, Import. |
 | `data/db/AssetEntity.kt`, `Migrations.kt` | `sourceRef`, the exact key a service track was imported under, and `MIGRATION_7_8` that adds it (schema v8). |
 | `data/db/OfflineDocTrackEntity.kt`, `OfflineDocTrackDao.kt`, `MIGRATION_8_9` | The offline DOC cache table and its v9 migration. |
 | `domain/doc/DocTrackCache.kt` | The cache the browsers depend on, and the name filter used when DOC cannot be reached. |

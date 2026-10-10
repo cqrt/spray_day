@@ -54,8 +54,16 @@ object DocTracksUrl {
     const val SERVICE_URL =
         "https://services1.arcgis.com/3JjYDyG3oajxU6HO/arcgis/rest/services/DOC_Tracks_EAM/FeatureServer/0/query"
 
-    /** The fields the browser needs: the key, the name, the kind, and the asset id for reference. */
-    const val OUT_FIELDS = "OBJECTID,TechObjectName,SubObjectType,FlocID"
+    /**
+     * The fields the browser needs: the key, the name, the kind, the asset id for reference, and the
+     * eleven characteristic slots - which are the only place a track's kind of walking
+     * ([TRACK_TYPE_CHARACTERISTIC]) is kept, as a pivoted name/value pair. Asking for them by name is
+     * the whole reason the type can be shown and filtered at all.
+     */
+    val OUT_FIELDS: String = buildString {
+        append("OBJECTID,TechObjectName,SubObjectType,FlocID")
+        for (slot in 1..CHARACTERISTIC_SLOTS) append(",CharName$slot,CharValue$slot")
+    }
 
     fun of(query: DocTrackQuery, serviceUrl: String = SERVICE_URL): String {
         val parameters = linkedMapOf(

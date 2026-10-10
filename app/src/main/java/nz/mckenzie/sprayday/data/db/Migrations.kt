@@ -492,3 +492,19 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         db.execSQL("ALTER TABLE `offline_doc_tracks` ADD COLUMN `flocId` TEXT")
     }
 }
+
+/**
+ * Gives a cached DOC track the `WEB_TRACK_TYPE` it came with, so the browser can show and filter by
+ * how a track is walked offline, exactly as it does from the service.
+ *
+ * Left empty for rows already there: the type was never read before this, and a value invented now
+ * would be a value nobody gave. The next download fills it in.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v10
+ * database, and the schema it produces is the one Room exports for v11.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `offline_doc_tracks` ADD COLUMN `trackType` TEXT")
+    }
+}

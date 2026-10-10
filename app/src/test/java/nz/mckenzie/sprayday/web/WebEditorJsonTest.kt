@@ -503,6 +503,7 @@ class WebEditorJsonTest {
                     objectId = 42,
                     name = "Glory Tk",
                     kind = "Walking Track",
+                    trackType = "One way",
                     flocId = "BLUFFHIL-TK02",
                     reading = TrackInterchange.Reading(
                         paths = listOf(listOf(GeoPoint(-46.6, 168.3), GeoPoint(-46.61, 168.31))),
@@ -523,7 +524,13 @@ class WebEditorJsonTest {
         assertEquals(1, read.tracks.size)
         assertEquals(42L, read.tracks[0].id)
         assertEquals("Glory Tk", read.tracks[0].name)
+        assertEquals(
+            "the name the import will give it travels too, so a wrong place is seen before it lands",
+            "Bluff Hill Glory Tk",
+            read.tracks[0].assetName
+        )
         assertEquals("Walking Track", read.tracks[0].kind)
+        assertEquals("how the track is walked travels so the desk can show and filter it", "One way", read.tracks[0].trackType)
         assertEquals("the site travels so the phone can prefix the place", "BLUFFHIL-TK02", read.tracks[0].flocId)
         assertEquals(2, read.tracks[0].points)
         assertEquals(1, read.tracks[0].paths.size)

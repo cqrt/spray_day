@@ -126,7 +126,7 @@ const { base64Of, importedNote, importProblem, trackName } = await import(
  * The phone does the asking - the page never reaches DOC itself - so this module holds only the two
  * small shapes the page and the phone have to agree on. Pure, and tested under node like the rest.
  */
-const { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing } = await import(
+const { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing, docTypesOf } = await import(
   TOKEN ? `./doc.mjs?k=${encodeURIComponent(TOKEN)}` : './doc.mjs'
 );
 
@@ -1241,14 +1241,17 @@ async function importGpxFile(file) {
  */
 let docTracks = [];
 const docSelected = new Set();
-// The kinds ticked in the filter (empty is all of them), and the order: nearest to the phone first.
+// The kinds and track types ticked in the filter (each empty is all of them), and the order: nearest
+// to the phone first.
 const docKinds = new Set();
+const docTypes = new Set();
 let docSort = 'nearest';
 
 function openDoc() {
   field('doc').hidden = false;
   field('doc-words').hidden = true;
   field('doc-words').textContent = '';
+  field('doc-controls').hidden = true;
   field('doc-import').textContent = 'Import selected';
   field('doc-import').disabled = true;
   field('doc-name').focus();
@@ -1283,6 +1286,7 @@ async function searchDoc() {
     docSelected.clear();
     // A new set of results, so a filter from the last search is not carried onto it.
     docKinds.clear();
+    docTypes.clear();
     drawDocFilters();
     drawDocList();
     const words = docSearchNote(answer);
@@ -1308,66 +1312,103 @@ function docMapBounds() {
 }
 
 /**
- * The filter row: a chip per kind the search actually returned, and the two orders.
+ * The Filter and Sort controls: a labelled group of the kinds and track types the search returned,
+ * each one ticked or not, and the two orders.
  *
- * Offered from the results rather than from a list of DOC's taxonomy kept here, so the filter is
- * always a fact about the page. Changing a chip re-draws the list and asks DOC nothing.
+ * Offered from the results rather than from a list of DOC's taxonomy kept here, so a filter is always
+ * a fact about the page. Tick or untick one and the list is redrawn and DOC is asked nothing. Labels
+ * rather than a row of sliding chips, which said nothing about what they filtered.
  */
 function drawDocFilters() {
-  const kinds = field('doc-filters');
-  kinds.replaceChildren();
-  const choices = docKindsOf(docTracks);
-  kinds.hidden = choices.length === 0;
-  if (choices.length > 0) {
-    kinds.append(docChip('All kinds', docKinds.size === 0, () => {
-      docKinds.clear();
-      drawDocFilters();
-      drawDocList();
-    }));
-    for (const kind of choices) {
-      kinds.append(docChip(kind, docKinds.has(kind), () => {
-        if (docKinds.has(kind)) docKinds.delete(kind);
-        else docKinds.add(kind);
-        drawDocFilters();
-        drawDocList();
-      }));
-    }
-  }
+  field('doc-controls').hidden = docTracks.length === 0;
+  if (docTracks.length === 0) return;
 
-  const sorts = field('doc-sort');
-  sorts.replaceChildren();
-  sorts.hidden = docTracks.length === 0;
-  if (docTracks.length > 0) {
-    sorts.append(docChip('Nearest to phone', docSort === 'nearest', () => {
-      docSort = 'nearest';
+  docChoices(field('doc-kinds'), 'Kind', docKindsOf(docTracks), docKinds, (kind) => {
+    if (docKinds.has(kind)) docKinds.delete(kind);
+    else docKinds.add(kind);
+  });
+  docChoices(field('doc-types'), 'Track type', docTypesOf(docTracks), docTypes, (type) => {
+    if (docTypes.has(type)) docTypes.delete(type);
+    else docTypes.add(type);
+  });
+  docOrders(
+    field('doc-sort'),
+    [
+      { value: 'nearest', label: 'Nearest to phone' },
+      { value: 'name', label: 'Name' }
+    ],
+    docSort,
+    (value) => {
+      docSort = value;
+    }
+  );
+}
+
+/**
+ * One labelled group of tickable choices: a small sub-heading naming what they are, then a checkbox per
+ * choice. An empty group is hidden rather than shown as a heading over nothing.
+ */
+function docChoices(container, tag, choices, chosen, onToggle) {
+  container.replaceChildren();
+  container.hidden = choices.length === 0;
+  if (choices.length === 0) return;
+
+  container.append(docSub(tag));
+  for (const choice of choices) {
+    const label = document.createElement('label');
+    label.className = 'doc-choice';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = chosen.has(choice);
+    box.addEventListener('change', () => {
+      onToggle(choice);
       drawDocFilters();
       drawDocList();
-    }));
-    sorts.append(docChip('Name', docSort === 'name', () => {
-      docSort = 'name';
-      drawDocFilters();
-      drawDocList();
-    }));
+    });
+    const text = document.createElement('span');
+    text.textContent = choice;
+    label.append(box, text);
+    container.append(label);
   }
 }
 
-/** One filter chip: a button that says whether it is on with `aria-pressed`. */
-function docChip(label, on, onClick) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'doc-chip';
-  button.textContent = label;
-  button.setAttribute('aria-pressed', on ? 'true' : 'false');
-  button.addEventListener('click', onClick);
-  return button;
+/** One labelled group of orders: radios, because only one order can be on. */
+function docOrders(container, orders, chosen, onChoose) {
+  container.replaceChildren();
+  container.hidden = orders.length === 0;
+  for (const order of orders) {
+    const label = document.createElement('label');
+    label.className = 'doc-choice';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'doc-sort';
+    radio.checked = order.value === chosen;
+    radio.addEventListener('change', () => {
+      onChoose(order.value);
+      drawDocFilters();
+      drawDocList();
+    });
+    const text = document.createElement('span');
+    text.textContent = order.label;
+    label.append(radio, text);
+    container.append(label);
+  }
+}
+
+/** A small sub-heading inside a Filter group: which part of DOC's taxonomy the choices below are. */
+function docSub(text) {
+  const span = document.createElement('span');
+  span.className = 'doc-sub';
+  span.textContent = text;
+  return span;
 }
 
 function drawDocList() {
   const list = field('doc-list');
   list.replaceChildren();
-  // Filtered and ordered on the page, from the phone's own distances: changing a chip narrows the
+  // Filtered and ordered on the page, from the phone's own distances: changing a filter narrows the
   // page it already has rather than asking DOC again.
-  for (const track of docShowing(docTracks, [...docKinds], docSort)) {
+  for (const track of docShowing(docTracks, [...docKinds], [...docTypes], docSort)) {
     const row = document.createElement('label');
     // A track the phone already has is shown but not tickable: the box is off, the row says why, and
     // the click does nothing - so a second search cannot double the work.
@@ -1385,15 +1426,19 @@ function drawDocList() {
 
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = track.name;
+    // The name the import will give it - the place, then DOC's own name - so a site the phone names
+    // wrongly is seen here, at a glance, rather than after the track has landed.
+    name.textContent = track.assetName || track.name;
 
-    // The phone's own numbers, in the drawing's own words: how long the track is and how many
-    // vertices, so two tracks with the same name can be told apart before one is imported.
+    // The phone's own figures, in the drawing's own words: how the track is walked and how long it is,
+    // so two tracks with the same name can be told apart before one is imported.
     const meta = document.createElement('span');
     meta.className = 'meta';
     meta.textContent = [
       track.kind,
-      `${track.points} points`,
+      // How the track is walked, where a vertex count used to be: "584 points" is nothing an operator
+      // uses, where one-way tells them what they are taking on.
+      track.trackType,
       metresText(track.lengthM),
       // How far the phone says it is, so "Near the phone" can be seen to be the radius it says.
       typeof track.distanceM === 'number' ? `${metresText(track.distanceM)} away` : null,
@@ -1430,6 +1475,7 @@ async function importDocTracks() {
     docTracks = [];
     docSelected.clear();
     docKinds.clear();
+    docTypes.clear();
     // The work the phone holds has changed, and every way the page reads it - the list, the box,
     // the map - is rebuilt from the document rather than guessed at.
     await reloadWork();

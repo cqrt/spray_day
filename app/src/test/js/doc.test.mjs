@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing } from '../../main/assets/web/doc.mjs';
+import { docImportBody, docKindsOf, docSearchNote, docSearchPath, docShowing, docTypesOf } from '../../main/assets/web/doc.mjs';
 
 test('a search with neither a name nor a place is the plain path', () => {
   assert.equal(docSearchPath('', null), '/api/doc');
@@ -109,11 +109,24 @@ test('the kinds present are each once, sorted, and blanks are left out', () => {
   assert.deepEqual(docKindsOf(undefined), []);
 });
 
+test('the types present are each once, sorted, and blanks are left out', () => {
+  const tracks = [
+    { trackType: 'One way' },
+    { trackType: 'Loop' },
+    { trackType: 'One way' },
+    { trackType: null },
+    { trackType: '  ' }
+  ];
+
+  assert.deepEqual(docTypesOf(tracks), ['Loop', 'One way']);
+  assert.deepEqual(docTypesOf(undefined), []);
+});
+
 test('nearest orders by the distance the phone sent', () => {
   const near = { name: 'Near', kind: 'Walking Track', distanceM: 10 };
   const far = { name: 'Far', kind: 'Walking Track', distanceM: 9000 };
 
-  assert.deepEqual(docShowing([far, near], [], 'nearest'), [near, far]);
+  assert.deepEqual(docShowing([far, near], [], [], 'nearest'), [near, far]);
 });
 
 test('a track with no distance sorts last, and a tie falls back to the name', () => {
@@ -121,7 +134,7 @@ test('a track with no distance sorts last, and a tie falls back to the name', ()
   const unknown = { name: 'A', kind: 'Walking Track', distanceM: null };
   const alsoUnknown = { name: 'C', kind: 'Walking Track' };
 
-  const shown = docShowing([unknown, known, alsoUnknown], [], 'nearest');
+  const shown = docShowing([unknown, known, alsoUnknown], [], [], 'nearest');
 
   assert.deepEqual(shown.map((t) => t.name), ['B', 'A', 'C']);
 });
@@ -130,8 +143,26 @@ test('picking kinds keeps only those; none picked keeps them all', () => {
   const walk = { name: 'Walk', kind: 'Walking Track' };
   const tramp = { name: 'Tramp', kind: 'Tramping Track' };
 
-  assert.deepEqual(docShowing([walk, tramp], ['Tramping Track'], 'name'), [tramp]);
-  assert.equal(docShowing([walk, tramp], [], 'name').length, 2);
+  assert.deepEqual(docShowing([walk, tramp], ['Tramping Track'], [], 'name'), [tramp]);
+  assert.equal(docShowing([walk, tramp], [], [], 'name').length, 2);
+});
+
+test('a kind and a type together narrow to the tracks that are both', () => {
+  const oneWayWalk = { name: 'One way walk', kind: 'Walking Track', trackType: 'One way' };
+  const loopWalk = { name: 'Loop walk', kind: 'Walking Track', trackType: 'Loop' };
+  const loopTramp = { name: 'Loop tramp', kind: 'Tramping Track', trackType: 'Loop' };
+  const tracks = [oneWayWalk, loopWalk, loopTramp];
+
+  assert.deepEqual(
+    docShowing(tracks, [], ['Loop'], 'name'),
+    [loopTramp, loopWalk],
+    'the type alone keeps every kind of it (ordered by name, as asked)'
+  );
+  assert.deepEqual(
+    docShowing(tracks, ['Tramping Track'], ['Loop'], 'name'),
+    [loopTramp],
+    'and both together keep only what is both'
+  );
 });
 
 test('by name is A to Z, and the input is not reordered underneath the caller', () => {
@@ -139,6 +170,6 @@ test('by name is A to Z, and the input is not reordered underneath the caller', 
   const a = { name: 'A', kind: 'Walking Track' };
   const original = [b, a];
 
-  assert.deepEqual(docShowing(original, [], 'name').map((t) => t.name), ['A', 'b']);
+  assert.deepEqual(docShowing(original, [], [], 'name').map((t) => t.name), ['A', 'b']);
   assert.deepEqual(original, [b, a], 'the page keeps its own array');
 });

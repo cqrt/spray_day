@@ -35,13 +35,16 @@ object AssetPathEdits {
     /**
      * How many vertices one line may have.
      *
-     * A drawn track is tens of points, and a track that came off a recording is a few thousand -
-     * which is the point of this number rather than a round figure picked out of the air. It is well
-     * under what the socket layer's own 4 MB body limit allows, so a path refused here is refused
-     * with the phone's own sentence about the path, not with a refusal about the size of a request
-     * that never reached these rules.
+     * A drawn track is tens of points; a track that came off a recording or a handheld is a few
+     * thousand, and the operator's own export of a twelve-kilometre ride was 3,282. So this is a
+     * bound on what the phone will draw and measure from one desk write, set well above what a real
+     * track holds rather than around a small one: a file the phone's own import would take must not
+     * be refused here for its size. Twenty thousand vertices is about 800 KB of wire - a fifth of
+     * what the socket's own body limit carries (`HttpServer.MAX_BODY_BYTES`) - so a path refused
+     * here is refused with the phone's own sentence about the path, not with a refusal about the
+     * size of a request that never reached these rules.
      */
-    const val MAX_POINTS = 2000
+    const val MAX_POINTS = 20000
 
     /**
      * The paths to store for a shape, or why these ones will not do.

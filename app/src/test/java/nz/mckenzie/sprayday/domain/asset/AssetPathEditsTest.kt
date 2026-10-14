@@ -111,14 +111,24 @@ class AssetPathEditsTest {
     }
 
     @Test
-    fun `the cap is a whole farm's worth of track and then some`() {
-        // A drawn track is tens of points. The number is pinned so that a later change to it is a
-        // decision somebody makes here rather than a constant nobody looks at again.
-        assertEquals(2000, AssetPathEdits.MAX_POINTS)
+    fun `a file the phone's own import would take is not refused for its size`() {
+        // The operator's own export of a twelve-kilometre ride: 3,282 vertices, which the phone's own
+        // file import stores without a word. The desk used to refuse it at a cap of 2,000.
+        val imported = (0 until 3282).map { GeoPoint(-41.5, 173.8 + it * 0.00001) }
+
+        assertEquals(3282, ok(AssetShape.LINE, imported).size)
+    }
+
+    @Test
+    fun `the cap is more than a real track holds, and is pinned here`() {
+        // A drawn track is tens of points, and a GPS export of a long ride is a few thousand. The
+        // number is pinned so that a later change to it is a decision somebody makes here rather than
+        // a constant nobody looks at again.
+        assertEquals(20000, AssetPathEdits.MAX_POINTS)
         assertEquals(
             "and a path at the cap is still one vertex per point, in order",
-            2000,
-            ok(AssetShape.LINE, (0 until 2000).map { GeoPoint(-41.5, 173.8 + it * 0.0001) }).size
+            20000,
+            ok(AssetShape.LINE, (0 until 20000).map { GeoPoint(-41.5, 173.8 + it * 0.0001) }).size
         )
     }
 

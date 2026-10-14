@@ -59,7 +59,7 @@ test('a file too big for the phone is refused here rather than by the socket', (
   const problem = importProblem(file('great big ride.gpx', TRACK_LIMIT + 1));
 
   assert.match(problem, /great big ride\.gpx/);
-  assert.match(problem, /256 KB/, 'the limit in the same words the phone would use');
+  assert.match(problem, /2 MB/, 'the limit in the same words the phone would use');
   assert.equal(importProblem(file('just fits.gpx', TRACK_LIMIT)), null, 'and the limit itself is taken');
 });
 
@@ -69,9 +69,9 @@ test('the limit the phone states is the limit the desk keeps', () => {
   // the phone's own rather than taking everything.
   assert.match(importProblem(file('ride.gpx', 3000), 2048), /2 KB/);
   assert.equal(importProblem(file('ride.gpx', 3000), 4096), null);
-  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), undefined), /256 KB/);
-  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 'not a number'), /256 KB/);
-  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 0), /256 KB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), undefined), /2 MB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 'not a number'), /2 MB/);
+  assert.match(importProblem(file('ride.gpx', TRACK_LIMIT + 1), 0), /2 MB/);
 });
 
 test('nothing dropped at all is said rather than thrown', () => {

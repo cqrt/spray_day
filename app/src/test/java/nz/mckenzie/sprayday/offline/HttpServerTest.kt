@@ -268,10 +268,10 @@ class HttpServerTest {
     fun `a body longer than the cap is refused before any of it is read`() {
         start(HttpRoute(claims = { true }, handler = { HttpResponse.text(200, "should not be reached") }))
 
-        // Nine hundred kilobytes declared and none of it sent: a server that began reading because
+        // Five megabytes declared and none of it sent: a server that began reading because
         // the header said so would be the one waiting, and this test would hang rather than fail.
         val response = raw(
-            "POST /api/assets HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 900000\r\n\r\n"
+            "POST /api/assets HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: ${5 * 1024 * 1024}\r\n\r\n"
         )
 
         assertTrue("an oversized body is a 413: $response", response.startsWith("HTTP/1.1 413"))

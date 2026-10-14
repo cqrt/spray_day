@@ -37,7 +37,7 @@ object AssetPathEdits {
      *
      * A drawn track is tens of points, and a track that came off a recording is a few thousand -
      * which is the point of this number rather than a round figure picked out of the air. It is well
-     * under what the socket layer's own 256 KB body limit allows, so a path refused here is refused
+     * under what the socket layer's own 4 MB body limit allows, so a path refused here is refused
      * with the phone's own sentence about the path, not with a refusal about the size of a request
      * that never reached these rules.
      */

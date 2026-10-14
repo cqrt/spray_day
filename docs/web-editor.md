@@ -197,7 +197,7 @@ that never saw the move rather than silently undoing it.
 
 | File | What it does |
 | --- | --- |
-| `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. **Landed in v0.6.20**; v0.6.23 gave it its first **request body** — read from the same buffered reader as the headers, `Content-Length` counted in **bytes** (counting characters would truncate a macron), 256 KB cap, `Transfer-Encoding: chunked` refused as 411, a body shorter than its own header as 400. |
+| `offline/HttpServer.kt` | Socket, accept loop, request-line and header parse, response writing, route table. No app knowledge. **Landed in v0.6.20**; v0.6.23 gave it its first **request body** — read from the same buffered reader as the headers, `Content-Length` counted in **bytes** (counting characters would truncate a macron), a 4 MB cap, `Transfer-Encoding: chunked` refused as 411, a body shorter than its own header as 400. |
 | `web/WebEditorLink.kt` | LAN addresses from `NetworkInterface` (all candidates; no permission needed), the per-session token, the URL. Address picking is pure and unit-tested. **Landed in v0.6.21.** |
 | `web/WebEditorServer.kt` | The routes, **bound on every interface** — the plan said the Wi-Fi address, but `adb forward` (which the checks use) only reaches loopback, and the token is the door either way — alive only while the switch is on. Fixed port 8799, next free port if taken. **Landed in v0.6.21**; v0.6.25 made the token **nullable**, where null is a run that asks for nothing at all: the gate route claims nothing, and it is the operator's own switch on the card that decides which of the two a run is. |
 | `web/WebEditorService.kt` | Foreground service, type `dataSync`, notification carrying the URL. `tracking/TrackingService.kt` is the pattern. **Landed in v0.6.21**; v0.6.25 reads the token switch at the start of a run and can **build the run again in place** (`ACTION_REFRESH`) when that setting changes — one intent rather than a stop and a start, which is a race a foreground service loses sometimes. **v0.6.55**: `ACTION_START` is **idempotent** — a run that is going, or one being built, is the answer to a second ask, so the launcher's own ask repeating after a rotation cannot rebuild the run and hand out a new secret under a page that is open. |
@@ -267,7 +267,7 @@ that never saw the move rather than silently undoing it.
   so the due colour in it is the phone's arithmetic *after* the edit), **400 `invalid`** with the
   field's own sentence, **409 `stale`** when the card is out of date, **404 `not-found`** for a number
   the phone does not have, an archived asset included. **411** for `Transfer-Encoding: chunked` and
-  **413** over 256 KB are the socket layer's, refused before any route sees them.
+  **413** over 4 MB are the socket layer's, refused before any route sees them.
 - `POST /api/assets` — a new track or place, drawn on the desk. No `version`: there is no row yet for one
   to describe, and nothing to be stale against. The body is the same shape as `PUT`'s, with `points`
   **required** — a new asset with nothing drawn is refused by `AssetPathEdits` in its own words, and the
@@ -294,7 +294,7 @@ that never saw the move rather than silently undoing it.
   file whose segments could not be joined are both one line, and only the second is worth saying. Answers
   **200** with the reading, **400 `invalid`** for anything that is not a line at all — a file with one
   point in it, a file that will not parse, a body carrying no file — in the app's own words. The largest
-  file is the socket's own **256 KB**, which the state document states so the page can say so before
+  file is the phone's own **2 MB**, which the state document states so the page can say so before
   anything is sent; a **GET** of the path is nobody's and falls through to the page route's 404.
 - `POST /api/assets/together` — the same edit on several assets, judged whole (v0.6.69). The body is
   `{"assets":[{"id":7,"version":"…"},…],"fields":{…}}`: the rows with the fingerprint each was read at,
@@ -424,7 +424,7 @@ while the phone's own import makes one asset per feature.
 The page's half is the part only a browser can know, and it is `track.mjs`, pure and tested under node like
 `wire.mjs`: whether the thing dropped is a file this desk should send (a name ending `.gpx`, `.kml`, `.kmz`,
 `.geojson` or `.json` - the type a computer reports for a track file is whatever the computer that wrote it
-decided - and no more than the phone's own 256 KB), what to offer as the track's name (the file's, without
+decided - and no more than the phone's own 2 MB), what to offer as the track's name (the file's, without
 its extension, which is what the phone's own importer does with a chosen file), the file's bytes as base64
 (because a KMZ is a zip and not text), and how to word the answer. The file's meaning is not in it. The two
 ways in - the **Import a GPX, KML, KMZ or GeoJSON file** button and a drop on the map - lead to the same
@@ -1079,6 +1079,17 @@ style's background colour and the work draws on top of it.
       reading **2 points · 213 m**. The **published** 0.6.71 APK was then fetched (17,737,684 bytes),
       installed over the app removed and driven the same way, with the same three results
       (`pick-check.png`, `pick-check-rel.png`); notes in `build/verify/web-gpx.txt`.
+- [x] **A track file up to two megabytes can be imported from the desk. v0.6.86** — reported by the
+      operator: *"Trying to import a gpx track in the desktop interface that is 861kb but it will not
+      allow it as it only accepts 256kb or lower, I need to be able to import up to 2mb."* The limit
+      the page judged a file against - the phone's own stated one - was a quarter of a megabyte, and
+      the socket's body cap sat just above it. A long ride's export is commonly past half a megabyte,
+      so the file limit is now the two megabytes the operator asked for, and the socket's cap is four
+      megabytes, still a third above the file for the base64 a request carries it in. The refusal
+      reads the limit in megabytes once there is one to speak of. Proven by a body carrying a full
+      two-megabyte file arriving whole rather than as a 413, by a body over the new cap still being
+      refused, and by the page's own size tests; the run is written down in
+      `build/verify/track-file-size.txt`. Unit suite, JS tests, lint and assemble are green.
 - [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70, and
       v0.6.71 was a fault reported from the field. What remains is one wording job riding with the next
       code change — the word "farm" in the code's comments and in a handful of names, written out in

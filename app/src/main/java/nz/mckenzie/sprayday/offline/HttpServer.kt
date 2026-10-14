@@ -196,14 +196,14 @@ class HttpServer(
         /**
          * The longest body this server will read.
          *
-         * One asset's details are a few hundred bytes; half a megabyte is room for fields nobody has
+         * One asset's details are a few hundred bytes; four megabytes is room for fields nobody has
          * written yet many times over. It is deliberately larger than the track-file limit the page
-         * states (`WebEditorServer.MAX_GPX_BYTES`, a quarter of a megabyte), because a dropped file's
+         * states (`WebEditorServer.MAX_GPX_BYTES`, two megabytes), because a dropped file's
          * bytes travel base64-encoded and so take about a third more room than the file itself. It is
          * small enough, still, that a request claiming to carry a gigabyte is refused before anything
          * is read into memory.
          */
-        private const val MAX_BODY_BYTES = 512 * 1024
+        private const val MAX_BODY_BYTES = 4 * 1024 * 1024
 
         private val BAD_BODY = HttpResponse.text(400, "the body did not arrive whole")
         private val BODY_TOO_LONG = HttpResponse.text(413, "that body is too long")

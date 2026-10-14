@@ -21,7 +21,7 @@
  * about the file. Kept to the same number so the message here and the wall there are the same wall;
  * `app.js` takes it from the phone's state document, and this is only what a test can stand on.
  */
-export const TRACK_LIMIT = 256 * 1024;
+export const TRACK_LIMIT = 2 * 1024 * 1024;
 
 /** What a track file is allowed to be called, on every computer. */
 const TRACK_EXTENSIONS = ['.gpx', '.kml', '.kmz', '.geojson', '.json'];
@@ -50,8 +50,8 @@ export function importProblem(file, maxBytes = TRACK_LIMIT) {
   }
   const limit = limitOf(maxBytes);
   if (typeof file.size === 'number' && file.size > limit) {
-    return `"${file.name}" is ${kilobytes(file.size)} and the phone takes track files up to ` +
-      `${kilobytes(limit)}.`;
+    return `"${file.name}" is ${sizeWords(file.size)} and the phone takes track files up to ` +
+      `${sizeWords(limit)}.`;
   }
   return null;
 }
@@ -126,7 +126,12 @@ export function importedNote(fileName, read) {
   return `${fileName}: ${said}. Give it a name, then save it to the phone.${rest}`;
 }
 
-/** A size in words an operator reads at a glance: whole kilobytes, and never "0 KB". */
-function kilobytes(bytes) {
+/** A size in words an operator reads at a glance: megabytes once there is one to speak of, whole
+ * kilobytes below that, and never "0 KB". */
+function sizeWords(bytes) {
+  if (bytes >= 1024 * 1024) {
+    const megabytes = Math.round((bytes / (1024 * 1024)) * 10) / 10;
+    return `${megabytes} MB`;
+  }
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }

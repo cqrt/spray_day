@@ -425,7 +425,7 @@ class WebEditorJsonTest {
         // about a request that never arrived.
         assertEquals(WebEditorServer.GPX_FIELD, gpx.field)
         assertEquals(WebEditorServer.MAX_GPX_BYTES, gpx.maxBytes)
-        assertEquals(256 * 1024, gpx.maxBytes)
+        assertEquals(2 * 1024 * 1024, gpx.maxBytes)
     }
 
     @Test

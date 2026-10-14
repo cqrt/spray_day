@@ -1113,6 +1113,16 @@ style's background colour and the work draws on top of it.
       (3,282 in, 3,282 out), by the cap pinned at 20,000 with a path at the cap stored one vertex per
       point, and by one point over still refused with both numbers in the sentence; the run is written
       down in `build/verify/track-point-cap.txt`. Unit suite, JS tests, lint and assemble are green.
+- [x] **The drawing's own box is not shown while a track is being named. v0.6.89** — reported by the
+      operator as "weirdness when importing": the box that says *Draw a line* stayed on the map while the
+      details form was open for a track that had just been imported or finished, and it is not about
+      anything at that point - the drawing is done, and the next thing is the name, then the summary card
+      with *Edit details* and *Change the line*. The box and a form are now never on the map together: a
+      form opening hides the box, and Cancel puts the drawing back in hand and the box back with it. This
+      replaces the overlap cap of v0.6.87, which is removed - with the two never sharing the map there is
+      nothing to cap. Held by the page's own tests and a search that nothing reaches for the removed
+      helper or variable; the run is written down in `build/verify/no-drawing-box-while-naming.txt`.
+      Unit suite, JS tests, lint and assemble are green.
 - [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70, and
       v0.6.71 was a fault reported from the field. What remains is one wording job riding with the next
       code change — the word "farm" in the code's comments and in a handful of names, written out in

@@ -771,12 +771,6 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
  * The form for several assets at once is the same panel again, for the same reason: it is the same
  * fields in the same order, and the only thing that differs is that each one has to be ticked before it
  * counts - which is what the styles further down are about.
- *
- * A form and the drawing's own box share the map's left edge - the box down from the map's top, the
- * form up from the window's bottom - so a form tall enough to reach the box used to run underneath it
- * and leave the box lying over the name and the kind. `app.js` caps the form to the room the box leaves
- * (`--form-room`, measured from the box's own place on the screen) while the box is shown; with no box
- * the form takes the window's height as it always did.
  */
 #edit,
 #together {
@@ -784,7 +778,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   left: calc(var(--side-width) + 16px);
   bottom: 16px;
   width: 380px;
-  max-height: var(--form-room, calc(100% - 32px));
+  max-height: calc(100% - 32px);
   overflow: auto;
   padding: 14px 16px;
   background: var(--paper);

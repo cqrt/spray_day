@@ -1090,6 +1090,17 @@ style's background colour and the work draws on top of it.
       two-megabyte file arriving whole rather than as a 413, by a body over the new cap still being
       refused, and by the page's own size tests; the run is written down in
       `build/verify/track-file-size.txt`. Unit suite, JS tests, lint and assemble are green.
+- [x] **The form after a file import is not buried under the drawing's own box. v0.6.87** — reported by
+      the operator, with a picture: after a GPX was imported, the box that says *Draw a line* lay over
+      the details form and hid the name and the kind. The box sits down from the map's top and the form
+      up from the window's bottom, both on the map's left edge, and a form tall enough to reach the box
+      ran underneath it. The form is now capped to the room the box leaves - measured from the box's own
+      place on the screen - and scrolls within it, so the box is read and the form is typed in at once;
+      it follows the box as the box grows and shrinks with what the drawing is doing, and with no
+      drawing there is no cap and the form is the height it always was. Proven in the page's own
+      styling: the real stylesheet and the same fit, with the box and the form open together, leave the
+      form 16px clear of the box (`build/verify/form-clear-of-drawing-box.jpg`). JS tests, lint and
+      assemble are green; the run is written down in `build/verify/form-clear-of-drawing.txt`.
 - [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70, and
       v0.6.71 was a fault reported from the field. What remains is one wording job riding with the next
       code change — the word "farm" in the code's comments and in a handful of names, written out in

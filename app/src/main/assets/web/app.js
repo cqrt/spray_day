@@ -1734,6 +1734,7 @@ function openEdit(item) {
 
   field('edit-words').hidden = true;
   field('edit').hidden = false;
+  fitFormClearOfDrawing();
   field('card').hidden = true;
   field('edit-name').focus();
 }
@@ -1973,6 +1974,7 @@ function openTogether() {
   applyBulkTicks();
 
   field('together').hidden = false;
+  fitFormClearOfDrawing();
   field('together-tick-name').focus();
 }
 
@@ -2103,6 +2105,29 @@ function closeEdit() {
 }
 
 /**
+ * The details form and the drawing's own box share the map's left edge - the box down from the map's
+ * top, the form up from the window's bottom - so a form tall enough to reach the box used to run
+ * underneath it, which left the box lying over the name and the kind. The form is capped to the room
+ * the box leaves and scrolls within it, so the box is read and the form is typed in at the same time.
+ *
+ * The room is measured off the box's own place on the screen rather than worked out from two offsets,
+ * because the form is anchored to the window's edge and the box to the map's, which is a header lower.
+ * A `ResizeObserver` keeps it true as the box grows and shrinks with what the drawing is doing - a side
+ * track's buttons, the one line about the pointer - rather than measuring on every change.
+ */
+function fitFormClearOfDrawing() {
+  const root = document.documentElement;
+  const box = field('drawing');
+  if (box.hidden || (field('edit').hidden && field('together').hidden)) {
+    root.style.removeProperty('--form-room');
+    return;
+  }
+  // The gap between the box and the form, and between the form and the window's bottom edge.
+  const room = window.innerHeight - box.getBoundingClientRect().bottom - 32;
+  root.style.setProperty('--form-room', `${Math.max(140, Math.round(room))}px`);
+}
+
+/**
  * What is ticked, said under the list, and the one way on with it.
  *
  * Drawn from `selectedIds` every time it changes rather than kept in step as rows are ticked: the list is
@@ -2180,6 +2205,7 @@ function openDraft(name = '') {
 
   field('edit-words').hidden = true;
   field('edit').hidden = false;
+  fitFormClearOfDrawing();
   field('card').hidden = true;
   field('edit-name').focus();
 }
@@ -2461,6 +2487,12 @@ document.getElementById('drawing-back').addEventListener('click', () => {
 document.getElementById('drawing-drop').addEventListener('click', () => {
   if (editor) editor.dropSideTrack();
 });
+
+// The form is capped to the room the drawing's own box leaves while both are shown (see
+// `fitFormClearOfDrawing`). The box changes height as the drawing does - a side track's buttons, the
+// one line about the pointer - so the cap follows the box rather than being measured on every change.
+new ResizeObserver(() => fitFormClearOfDrawing()).observe(field('drawing'));
+window.addEventListener('resize', () => fitFormClearOfDrawing());
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;

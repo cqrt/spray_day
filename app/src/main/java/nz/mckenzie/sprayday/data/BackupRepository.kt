@@ -126,7 +126,8 @@ class BackupRepository(
                             pathIndex = pathIndex,
                             sequence = index,
                             lat = point.lat,
-                            lng = point.lng
+                            lng = point.lng,
+                            altitudeM = point.altitudeM
                         )
                     }
                 }
@@ -251,7 +252,7 @@ private fun AssetEntity.toRecord(points: List<AssetPointEntity>) = AssetRecord(
 private fun List<AssetPointEntity>.path(pathIndex: Int): List<LinePointRecord> =
     filter { it.pathIndex == pathIndex }
         .sortedBy { it.sequence }
-        .map { LinePointRecord(lat = it.lat, lng = it.lng) }
+        .map { LinePointRecord(lat = it.lat, lng = it.lng, altitudeM = it.altitudeM) }
 
 /** Every path from [from] up, in order: the side tracks of an asset, as the file carries them. */
 private fun List<AssetPointEntity>.pathsFrom(from: Int): List<List<LinePointRecord>> =

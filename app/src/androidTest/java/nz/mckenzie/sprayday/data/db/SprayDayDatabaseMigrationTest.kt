@@ -637,6 +637,47 @@ class SprayDayDatabaseMigrationTest {
         migrated.close()
     }
 
+    /**
+     * The v11 -> v12 migration: a planned track's points can keep the height a file brought.
+     *
+     * Left null for a v11 row: a line drawn on a map has no height, and a value invented now would be
+     * a measurement nobody made. `runMigrationsAndValidate` also checks the schema it produces against
+     * the one Room exports for v12.
+     */
+    @Test
+    fun migrationFrom11To12AddsTheHeightWithoutInventingOne() {
+        helper.createDatabase(TEST_DB, 11).apply {
+            execSQL(
+                "INSERT INTO assets (id, name, kind, shape, method, intervalDays, passesRequired, " +
+                    "active, createdAtEpochMs, lengthM, areaM2) " +
+                    "VALUES (7, 'Gully track', 'TRACK', 'LINE', 'UNSET', 120, 1, 1, 1000, 200.0, 0.0)"
+            )
+            execSQL(
+                "INSERT INTO asset_points (assetId, pathIndex, sequence, lat, lng) " +
+                    "VALUES (7, 0, 0, -41.5, 173.8)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 12, true, MIGRATION_11_12)
+
+        migrated.query("SELECT lat, lng, altitudeM FROM asset_points WHERE assetId = 7").use { cursor ->
+            assertTrue("the vertex is still there", cursor.moveToFirst())
+            assertEquals(-41.5, cursor.getDouble(0), 1e-9)
+            assertEquals(173.8, cursor.getDouble(1), 1e-9)
+            assertTrue("and nothing claims a height", cursor.isNull(2))
+        }
+
+        // A height written after the migration is kept: the column is writable.
+        migrated.execSQL("UPDATE asset_points SET altitudeM = 553.6 WHERE assetId = 7")
+        migrated.query("SELECT altitudeM FROM asset_points WHERE assetId = 7").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(553.6, cursor.getDouble(0), 1e-9)
+        }
+
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

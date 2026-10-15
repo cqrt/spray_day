@@ -45,7 +45,7 @@ class BackupFormatTest {
                 createdAtEpochMs = 1_700_000_000_000L,
                 lastSprayedAtEpochMs = 1_789_000_000_000L,
                 lengthM = 1234.5,
-                points = listOf(LinePointRecord(-41.5, 173.95), LinePointRecord(-41.51, 173.96))
+                points = listOf(LinePointRecord(-41.5, 173.95, altitudeM = 553.6), LinePointRecord(-41.51, 173.96))
             )
         ),
         sprayEvents = listOf(
@@ -228,6 +228,39 @@ class BackupFormatTest {
         // place: an absent key and a zero mean the same thing, which is no ground at all.
         val older = written.lineSequence().filterNot { it.contains("\"areaM2\"") }.joinToString("\n")
         assertEquals(0.0, BackupFormat.decode(older).assets.single().areaM2, 1e-9)
+    }
+
+    @Test
+    fun `a line's heights travel in the file, and a file without the key reads as none`() {
+        val climbed = AssetRecord(
+            id = 8,
+            name = "Kiwi Burn",
+            kind = AssetKind.TRACK.name,
+            shape = AssetShape.LINE.name,
+            intervalDays = 120,
+            createdAtEpochMs = 1_700_000_000_000L,
+            lengthM = 12_000.0,
+            points = listOf(
+                LinePointRecord(-45.35, 168.12, altitudeM = 553.6),
+                LinePointRecord(-45.36, 168.13)
+            )
+        )
+        val written = BackupFormat.encode(
+            BackupDocument(
+                exportedAtEpochMs = 1_789_344_000_000L,
+                appVersion = "0.6.91",
+                assets = listOf(climbed)
+            )
+        )
+
+        val restored = BackupFormat.decode(written).assets.single()
+        assertEquals(553.6, restored.points[0].altitudeM!!, 1e-9)
+        assertNull("a point with no height keeps none", restored.points[1].altitudeM)
+
+        // A file written before heights existed has no such key, and every point reads as no height.
+        // The height is a point's last field, so its comma goes with it.
+        val older = written.replace(Regex(",\\s*\"altitudeM\": [^,\\n}]*"), "")
+        assertNull(BackupFormat.decode(older).assets.single().points[0].altitudeM)
     }
 
     @Test

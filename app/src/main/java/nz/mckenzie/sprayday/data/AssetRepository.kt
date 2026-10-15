@@ -421,7 +421,8 @@ class AssetRepository(
                     pathIndex = pathIndex,
                     sequence = index,
                     lat = point.lat,
-                    lng = point.lng
+                    lng = point.lng,
+                    altitudeM = point.altitudeM
                 )
             }
         }
@@ -513,7 +514,8 @@ class AssetRepository(
     }
 }
 
-private fun AssetPointEntity.toGeoPoint() = GeoPoint(lat = lat, lng = lng)
+private fun AssetPointEntity.toGeoPoint() =
+    GeoPoint(lat = lat, lng = lng, altitudeM = altitudeM)
 
 /**
  * One track a file was imported as: the name its asset was given, and what the file held for it.

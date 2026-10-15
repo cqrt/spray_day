@@ -508,3 +508,20 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("ALTER TABLE `offline_doc_tracks` ADD COLUMN `trackType` TEXT")
     }
 }
+
+/**
+ * Gives a planned track's points the height a file brought, so an imported line keeps how it climbs
+ * instead of losing it at the first save.
+ *
+ * Nullable and left unset for every point that existed before this: a line somebody drew on a map
+ * has no height, and a value invented now would be a measurement nobody made. The next import or
+ * re-draw fills it in.
+ *
+ * [nz.mckenzie.sprayday.data.db.SprayDayDatabaseMigrationTest] proves it against a populated v11
+ * database, and the schema it produces is the one Room exports for v12.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `asset_points` ADD COLUMN `altitudeM` REAL")
+    }
+}

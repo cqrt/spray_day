@@ -17,6 +17,10 @@ import androidx.room.PrimaryKey
  * is what lets a track be a line with a spur into the gully rather than one path walked up the spur
  * and back down - which counted those metres twice and read the doubling as a second pass. The
  * unique index is per path, so two paths may both start at the same junction vertex.
+ *
+ * [altitudeM] is the height the file gave this point, when a file gave one. It is nullable because a
+ * line drawn on a map has no height - a tap gives two numbers, not three - so "no height" is what a
+ * drawn point honestly is, and it must not be written down as zero. See docs/elevation.md.
  */
 @Entity(
     tableName = "asset_points",
@@ -39,5 +43,6 @@ data class AssetPointEntity(
     val pathIndex: Int = 0,
     val sequence: Int,
     val lat: Double,
-    val lng: Double
+    val lng: Double,
+    val altitudeM: Double? = null
 )

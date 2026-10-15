@@ -395,6 +395,36 @@ class AssetAndSprayDataTest {
     }
 
     /**
+     * A file's heights are kept, and a track exported again still carries them.
+     *
+     * The heights are read off the file, stored with the points, read back and written out again -
+     * the whole chain, on the ground the operator's own ride walked, and the one place a planned
+     * track used to lose what the file had given it.
+     */
+    @Test
+    fun aTrackImportedWithHeightsKeepsThemAndExportsThemAgain() = runBlocking {
+        val gpx = """
+            <?xml version="1.0"?>
+            <gpx version="1.1"><trk><trkseg>
+              <trkpt lat="0.0" lon="0.0"><ele>100.0</ele></trkpt>
+              <trkpt lat="0.001" lon="0.0"><ele>160.0</ele></trkpt>
+              <trkpt lat="0.002" lon="0.0"><ele>130.0</ele></trkpt>
+            </trkseg></trk></gpx>
+        """.trimIndent()
+
+        assetRepository.importAssetTracks(fileName = "Kiwi Burn", file = gpx.toByteArray())
+        val id = newestAssetId()
+
+        val stored = assetRepository.getAssetGeometry(id)
+        assertEquals(100.0, stored.line[0].altitudeM!!, 1e-9)
+        assertEquals(160.0, stored.line[1].altitudeM!!, 1e-9)
+        assertEquals(130.0, stored.line[2].altitudeM!!, 1e-9)
+
+        val again = assetRepository.exportAssetGpx(id)!!
+        assertTrue("the exported file still says how high it is", again.contains("<ele>160"))
+    }
+
+    /**
      * The file a tool writes for a track with a side track, read back as the two paths it is.
      *
      * This is round trip and creation in one: the app exports a track with a spur as two `<trkseg>`s,

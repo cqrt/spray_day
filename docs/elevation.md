@@ -54,19 +54,25 @@ Three things, in the order they depend on each other:
 
 ## The plan
 
-- [ ] **Store the height with a track's points.**
+- [x] **Store the height with a track's points.**
       `asset_points` gains a nullable `altitudeM` column - schema **v12** (`MIGRATION_11_12`) - and
       `AssetPointEntity` and `AssetRepository` write and read it, so `GeoPoint` and `AssetGeometry`
       keep height in memory the way they keep lat and lng. The import path already builds points
       *with* height, so this is the one break in the chain.
-- [ ] **Carry the height in a backup.**
+      Proved by a file imported with heights coming back with them, and a GPX exported again still
+      carrying `<ele>` (`AssetAndSprayDataTest`). The migration test is written against a populated
+      v11 database; it runs on an emulator, so it is not proved on this machine.
+- [x] **Carry the height in a backup.**
       `LinePointRecord` gains a nullable `altitudeM`, and `BackupRepository` writes and reads it. An
       absent key reads as no height, and a file written after this is read by a build before it as
-      before (the reader already ignores keys it does not know). Proved by a round trip.
-- [ ] **Work the numbers out once, in a place a test can hold.**
+      before (the reader already ignores keys it does not know). Proved by a round trip, and by a
+      file with the key stripped reading as no heights (`BackupFormatTest`).
+- [x] **Work the numbers out once, in a place a test can hold.**
       A pure `ElevationProfile` in the domain: the lowest and highest point, the total climb and
       descent, and the heights brought to a line for drawing. It takes the path and nothing else, so
-      it is held by a JVM test and the phone and any later reader cannot disagree about it.
+      it is held by a JVM test and the phone and any later reader cannot disagree about it. Proved by
+      `ElevationProfileTest` - a climb and a return, a flat run, a height missing in the middle, and a
+      line with too few heights to say anything - and `ElevationPhrase` beside it for the words.
 - [ ] **Say the range on the card.**
       `AssetDetailScreen` gains one line when, and only when, the geometry has heights: the lowest to
       the highest, and the climb. A drawn track says nothing - not "0 m", which would be a
@@ -79,10 +85,11 @@ Three things, in the order they depend on each other:
       The recorder already stores a height on every fix, so this needs no migration - only a read.
       It is the same chart, over the recording's own points, on the screen the recorder keeps after
       a pass is saved ("the screen a second after Save").
-- [ ] **A GPX written back out keeps its heights.**
+- [x] **A GPX written back out keeps its heights.**
       Nothing to build: `GpxWriter` already writes `<ele>` when a point has one, so this follows from
       the first item. It is worth a test, because until now an imported-then-exported track lost its
-      heights and the export was quietly poorer than the import.
+      heights and the export was quietly poorer than the import. Proved by the same import test
+      exporting the track it just read and finding the height in the file.
 - [ ] **Carry the height on the wire, and fold it into the fingerprint.**
       `WebEditorPoint` gains a nullable `altitudeM`; `WebEditorJson` sends it on every point of the
       record's paths (and in the answer to a dropped file), and `WebEditorEdit` reads it back into the

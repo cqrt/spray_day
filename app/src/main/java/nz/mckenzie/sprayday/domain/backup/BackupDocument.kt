@@ -147,9 +147,15 @@ data class AssetRecord(
     val spurs: List<List<LinePointRecord>> = emptyList()
 )
 
-/** One vertex of a planned line. */
+/**
+ * One vertex of a planned line.
+ *
+ * [altitudeM] is the file's own height for this point, when it had one: optional and added without a
+ * version bump, because a file written before this has no such key and reads as a line with no
+ * heights, which is what a drawn line honestly is. See docs/elevation.md.
+ */
 @Serializable
-data class LinePointRecord(val lat: Double, val lng: Double)
+data class LinePointRecord(val lat: Double, val lng: Double, val altitudeM: Double? = null)
 
 /** A product in the catalogue, archived or not. */
 @Serializable

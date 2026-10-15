@@ -73,18 +73,21 @@ Three things, in the order they depend on each other:
       it is held by a JVM test and the phone and any later reader cannot disagree about it. Proved by
       `ElevationProfileTest` - a climb and a return, a flat run, a height missing in the middle, and a
       line with too few heights to say anything - and `ElevationPhrase` beside it for the words.
-- [ ] **Say the range on the card.**
+- [x] **Say the range on the card.**
       `AssetDetailScreen` gains one line when, and only when, the geometry has heights: the lowest to
       the highest, and the climb. A drawn track says nothing - not "0 m", which would be a
-      measurement where there is only an absence.
-- [ ] **Draw the profile on the track's page.**
+      measurement where there is only an absence. Proved by the words themselves in
+      `ElevationProfileTest`; not yet looked at on a screen, because no emulator was attached.
+- [x] **Draw the profile on the track's page.**
       A small composable under the card's facts: the line's height along its own length. It is the
       **line** (path 0), because that is the ground the job is driven along; a side track hanging off
-      it is read as part of the line's run unless the operator asks otherwise later.
-- [ ] **Draw the profile of the pass just driven, after Save.**
+      it is read as part of the line's run unless the operator asks otherwise later. `ElevationChart`
+      is the one drawing, shared with the recorder. Built, but not yet looked at on a screen.
+- [x] **Draw the profile of the pass just driven, after Save.**
       The recorder already stores a height on every fix, so this needs no migration - only a read.
       It is the same chart, over the recording's own points, on the screen the recorder keeps after
-      a pass is saved ("the screen a second after Save").
+      a pass is saved ("the screen a second after Save"). The saved pass carries its fixes
+      (`FinishedPass.recorded`), so the chart is drawn from them; built, not yet looked at.
 - [x] **A GPX written back out keeps its heights.**
       Nothing to build: `GpxWriter` already writes `<ele>` when a point has one, so this follows from
       the first item. It is worth a test, because until now an imported-then-exported track lost its

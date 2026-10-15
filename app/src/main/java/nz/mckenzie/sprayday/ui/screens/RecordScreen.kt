@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,6 +56,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import nz.mckenzie.sprayday.data.AssetWithDue
+import nz.mckenzie.sprayday.domain.geo.ElevationPhrase
+import nz.mckenzie.sprayday.domain.geo.ElevationProfile
 import nz.mckenzie.sprayday.domain.geo.TwoPassPhrase
 import nz.mckenzie.sprayday.domain.geo.formatCoveragePercent
 import nz.mckenzie.sprayday.domain.recording.RecordingStatus
@@ -89,6 +92,12 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
     val trackLengthM by viewModel.trackLengthM.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val finished by viewModel.finished.collectAsStateWithLifecycle()
+    // The height of the pass just saved, from the fixes it stored. The recorder has kept a height on
+    // every fix all along; this is the first thing to read one back. Null while nothing is saved, or
+    // when the fixes carried no height.
+    val passElevation = remember(finished) {
+        finished?.recorded?.let { ElevationProfile.of(it) }
+    }
     val following by viewModel.following.collectAsStateWithLifecycle()
     val followPhone by viewModel.followPhone.collectAsStateWithLifecycle()
     val rows by viewModel.rows.collectAsStateWithLifecycle()
@@ -266,6 +275,20 @@ fun RecordScreen(viewModel: RecordingViewModel, onOpenTab: (Tab) -> Unit = {}) {
                         Text(
                             text = "Track ${formatDistance(length)}",
                             style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // The pass just saved, as the ground it climbed: the range in words and the
+                    // shape under it. A pass with no heights says nothing at all.
+                    ElevationPhrase.range(passElevation)?.let { range ->
+                        Text(text = range, style = MaterialTheme.typography.bodySmall)
+                    }
+                    passElevation?.let { profile ->
+                        ElevationChart(
+                            profile = profile,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(72.dp)
                         )
                     }
 

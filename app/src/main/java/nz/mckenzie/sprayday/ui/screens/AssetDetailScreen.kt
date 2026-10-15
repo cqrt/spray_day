@@ -43,6 +43,8 @@ import nz.mckenzie.sprayday.domain.asset.SprayMethod
 import nz.mckenzie.sprayday.domain.due.DueInfo
 import nz.mckenzie.sprayday.domain.due.DuePhrase
 import nz.mckenzie.sprayday.domain.due.DueStatus
+import nz.mckenzie.sprayday.domain.geo.ElevationPhrase
+import nz.mckenzie.sprayday.domain.geo.ElevationProfile
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
@@ -80,6 +82,9 @@ fun AssetDetailScreen(
     val editDraft by viewModel.editDraft.collectAsStateWithLifecycle()
     val groupName by viewModel.groupName.collectAsStateWithLifecycle()
     val geometry by viewModel.geometry.collectAsStateWithLifecycle()
+    // The height of the line, from the geometry the phone already holds. Null for a track drawn on
+    // a map, which has no heights: the range line and the chart say nothing rather than a zero.
+    val elevation = remember(geometry) { ElevationProfile.of(geometry.line) }
     val bounds by viewModel.bounds.collectAsStateWithLifecycle()
     val due by viewModel.due.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
@@ -201,6 +206,19 @@ fun AssetDetailScreen(
                             } ?: ""),
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    // How high the line goes, when the file it came from said. One line, in the
+                    // words the domain gives; a track drawn here has no heights and says nothing.
+                    ElevationPhrase.range(elevation)?.let { range ->
+                        Text(text = range, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    elevation?.let { profile ->
+                        ElevationChart(
+                            profile = profile,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(96.dp)
+                        )
+                    }
                     Text(
                         text = "${history.size} spray${if (history.size == 1) "" else "s"} recorded" +
                             (track?.intervalDays?.let { " \u00b7 ${formatIntervalDays(it)}" } ?: ""),

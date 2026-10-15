@@ -121,6 +121,16 @@ const { base64Of, importedNote, importProblem, trackName } = await import(
 );
 
 /**
+ * A line's height on the desk: the range in the phone's own words, and the shape a chart draws.
+ *
+ * The phone works the range out and hands it over in the record; the page words it and draws the
+ * shape from the heights the record already carries. Pure, and tested under node like the rest.
+ */
+const { elevationChart, elevationWords } = await import(
+  TOKEN ? `./elevation.mjs?k=${encodeURIComponent(TOKEN)}` : './elevation.mjs'
+);
+
+/**
  * DOC's track network, browsed through the phone: the query a search is, and the body an import is.
  *
  * The phone does the asking - the page never reaches DOC itself - so this module holds only the two
@@ -984,6 +994,12 @@ function showCard(item) {
   fact('Passes', item.asset.passesRequired > 1 ? String(item.asset.passesRequired) : null);
   fact('Notes', item.asset.notes);
 
+  // The height, when the file the track came from said one: the phone's range, in the same words its
+  // own card uses, and the desk's own drawing of the profile under the facts. A track drawn on a map
+  // has no heights, so it says nothing and draws nothing.
+  fact('Elevation', elevationWords(item.elevation));
+  drawCardElevation(item.paths);
+
   document.getElementById('card').hidden = false;
 
   // The ways in from the card. Assigned rather than added, because the card is redrawn on every save and
@@ -1005,6 +1021,37 @@ function showCard(item) {
   remove.disabled = !item.removal.allowed;
   remove.onclick = () => deleteAsset(item);
 }
+
+/**
+ * The card's little profile: the line's height along its own length, from the heights the record
+ * carries.
+ *
+ * The box is a fixed grid the stylesheet stretches to the card's width, so nothing here knows how
+ * wide the card is. A line with no heights is hidden rather than drawn empty, which is what the
+ * record's absent `elevation` already said in the facts above.
+ */
+function drawCardElevation(paths) {
+  const box = field('card-elevation');
+  const chart = elevationChart(paths?.[0] ?? [], CARD_ELEVATION_WIDTH, CARD_ELEVATION_HEIGHT);
+  box.textContent = '';
+  if (!chart) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const svg = 'http://www.w3.org/2000/svg';
+  const area = document.createElementNS(svg, 'path');
+  area.setAttribute('d', chart.area);
+  area.setAttribute('class', 'elevation-area');
+  const line = document.createElementNS(svg, 'path');
+  line.setAttribute('d', chart.line);
+  line.setAttribute('class', 'elevation-line');
+  box.append(area, line);
+}
+
+/** The card profile's own grid: the numbers `elevationChart` draws into, stretched by the stylesheet. */
+const CARD_ELEVATION_WIDTH = 100;
+const CARD_ELEVATION_HEIGHT = 30;
 
 /**
  * Tidying a track: its own line and side tracks become the desk's drawing.

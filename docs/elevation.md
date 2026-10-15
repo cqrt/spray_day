@@ -1,8 +1,8 @@
 # Elevation
 
-A track file usually carries the height of every point it holds, and the app currently reads that
-height and throws it away the moment a track is saved. This is the plan to keep it and to show it,
-and it is **not built yet**.
+A track file usually carries the height of every point it holds, and the app used to read that height
+and throw it away the moment a track was saved. It now keeps it and shows it, on the phone and on the
+desk.
 
 ## What the data is
 
@@ -22,9 +22,9 @@ A file also commonly carries other things beside the height: the attached `Kiwi_
 has a timestamp and a heart rate on every point (Strava's export). This plan is about the height
 alone; a heart rate is not the app's business and is left where it is.
 
-## Where it stands today
+## Where it stood before this
 
-The app's own model already knows about height, and the readers already fill it in - the loss is at
+The app's own model already knew about height, and the readers already filled it in - the loss was at
 the first table write:
 
 - **In memory it is kept.** `GeoPoint` carries `altitudeM: Double?`, and the GPX, KML and GeoJSON
@@ -36,8 +36,8 @@ the first table write:
 - **A recording keeps it, and nothing reads it.** Each GPS fix stores its altitude
   (`recorded_points.altitudeM`, in the backup too) - but no screen anywhere shows a height.
 
-So the shape of it today is: a file's heights are read, and then an imported track loses them; a
-recorded pass keeps them, and they are never looked at.
+So the shape of it was: a file's heights were read, and then an imported track lost them; a recorded
+pass kept them, and they were never looked at.
 
 ## What the feature is
 
@@ -93,22 +93,26 @@ Three things, in the order they depend on each other:
       the first item. It is worth a test, because until now an imported-then-exported track lost its
       heights and the export was quietly poorer than the import. Proved by the same import test
       exporting the track it just read and finding the height in the file.
-- [ ] **Carry the height on the wire, and fold it into the fingerprint.**
+- [x] **Carry the height on the wire, and fold it into the fingerprint.**
       `WebEditorPoint` gains a nullable `altitudeM`; `WebEditorJson` sends it on every point of the
       record's paths (and in the answer to a dropped file), and `WebEditorEdit` reads it back into the
       `GeoPoint` a drawing becomes. `WebEditorVersion` hashes it with the point, so a vertex that moved
       only in height is a change the card can see rather than a write taken over a card that never
-      saw it.
-- [ ] **Keep the heights through the desk's own drawing.**
+      saw it. The new fields are left out of the document when absent (`@EncodeDefault(NEVER)`), so a
+      track with no heights says nothing rather than a null on every vertex. Proved by the wire both
+      ways (`WebEditorJsonTest`, `WebEditorEditTest`).
+- [x] **Keep the heights through the desk's own drawing.**
       The page's points become `lat`, `lng` and an optional height. A click or a drag makes a point
       with no height - a tap on a map has none - while every vertex the operator did not touch keeps
       its own; undo, redo, a side track and a trace carry whichever heights their points have, because
-      to the page it is one more number on a point rather than a thing to know about.
-- [ ] **Show the range and the profile on the desk too.**
-      The record carries the phone's lowest, highest and climb, so the desk's card says the same line
-      the phone's does; and the page draws the profile from the heights it already holds. The
-      arithmetic stays the phone's and the desk's is the drawing - the rule the area's own figures
-      already keep, so the two surfaces cannot disagree about a number.
+      to the page it is one more number on a point rather than a thing to know about. Proved by
+      `geometry.test.mjs`: a vertex keeps a height and still drops a screen position and a `z`.
+- [x] **Show the range and the profile on the desk too.**
+      The record carries the phone's figures, so the desk's card says the same line the phone's does;
+      and the page draws the profile from the heights it already holds. The arithmetic stays the
+      phone's and the desk's is the drawing - the rule the area's own figures already keep, so the two
+      surfaces cannot disagree about a number. Proved by `elevation.test.mjs` (the words and the
+      chart's arithmetic) and by looking at the card: `build/verify/desk-card-elevation.jpg`.
 
 Tick a box and add a line under it saying **how it was proved**, so this section says where the work
 stopped rather than only what was meant.
@@ -151,6 +155,7 @@ recording has had them all along.
 | `web/WebEditorEdit.kt` | `WebEditorPoint` gains a nullable height, read back into the `GeoPoint` a drawing becomes; `WebEditorVersion` hashes it with the point. |
 | `web/WebEditorJson.kt` | The record's paths carry the height out, in the state document and in the answer to a dropped file. |
 | `assets/web/geometry.mjs`, `edit.js`, `wire.mjs` | The desk's points keep a height, and a save carries it back with the line. |
+| `assets/web/elevation.mjs` (new) | The desk's half of a height: the range in the phone's words, and the heights turned into the shape a chart draws. Pure, tested under node. |
 | `assets/web/app.js`, `index.html`, `style.css` | The desk's card range line and the profile chart. |
 | `domain/track/GpxWriter.kt` | Unchanged - it already writes `<ele>`; this is where a stored height reaches a file. |
 
@@ -167,7 +172,10 @@ recording has had them all along.
   height reads it back into the geometry, and a card whose vertex moved only in height is refused as
   stale (`WebEditorJsonTest`, `WebEditorEditTest`).
 - The page's own drawing, under node: a vertex the operator did not touch keeps the height it was
-  handed, and a point made by a click has none.
+  handed, and a point made by a click has none (`geometry.test.mjs`).
+- The desk's range and chart, under node: the words the phone's card uses, the shape drawn from the
+  heights, a flat line down the middle, and a height missing in the middle stepped over
+  (`elevation.test.mjs`).
 - An imported file whose heights were kept exports to a GPX that still has them.
 
 ## Notes and limits

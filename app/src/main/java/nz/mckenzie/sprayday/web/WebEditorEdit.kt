@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.web
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
@@ -98,7 +99,20 @@ data class WebEditorEdit(
 
 /** One vertex, as the wire carries it: the field names the phone's own [GeoPoint] uses. */
 @Serializable
-data class WebEditorPoint(val lat: Double, val lng: Double)
+data class WebEditorPoint(
+    val lat: Double,
+    val lng: Double,
+    /**
+     * The height a file gave this point, when it gave one.
+     *
+     * Left out of the document rather than written as a null, so a track drawn on a map keeps saying
+     * nothing about a height; a page that never had one omits it, and the phone reads an absent key as
+     * none. It travels because a card's write hands the whole line back, and the phone would otherwise
+     * flatten a line's heights every time its name was changed on the desk. See docs/elevation.md.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val altitudeM: Double? = null
+)
 
 /**
  * The same edit made to several assets at once, as the desk sends it.
@@ -323,7 +337,7 @@ object WebEditorVersion {
         ) + paths.flatMapIndexed { pathIndex, path ->
             listOf("path$pathIndex" to path.size.toString()) +
                 path.mapIndexed { index, point ->
-                    "point$pathIndex.$index" to "${point.lat},${point.lng}"
+                    "point$pathIndex.$index" to "${point.lat},${point.lng},${point.altitudeM ?: ""}"
                 }
         }
         val canonical = fields.joinToString(separator = "") { (name, value) ->
@@ -611,7 +625,9 @@ object WebEditorEdits {
         val paths = edit.paths ?: edit.points?.let { listOf(it) } ?: return null
         return AssetPathEdits.applyPaths(
             shape,
-            paths.map { path -> path.map { GeoPoint(lat = it.lat, lng = it.lng) } }
+            paths.map { path ->
+                path.map { GeoPoint(lat = it.lat, lng = it.lng, altitudeM = it.altitudeM) }
+            }
         )
     }
 

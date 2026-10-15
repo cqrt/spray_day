@@ -33,7 +33,10 @@ them is worked out the one way, on the phone.
   fenceline is tapped out as a line, a carpark is tapped out corner by corner and joined up when it is
   saved, and a shed, a sign, a seat, a table or anything else you stop at is placed with a single tap.
   Each row carries a coloured icon of
-  what the asset is, next to the colour that says when it is due.
+  what the asset is, next to the colour that says when it is due. A track that came in from a file
+  **keeps the heights the file carried**: its own page shows the range — *≈520–664 m, up 140 m* — and a
+  small profile of how it climbs, on the phone and on the computer's page too. A track drawn on a map
+  has no heights, and says nothing about one rather than a zero.
 - **DOC tracks, straight from DOC** — the Department of Conservation publishes its track network as
   a web service, so a **DOC tracks** screen searches it at the source: type part of a name, turn on
   **Near me** within a distance you set, and import the tracks you tick as ordinary assets, each named

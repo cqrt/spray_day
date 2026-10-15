@@ -715,6 +715,30 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #card-facts dt { color: var(--quiet); }
 #card-facts dd { margin: 0; }
 
+/*
+ * The card's elevation profile: the phone's heights, drawn by the page. The SVG's own grid is a
+ * fixed 100 by 30 (see `CARD_ELEVATION_WIDTH` in app.js) and the stylesheet stretches it to the
+ * card's width, so the drawing knows nothing about how wide the card is. A neutral grey rather than
+ * the green or the due colours, because a height says nothing about what is due. The stroke keeps
+ * its own width as the box stretches (`vector-effect`), which a non-uniform stretch would otherwise
+ * pull thin.
+ */
+#card-elevation {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin: 0 0 8px;
+}
+
+#card-elevation .elevation-area { fill: var(--shade); }
+#card-elevation .elevation-line {
+  fill: none;
+  stroke: var(--quiet);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
 /* The way into the form, on the card it belongs to. */
 #card-actions { margin-top: 10px; }
 

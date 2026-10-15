@@ -240,6 +240,37 @@ class WebEditorJsonTest {
     }
 
     @Test
+    fun `the heights a file gave a line reach the desk, and a line with none says nothing`() {
+        val climbed = listOf(
+            GeoPoint(-45.35, 168.12, altitudeM = 553.6),
+            GeoPoint(-45.36, 168.13, altitudeM = 663.6)
+        )
+        val withHeights = WebEditorJson.record(
+            asset = everyField,
+            due = dueOf(everyField),
+            sprayCount = 0,
+            groupName = null,
+            paths = listOf(climbed),
+            recordingCount = 0
+        )
+
+        assertEquals(553.6, withHeights.paths[0][0].altitudeM!!, 1e-9)
+        assertEquals(663.6, withHeights.paths[0][1].altitudeM!!, 1e-9)
+        // The range is the phone's own figures, worked out once, so the two cards cannot disagree.
+        assertEquals(553.6, withHeights.elevation!!.lowestM, 1e-9)
+        assertEquals(663.6, withHeights.elevation!!.highestM, 1e-9)
+        assertEquals(110.0, withHeights.elevation!!.climbM, 1e-9)
+
+        // A line drawn on a map has no heights, and the document says nothing about a height rather than
+        // a null on every point.
+        val flat = documentWith(everyField)
+        val text = WebEditorJson.build(flat)
+        assertTrue("no height on the wire: $text", !text.contains("altitudeM"))
+        assertTrue("and no range: $text", !text.contains("elevation"))
+        assertNull(flat.assets.single().elevation)
+    }
+
+    @Test
     fun `blocks and products travel in the backup's own vocabulary`() {
         val document = WebEditorDocument(
             nowEpochMs = now,

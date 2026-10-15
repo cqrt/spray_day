@@ -51,7 +51,13 @@ class WebEditorEditTest {
     private val path = listOf(GeoPoint(-41.5, 173.8), GeoPoint(-41.6, 173.9))
 
     private fun pointJson(points: List<GeoPoint>): String =
-        points.joinToString(prefix = "[", postfix = "]") { """{"lat":${it.lat},"lng":${it.lng}}""" }
+        points.joinToString(prefix = "[", postfix = "]") { point ->
+            if (point.altitudeM == null) {
+                """{"lat":${point.lat},"lng":${point.lng}}"""
+            } else {
+                """{"lat":${point.lat},"lng":${point.lng},"altitudeM":${point.altitudeM}}"""
+            }
+        }
 
     /**
      * The body a page sends back after opening this asset and changing one or two things.
@@ -408,6 +414,35 @@ class WebEditorEditTest {
         val withVersion = draftBody().dropLast(1) + ""","version":"a-card-from-before"}"""
 
         assertEquals(path, drafted(withVersion).geometry.line)
+    }
+
+    @Test
+    fun `a drawing's heights are read back, and a height that moved is a different version`() {
+        // The desk hands the whole line back, and the heights a file gave it travel with it, so a desk
+        // edit does not flatten a line that came off a ride.
+        val climbed = listOf(
+            GeoPoint(-41.5, 173.8, altitudeM = 553.6),
+            GeoPoint(-41.6, 173.9, altitudeM = 663.6)
+        )
+        val result = WebEditorEdits.apply(
+            asset,
+            blockName,
+            listOf(climbed),
+            body(paths = listOf(climbed), version = WebEditorVersion.of(asset, blockName, listOf(climbed)))
+        )
+
+        assertTrue("the line with its heights is taken: $result", result is WebEditorEditResult.Ok)
+        assertEquals(
+            553.6,
+            (result as WebEditorEditResult.Ok).paths!!.first()[0].altitudeM!!,
+            1e-9
+        )
+
+        // A vertex that moved only in height is a vertex that moved: a card that never saw it is stale.
+        assertNotEquals(
+            WebEditorVersion.of(asset, blockName, listOf(climbed)),
+            WebEditorVersion.of(asset, blockName, listOf(listOf(climbed[0].copy(altitudeM = 600.0), climbed[1])))
+        )
     }
 
     /* ---- A drawing that carries side tracks -------------------------------------------- */

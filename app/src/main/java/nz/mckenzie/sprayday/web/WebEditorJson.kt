@@ -1,5 +1,6 @@
 package nz.mckenzie.sprayday.web
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import nz.mckenzie.sprayday.data.db.AssetEntity
@@ -19,6 +20,7 @@ import nz.mckenzie.sprayday.domain.doc.DocPlaces
 import nz.mckenzie.sprayday.domain.doc.DocTrack
 import nz.mckenzie.sprayday.domain.doc.distanceM
 import nz.mckenzie.sprayday.domain.due.DueInfo
+import nz.mckenzie.sprayday.domain.geo.ElevationProfile
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.LatLngBounds
@@ -114,7 +116,13 @@ object WebEditorJson {
         // Sent back by the desk with an edit, so a change made on the phone while the card was open
         // is refused here rather than written over. See [WebEditorVersion].
         version = WebEditorVersion.of(asset, groupName, paths),
-        paths = paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
+        paths = paths.map { path ->
+            path.map { WebEditorPoint(lat = it.lat, lng = it.lng, altitudeM = it.altitudeM) }
+        },
+        // The line's height, worked out here and carried so the desk says the same range the phone
+        // does rather than working out its own: one place decides what a climb is, and the page reads
+        // it. Null for a line with no heights, which is most of them.
+        elevation = ElevationProfile.of(paths.firstOrNull().orEmpty())?.let(WebEditorElevation::of),
         removal = WebEditorRemoval.of(AssetRemovalRules.of(asset.name, sprayCount, recordingCount))
     )
 
@@ -169,7 +177,7 @@ object WebEditorJson {
     fun gpx(track: TrackInterchange.Track, otherTracks: Int): String = json.encodeToString(
         WebEditorGpx.serializer(),
         WebEditorGpx(
-            paths = track.reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng) } },
+            paths = track.reading.paths.map { path -> path.map { WebEditorPoint(lat = it.lat, lng = it.lng, altitudeM = it.altitudeM) } },
             sideTracks = track.reading.sideTracks,
             segmentsDidNotMeet = track.reading.segmentsDidNotMeet,
             otherTracks = otherTracks
@@ -207,7 +215,7 @@ object WebEditorJson {
                         points = track.pointCount,
                         lengthM = track.lengthM,
                         paths = track.reading.paths.map { path ->
-                            path.map { WebEditorPoint(lat = it.lat, lng = it.lng) }
+                            path.map { WebEditorPoint(lat = it.lat, lng = it.lng, altitudeM = it.altitudeM) }
                         },
                         imported = track.sourceRef in importedRefs,
                         // The phone's own fix, so the desk can order by "nearest to phone" without
@@ -329,6 +337,16 @@ data class WebEditorAssetRecord(
      */
     val paths: List<List<WebEditorPoint>> = emptyList(),
     /**
+     * The line's height, when it has one: the phone's own figures for the card.
+     *
+     * The page draws the profile from the heights in [paths], but it does not work the range out for
+     * itself: lowest, highest and the climb are the phone's, so the desk and the phone say the same
+     * thing about the same track. Absent for a track with no height, and left out of the document
+     * rather than sent as a null. See docs/elevation.md.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val elevation: WebEditorElevation? = null,
+    /**
      * What an edit to this asset has to quote back, so the phone can refuse one written against an
      * asset that has since changed. Opaque here on purpose: only the phone works out what it means.
      */
@@ -341,6 +359,32 @@ data class WebEditorAssetRecord(
      */
     val removal: WebEditorRemoval
 )
+
+/**
+ * A line's height, as the desk's card reads it: how low and how high it goes, and how much it climbs
+ * and descends.
+ *
+ * The same four figures [nz.mckenzie.sprayday.domain.geo.ElevationPhrase] words on the phone; the
+ * page words them so the two cards say the same sentence, and it draws its profile from the heights
+ * in the record's own `paths`. The descent travels beside the climb so a line that mostly falls is
+ * said to fall, as the phone says it.
+ */
+@Serializable
+data class WebEditorElevation(
+    val lowestM: Double,
+    val highestM: Double,
+    val climbM: Double,
+    val descentM: Double
+) {
+    companion object {
+        fun of(profile: ElevationProfile) = WebEditorElevation(
+            lowestM = profile.lowestM,
+            highestM = profile.highestM,
+            climbM = profile.climbM,
+            descentM = profile.descentM
+        )
+    }
+}
 
 /**
  * What deleting an asset from the desk would take with it.

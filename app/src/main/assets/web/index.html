@@ -192,6 +192,15 @@
     <h2 id="card-name"></h2>
     <p id="card-due"></p>
     <dl id="card-facts"></dl>
+
+    <!--
+      The track's height along its own length: the desk's own drawing of the heights the record
+      carries, with the range said in the facts above it. A fixed little grid the stylesheet
+      stretches to the card's width; hidden for a track with no heights.
+    -->
+    <svg id="card-elevation" viewBox="0 0 100 30" preserveAspectRatio="none" hidden
+         aria-label="Elevation profile"></svg>
+
     <div id="card-actions">
       <button id="card-edit" type="button">Edit details</button>
       <button id="card-shape" type="button">Change the line</button>

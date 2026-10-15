@@ -95,13 +95,18 @@ export function hold(state, index) {
 }
 
 /**
- * A vertex copied down to the two numbers the phone stores.
+ * A vertex copied down to the numbers the phone stores: the place, and the height when the point has
+ * one.
  *
- * So nothing a map event carries - a screen position, an altitude, a `z` - can reach the wire, and so
- * comparing two vertices compares only the things that matter.
+ * A screen position and a `z` are still dropped - they are about the map, not the ground - but a
+ * height that came from a file is the operator's own track and travels with it, so a desk edit does
+ * not flatten a line's heights. A point made by a click has none, so it says nothing rather than
+ * zero. Comparing two vertices compares the two numbers the place is, as it always has.
  */
 export function vertex(point) {
-  return { lat: point.lat, lng: point.lng };
+  const kept = { lat: point.lat, lng: point.lng };
+  if (typeof point.altitudeM === 'number') kept.altitudeM = point.altitudeM;
+  return kept;
 }
 
 /** Whether two vertices are the same spot to the bit, which is how the phone reads a repeat too. */

@@ -74,11 +74,17 @@ test('a line just started has nothing to undo and nothing to redo', () => {
   assert.equal(undo(path), path, 'undoing nothing hands back the same line');
 });
 
-test('a vertex carries the two numbers the phone stores, and nothing a map event adds', () => {
-  const path = add(createPath(), { ...a, x: 620, y: 331, bearing: 12 });
+test('a vertex carries the place and the height, and nothing a map event adds', () => {
+  const path = add(createPath(), { ...a, x: 620, y: 331, bearing: 12, z: 99 });
 
   assert.deepEqual(activePath(path), [a]);
   assert.equal('x' in activePath(path)[0], false);
+  assert.equal('z' in activePath(path)[0], false);
+
+  // A height that came from a file is the operator's own track and travels with the vertex, so a desk
+  // edit does not flatten a line's heights.
+  const climbed = add(createPath(), { lat: -41.5, lng: 173.9, altitudeM: 553.6 });
+  assert.deepEqual(activePath(climbed), [{ lat: -41.5, lng: 173.9, altitudeM: 553.6 }]);
 });
 
 test('every step can be walked back and forward again, exactly', () => {

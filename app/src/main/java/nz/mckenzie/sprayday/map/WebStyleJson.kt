@@ -212,7 +212,7 @@ object WebStyleJson {
             "filter",
             buildJsonArray {
                 add("in")
-                add(dataProperty(PlaceLabels.KIND_PROPERTY))
+                add(dataProperty(band.property))
                 // `["literal", [ ... ]]`: a `literal` takes **one** argument, which here is the
                 // array of kinds. Written as `["literal", "city", "town"]` it is refused outright
                 // by both renderers, and a style refused is a desk with a blank rectangle where the

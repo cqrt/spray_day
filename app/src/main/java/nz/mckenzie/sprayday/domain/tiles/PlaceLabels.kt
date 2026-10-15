@@ -41,8 +41,17 @@ object PlaceLabels {
      */
     const val NAME_PROPERTY = "label"
 
-    /** The property that says what kind of place a point is: a city, a town, a locality, a bay. */
+    /** The property that says what kind of place a point is: a city, a town, a locality, a peak, a lake. */
     const val KIND_PROPERTY = "place"
+
+    /**
+     * The second property that says what kind of thing a point is.
+     *
+     * LINZ files landscape under `natural` and settlements under `place`, so a band says which of the
+     * two it filters on - see [Band.property]. Peaks and bays are `natural`; everything with a name a
+     * person lives in or near is `place`.
+     */
+    const val NATURAL_PROPERTY = "natural"
 
     /** How one of these tiles is named on disk and in a URL, and what the server answers with. */
     const val TILE_SUFFIX = ".pbf"
@@ -82,7 +91,13 @@ object PlaceLabels {
     data class Band(
         /** The style layer's id, which must be unique across both maps. */
         val id: String,
-        /** The `place` values this band draws. */
+        /**
+         * The property this band's kinds live in: `place` for the places a person lives in or near,
+         * `natural` for the landscape - see [KIND_PROPERTY] and [NATURAL_PROPERTY]. LINZ files them
+         * under two names rather than one, so a band has to say which it means.
+         */
+        val property: String,
+        /** The values of [property] this band draws. */
         val kinds: List<String>,
         /** The zoom a name in this band first appears at. */
         val minZoom: Float,
@@ -99,8 +114,26 @@ object PlaceLabels {
      */
     val TOWNS = Band(
         id = "linz-place-towns",
+        property = KIND_PROPERTY,
         kinds = listOf("city", "town"),
         minZoom = 6f,
+        sizeAtMinZoom = 11f,
+        sizeAtMaxZoom = 14f
+    )
+
+    /**
+     * Lakes: the other thing an operator finds their bearings by.
+     *
+     * LINZ carries a lake as a **point** in this layer as well as a shape in `water_polygons`, and the
+     * point is what a name wants: it sits where the lake is named, at the size the dam or the shoreline
+     * is known by. Drawn from a wide view almost as soon as towns are - a lake is a big thing, and one
+     * of the few features that reads at the scale of a whole district.
+     */
+    val LAKES = Band(
+        id = "linz-place-lakes",
+        property = KIND_PROPERTY,
+        kinds = listOf("lake"),
+        minZoom = 7f,
         sizeAtMinZoom = 11f,
         sizeAtMaxZoom = 14f
     )
@@ -114,14 +147,38 @@ object PlaceLabels {
      */
     val LOCALITIES = Band(
         id = "linz-place-localities",
+        property = KIND_PROPERTY,
         kinds = listOf("village", "locality", "suburb"),
         minZoom = 10f,
         sizeAtMinZoom = 10f,
         sizeAtMaxZoom = 13f
     )
 
-    /** Every band, in the order they are drawn - the wider answer first, the finer one over it. */
-    val BANDS: List<Band> = listOf(TOWNS, LOCALITIES)
+    /**
+     * Peaks: which hill that is, once the operator is looking at the hill.
+     *
+     * Held back further than the rest, and further than a named summit might at first seem to deserve:
+     * LINZ publishes peaks from low zooms, and a range has dozens of them, so a wide view with every
+     * summit on it is a screen of names with the ground lost underneath. They are also the band no
+     * spray decision is made from - they are for reading the country rather than the paddock.
+     */
+    val PEAKS = Band(
+        id = "linz-place-peaks",
+        property = NATURAL_PROPERTY,
+        kinds = listOf("peak"),
+        minZoom = 11f,
+        sizeAtMinZoom = 10f,
+        sizeAtMaxZoom = 12f
+    )
+
+    /**
+     * Every band, in the order they are drawn: the widest answer first, the finest over it.
+     *
+     * Drawn in this order for the same reason the app draws the ground under its lines - a name that
+     * belongs to something bigger is under one that belongs to something smaller, so a peak is never
+     * hidden by the lake five kilometres away.
+     */
+    val BANDS: List<Band> = listOf(TOWNS, LAKES, LOCALITIES, PEAKS)
 
     /**
      * White letters with a dark outline, as the app writes its own names - see

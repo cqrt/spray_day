@@ -245,7 +245,7 @@ class WebStyleJsonTest {
         assertEquals("in", filter[0].jsonPrimitive.content)
         assertEquals(
             "the property a place's kind is in",
-            """["get","${PlaceLabels.KIND_PROPERTY}"]""",
+            """["get","${PlaceLabels.TOWNS.property}"]""",
             filter[1].toString()
         )
         assertEquals("literal", filter[2].jsonArray[0].jsonPrimitive.content)

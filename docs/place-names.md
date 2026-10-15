@@ -29,20 +29,32 @@ and only its lettering grows.
 
 ## The bands
 
-Names are drawn in two bands, because what changes between a wide view and a close one is *when* a name
-should appear at all, and a MapLibre layer's zoom range is a layer property rather than a filter's:
+Names are drawn in four bands, because what changes between a wide view and a close one is *when* a
+name should appear at all, and a MapLibre layer's zoom range is a layer property rather than a filter's:
 
-| Band | What it draws | Appears | Size |
-| --- | --- | --- | --- |
-| `linz-place-towns` | `city`, `town` | zoom 6 | 11 → 14 |
-| `linz-place-localities` | `village`, `locality`, `suburb` | zoom 10 | 10 → 13 |
+| Band | What it draws | Files it under | Appears | Size |
+| --- | --- | --- | --- | --- |
+| `linz-place-towns` | `city`, `town` | `place` | zoom 6 | 11 → 14 |
+| `linz-place-lakes` | `lake` | `place` | zoom 7 | 11 → 14 |
+| `linz-place-localities` | `village`, `locality`, `suburb` | `place` | zoom 10 | 10 → 13 |
+| `linz-place-peaks` | `peak` | `natural` | zoom 11 | 10 → 12 |
 
 A wide view with every locality on it is a muddle; a town name is what the operator zoomed out to
-find. The same argument the app's own track names are held back with, and the same two-band shape
-LINZ's own topographic style uses.
+find. The same argument the app's own track names are held back with, and the same shape LINZ's own
+topographic style uses.
 
-`natural` kinds - peaks, bays, capes, peninsulas - are **not** drawn: "which town is this near" was the
-question, and every extra band is more clutter over a paddock. They are one more band away.
+**Peaks wait longest of the four**, further than a named summit might seem to deserve: LINZ publishes
+them from low zooms, a range has dozens, and a wide view with every summit named is a screen of names
+with the ground lost underneath. They are also the band no spray decision is made from - they are for
+reading the country rather than the paddock.
+
+LINZ files these under two properties, and a band says which it means: everything a person lives in or
+near is `place` (city, town, village, locality, suburb, **lake**, island, archipelago) and the
+landscape is `natural` (peak, bay, cape, peninsula, and the water kinds below).
+
+**Not drawn**, though they are there in the same layer: bays, capes, peninsulas, lagoons, the open sea,
+islands and archipelagoes. Each is a band away, and each is more clutter over a paddock; see
+`build/verify/place-name-kinds.txt` for what else the tiles carry.
 
 ## How they are drawn
 
@@ -65,9 +77,10 @@ written one size on the phone and another on the desk is the drift the file exis
 
 ## The switch
 
-**Off by default**, and it lives in the map's own **"What the map draws"** sheet - the layers button on
-the map - because that is where this app puts every question about what is on the map, and because the
-question "why is that town name there" is asked while looking at the map.
+The switch is **off by default**, and it lives in the map's own **"What the map draws"** sheet - the
+layers button on the map - where its row reads *"Towns, lakes and peaks from LINZ, written over the
+imagery."* It is there because that is where this app puts every question about what is on the map, and
+because the question "why is that town name there" is asked while looking at the map.
 
 It is the one switch in that sheet that starts *off* (everything else there is the work, which is why
 the app was opened) and the one that fetches something new. Turned on, `place_names` is written to

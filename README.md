@@ -246,9 +246,11 @@ fenceline starts at.
 A photograph says nothing about what anywhere is called, which is a real question at a kitchen
 table — *that paddock is beside which town?* So **place names can be drawn over the imagery**: a
 switch in the map's own **What the map draws** sheet, **off by default**. They are LINZ's own names
-for cities, towns, villages and localities, from the same service, the same key and the same licence
-as the imagery, written white with a dark outline so they read over a photograph, and appearing as
-you zoom in — towns from a wide view, the finer names once you are close.
+for cities, towns, villages and localities — and for **lakes and peaks**, the two other things worth
+knowing the name of when you are looking at a shoreline or a hillside — from the same service, the same
+key and the same licence as the imagery, written white with a dark outline so they read over a
+photograph, and appearing as you zoom in: towns and lakes from a wide view, the finer names and the
+summits once you are close.
 
 They go through the app's own tile server like everything else, so anywhere you have looked at keeps
 its names with no reception, and the desk draws them from the phone as it draws the imagery. The

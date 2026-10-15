@@ -65,21 +65,48 @@ class PlaceLabelsTest {
     @Test
     fun `the bands are drawn in order, at rising zooms, and ask for the places LINZ publishes`() {
         val bands = PlaceLabels.BANDS
-        assertEquals("the wider answer first, the finer one over it", bands.sortedBy { it.minZoom }, bands)
-        assertTrue("every band appears at a zoom before the tiles run out", bands.all { it.minZoom < PlaceLabels.MAX_ZOOM })
+        assertEquals("the widest answer first, the finest over it", bands.sortedBy { it.minZoom }, bands)
+        assertTrue(
+            "every band appears at a zoom before the tiles run out",
+            bands.all { it.minZoom < PlaceLabels.MAX_ZOOM }
+        )
         assertTrue(
             "a name grows as the map closes in, never the other way",
             bands.all { it.sizeAtMaxZoom >= it.sizeAtMinZoom }
         )
 
-        // Every kind a band asks for is one LINZ's schema lists for this layer, and no kind is asked
-        // for twice: a value that is not there draws nothing, and twice would draw it twice.
-        val published = setOf("city", "town", "village", "locality", "suburb")
-        val asked = bands.flatMap { it.kinds }
-        assertTrue("kinds LINZ publishes: $asked", asked.all { it in published })
+        // What LINZ publishes, per property - read out of real tiles rather than off the schema page,
+        // see build/verify/place-name-kinds.txt. LINZ files landscape under `natural` and the places a
+        // person lives in or near under `place`, so a band asks one of the two for values it has.
+        val published = mapOf(
+            PlaceLabels.KIND_PROPERTY to
+                setOf("city", "town", "village", "locality", "suburb", "lake", "island", "archipelago"),
+            PlaceLabels.NATURAL_PROPERTY to setOf("peak", "bay", "cape", "peninsula")
+        )
+        bands.forEach { band ->
+            val allowed = published[band.property]
+            assertTrue(
+                "a band filters on one of the two properties LINZ uses, and ${band.id} does not",
+                allowed != null
+            )
+            assertTrue(
+                "${band.id} asks for kinds LINZ publishes: ${band.kinds}",
+                band.kinds.all { it in allowed!! }
+            )
+        }
+
+        val asked = bands.flatMap { band -> band.kinds.map { "${band.property}=$it" } }
         assertEquals("and none of them twice", asked.size, asked.toSet().size)
 
-        assertTrue("towns and cities are the ones drawn from a wide view", "town" in PlaceLabels.TOWNS.kinds)
-        assertTrue("localities wait for a close one", PlaceLabels.LOCALITIES.minZoom > PlaceLabels.TOWNS.minZoom)
+        assertTrue("towns and cities are drawn from a wide view", "town" in PlaceLabels.TOWNS.kinds)
+        assertTrue("lakes come almost as early", PlaceLabels.LAKES.minZoom < PlaceLabels.LOCALITIES.minZoom)
+        assertTrue("localities wait for a close view", PlaceLabels.LOCALITIES.minZoom > PlaceLabels.TOWNS.minZoom)
+        assertTrue(
+            "and peaks wait for the closest view of the four",
+            bands.all { it.minZoom <= PlaceLabels.PEAKS.minZoom }
+        )
+        assertTrue("peaks are the quietest of them", PlaceLabels.PEAKS.sizeAtMaxZoom < PlaceLabels.TOWNS.sizeAtMaxZoom)
+        assertEquals("a peak is landscape rather than somewhere anyone lives", PlaceLabels.NATURAL_PROPERTY, PlaceLabels.PEAKS.property)
+        assertEquals("and a lake is somewhere", PlaceLabels.KIND_PROPERTY, PlaceLabels.LAKES.property)
     }
 }

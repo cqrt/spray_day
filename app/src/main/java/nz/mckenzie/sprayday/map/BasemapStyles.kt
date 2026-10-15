@@ -120,7 +120,7 @@ object BasemapStyles {
           "source": "${PlaceLabels.ID}",
           "source-layer": "${PlaceLabels.SOURCE_LAYER}",
           "minzoom": ${band.minZoom},
-          "filter": ["in", ["get", "${PlaceLabels.KIND_PROPERTY}"], ["literal", [${
+          "filter": ["in", ["get", "${band.property}"], ["literal", [${
         band.kinds.joinToString(", ") { "\"$it\"" }
     }]]],
           "layout": {

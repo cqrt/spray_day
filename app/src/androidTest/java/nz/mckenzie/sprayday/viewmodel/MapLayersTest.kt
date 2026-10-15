@@ -53,6 +53,10 @@ class MapLayersTest {
     @After
     fun tearDown() = runBlocking {
         settings.setHiddenMapLayers(emptySet())
+        // And the one switch in that sheet that starts off goes back to off: a run that left the
+        // place names on would change the map the next run looks at, and the emulator somebody then
+        // looks at.
+        settings.setPlaceNames(false)
     }
 
     /** A phone that will not say where it is: these tests are not about the fix. */
@@ -136,5 +140,35 @@ class MapLayersTest {
 
         withTimeout(5_000) { viewModel.hiddenLayers.first { it.isEmpty() } }
         assertTrue(settings.hiddenMapLayers.first().isEmpty())
+    }
+
+    /**
+     * The one switch in that sheet that starts **off**, and the one that fetches something new.
+     *
+     * Everything else there is a layer of the work, which is why the app was opened; the names are
+     * furniture over the operator's own ground, and their tiles come from the internet on the way
+     * past - so the map draws what it already holds until somebody asks for more.
+     */
+    @Test
+    fun thePlaceNamesAreOffUntilSomebodyAsksAndThenTheyStayOn() = runBlocking {
+        val viewModel = viewModel()
+
+        assertEquals(
+            "nothing is fetched for a switch nobody has thrown",
+            false,
+            withTimeout(5_000) { viewModel.placeNames.first() }
+        )
+
+        viewModel.setPlaceNames(true)
+
+        assertTrue(
+            "the switch wrote it, and the map follows",
+            withTimeout(5_000) { viewModel.placeNames.first { it } }
+        )
+        assertEquals("the choice is the phone's rather than the screen's", true, settings.placeNames.first())
+
+        // A second view model, as a second visit to the tab is: the answer is read back rather than
+        // remembered from the tap.
+        assertTrue(withTimeout(5_000) { viewModel().placeNames.first { it } })
     }
 }

@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
@@ -221,6 +223,14 @@ fun MapScreen(
  * it does not do: the drawing screen still draws what is being drawn, and an asset's own page
  * still draws that asset, whatever is switched off here - a switch that left one of those blank
  * would have gone too far.
+ *
+ * **The content scrolls, and it has to.** Ten layers with a line under each is already taller than
+ * a phone's screen minus the bars, so the last row was being cut off at the bottom of the sheet -
+ * and when the place names were added below them, that cut-off row was the one the operator was
+ * looking for. Opened at its full height (`skipPartiallyExpanded`) *and* scrollable is what makes
+ * every switch reachable: the height is so that the sheet does not open halfway up the screen with
+ * a scroll nobody has been told about, and the scroll is so that a sheet taller than the screen is
+ * still a sheet you can read to the end of.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -232,14 +242,13 @@ private fun LayersSheet(
     onPlaceNames: (show: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Opened at its full height rather than half of it: this is four switches and a way to undo
-    // them, and half a sheet left the last of them - and the reset - behind a scroll that nothing
-    // on the screen says is there.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scrollState = rememberScrollState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)

@@ -43,12 +43,14 @@ recorded pass keeps them, and they are never looked at.
 
 Three things, in the order they depend on each other:
 
-1. **Keep the height** - store it with an asset's points, carry it in a backup, so a track that came
-   in with heights still has them tomorrow, and a GPX exported back out is not missing its `<ele>`.
+1. **Keep the height** - store it with an asset's points, carry it in a backup and over the wire, so a
+   track that came in with heights still has them tomorrow, on the desk as well as the phone, and a
+   GPX exported back out is not missing its `<ele>`.
 2. **Say the range on the track's card** - one line, *"≈520–664 m, up 140 m"*, so a track that climbs
    is visible without opening a chart.
-3. **An elevation profile** - a small chart of height along the line, on the track's own page and on
-   the recorder's after-save screen, where the two places a height is worth reading actually are.
+3. **An elevation profile** - a small chart of height along the line, on the track's own page (on the
+   phone and on the desk) and on the recorder's after-save screen, where the places a height is worth
+   reading actually are.
 
 ## The plan
 
@@ -81,44 +83,65 @@ Three things, in the order they depend on each other:
       Nothing to build: `GpxWriter` already writes `<ele>` when a point has one, so this follows from
       the first item. It is worth a test, because until now an imported-then-exported track lost its
       heights and the export was quietly poorer than the import.
+- [ ] **Carry the height on the wire, and fold it into the fingerprint.**
+      `WebEditorPoint` gains a nullable `altitudeM`; `WebEditorJson` sends it on every point of the
+      record's paths (and in the answer to a dropped file), and `WebEditorEdit` reads it back into the
+      `GeoPoint` a drawing becomes. `WebEditorVersion` hashes it with the point, so a vertex that moved
+      only in height is a change the card can see rather than a write taken over a card that never
+      saw it.
+- [ ] **Keep the heights through the desk's own drawing.**
+      The page's points become `lat`, `lng` and an optional height. A click or a drag makes a point
+      with no height - a tap on a map has none - while every vertex the operator did not touch keeps
+      its own; undo, redo, a side track and a trace carry whichever heights their points have, because
+      to the page it is one more number on a point rather than a thing to know about.
+- [ ] **Show the range and the profile on the desk too.**
+      The record carries the phone's lowest, highest and climb, so the desk's card says the same line
+      the phone's does; and the page draws the profile from the heights it already holds. The
+      arithmetic stays the phone's and the desk's is the drawing - the rule the area's own figures
+      already keep, so the two surfaces cannot disagree about a number.
 
 Tick a box and add a line under it saying **how it was proved**, so this section says where the work
 stopped rather than only what was meant.
 
-## The one decision not yet made
+## Decided: the desk keeps them too
 
-**A height moved on the desk.** The desk draws a track and hands its line back as `lat` and `lng`
-only, so a vertex the operator drags on a computer arrives with no height, and a desk edit of an
-imported track would flatten the heights of the whole line. The phone's own drawing screen is not
-like this: it edits the very `GeoPoint`s it opened, so an untouched vertex keeps its height and only
-the one that was dragged loses it.
+Asked of the operator rather than assumed, and the answer was the desk as well as the phone - so a
+height travels the whole way and neither surface is the poorer one. What that settles, and why:
 
-There are two ways through, and the answer changes how much is built:
+- **The point on the wire gains a nullable height.** `WebEditorPoint` carries `altitudeM` out in the
+  state document the drawing is read from, and reads it back on the write that saves. A page that
+  has no height for a point omits it, and an older page that sends none is read as it always was.
+- **The version fingerprint folds the height in.** `WebEditorVersion` hashes each point as `lat,lng`;
+  it becomes `lat,lng,alt`, empty where there is none. Without this, a vertex that moved only in
+  height would hash the same as one that did not, and the phone would take a write over a card it
+  should have refused - the exact fault the fingerprint exists to catch.
+- **The desk's drawing keeps what it was handed.** A click and a drag make a point with no height,
+  because a tap on a map has none, and every vertex the operator did not move keeps its own. This is
+  already how the phone's drawing screen behaves, so the two drawings now mean the same thing about
+  a height.
+- **The desk shows the same range and the same profile.** The record carries the three figures
+  (`ElevationProfile`'s lowest, highest and climb), and the page draws the shape from the heights it
+  is already handed. Worked out once, on the phone, read everywhere - so a number cannot differ
+  between a card and the page that mirrors it.
 
-- **The phone is enough.** Accept that a desk edit flattens a line's heights, and say so where the
-  desk is described. The card's range and both profiles are the phone's, worked out from what the
-  phone holds. This is the smaller change and what the first plan assumes.
-- **The desk keeps them too.** The point on the wire (`WebEditorPoint`) gains a nullable `altitudeM`,
-  the writer sends the phone's heights out and takes them back, and the version fingerprint
-  (`WebEditorVersion`) folds altitude into the point it already hashes - otherwise a vertex that
-  moved only in height would be a write the card could not see. The desk can then show the profile
-  as well. It is a wire change and a fingerprint change, and it makes the desk equal to the phone.
-
-This is asked of the operator rather than assumed, because "does the computer need to keep the
-height" is a question about how the work is done (drawn on the desk, or only ever imported), not
-about the code.
+What does not change: an imported file has heights, a point drawn with a click has none, and a
+recording has had them all along.
 
 ## Files
 
 | File | What it is here |
 | --- | --- |
 | `data/db/AssetPointEntity.kt` | The asset's points: gains a nullable `altitudeM`. |
-| `data/db/Migrations.kt`, `SprayDayDatabase.kt` | `MIGRATION_11_12` (an `ALTER TABLE assets ADD COLUMN`), schema v12, `12.json` written out. |
+| `data/db/Migrations.kt`, `SprayDayDatabase.kt` | `MIGRATION_11_12` (an `ALTER TABLE asset_points ADD COLUMN altitudeM REAL`), schema v12, `12.json` written out. |
 | `data/AssetRepository.kt` | Writes the height with each point and reads it back, so `GeoPoint.altitudeM` survives a save and a load. |
 | `domain/backup/BackupDocument.kt`, `data/BackupRepository.kt` | `LinePointRecord` gains `altitudeM`, and the backup carries it out and in. |
 | `domain/geo/ElevationProfile.kt` (new) | The arithmetic: lowest, highest, climb, descent, and a series to draw. Pure, tested. |
 | `ui/screens/AssetDetailScreen.kt` | The card's range line and the profile of the track. |
 | `ui/screens/RecordScreen.kt` | The profile of the pass just saved. |
+| `web/WebEditorEdit.kt` | `WebEditorPoint` gains a nullable height, read back into the `GeoPoint` a drawing becomes; `WebEditorVersion` hashes it with the point. |
+| `web/WebEditorJson.kt` | The record's paths carry the height out, in the state document and in the answer to a dropped file. |
+| `assets/web/geometry.mjs`, `edit.js`, `wire.mjs` | The desk's points keep a height, and a save carries it back with the line. |
+| `assets/web/app.js`, `index.html`, `style.css` | The desk's card range line and the profile chart. |
 | `domain/track/GpxWriter.kt` | Unchanged - it already writes `<ele>`; this is where a stored height reaches a file. |
 
 ## What holds it
@@ -130,6 +153,11 @@ about the code.
 - A backup written before the change restores unchanged, and one written after it keeps the heights -
   both directions, because a backup is the copy that has to outlive the build.
 - `MIGRATION_11_12` against a populated v11 database, on the emulator, like every migration.
+- The wire both ways: a record's point carries its height out of the state document, a write with a
+  height reads it back into the geometry, and a card whose vertex moved only in height is refused as
+  stale (`WebEditorJsonTest`, `WebEditorEditTest`).
+- The page's own drawing, under node: a vertex the operator did not touch keeps the height it was
+  handed, and a point made by a click has none.
 - An imported file whose heights were kept exports to a GPX that still has them.
 
 ## Notes and limits

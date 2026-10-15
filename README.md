@@ -241,6 +241,19 @@ still a map. It shows nothing about what is growing, so it is not a replacement 
 it is a floor under it, and it is also the map to read when the question is which gate a
 fenceline starts at.
 
+### Names over the imagery
+
+A photograph says nothing about what anywhere is called, which is a real question at a kitchen
+table — *that paddock is beside which town?* So **place names can be drawn over the imagery**: a
+switch in the map's own **What the map draws** sheet, **off by default**. They are LINZ's own names
+for cities, towns, villages and localities, from the same service, the same key and the same licence
+as the imagery, written white with a dark outline so they read over a photograph, and appearing as
+you zoom in — towns from a wide view, the finer names once you are close.
+
+They go through the app's own tile server like everything else, so anywhere you have looked at keeps
+its names with no reception, and the desk draws them from the phone as it draws the imagery. The
+whole feature is [docs/place-names.md](docs/place-names.md).
+
 ### OpenStreetMap's terms, and what they mean here
 
 Their [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) is a licence
@@ -887,6 +900,9 @@ rather than as a fault in the download.
 Basemap imagery is licensed **CC BY 4.0** and provided by LINZ. Every map screen
 shows `LINZ CC BY 4.0 © Imagery Basemap contributors`, linking to LINZ's
 [attribution page](https://www.linz.govt.nz/products-services/data/licensing-and-using-data/attributing-linz-basemaps-data).
+With **place names** switched on, the same strip adds `© Topographic data` — the same publisher and
+the same licence, so what is added is the part that is new: that LINZ's topographic data is on the map
+as well as their imagery.
 
 OpenStreetMap data is © OpenStreetMap contributors, under the
 [Open Database Licence](https://www.openstreetmap.org/copyright). Where the drawn map is chosen,

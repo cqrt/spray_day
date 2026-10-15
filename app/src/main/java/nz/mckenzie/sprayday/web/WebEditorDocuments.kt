@@ -27,6 +27,7 @@ import nz.mckenzie.sprayday.domain.doc.within
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.geo.AssetGeometry
 import nz.mckenzie.sprayday.domain.geo.GeoPoint
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 import nz.mckenzie.sprayday.domain.track.TrackInterchange
 import nz.mckenzie.sprayday.domain.tiles.Basemap
 import nz.mckenzie.sprayday.map.AssetColors
@@ -66,6 +67,12 @@ class WebEditorDocuments(
     private val token: String?,
     private val basemap: suspend () -> Basemap,
     private val position: suspend () -> GeoPoint?,
+    /**
+     * Whether the desk should draw LINZ's place names - the phone's own "Place names" switch, read
+     * at the moment the style is asked for rather than fixed when the run is built, because a style
+     * is asked for on every page load and the operator may have changed their mind in between.
+     */
+    private val placeNames: suspend () -> Boolean = { false },
     /** One file of the page, from the APK's own assets, or null when it ships no such file. */
     private val readPageFile: (String) -> ByteArray?,
     /**
@@ -507,7 +514,13 @@ class WebEditorDocuments(
             // address on the card: nothing here is holding a key back.
             tileUrlTemplate = "http://$authority/tiles/${chosen.id}/{z}/{x}/{y}" +
                 "${chosen.tileSuffix}$tokenQuery",
-            assetsUrl = "http://$authority${WebEditorServer.ASSETS_PATH}$tokenQuery"
+            assetsUrl = "http://$authority${WebEditorServer.ASSETS_PATH}$tokenQuery",
+            // The names, when the phone has them switched on - from this phone, so the page never
+            // reaches LINZ and an area already looked at keeps its names on the desk with no network.
+            placeNamesUrl = if (placeNames()) {
+                "http://$authority/tiles/${PlaceLabels.ID}/{z}/{x}/{y}" +
+                    "${PlaceLabels.TILE_SUFFIX}$tokenQuery"
+            } else null
         )
     }
 

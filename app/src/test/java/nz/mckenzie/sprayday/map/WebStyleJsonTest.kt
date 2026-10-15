@@ -2,12 +2,14 @@ package nz.mckenzie.sprayday.map
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -29,7 +31,16 @@ class WebStyleJsonTest {
     private val style: JsonObject =
         Json.parseToJsonElement(WebStyleJson.build(Basemap.LINZ_AERIAL, tiles, assets)).jsonObject
 
+    private val namesUrl = "http://192.168.1.23:8799/tiles/${PlaceLabels.ID}/{z}/{x}/{y}.pbf?k=7f3a"
+
+    private val styleWithNames: JsonObject =
+        Json.parseToJsonElement(WebStyleJson.build(Basemap.LINZ_AERIAL, tiles, assets, namesUrl))
+            .jsonObject
+
     private fun layerIds(): List<String> =
+        style["layers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+
+    private fun layerIdsOf(style: JsonObject): List<String> =
         style["layers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
 
     private fun layer(id: String): JsonObject =
@@ -165,6 +176,87 @@ class WebStyleJsonTest {
         assertEquals(TrackNames.HALO_COLOUR, paint["text-halo-color"]!!.jsonPrimitive.content)
         assertEquals(
             TrackNames.HALO_WIDTH,
+            paint["text-halo-width"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+    }
+
+    @Test
+    fun `the desk draws no place names until the phone's switch is on`() {
+        assertNull(
+            "nothing is fetched for a switch nobody has thrown",
+            style["sources"]!!.jsonObject[PlaceLabels.ID]
+        )
+        assertTrue(layerIds().none { it.startsWith("linz-place") })
+    }
+
+    @Test
+    fun `the place names come from the phone, over the imagery and under the work`() {
+        val source = styleWithNames["sources"]!!.jsonObject[PlaceLabels.ID]!!.jsonObject
+
+        assertEquals("vector", source["type"]!!.jsonPrimitive.content)
+        assertEquals(
+            "the phone's own server, so the page never reaches LINZ",
+            listOf(namesUrl),
+            source["tiles"]!!.jsonArray.map { it.jsonPrimitive.content }
+        )
+        assertEquals(PlaceLabels.MAX_ZOOM, source["maxzoom"]!!.jsonPrimitive.int)
+
+        val ids = layerIdsOf(styleWithNames)
+        val imagery = ids.indexOf(Basemap.LINZ_AERIAL.id)
+        val work = ids.indexOf(AssetLayerIds.ALL.first())
+        PlaceLabels.BANDS.forEach { band ->
+            assertTrue("${band.id} is drawn over the imagery", ids.indexOf(band.id) > imagery)
+            assertTrue("and under the work", ids.indexOf(band.id) < work)
+        }
+        assertEquals(
+            "in the app's own order, and nothing else in between",
+            PlaceLabels.BANDS.map { it.id },
+            ids.filter { id -> PlaceLabels.BANDS.any { it.id == id } }
+        )
+    }
+
+    @Test
+    fun `a place name is written with the phone's own numbers`() {
+        val layer = styleWithNames["layers"]!!.jsonArray
+            .map { it.jsonObject }
+            .first { it["id"]!!.jsonPrimitive.content == PlaceLabels.TOWNS.id }
+        val layout = layer["layout"]!!.jsonObject
+        val paint = layer["paint"]!!.jsonObject
+
+        assertEquals(PlaceLabels.ID, layer["source"]!!.jsonPrimitive.content)
+        assertEquals(PlaceLabels.SOURCE_LAYER, layer["source-layer"]!!.jsonPrimitive.content)
+        assertEquals(
+            PlaceLabels.TOWNS.minZoom,
+            layer["minzoom"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals(
+            "the name is a property of the feature, and LINZ's own name for it",
+            """["get","${PlaceLabels.NAME_PROPERTY}"]""",
+            layout["text-field"].toString()
+        )
+        assertEquals(
+            "the letters the app ships, by the name a style asks for them with",
+            listOf(GlyphFonts.STACK),
+            layout["text-font"]!!.jsonArray.map { it.jsonPrimitive.content }
+        )
+        assertEquals(
+            "and the kinds the band is for, as a set rather than three equality tests",
+            """["in",["get","${PlaceLabels.KIND_PROPERTY}"],["literal",${
+                PlaceLabels.TOWNS.kinds.joinToString(",") { "\"$it\"" }
+            }]]""",
+            layer["filter"].toString()
+        )
+        assertEquals(
+            "a name that will not fit is dropped rather than drawn over: place names are furniture",
+            "false",
+            layout["text-allow-overlap"]!!.jsonPrimitive.content
+        )
+        assertEquals(PlaceLabels.COLOUR, paint["text-color"]!!.jsonPrimitive.content)
+        assertEquals(PlaceLabels.HALO_COLOUR, paint["text-halo-color"]!!.jsonPrimitive.content)
+        assertEquals(
+            PlaceLabels.HALO_WIDTH,
             paint["text-halo-width"]!!.jsonPrimitive.content.toFloat(),
             1e-6f
         )

@@ -37,6 +37,7 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
     private val linzKeyPref = stringPreferencesKey("linz_api_key")
     private val basemapPref = stringPreferencesKey("basemap")
     private val hiddenMapLayersPref = stringSetPreferencesKey("hidden_map_layers")
+    private val placeNamesPref = booleanPreferencesKey("place_names")
     private val webEditorTokenRequiredPref = booleanPreferencesKey("web_editor_token_required")
 
     /**
@@ -135,6 +136,27 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
             val ids = (if (hidden) now + layer else now - layer).mapTo(mutableSetOf()) { it.id }
             if (ids.isEmpty()) prefs.remove(hiddenMapLayersPref) else prefs[hiddenMapLayersPref] = ids
         }
+    }
+
+    /**
+     * Whether LINZ's place names are drawn over the imagery - the map's own "Place names" switch.
+     *
+     * **Off when unset**, and the argument is what the app is for: the operator is looking at their
+     * own paddock, and a town name over it is something asked for rather than something that
+     * arrives. It is also the honest default for a layer whose tiles are fetched from the internet
+     * on the way past: until somebody asks, this app draws what it already holds and nothing more.
+     *
+     * Stored, because it is a property of the map rather than of a visit - an operator who has asked
+     * to see which town that is wants the answer tomorrow too. See
+     * [nz.mckenzie.sprayday.domain.tiles.PlaceLabels] for where the names come from, and why they
+     * cost nothing to look at twice: the tiles are kept in the same store as the imagery.
+     */
+    val placeNames: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[placeNamesPref] ?: false
+    }
+
+    suspend fun setPlaceNames(shown: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[placeNamesPref] = shown }
     }
 
     /**

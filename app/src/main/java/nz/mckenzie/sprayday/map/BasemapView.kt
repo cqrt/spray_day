@@ -37,6 +37,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 
 /**
  * Where the map opens when there is nothing better to show: the whole country, at a
@@ -192,6 +193,18 @@ fun BasemapView(
      */
     hiddenLayers: Set<AssetLayer> = emptySet(),
     /**
+     * Whether LINZ's place names are drawn over the imagery - see
+     * [nz.mckenzie.sprayday.domain.tiles.PlaceLabels].
+     *
+     * Off by default, and off for every map that is not the operator's own home map, for the same
+     * reason [hiddenLayers] is empty there: a map that is *about* one asset is about that asset.
+     * Unlike a layer being hidden, this changes what the style *is* - a source the map would
+     * otherwise never fetch - so switching it reloads the style. That is a rare tap (it is a
+     * preference, not a glance) and it costs nothing on disk: the tiles come from the app's own
+     * server, which has them or goes and gets them.
+     */
+    placeNames: Boolean = false,
+    /**
      * A camera move the operator asked for. The bounds say where; [recentreCount] is what says
      * it is a new request rather than the same one arriving twice, so the second tap on
      * "where am I" moves the map again.
@@ -308,7 +321,8 @@ fun BasemapView(
                         assetGeoJson = assetGeoJson,
                         positionGeoJson = positionGeoJson,
                         density = density,
-                        hiddenLayers = hiddenLayers
+                        hiddenLayers = hiddenLayers,
+                        placeNames = placeNames
                     ) { style ->
                         styleState.value = style
                     }
@@ -321,7 +335,12 @@ fun BasemapView(
     // The key itself is not used here: the style URL already embeds it, or the tile
     // server holds it. Note what is *not* a key: the position, which changes every few
     // seconds and must never send the map back to reload its style.
-    LaunchedEffect(basemap, apiKey, tileUrlTemplate) {
+    //
+    // The place names are in this key rather than applied to the loaded style like a hidden layer,
+    // because they are a source the style either has or has not got - a style with no vector source
+    // in it has nothing to show. It is a preference the operator sets once, not a switch they flip
+    // while reading the map, and the tiles come from the app's own server either way.
+    LaunchedEffect(basemap, apiKey, tileUrlTemplate, placeNames) {
         val map = mapState.value
         val usable = !tileUrlTemplate.isNullOrBlank() || !basemap.needsKey || apiKey.isNotBlank()
         if (map != null && usable) {
@@ -332,7 +351,8 @@ fun BasemapView(
                 assetGeoJson = assetGeoJson,
                 positionGeoJson = positionGeoJson,
                 density = density,
-                hiddenLayers = hiddenLayers
+                hiddenLayers = hiddenLayers,
+                placeNames = placeNames
             ) { style ->
                 styleState.value = style
             }
@@ -434,17 +454,21 @@ internal fun MapLibreMap.loadSprayDayStyle(
     positionGeoJson: String,
     density: Float,
     hiddenLayers: Set<AssetLayer>,
+    placeNames: Boolean,
     onLoaded: (Style) -> Unit
 ) {
     val json = when {
         // A running tile server is the preferred source: it serves downloaded areas
         // with no reception, keeps whatever it fetches, and holds the LINZ key so the
         // style does not have to. It is also the only place the letters for a track's name come
-        // from, so a style built on it is the only one that can write a name at all.
+        // from, so a style built on it is the only one that can write a name at all - which is why
+        // the place names can only be asked for here too: they are fetched by that server and
+        // written with those letters.
         !tileUrlTemplate.isNullOrBlank() -> BasemapStyles.rasterStyleJson(
             basemap,
             tileUrlTemplate,
-            glyphsUrl = GlyphFonts.urlTemplateFrom(tileUrlTemplate)
+            glyphsUrl = GlyphFonts.urlTemplateFrom(tileUrlTemplate),
+            placeNamesUrl = if (placeNames) PlaceLabels.urlTemplateFrom(tileUrlTemplate) else null
         )
 
         // No server (tests, previews). A basemap that needs no key can simply be talked to.

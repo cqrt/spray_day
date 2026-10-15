@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import nz.mckenzie.sprayday.BuildConfig
 import nz.mckenzie.sprayday.data.SettingsRepository
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 import nz.mckenzie.sprayday.map.GlyphFonts
 import java.io.File
 
@@ -62,30 +63,70 @@ object TileServerHolder {
     }
 
     /**
-     * One source per basemap, so each is cached and named where its own licence wants it.
+     * One source per basemap, so each is cached and named where its own licence wants it, **and the
+     * place names as one more source beside them**.
      *
      * Shared rather than built twice: the editor's server serves the tiles the app's own map has
      * already fetched, from the same stores on disk, which is what makes a block downloaded for a
      * trip with no reception draw on the desk as well. A second list would be a second store, and
-     * the two would fill up with the same tiles.
+     * the two would fill up with the same tiles. The names are in this list for the same reason: the
+     * desk draws them over the same imagery, from the same phone, out of the same store.
      */
-    fun sources(context: Context): List<TileSource> = Basemap.entries.map { basemap ->
-        TileSource(
-            id = basemap.id,
-            store = store(context, basemap),
-            suffix = basemap.tileSuffix,
-            contentType = basemap.contentType,
-            // Read per request, so a key pasted into Settings takes effect at once.
-            upstream = {
-                when (basemap) {
-                    Basemap.LINZ_AERIAL ->
-                        currentKey.takeIf { it.isNotBlank() }?.let { key -> LinzTileFetcher(key) }
+    fun sources(context: Context): List<TileSource> =
+        Basemap.entries.map { basemap ->
+            TileSource(
+                id = basemap.id,
+                store = store(context, basemap),
+                suffix = basemap.tileSuffix,
+                contentType = basemap.contentType,
+                // Read per request, so a key pasted into Settings takes effect at once.
+                upstream = {
+                    when (basemap) {
+                        Basemap.LINZ_AERIAL ->
+                            currentKey.takeIf { it.isNotBlank() }?.let { key -> LinzTileFetcher(key) }
 
-                    Basemap.OPENSTREETMAP -> OsmTileFetcher()
+                        Basemap.OPENSTREETMAP -> OsmTileFetcher()
+                    }
                 }
+            )
+        } + listOf(placeLabelsSource(context))
+
+    /**
+     * The place names, as one more source in the same server.
+     *
+     * LINZ's topographic vector tiles, and only their `place_labels` layer is ever drawn - see
+     * [PlaceLabels]. They go through this server for the reason everything else does: one place the
+     * map fetches from, one store on disk, the key never leaving the phone, and the desk drawing the
+     * names from the phone rather than from LINZ itself. Fetched on the way through like any other
+     * tile, so the ground that has been looked at keeps its names with no reception.
+     *
+     * No key, no names: the upstream is null and the route answers 404, exactly as the imagery does.
+     */
+    private fun placeLabelsSource(context: Context): TileSource = TileSource(
+        id = PlaceLabels.ID,
+        store = labelsStore(context),
+        suffix = PlaceLabels.TILE_SUFFIX,
+        contentType = PlaceLabels.CONTENT_TYPE,
+        upstream = {
+            currentKey.takeIf { it.isNotBlank() }?.let { key ->
+                LinzTileFetcher(key, urlFor = { zoom, x, y -> PlaceLabels.tileUrl(key, zoom, x, y) })
             }
-        )
-    }
+        }
+    )
+
+    /**
+     * Where the place names are kept: a cache of what has been looked at.
+     *
+     * The cache directory rather than the app's own files, and the difference is the one
+     * [store] draws for the drawn map: nothing here is downloaded on purpose yet, so it is not a
+     * thing to carry in a backup or to keep under storage pressure - it is what the map picked up on
+     * its way past. Anywhere the operator has looked at, the names are there for good; anywhere they
+     * have not, they arrive as they look at it.
+     */
+    fun labelsStore(context: Context): OfflineTileStore = OfflineTileStore(
+        File(context.applicationContext.cacheDir, "$CACHE_DIR_PREFIX${PlaceLabels.ID}"),
+        PlaceLabels.TILE_SUFFIX
+    )
 
     /**
      * The tile store for one basemap.

@@ -52,6 +52,7 @@ import nz.mckenzie.sprayday.domain.asset.AssetGrouping
 import nz.mckenzie.sprayday.domain.asset.AssetLayer
 import nz.mckenzie.sprayday.domain.due.DueStatus
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 import nz.mckenzie.sprayday.map.parseHexColor
 import nz.mckenzie.sprayday.map.BasemapView
 import nz.mckenzie.sprayday.map.AssetColors
@@ -73,6 +74,7 @@ fun MapScreen(
     val recentre by viewModel.recentre.collectAsStateWithLifecycle()
     val locationNotice by viewModel.locationNotice.collectAsStateWithLifecycle()
     val hiddenLayers by viewModel.hiddenLayers.collectAsStateWithLifecycle()
+    val placeNames by viewModel.placeNames.collectAsStateWithLifecycle()
 
     var layersOpen by remember { mutableStateOf(false) }
 
@@ -130,6 +132,10 @@ fun MapScreen(
                 // screen that is about one asset, or about the spot being drawn, draws it
                 // whatever is hidden here.
                 hiddenLayers = hiddenLayers,
+                // The place names, which the operator asks for in the same sheet: this is the map
+                // they read the farm on, and "which town is that" is asked here rather than on a
+                // screen that is about one asset.
+                placeNames = placeNames,
                 // The marker for the phone is the map's own business now, so this screen
                 // says nothing about it: it draws where you are wherever a map is drawn.
                 // The operator's own tracks first; failing that, where the device is;
@@ -187,6 +193,7 @@ fun MapScreen(
 
             AttributionStrip(
                 basemap = basemap,
+                placeNames = placeNames,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(bottom = 6.dp)
@@ -199,6 +206,8 @@ fun MapScreen(
             hidden = hiddenLayers,
             onHide = viewModel::setLayerHidden,
             onShowAll = viewModel::showEveryLayer,
+            placeNames = placeNames,
+            onPlaceNames = viewModel::setPlaceNames,
             onDismiss = { layersOpen = false }
         )
     }
@@ -219,6 +228,8 @@ private fun LayersSheet(
     hidden: Set<AssetLayer>,
     onHide: (layer: AssetLayer, hide: Boolean) -> Unit,
     onShowAll: () -> Unit,
+    placeNames: Boolean,
+    onPlaceNames: (show: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     // Opened at its full height rather than half of it: this is four switches and a way to undo
@@ -256,6 +267,25 @@ private fun LayersSheet(
             if (hidden.isNotEmpty()) {
                 TextButton(onClick = onShowAll) { Text("Show everything") }
             }
+
+            // The place names, which are the one thing here that starts *off*: everything else in
+            // this sheet is the work, which is why the operator opened the app. A town name is
+            // furniture over their own ground, so it is asked for rather than arrived - and the row
+            // says where it comes from, because it is the one switch here that fetches anything new.
+            HorizontalDivider()
+            ListItem(
+                modifier = Modifier.clickable { onPlaceNames(!placeNames) },
+                headlineContent = { Text("Place names") },
+                supportingContent = {
+                    Text("Towns and localities from LINZ, written over the imagery.")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = placeNames,
+                        onCheckedChange = { checked -> onPlaceNames(checked) }
+                    )
+                }
+            )
         }
     }
 }
@@ -371,12 +401,24 @@ private fun MissingKeyCard(onOpenSettings: () -> Unit, modifier: Modifier = Modi
  * So this strip is drawn by every screen that draws a map, names the basemap actually in use, and
  * links to that basemap's own credit page - which is what makes it satisfy the licence rather than
  * merely mention it.
+ *
+ * [placeNames] adds the second credit where a second set of LINZ data is being drawn: the imagery's
+ * own credit already names the publisher and the licence, so what it adds is the part that is new -
+ * that topographic data is on the map as well.
  */
 @Composable
-internal fun AttributionStrip(basemap: Basemap, modifier: Modifier = Modifier) {
+internal fun AttributionStrip(
+    basemap: Basemap,
+    modifier: Modifier = Modifier,
+    placeNames: Boolean = false
+) {
     val uriHandler = LocalUriHandler.current
     Text(
-        text = basemap.attribution,
+        text = if (placeNames) {
+            "${basemap.attribution} \u00b7 ${PlaceLabels.SHORT_ATTRIBUTION}"
+        } else {
+            basemap.attribution
+        },
         style = MaterialTheme.typography.labelSmall,
         color = Color.White,
         modifier = modifier

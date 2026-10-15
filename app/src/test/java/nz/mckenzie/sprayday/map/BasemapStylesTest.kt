@@ -1,6 +1,7 @@
 package nz.mckenzie.sprayday.map
 
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -91,6 +92,47 @@ class BasemapStylesTest {
         assertFalse(
             "a style talking to a provider has nowhere to get letters from, so it must not pretend",
             without.contains("glyphs")
+        )
+    }
+
+    @Test
+    fun `the place names are a vector source over the imagery, and only when asked for`() {
+        val tiles = "http://127.0.0.1:41234/tiles/linz-aerial/{z}/{x}/{y}.webp"
+        val letters = GlyphFonts.urlTemplateFrom(tiles)
+        val names = PlaceLabels.urlTemplateFrom(tiles)
+
+        val asked = BasemapStyles.rasterStyleJson(Basemap.LINZ_AERIAL, tiles, letters, names)
+
+        assertTrue(
+            "the names are features the map draws rather than a picture of somebody's map",
+            asked.contains("\"type\": \"vector\"")
+        )
+        assertTrue("from the app's own server: $names", asked.contains(names))
+        assertTrue(asked.contains("\"source-layer\": \"${PlaceLabels.SOURCE_LAYER}\""))
+        PlaceLabels.BANDS.forEach { band ->
+            assertTrue("${band.id} is drawn", asked.contains("\"id\": \"${band.id}\""))
+        }
+        assertTrue(
+            "a name is written from the letters that travel in the app",
+            asked.contains("\"text-font\": [\"${GlyphFonts.STACK}\"]")
+        )
+        assertTrue("with the app's own colours", asked.contains(PlaceLabels.COLOUR))
+        assertTrue(asked.contains(PlaceLabels.HALO_COLOUR))
+        assertTrue(
+            "and over the imagery rather than under it",
+            asked.indexOf(PlaceLabels.TOWNS.id) > asked.indexOf("\"id\": \"${Basemap.LINZ_AERIAL.id}\"")
+        )
+
+        val notAsked = BasemapStyles.rasterStyleJson(Basemap.LINZ_AERIAL, tiles, letters)
+        assertFalse(
+            "nothing is fetched for a switch nobody has thrown",
+            notAsked.contains(PlaceLabels.ID)
+        )
+
+        val nowhereToGetThem = BasemapStyles.rasterStyleJson(Basemap.LINZ_AERIAL, tiles, null, names)
+        assertFalse(
+            "and a style with nowhere to get the names from draws none, rather than drawing boxes",
+            nowhereToGetThem.contains(PlaceLabels.ID)
         )
     }
 

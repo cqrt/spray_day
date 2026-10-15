@@ -10,6 +10,7 @@ import kotlinx.serialization.json.put
 import nz.mckenzie.sprayday.domain.asset.AssetKind
 import nz.mckenzie.sprayday.domain.asset.AssetShape
 import nz.mckenzie.sprayday.domain.tiles.Basemap
+import nz.mckenzie.sprayday.domain.tiles.PlaceLabels
 
 /**
  * The style the editor's page loads, built from the same tables the app's own map is built from.
@@ -55,6 +56,15 @@ object WebStyleJson {
     private const val BACKGROUND = "#0B1F13"
 
     /**
+     * How much room a place name keeps around itself before another one is drawn, in style pixels.
+     *
+     * The map drops a name that cannot have this much to itself, which is what keeps two towns from
+     * being written on top of one another - the app's own track names are never dropped, and the
+     * difference is deliberate: a track's name is something the operator put there.
+     */
+    private const val PLACE_NAME_PADDING = 4
+
+    /**
      * The marker pictures the page must have before it draws the work.
      *
      * The phone decides which pictures exist, what they are called, and what they look like: it
@@ -68,8 +78,19 @@ object WebStyleJson {
      * The style for [basemap], with its tiles coming from [tileUrlTemplate] - which is this phone
      * on the Wi-Fi, so the page never sees the LINZ key and a downloaded area is drawn from the
      * same store the app draws it from. [assetsUrl] is where the page reads the work itself.
+     *
+     * [placeNamesUrl] is where LINZ's place-name tiles come from, or null when the operator has not
+     * asked for them on the phone - see
+     * [nz.mckenzie.sprayday.domain.tiles.PlaceLabels]. The desk draws them where the phone does,
+     * from the phone, for the reason everything else on the desk goes through the phone: one store,
+     * one place the key lives, and names that are already there when the ground has been looked at.
      */
-    fun build(basemap: Basemap, tileUrlTemplate: String, assetsUrl: String): String = buildJsonObject {
+    fun build(
+        basemap: Basemap,
+        tileUrlTemplate: String,
+        assetsUrl: String,
+        placeNamesUrl: String? = null
+    ): String = buildJsonObject {
         put("version", 8)
         put("name", "Spray Day - the work")
         // Where the phone's own map opens, so a page with nothing drawn on it yet opens there too
@@ -89,11 +110,16 @@ object WebStyleJson {
         // a name on the desk is written from the letters that travel inside the app rather than from a
         // font the laptop happens to have.
         put("glyphs", GlyphFonts.urlTemplateFrom(tileUrlTemplate))
-        put("sources", sources(basemap, tileUrlTemplate, assetsUrl))
-        put("layers", layers(basemap))
+        put("sources", sources(basemap, tileUrlTemplate, assetsUrl, placeNamesUrl))
+        put("layers", layers(basemap, placeNamesUrl != null))
     }.toString()
 
-    private fun sources(basemap: Basemap, tileUrlTemplate: String, assetsUrl: String) = buildJsonObject {
+    private fun sources(
+        basemap: Basemap,
+        tileUrlTemplate: String,
+        assetsUrl: String,
+        placeNamesUrl: String?
+    ) = buildJsonObject {
         put(
             basemap.id,
             buildJsonObject {
@@ -114,9 +140,24 @@ object WebStyleJson {
                 put("data", assetsUrl)
             }
         )
+        // The place names, when they have been asked for: the phone's own server hands them out, the
+        // same as the tiles, so the page never talks to LINZ and a looked-at area keeps its names
+        // with no network at all.
+        if (placeNamesUrl != null) {
+            put(
+                PlaceLabels.ID,
+                buildJsonObject {
+                    put("type", "vector")
+                    put("tiles", buildJsonArray { add(placeNamesUrl) })
+                    put("minzoom", 0)
+                    put("maxzoom", PlaceLabels.MAX_ZOOM)
+                    put("attribution", PlaceLabels.ATTRIBUTION)
+                }
+            )
+        }
     }
 
-    private fun layers(basemap: Basemap) = buildJsonArray {
+    private fun layers(basemap: Basemap, placeNames: Boolean) = buildJsonArray {
         add(
             buildJsonObject {
                 put("id", "background")
@@ -133,6 +174,10 @@ object WebStyleJson {
                 put("maxzoom", basemap.maxZoom)
             }
         )
+        // The names, straight over the imagery and **under the work**: this is the phone's own
+        // arrangement, and the reason is the same on both - the work is what the map is for, and a
+        // town name is the furniture around it.
+        if (placeNames) PlaceLabels.BANDS.forEach { band -> add(placeNameLayer(band)) }
         // The ground's fill, under everything the phone draws on it - the same arrangement, and the
         // same reason, as the app's own map.
         add(groundFillLayer())
@@ -144,6 +189,67 @@ object WebStyleJson {
         // covers a place - a marker not drawn reads as a marker that has been deleted.
         add(trackNameLayer())
         PlaceIcons.KINDS.forEach { kind -> add(placeLayer(kind)) }
+    }
+
+    /**
+     * One band of place names, as the page's own layer - see
+     * [nz.mckenzie.sprayday.domain.tiles.PlaceLabels.Band].
+     *
+     * Every number comes from [PlaceLabels] so the two maps write a town the same size, in the same
+     * white, with the same outline, appearing at the same zoom. The one thing that is the map's
+     * rather than the app's is that a name which will not fit without touching another is dropped
+     * rather than drawn over it: place names are furniture, and a screen of overlapping towns is
+     * worse than a town that is not there - which is the opposite of how the app treats its own
+     * track names, and deliberately so.
+     */
+    private fun placeNameLayer(band: PlaceLabels.Band): JsonObject = buildJsonObject {
+        put("id", band.id)
+        put("type", "symbol")
+        put("source", PlaceLabels.ID)
+        put("source-layer", PlaceLabels.SOURCE_LAYER)
+        put("minzoom", band.minZoom)
+        put(
+            "filter",
+            buildJsonArray {
+                add("in")
+                add(dataProperty(PlaceLabels.KIND_PROPERTY))
+                add(
+                    buildJsonArray {
+                        add("literal")
+                        band.kinds.forEach { add(it) }
+                    }
+                )
+            }
+        )
+        put(
+            "layout",
+            buildJsonObject {
+                put("text-field", dataProperty(PlaceLabels.NAME_PROPERTY))
+                put("text-font", buildJsonArray { add(GlyphFonts.STACK) })
+                put(
+                    "text-size",
+                    buildJsonArray {
+                        add("interpolate")
+                        add(buildJsonArray { add("linear") })
+                        add(buildJsonArray { add("zoom") })
+                        add(band.minZoom)
+                        add(band.sizeAtMinZoom)
+                        add(PlaceLabels.MAX_ZOOM)
+                        add(band.sizeAtMaxZoom)
+                    }
+                )
+                put("text-allow-overlap", false)
+                put("text-padding", PLACE_NAME_PADDING)
+            }
+        )
+        put(
+            "paint",
+            buildJsonObject {
+                put("text-color", PlaceLabels.COLOUR)
+                put("text-halo-color", PlaceLabels.HALO_COLOUR)
+                put("text-halo-width", PlaceLabels.HALO_WIDTH)
+            }
+        )
     }
 
     /**

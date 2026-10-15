@@ -315,6 +315,26 @@ class MapViewModel(
         viewModelScope.launch { settingsRepository.setHiddenMapLayers(emptySet()) }
     }
 
+    /**
+     * Whether LINZ's place names are drawn over the imagery.
+     *
+     * Eagerly, like the basemap: the map's first draw is built from this, and a style that arrives
+     * without names and then grows them is a map that flickers for no reason.
+     */
+    val placeNames: StateFlow<Boolean> = settingsRepository.placeNames
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Shows or hides the place names, written straight through like the layer switches.
+     *
+     * This one changes what the style is rather than a property of a layer, so the map reloads its
+     * style when it changes - see [nz.mckenzie.sprayday.map.BasemapView]. It is a preference, once
+     * set, rather than a switch flipped while reading.
+     */
+    fun setPlaceNames(shown: Boolean) {
+        viewModelScope.launch { settingsRepository.setPlaceNames(shown) }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
 

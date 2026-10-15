@@ -86,9 +86,20 @@ const JUNCTION_LAYER = 'sprayday-desk-drawing-junction';
  * `onFinish` is handed the finished paths and decides what happens next, because whether that means a
  * save or a form is the page's business and not the map's.
  */
-export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }) {
+export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf, locked = () => false }) {
   /** Off, drawing a new line, or editing one that is already on the phone. */
   let mode = 'off';
+
+  /**
+   * Whether the map should act on the hand at all.
+   *
+   * A drawing can be on the map while the page has a form open over it - an imported line being named,
+   * or a line finished and waiting for its details. The line stays where it can be seen, but it is not
+   * the thing being worked on: the hand belongs to the form, and a click on the map behind it must not
+   * put a vertex on a line nobody is drawing. The page answers this (`locked`), because only the page
+   * knows what is open; with no such answer, a drawing is always the thing in hand.
+   */
+  const live = () => mode !== 'off' && !locked();
 
   /** The asset being edited, when the mode is `edit`; null for a new line, and when off. */
   let editingId = null;
@@ -317,7 +328,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   /* ---- What the map tells us --------------------------------------------------------- */
 
   map.on('mousedown', (event) => {
-    if (mode === 'off') return;
+    if (!live()) return;
     const place = placeOf(event);
     const at = vertexAt(activePath(drawing), place.screen, project);
     if (at >= 0) {
@@ -344,7 +355,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   });
 
   map.on('mousemove', (event) => {
-    if (mode === 'off') return;
+    if (!live()) return;
     const place = placeOf(event);
     cursor = place.ground;
     if (dragging !== null) {
@@ -413,7 +424,7 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   });
 
   map.on('click', (event) => {
-    if (mode === 'off') return;
+    if (!live()) return;
 
     // The click a browser sends at the end of a drag is the tail of that gesture, not a click on the
     // paddock - and a traced fence has just been put on the line by the same hand.
@@ -480,14 +491,14 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
   });
 
   map.on('dblclick', (event) => {
-    if (mode === 'off') return;
+    if (!live()) return;
     // The double-click zoom is off while drawing, so this key is the only way to finish with a mouse.
     if (event.preventDefault) event.preventDefault();
     finish();
   });
 
   document.addEventListener('keydown', (event) => {
-    if (mode === 'off') return;
+    if (!live()) return;
     // Not while the operator is typing: the form has its own Escape, and a Delete key pressed in the
     // notes field means the notes.
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -699,6 +710,13 @@ export function createEditor({ map, onFinish, onCancel, onChange, neighboursOf }
 
     /** Whether a drawing is in progress: what the page asks before a map click means "open that". */
     isActive: () => mode !== 'off',
+
+    /**
+     * Ends the drawing with nothing to finish or give up: the page's own move after a line it was
+     * naming has been saved, where the write is done and nothing is in hand any more. It does
+     * everything putting a drawing away does to the map, and tells the page the drawing is off.
+     */
+    stop,
 
     finish,
     cancel

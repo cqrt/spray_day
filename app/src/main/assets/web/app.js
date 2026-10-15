@@ -448,7 +448,10 @@ async function boot() {
       neighboursOf: featuresExcept,
       onChange: showDrawing,
       onFinish: finishDrawing,
-      onCancel: abandonDrawing
+      onCancel: abandonDrawing,
+      // The drawing is on the map but not in the hand while a form is open over it: the form is what
+      // the operator is working on, and a click behind it must not put a vertex on the line.
+      locked: () => formIsOpen()
     });
     // The way into a drawing is opened by `onStyleLoaded`, not here: asking for the module is a round
     // trip to the phone and the style usually wins that race, but when it does not, a button that says
@@ -2306,8 +2309,11 @@ async function saveEdit(event) {
       return;
     }
 
-    // The line is the phone's now, so nothing is waiting on it any more.
+    // The line is the phone's now, so nothing is waiting on it any more. An imported line was still in
+    // hand while it was being named, so the drawing ends here - and the box that was about it goes with
+    // it rather than being left over the card the save is about to show.
     draftPaths = null;
+    if (editor) editor.stop();
     replaceAsset(answer.asset);
     closeEdit();
     await reloadFeatures();

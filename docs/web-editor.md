@@ -1123,6 +1123,18 @@ style's background colour and the work draws on top of it.
       nothing to cap. Held by the page's own tests and a search that nothing reaches for the removed
       helper or variable; the run is written down in `build/verify/no-drawing-box-while-naming.txt`.
       Unit suite, JS tests, lint and assemble are green.
+- [x] **The drawing is not in the hand while a track is being named. v0.6.90** — the operator's follow-up
+      to v0.6.89: *"the track is still in 'edit line' mode and the draw dialog appears when you save the
+      edit dialog."* Hiding the box had left the drawing itself in hand: a file placed on the map is an
+      editing session, so a pointer moving over the map reported it again and the box came back, which is
+      what the save showed. The page now tells the editor when a form is open (`locked`), and the editor's
+      clicks, drags, traces, double click and keys are off while it is - the line stays visible but is not
+      the thing being worked on - and saving the form ends the drawing (`stop`), so nothing is left in
+      hand and the box cannot come back over the card. Cancel still returns the drawing and the box.
+      Proven by running the real `edit.js` against a stand-in map and driving its own events: a locked
+      drawing takes no click and ignores Enter, a released one takes a click again, `stop` ends it and
+      says so, and `finish` still hands the line on; the run is written down in
+      `build/verify/drawing-not-in-hand-while-naming.txt`. Unit suite, JS tests, lint and assemble green.
 - [ ] **Nothing is queued as a phase.** The three jobs the plan had left are done as of v0.6.70, and
       v0.6.71 was a fault reported from the field. What remains is one wording job riding with the next
       code change — the word "farm" in the code's comments and in a handful of names, written out in

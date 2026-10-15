@@ -190,22 +190,82 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 /*
- * DOC's track network, in the sidebar beside the other two ways in: a name, a place, and a page of
- * tracks to tick. A block of its own rather than a floating panel, because it is a way of getting
- * work in rather than a form about work that is already there.
+ * DOC's track network, in a dialog over the work rather than a block in the sidebar. It is a way of
+ * bringing work in - read once and closed - and a list of tracks wants the width and the height the
+ * 460px sidebar could not give it. The overlay dims the page behind; the dialog is the whole of the
+ * browser, and Escape closes it as a dialog's Escape should.
  */
-#doc {
-  margin: 10px 10px 0;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+#doc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
 }
 
-#doc[hidden] { display: none; }
+#doc-overlay[hidden] { display: none; }
 
-#doc h2 { margin: 0 0 4px; font-size: 15px; }
+#doc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, 100%);
+  height: min(860px, 100%);
+  padding: 14px 18px 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.3);
+}
 
-#doc .hint { margin: 0 0 8px; font-size: 12.5px; color: var(--quiet); }
+/*
+ * The title, the hint and the search's own word (how many matched, or why none did) across the top,
+ * with the dialog's own close in the corner. The word is here rather than over the list because the
+ * list is the one thing that should have the dialog's whole height to itself.
+ */
+#doc .doc-head { flex: 0 0 auto; padding-right: 28px; margin-bottom: 10px; }
+
+#doc-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--quiet);
+}
+
+/*
+ * The body of the dialog: the search and the filters in a column, and the list beside them. The search
+ * column is a fixed share of the width (22%, which is 251px of the dialog's widest) and the list is all
+ * of the rest - more than three quarters of the width and the whole of the height the body has, because
+ * the head above it is the title and the hint only. Reading tracks and ticking them is the whole reason
+ * the dialog is open: the search is done once, the list is read. The column scrolls on its own if a
+ * search returns enough kinds and types to fill it, which the list never has to.
+ */
+#doc .doc-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 14px; }
+
+#doc .doc-side {
+  flex: 0 0 22%;
+  overflow: auto;
+}
+
+#doc .doc-results {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#doc h2 { margin: 0 0 2px; font-size: 17px; }
+
+#doc .hint { margin: 0; font-size: 12.5px; color: var(--quiet); }
 
 #doc label {
   display: block;
@@ -251,16 +311,17 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 #doc-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
-#doc-words { margin: 8px 0 0; font-size: 12.5px; color: var(--quiet); }
+#doc-words { margin: 6px 0 0; font-size: 12.5px; color: var(--quiet); }
 
 #doc-words[hidden] { display: none; }
 
 /*
- * The list takes most of the panel: the operator is here to read tracks and tick them, and a short
- * scroll box turned that into scrolling within scrolling. 60vh leaves the search and the filters in
- * view and gives the list the rest.
+ * The list takes the whole of the results pane and scrolls within it: the dialog's height less the
+ * head, with no scrolling of the page behind the dialog. It is more than three quarters of the
+ * dialog's width to the search column's less than one, which is the point of moving this out of the
+ * sidebar.
  */
-#doc-list { margin-top: 8px; max-height: 60vh; overflow: auto; }
+#doc-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
 #doc-list:empty { display: none; }
 

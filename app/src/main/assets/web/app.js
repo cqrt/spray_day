@@ -1302,7 +1302,7 @@ const docTypes = new Set();
 let docSort = 'nearest';
 
 function openDoc() {
-  field('doc').hidden = false;
+  field('doc-overlay').hidden = false;
   field('doc-words').hidden = true;
   field('doc-words').textContent = '';
   field('doc-controls').hidden = true;
@@ -1312,7 +1312,7 @@ function openDoc() {
 }
 
 function closeDoc() {
-  field('doc').hidden = true;
+  field('doc-overlay').hidden = true;
 }
 
 async function searchDoc() {
@@ -2443,10 +2443,16 @@ document.getElementById('import-file').addEventListener('change', (event) => {
 });
 
 /*
- * DOC's tracks: the panel's own controls, and the two acts it has - a search and an import.
+ * DOC's tracks: the dialog's own controls, and the two acts it has - a search and an import. The
+ * dialog closes on its corner, on Escape (below) or on a press on the dimmed page behind it, and not
+ * on a press inside it, which is the operator working. The press, not the click: a click's target is
+ * the nearest parent its press and its release share, so a drag that left the dialog would close it.
  */
 document.getElementById('doc-open').addEventListener('click', openDoc);
 document.getElementById('doc-close').addEventListener('click', closeDoc);
+document.getElementById('doc-overlay').addEventListener('mousedown', (event) => {
+  if (event.target.id === 'doc-overlay') closeDoc();
+});
 document.getElementById('doc-search').addEventListener('click', searchDoc);
 document.getElementById('doc-import').addEventListener('click', importDocTracks);
 document.getElementById('doc-name').addEventListener('keydown', (event) => {
@@ -2535,6 +2541,12 @@ document.getElementById('drawing-drop').addEventListener('click', () => {
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  // The DOC dialog is the topmost thing when it is open, so its Escape goes first - a dialog closes
+  // on Escape before anything behind it is thought about.
+  if (!field('doc-overlay').hidden) {
+    closeDoc();
+    return;
+  }
   // Escape backs out of a form first: they are on top, and they are the ones with unsaved typing in them.
   // Turning several rows over at once is the newer of the two, so it goes first - and while a line is
   // being drawn the drawing has the key itself (see `edit.js`), so this only runs when a form is open,

@@ -128,6 +128,11 @@ The editor served to a laptop has the same browser. It is the same search and th
 **the phone does the asking there too**: the page calls the phone (`GET /api/doc`) and the phone
 calls DOC, so the laptop never reaches the service itself and the service is still named in one place.
 
+On the desk it is a **dialog over the work** — the page dimmed behind it, closed by its own `×`, by
+Escape, or by a click on the dimmed page — rather than a block in the sidebar. A browser is a way of
+bringing work in: read once and closed. And a list of tracks wants width, which a 460px sidebar has
+none of.
+
 There are two answers to "where", and they are one answer:
 
 - **Near the phone** is the **phone's** own fix from the state document, not the browser's location —
@@ -145,8 +150,9 @@ box is off and disabled, and it is left out of the request even if a page sends 
 
 A row is titled with the **name the import will give the asset**, and carries the kind, the track type,
 the length and the distance the phone measured — the same row the phone shows, from the same figures.
-Filtering and ordering are **labelled controls** (`Filter`, `Sort`) rather than chips, and the list
-takes the panel.
+Filtering and ordering are **labelled controls** (`Filter`, `Sort`) rather than chips. The search and
+those controls stand in a column on the left; **the list is the pane beside them**, more than three
+quarters of the dialog's width and the whole of its height, which is the point of the dialog.
 
 - `GET /api/doc?name=…&near=lat,lng&radiusKm=…&bounds=minLat,minLng,maxLat,maxLng` answers with the
   tracks, which of them are already here, and the phone's own word when there is one to say.

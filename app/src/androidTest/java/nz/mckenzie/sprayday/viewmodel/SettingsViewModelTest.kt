@@ -57,11 +57,12 @@ class SettingsViewModelTest {
         // And the repository field goes back to blank, so a test that set one cannot leave the next
         // one reading somebody else's destination.
         SettingsRepository(context).setBackupRepo("")
-        // And the editor's two switches go back to what an untouched install has - served, and no
-        // token asked for - so a test that left either the other way cannot leave the next one
-        // reading somebody else's decision.
+        // And the editor's switches go back to what an untouched install has - served, no token asked
+        // for, and the phone left to sleep - so a test that left any of them the other way cannot
+        // leave the next one reading somebody else's decision.
         SettingsRepository(context).setWebEditorTokenRequired(false)
         SettingsRepository(context).setWebEditorEnabled(true)
+        SettingsRepository(context).setWebEditorKeepAwake(false)
         store.deleteAll()
     }
 
@@ -314,6 +315,50 @@ class SettingsViewModelTest {
         viewModel.setWebEditorTokenRequired(true)
 
         awaitValue("the switch written back", true, { settings.webEditorTokenRequired.first() })
+        delay(500)
+        assertEquals("nothing to serve again when nothing is being served", emptyList<String>(), asked.toList())
+    }
+
+    /**
+     * The awake switch: the setting, and the run that has to be built again for it to mean anything.
+     *
+     * The same two halves as the token switch above, and the second is again the one worth having: a
+     * run holds the phone awake in the way it was built with, so a switch thrown while one is going
+     * has to build that run again. Turning it on is the operator's own answer to a phone that sleeps
+     * through the desk's browsing, and it costs battery - which is exactly why the answer is theirs.
+     */
+    @Test
+    fun theAwakeSwitchIsWrittenAndServesTheEditorAgainOnlyWhileItIsServing(): Unit = runBlocking {
+        val settings = SettingsRepository(context)
+        settings.setWebEditorKeepAwake(false)
+
+        val asked = Collections.synchronizedList(mutableListOf<String>())
+        var serving = true
+        val viewModel = SettingsViewModel(
+            settings = settings,
+            store = store,
+            webEditor = object : WebEditorSwitch {
+                override fun setEnabled(enabled: Boolean) = Unit
+
+                override fun restart() {
+                    asked += "served again"
+                }
+            },
+            isEditorServing = { serving }
+        )
+
+        viewModel.setWebEditorKeepAwake(true)
+
+        awaitValue("the switch written", true, { settings.webEditorKeepAwake.first() })
+        awaitValue("the run served again", listOf("served again"), { asked.toList() })
+
+        // With nothing being served the setting is written and the service is left alone - which is
+        // also why the pause is here, so a late call would be seen.
+        asked.clear()
+        serving = false
+        viewModel.setWebEditorKeepAwake(false)
+
+        awaitValue("the switch written back", false, { settings.webEditorKeepAwake.first() })
         delay(500)
         assertEquals("nothing to serve again when nothing is being served", emptyList<String>(), asked.toList())
     }

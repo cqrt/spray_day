@@ -174,6 +174,10 @@ class WebEditorService : Service() {
         // made on the Settings card: null here is that second answer, not a missing value.
         val token = if (settings.webEditorTokenRequired.first()) WebEditorLink.newToken() else null
 
+        // And the same for the phone staying awake: a run is built with the answer it started from, so
+        // the switch on the card is read here, at the start of a run, like the token above.
+        val keepAwake = settings.webEditorKeepAwake.first()
+
         val documents = WebEditorDocuments(
             assets = AssetRepository(database),
             sprays = SprayRepository(database),
@@ -220,7 +224,7 @@ class WebEditorService : Service() {
         server = started
         // The page may be read from a laptop while this phone is in a pocket, so the run holds the
         // phone awake for as long as it is being served - see [EditorAwake].
-        awake.hold()
+        awake.hold(keepTheScreenOn = keepAwake)
         // The fix is read for as long as the editor is on, so the desk's locate button asks the
         // phone rather than the browser - which a browser blocks on an insecure origin anyway.
         positionJob = scope.launch { DevicePosition.updates(scope).collect { position.value = it } }

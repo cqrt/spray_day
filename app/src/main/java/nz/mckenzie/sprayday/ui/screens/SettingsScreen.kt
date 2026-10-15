@@ -87,6 +87,7 @@ fun SettingsScreen(
     val basemap by viewModel.basemap.collectAsStateWithLifecycle()
     val webEditorUrl by viewModel.webEditorUrl.collectAsStateWithLifecycle()
     val webEditorTokenRequired by viewModel.webEditorTokenRequired.collectAsStateWithLifecycle()
+    val webEditorKeepAwake by viewModel.webEditorKeepAwake.collectAsStateWithLifecycle()
     val check by viewModel.check.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val storedTiles by viewModel.storedTiles.collectAsStateWithLifecycle()
@@ -334,6 +335,39 @@ fun SettingsScreen(
                             "Anyone on this Wi-Fi can open the editor, change your tracks and " +
                                 "delete them, without needing the address above. That is fine on " +
                                 "your own home network and not on anyone else's."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    // The phone staying awake. On the card because it costs something the operator
+                    // should be the one to choose: a screen that stays lit all afternoon is a flat
+                    // battery, and most of the work at the desk needs nothing fetched at all.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Keep this phone awake while it is serving",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = webEditorKeepAwake,
+                            onCheckedChange = viewModel::setWebEditorKeepAwake
+                        )
+                    }
+
+                    Text(
+                        text = if (webEditorKeepAwake) {
+                            "The screen stays on, dimmed, until this is turned off. New imagery " +
+                                "keeps arriving while you browse, and the phone is best left on " +
+                                "charge."
+                        } else {
+                            "The phone may sleep, and the aerial imagery has to come from LINZ: " +
+                                "with the phone asleep, ground you have not looked at yet can come " +
+                                "up blank until you wake it. Downloading an area first, under " +
+                                "Offline areas, needs no network at all and no awake phone."
                         },
                         style = MaterialTheme.typography.bodySmall
                     )

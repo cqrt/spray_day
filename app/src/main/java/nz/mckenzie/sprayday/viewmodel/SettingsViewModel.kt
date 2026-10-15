@@ -227,6 +227,31 @@ class SettingsViewModel(
         }
     }
 
+    /**
+     * Whether the phone is kept awake - its screen on, dimmed - while the editor is being served.
+     *
+     * Off when unset, seeded like the switch above so the card shows an untouched install's answer
+     * rather than a switch that sits blank for a frame. Turned on it costs battery, which is why the
+     * card says so; turned on it is also the one thing that answers the desk's imagery going blank a
+     * few minutes after the phone's screen goes off.
+     */
+    val webEditorKeepAwake: StateFlow<Boolean> = settings.webEditorKeepAwake
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
+
+    /**
+     * The awake switch.
+     *
+     * Written, and then the run is served again if one is going - the same two halves as the token
+     * switch, and for the same reason: a run holds the phone awake in the way it was built with, so
+     * the run already going has to be built again for this to mean anything.
+     */
+    fun setWebEditorKeepAwake(keepAwake: Boolean) {
+        viewModelScope.launch {
+            settings.setWebEditorKeepAwake(keepAwake)
+            if (isEditorServing()) webEditor?.restart()
+        }
+    }
+
     private val _check = MutableStateFlow<KeyCheckState>(KeyCheckState.Idle)
     val check: StateFlow<KeyCheckState> = _check
 

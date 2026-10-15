@@ -53,6 +53,7 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
      * that is not a thing a default may do.
      */
     private val webEditorEnabledPref = booleanPreferencesKey("web_editor_enabled")
+    private val webEditorKeepAwakePref = booleanPreferencesKey("web_editor_keep_awake")
     private val remindersPref = booleanPreferencesKey("reminders_enabled")
     private val updateChecksPref = booleanPreferencesKey("update_checks_enabled")
     private val lastNotifiedUpdatePref = stringPreferencesKey("last_notified_update")
@@ -173,6 +174,33 @@ class SettingsRepository(private val context: Context) : BackupSwitches {
 
     suspend fun setWebEditorEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { prefs -> prefs[webEditorEnabledPref] = enabled }
+    }
+
+    /**
+     * Whether the phone's screen is kept on - so the phone itself is kept awake - while the editor is
+     * being served. The card's third switch.
+     *
+     * **Off when unset**, and the reason is the battery: a phone held awake with its screen on costs
+     * a lot more than one that is allowed to sleep, and most of the work at the desk fetches nothing -
+     * it is read, drawn, and saved from what the phone already holds.
+     *
+     * On is for the case the operator hits when the computer browses onto ground the phone has never
+     * downloaded. That is the one thing the desk cannot answer out of the phone's own store: the phone
+     * has to go to LINZ for it, and a phone whose screen has gone off is a phone whose radio is going
+     * to sleep - and no lock the app may hold reliably stops that. Half an hour still and unplugged it
+     * is Doze, where the app's network is suspended whatever it holds; a few minutes in, on many
+     * phones, it is the phone's own idea of sleep. Keeping the screen on is the one lever that answers
+     * both, because a phone whose screen is on never enters either.
+     *
+     * What answers it without the battery cost is downloading the ground first, on the **Offline
+     * areas** screen - which is what the card says where this switch is.
+     */
+    val webEditorKeepAwake: Flow<Boolean> = context.settingsDataStore.data.map { prefs ->
+        prefs[webEditorKeepAwakePref] ?: false
+    }
+
+    suspend fun setWebEditorKeepAwake(keepAwake: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[webEditorKeepAwakePref] = keepAwake }
     }
 
     /**

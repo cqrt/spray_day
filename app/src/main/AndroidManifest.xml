@@ -13,6 +13,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+        Serving the editor with the phone asleep: the page is read from a laptop while the phone is
+        in a pocket, and a suspended CPU cannot finish a tile the phone has to go and fetch. Held
+        only for the life of the run. A Wi-Fi lock needs this permission too.
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
         Installing a downloaded update over this copy of the app. This only lets the
         request be made: Android still asks the operator to confirm every time, and an APK
         signed with a different key is refused by the installer whatever this says.

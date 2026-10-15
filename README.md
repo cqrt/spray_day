@@ -92,7 +92,11 @@ them is worked out the one way, on the phone.
   the middle of, and the keys — is a small box in the map's own corner rather than a bar over the work,
   in the phone's own words where the phone has them. Where you were looking is remembered on the
   computer itself, so a refresh, or a switch of basemap on the phone, comes back to the same corner at
-  the same zoom rather than to the whole area again. A carpark reads there as it does on the phone:
+  the same zoom rather than to the whole area again. The map draws the **phone's own imagery**: the
+  tiles already downloaded for the tractor, and anything else the phone goes and fetches from LINZ as
+  you browse. The phone is therefore held awake while it is serving, so a session at the computer is
+  not lost as soon as the phone's screen goes off — and the sure answer for ground with no reception at
+  all is to download that area to the phone first. A carpark reads there as it does on the phone:
   the same ground drawn in the same colour, *Round it* and its metres on the card, and **Carpark** in
   the Type list. From v0.6.54 it can be **drawn there too**: *What it is* is asked while a new asset is
   drawn, so picking Carpark turns the job into *Draw the boundary* — the box counts its corners, its

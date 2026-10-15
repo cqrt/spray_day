@@ -210,6 +210,39 @@ function showNotice(text) {
   notice.hidden = false;
 }
 
+/**
+ * What the page says when the imagery stops loading: the one thing about it an operator can act on.
+ *
+ * The desk has no imagery of its own. Every tile it draws is the phone's - `GET /tiles/...` on the
+ * phone's own server - and a tile the phone does not already hold is fetched from LINZ while that
+ * request is being answered. So a tile that will not load is nearly always the phone asleep or off
+ * the network rather than anything wrong with the map, and the ground already looked at still draws
+ * because it is on disk. Without this the operator gets MapLibre's own line, once per failing tile,
+ * about one arbitrary URL: "AJAXError: Bad Gateway (502): .../14/16109/10269.webp" - true, useless,
+ * and 30 of them.
+ */
+const IMAGERY_WORDS = 'The imagery is not loading. The phone fetches it, so the phone may be asleep or ' +
+  'off the network - wake the phone and try again. Everything you have already looked at still draws.';
+
+/** Whether the page is already saying the imagery is down, so it says it once. */
+let imageryFailing = false;
+
+/** A tile that would not load. Told by `map.on('error')`, which fires once per tile. */
+function imageryFailed() {
+  imageryFailing = true;
+  // Never over the top of something the operator asked for: a refusal of their own is worth more than
+  // this, and a notice free again in a moment is soon enough to say it.
+  if (notice.hidden || notice.textContent === IMAGERY_WORDS) showNotice(IMAGERY_WORDS);
+}
+
+/** A tile that arrived. The phone is answering again, so the page stops saying it is not. */
+function imageryLoaded() {
+  if (!imageryFailing) return;
+  imageryFailing = false;
+  // Only its own line is taken down: anything else on the notice is not this page's to clear.
+  if (notice.textContent === IMAGERY_WORDS) notice.hidden = true;
+}
+
 /** The one thing worth saying when the phone says no: the token, and how to get a fresh address. */
 function tokenRefused() {
   return new Error('The phone refused that address. Turn the switch off and on again in Settings, ' +
@@ -431,10 +464,21 @@ async function boot() {
     });
 
     // A map that fails quietly is a blank rectangle, and a phone with no imagery yet and a style the
-    // browser refuses both look like that. So anything MapLibre refuses says so, in words.
+    // browser refuses both look like that. So anything MapLibre refuses says so, in words - but a
+    // tile that will not load is the imagery, and that says its own thing: see `imageryFailed`.
     map.on('error', (event) => {
+      if (event && event.tile) {
+        imageryFailed();
+        return;
+      }
       const reason = event && event.error ? (event.error.message || event.error) : 'no reason given';
       showNotice(`The map could not be drawn: ${reason}`);
+    });
+
+    // And the other half of the same sentence: a tile that did arrive means the phone is answering
+    // again, so whatever was said about the imagery is taken down.
+    map.on('data', (event) => {
+      if (event && event.tile) imageryLoaded();
     });
 
     // A place is drawn in whatever colour the phone gave it, and the style names the picture after

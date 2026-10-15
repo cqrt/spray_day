@@ -68,6 +68,12 @@ class WebEditorService : Service() {
     private var positionJob: Job? = null
 
     /**
+     * What keeps the phone awake while this run is being served, so a tile it does not already hold
+     * can be fetched. See [EditorAwake] for why that is needed and what it does not cover.
+     */
+    private val awake by lazy { EditorAwake(this) }
+
+    /**
      * True from the moment a run is asked for until it is built, which is the window where
      * [server] is still null.
      *
@@ -127,6 +133,7 @@ class WebEditorService : Service() {
         server = null
         positionJob?.cancel()
         positionJob = null
+        awake.letSleep()
     }
 
     /**
@@ -211,6 +218,9 @@ class WebEditorService : Service() {
         }
 
         server = started
+        // The page may be read from a laptop while this phone is in a pocket, so the run holds the
+        // phone awake for as long as it is being served - see [EditorAwake].
+        awake.hold()
         // The fix is read for as long as the editor is on, so the desk's locate button asks the
         // phone rather than the browser - which a browser blocks on an insecure origin anyway.
         positionJob = scope.launch { DevicePosition.updates(scope).collect { position.value = it } }

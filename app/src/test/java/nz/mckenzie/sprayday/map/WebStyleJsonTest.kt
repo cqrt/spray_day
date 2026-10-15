@@ -241,12 +241,19 @@ class WebStyleJsonTest {
             listOf(GlyphFonts.STACK),
             layout["text-font"]!!.jsonArray.map { it.jsonPrimitive.content }
         )
+        val filter = layer["filter"]!!.jsonArray
+        assertEquals("in", filter[0].jsonPrimitive.content)
         assertEquals(
-            "and the kinds the band is for, as a set rather than three equality tests",
-            """["in",["get","${PlaceLabels.KIND_PROPERTY}"],["literal",${
-                PlaceLabels.TOWNS.kinds.joinToString(",") { "\"$it\"" }
-            }]]""",
-            layer["filter"].toString()
+            "the property a place's kind is in",
+            """["get","${PlaceLabels.KIND_PROPERTY}"]""",
+            filter[1].toString()
+        )
+        assertEquals("literal", filter[2].jsonArray[0].jsonPrimitive.content)
+        assertEquals(
+            "the kinds are one argument - the array - rather than one argument each, which is the " +
+                "shape v0.6.97 shipped and MapLibre refused outright",
+            PlaceLabels.TOWNS.kinds,
+            filter[2].jsonArray[1].jsonArray.map { it.jsonPrimitive.content }
         )
         assertEquals(
             "a name that will not fit is dropped rather than drawn over: place names are furniture",
@@ -423,6 +430,33 @@ class WebStyleJsonTest {
         assertEquals(
             listOf("background", Basemap.OPENSTREETMAP.id) + AssetLayerIds.ALL,
             osm["layers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+        )
+    }
+
+    /**
+     * The whole document, against the rules MapLibre judges an expression by.
+     *
+     * **This is the test v0.6.97 needed and did not have.** The builder wrote
+     * `["literal", "city", "town"]`, and a `literal` takes one argument - the array - so MapLibre
+     * refused the style outright: the desk drew a blank rectangle where the farm should be, and said
+     * so in words the operator could do nothing with ("'literal' expression requires exactly one
+     * argument, but found 3 instead"). Every test in this file passed, because they checked the
+     * values inside the expressions and the values were right.
+     *
+     * Both styles are checked, names on and names off: the expressions only appear when the operator
+     * has asked for them, which is exactly when they are not being looked at in a test run.
+     */
+    @Test
+    fun `the desk's style is built from expressions MapLibre will accept`() {
+        assertEquals(
+            "the style with the work on it",
+            emptyList<String>(),
+            StyleExpressions.problems(style.toString())
+        )
+        assertEquals(
+            "and the style with the place names on it",
+            emptyList<String>(),
+            StyleExpressions.problems(styleWithNames.toString())
         )
     }
 }

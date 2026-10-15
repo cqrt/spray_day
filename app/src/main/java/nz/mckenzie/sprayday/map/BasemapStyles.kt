@@ -120,9 +120,9 @@ object BasemapStyles {
           "source": "${PlaceLabels.ID}",
           "source-layer": "${PlaceLabels.SOURCE_LAYER}",
           "minzoom": ${band.minZoom},
-          "filter": ["in", ["get", "${PlaceLabels.KIND_PROPERTY}"], ["literal", ${
+          "filter": ["in", ["get", "${PlaceLabels.KIND_PROPERTY}"], ["literal", [${
         band.kinds.joinToString(", ") { "\"$it\"" }
-    }]],
+    }]]],
           "layout": {
             "text-field": ["get", "${PlaceLabels.NAME_PROPERTY}"],
             "text-font": ["${GlyphFonts.STACK}"],

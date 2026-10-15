@@ -213,10 +213,15 @@ object WebStyleJson {
             buildJsonArray {
                 add("in")
                 add(dataProperty(PlaceLabels.KIND_PROPERTY))
+                // `["literal", [ ... ]]`: a `literal` takes **one** argument, which here is the
+                // array of kinds. Written as `["literal", "city", "town"]` it is refused outright
+                // by both renderers, and a style refused is a desk with a blank rectangle where the
+                // farm should be - see `WebStyleJsonTest`, which now checks the expression shapes
+                // rather than a string that was written by hand from the builder.
                 add(
                     buildJsonArray {
                         add("literal")
-                        band.kinds.forEach { add(it) }
+                        add(buildJsonArray { band.kinds.forEach { add(it) } })
                     }
                 )
             }

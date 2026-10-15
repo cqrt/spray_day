@@ -147,4 +147,36 @@ class BasemapStylesTest {
             assertTrue(json.contains("\"source\": \"${basemap.id}\""))
         }
     }
+
+    /**
+     * The phone's own style document, against the rules MapLibre judges an expression by.
+     *
+     * The other half of the test the desk's style has, and the one that matters most here: this
+     * document is the app's map, and a style the renderer refuses is a blank rectangle where the farm
+     * should be - on the phone, with no console open to say why. v0.6.97 shipped a filter shaped
+     * `["literal", "city", "town"]`, which a `literal` may not be, and this is what catches that.
+     */
+    @Test
+    fun `the phone's own style is built from expressions MapLibre will accept`() {
+        val tiles = "http://127.0.0.1:41234/tiles/linz-aerial/{z}/{x}/{y}.webp"
+        val letters = GlyphFonts.urlTemplateFrom(tiles)
+
+        assertEquals(
+            "the style with the work on it",
+            emptyList<String>(),
+            StyleExpressions.problems(BasemapStyles.rasterStyleJson(Basemap.LINZ_AERIAL, tiles, letters))
+        )
+        assertEquals(
+            "and the style with the place names on it",
+            emptyList<String>(),
+            StyleExpressions.problems(
+                BasemapStyles.rasterStyleJson(
+                    Basemap.LINZ_AERIAL,
+                    tiles,
+                    letters,
+                    PlaceLabels.urlTemplateFrom(tiles)
+                )
+            )
+        )
+    }
 }

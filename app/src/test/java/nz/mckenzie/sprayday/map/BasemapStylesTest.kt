@@ -160,6 +160,12 @@ class BasemapStylesTest {
     fun `the phone's own style is built from expressions MapLibre will accept`() {
         val tiles = "http://127.0.0.1:41234/tiles/linz-aerial/{z}/{x}/{y}.webp"
         val letters = GlyphFonts.urlTemplateFrom(tiles)
+        val withNames = BasemapStyles.rasterStyleJson(
+            Basemap.LINZ_AERIAL,
+            tiles,
+            letters,
+            PlaceLabels.urlTemplateFrom(tiles)
+        )
 
         assertEquals(
             "the style with the work on it",
@@ -169,14 +175,19 @@ class BasemapStylesTest {
         assertEquals(
             "and the style with the place names on it",
             emptyList<String>(),
-            StyleExpressions.problems(
-                BasemapStyles.rasterStyleJson(
-                    Basemap.LINZ_AERIAL,
-                    tiles,
-                    letters,
-                    PlaceLabels.urlTemplateFrom(tiles)
-                )
-            )
+            StyleExpressions.problems(withNames)
         )
+        // The one band drawn along a line: a river's name runs with the river, and the letters may
+        // bend with it. Both renderers need saying, and every other band is at a point.
+        assertTrue(
+            "the river layer is placed along the line: $withNames",
+            withNames.contains("\"symbol-placement\": \"line\"")
+        )
+        assertTrue(withNames.contains("\"source-layer\": \"${PlaceLabels.WATER_LINES_LAYER}\""))
+        assertTrue(
+            "and it is the only one: $withNames",
+            Regex("\"symbol-placement\"").findAll(withNames).count() == 1
+        )
+        assertTrue(withNames.contains("\"text-max-angle\": ${PlaceLabels.LINE_MAX_ANGLE}"))
     }
 }

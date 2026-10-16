@@ -270,6 +270,59 @@ class WebStyleJsonTest {
     }
 
     @Test
+    fun `a river's name runs along the river, and every other name sits at its point`() {
+        val river = styleWithNames["layers"]!!.jsonArray
+            .map { it.jsonObject }
+            .first { it["id"]!!.jsonPrimitive.content == PlaceLabels.RIVERS.id }
+        val layout = river["layout"]!!.jsonObject
+
+        assertEquals(
+            "a river is a line in LINZ's tiles, not a point",
+            PlaceLabels.WATER_LINES_LAYER,
+            river["source-layer"]!!.jsonPrimitive.content
+        )
+        assertEquals("line", layout["symbol-placement"]!!.jsonPrimitive.content)
+        assertEquals(
+            "and the letters may bend with it, or a river with a bend loses its name",
+            PlaceLabels.LINE_MAX_ANGLE,
+            layout["text-max-angle"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals(
+            "from zoom twelve: the densest band of the lot",
+            PlaceLabels.RIVERS.minZoom,
+            river["minzoom"]!!.jsonPrimitive.content.toFloat(),
+            1e-6f
+        )
+        assertEquals(
+            "everything that flows is filed as a river",
+            """["in",["get","kind"],["literal",["river"]]]""",
+            river["filter"].toString()
+        )
+        assertEquals(
+            "and a river's name is in `name`, not in the place labels' `label` - asking for the " +
+                "wrong one draws nothing and says nothing",
+            """["get","${PlaceLabels.WATER_LINES_NAME_PROPERTY}"]""",
+            layout["text-field"].toString()
+        )
+        assertEquals(
+            "while every other band's name is where the place labels keep theirs",
+            """["get","${PlaceLabels.NAME_PROPERTY}"]""",
+            styleWithNames["layers"]!!.jsonArray
+                .map { it.jsonObject }
+                .first { it["id"]!!.jsonPrimitive.content == PlaceLabels.BAYS.id }["layout"]!!
+                .jsonObject["text-field"].toString()
+        )
+
+        // And nothing else is drawn along a line: a name that ran along a town would be a mistake.
+        styleWithNames["layers"]!!.jsonArray.map { it.jsonObject }.forEach { layer ->
+            val id = layer["id"]!!.jsonPrimitive.content
+            if (!id.startsWith("linz-place") || id == PlaceLabels.RIVERS.id) return@forEach
+            assertNull("$id must be placed at its point", layer["layout"]!!.jsonObject["symbol-placement"])
+        }
+    }
+
+    @Test
     fun `a name waits for a close view, and the line it belongs to does not`() {
         // What the zoom floor is for: a name read on a wide view is a muddle, a track seen on a wide view
         // is a track. A floor on the lines as well would hide the work itself from the operator until they

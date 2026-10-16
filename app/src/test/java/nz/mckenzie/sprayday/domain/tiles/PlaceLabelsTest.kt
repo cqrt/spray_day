@@ -75,38 +75,82 @@ class PlaceLabelsTest {
             bands.all { it.sizeAtMaxZoom >= it.sizeAtMinZoom }
         )
 
-        // What LINZ publishes, per property - read out of real tiles rather than off the schema page,
-        // see build/verify/place-name-kinds.txt. LINZ files landscape under `natural` and the places a
-        // person lives in or near under `place`, so a band asks one of the two for values it has.
+        // What LINZ publishes, per layer and property - read out of real tiles rather than off the
+        // schema page, see build/verify/place-name-kinds.txt and build/verify/southland-data.txt.
+        // LINZ files landscape under `natural` and the places a person lives in or near under `place`,
+        // what a place is on or in under `water`, and everything that flows under `kind` on the
+        // water lines - so a band asks one of those for values that layer really has.
         val published = mapOf(
-            PlaceLabels.KIND_PROPERTY to
-                setOf("city", "town", "village", "locality", "suburb", "lake", "island", "archipelago"),
-            PlaceLabels.NATURAL_PROPERTY to setOf("peak", "bay", "cape", "peninsula")
+            PlaceLabels.SOURCE_LAYER to mapOf(
+                PlaceLabels.KIND_PROPERTY to
+                    setOf("city", "town", "village", "locality", "suburb", "lake", "island", "archipelago"),
+                PlaceLabels.NATURAL_PROPERTY to setOf("peak", "bay", "cape", "peninsula"),
+                PlaceLabels.WATER_PROPERTY to setOf("bay", "lagoon", "sea", "seachannel")
+            ),
+            PlaceLabels.WATER_LINES_LAYER to mapOf("kind" to setOf("river"))
         )
         bands.forEach { band ->
-            val allowed = published[band.property]
+            val properties = published[band.sourceLayer]
             assertTrue(
-                "a band filters on one of the two properties LINZ uses, and ${band.id} does not",
+                "${band.id} comes from a layer this app knows the names in: ${band.sourceLayer}",
+                properties != null
+            )
+            val allowed = properties!![band.property]
+            assertTrue(
+                "${band.id} filters on a property that layer has: ${band.property}",
                 allowed != null
             )
             assertTrue(
-                "${band.id} asks for kinds LINZ publishes: ${band.kinds}",
+                "${band.id} asks for kinds LINZ publishes there: ${band.kinds}",
                 band.kinds.all { it in allowed!! }
             )
         }
 
-        val asked = bands.flatMap { band -> band.kinds.map { "${band.property}=$it" } }
+        val asked = bands.flatMap { band ->
+            band.kinds.map { "${band.sourceLayer}.${band.property}=$it" }
+        }
         assertEquals("and none of them twice", asked.size, asked.toSet().size)
 
         assertTrue("towns and cities are drawn from a wide view", "town" in PlaceLabels.TOWNS.kinds)
         assertTrue("lakes come almost as early", PlaceLabels.LAKES.minZoom < PlaceLabels.LOCALITIES.minZoom)
+        assertTrue("bays with them", PlaceLabels.BAYS.minZoom == PlaceLabels.LAKES.minZoom)
         assertTrue("localities wait for a close view", PlaceLabels.LOCALITIES.minZoom > PlaceLabels.TOWNS.minZoom)
         assertTrue(
-            "and peaks wait for the closest view of the four",
-            bands.all { it.minZoom <= PlaceLabels.PEAKS.minZoom }
+            "peaks wait for a closer view than the water does",
+            PlaceLabels.PEAKS.minZoom > PlaceLabels.LAKES.minZoom
+        )
+        assertTrue(
+            "and rivers are the last of the lot, because they are the densest",
+            bands.all { it.minZoom <= PlaceLabels.RIVERS.minZoom }
         )
         assertTrue("peaks are the quietest of them", PlaceLabels.PEAKS.sizeAtMaxZoom < PlaceLabels.TOWNS.sizeAtMaxZoom)
+
         assertEquals("a peak is landscape rather than somewhere anyone lives", PlaceLabels.NATURAL_PROPERTY, PlaceLabels.PEAKS.property)
         assertEquals("and a lake is somewhere", PlaceLabels.KIND_PROPERTY, PlaceLabels.LAKES.property)
+        assertEquals("a bay is what a place is on", PlaceLabels.WATER_PROPERTY, PlaceLabels.BAYS.property)
+
+        // The one band that is not a label on a point: a river is a line, and its name runs along it.
+        assertEquals(
+            "rivers come from the water lines rather than the place labels",
+            PlaceLabels.WATER_LINES_LAYER,
+            PlaceLabels.RIVERS.sourceLayer
+        )
+        assertEquals("and their name is placed along the line", PlaceLabels.Placement.LINE, PlaceLabels.RIVERS.placement)
+        assertEquals(
+            "and it is in `name`, which is not the property the place labels use - the mistake that " +
+                "drew no rivers at all, see build/verify/places/probe-name-property.mjs",
+            PlaceLabels.WATER_LINES_NAME_PROPERTY,
+            PlaceLabels.RIVERS.nameProperty
+        )
+        assertTrue(
+            "every other band takes its name from the place labels' own property",
+            bands.filter { it.id != PlaceLabels.RIVERS.id }
+                .all { it.nameProperty == PlaceLabels.NAME_PROPERTY }
+        )
+        assertEquals(
+            "every other band is a name at a point",
+            listOf(PlaceLabels.RIVERS.id),
+            bands.filter { it.placement == PlaceLabels.Placement.LINE }.map { it.id }
+        )
     }
 }

@@ -206,7 +206,7 @@ object WebStyleJson {
         put("id", band.id)
         put("type", "symbol")
         put("source", PlaceLabels.ID)
-        put("source-layer", PlaceLabels.SOURCE_LAYER)
+        put("source-layer", band.sourceLayer)
         put("minzoom", band.minZoom)
         put(
             "filter",
@@ -229,7 +229,7 @@ object WebStyleJson {
         put(
             "layout",
             buildJsonObject {
-                put("text-field", dataProperty(PlaceLabels.NAME_PROPERTY))
+                put("text-field", dataProperty(band.nameProperty))
                 put("text-font", buildJsonArray { add(GlyphFonts.STACK) })
                 put(
                     "text-size",
@@ -245,6 +245,13 @@ object WebStyleJson {
                 )
                 put("text-allow-overlap", false)
                 put("text-padding", PLACE_NAME_PADDING)
+                // A name that runs along the thing it names - a river - rather than sitting on a point.
+                // See PlaceLabels.Band.placement: a river is long and thin, and one point on it says
+                // neither which way it goes nor how far.
+                if (band.placement == PlaceLabels.Placement.LINE) {
+                    put("symbol-placement", "line")
+                    put("text-max-angle", PlaceLabels.LINE_MAX_ANGLE)
+                }
             }
         )
         put(

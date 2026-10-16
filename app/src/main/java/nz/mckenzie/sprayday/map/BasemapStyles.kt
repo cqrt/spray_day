@@ -118,17 +118,22 @@ object BasemapStyles {
           "id": "${band.id}",
           "type": "symbol",
           "source": "${PlaceLabels.ID}",
-          "source-layer": "${PlaceLabels.SOURCE_LAYER}",
+          "source-layer": "${band.sourceLayer}",
           "minzoom": ${band.minZoom},
           "filter": ["in", ["get", "${band.property}"], ["literal", [${
         band.kinds.joinToString(", ") { "\"$it\"" }
     }]]],
           "layout": {
-            "text-field": ["get", "${PlaceLabels.NAME_PROPERTY}"],
+            "text-field": ["get", "${band.nameProperty}"],
             "text-font": ["${GlyphFonts.STACK}"],
             "text-size": ["interpolate", ["linear"], ["zoom"], ${band.minZoom}, ${
         band.sizeAtMinZoom
-    }, ${PlaceLabels.MAX_ZOOM}, ${band.sizeAtMaxZoom}],
+    }, ${PlaceLabels.MAX_ZOOM}, ${band.sizeAtMaxZoom}],${
+        if (band.placement != PlaceLabels.Placement.LINE) "" else """
+
+            "symbol-placement": "line",
+            "text-max-angle": ${PlaceLabels.LINE_MAX_ANGLE},"""
+    }
             "text-allow-overlap": false,
             "text-padding": 4
           },

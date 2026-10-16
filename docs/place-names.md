@@ -29,32 +29,47 @@ and only its lettering grows.
 
 ## The bands
 
-Names are drawn in four bands, because what changes between a wide view and a close one is *when* a
+Names are drawn in six bands, because what changes between a wide view and a close one is *when* a
 name should appear at all, and a MapLibre layer's zoom range is a layer property rather than a filter's:
 
-| Band | What it draws | Files it under | Appears | Size |
+| Band | What it draws | Filed under | Appears | Size |
 | --- | --- | --- | --- | --- |
 | `linz-place-towns` | `city`, `town` | `place` | zoom 6 | 11 → 14 |
 | `linz-place-lakes` | `lake` | `place` | zoom 7 | 11 → 14 |
+| `linz-place-bays` | `bay` | `water` | zoom 7 | 11 → 13 |
 | `linz-place-localities` | `village`, `locality`, `suburb` | `place` | zoom 10 | 10 → 13 |
 | `linz-place-peaks` | `peak` | `natural` | zoom 11 | 10 → 12 |
+| `linz-place-rivers` | `river`, from `water_lines`, **along the line** | `kind` | zoom 12 | 10 → 12 |
 
 A wide view with every locality on it is a muddle; a town name is what the operator zoomed out to
 find. The same argument the app's own track names are held back with, and the same shape LINZ's own
 topographic style uses.
 
-**Peaks wait longest of the four**, further than a named summit might seem to deserve: LINZ publishes
-them from low zooms, a range has dozens, and a wide view with every summit named is a screen of names
-with the ground lost underneath. They are also the band no spray decision is made from - they are for
-reading the country rather than the paddock.
+**The bays carry the sounds.** Milford Sound, Doubtful Sound and Dusky Sound are all `water=bay` in
+this data, so a band called "bays" is the one that labels a fiord - which, in Southland, is most of
+what a coastline has to say.
 
-LINZ files these under two properties, and a band says which it means: everything a person lives in or
-near is `place` (city, town, village, locality, suburb, **lake**, island, archipelago) and the
-landscape is `natural` (peak, bay, cape, peninsula, and the water kinds below).
+**Peaks wait** further than a named summit might seem to deserve: LINZ publishes them from low zooms, a
+range has dozens, and a wide view with every summit named is a screen of names with the ground lost
+underneath. They are also the band no spray decision is made from.
 
-**Not drawn**, though they are there in the same layer: bays, capes, peninsulas, lagoons, the open sea,
-islands and archipelagoes. Each is a band away, and each is more clutter over a paddock; see
-`build/verify/place-name-kinds.txt` for what else the tiles carry.
+**Rivers are the exception in this file**: the only band that comes from another layer
+(`water_lines`) and the only one whose name is placed **along** the thing rather than at a point. A
+river is long and thin - a name at one point on it would say neither which way it goes nor how far -
+so the text runs with the river and may bend with it. They are also the densest band by a distance: a
+Fiordland tile at zoom 11 has over a hundred named streams in it, which is why they wait for zoom 12
+and why the map drops a river's name that will not fit without touching another.
+
+LINZ files these under three properties, and a band says which it means: everything a person lives in
+or near is `place` (city, town, village, locality, suburb, **lake**, island, archipelago), the
+landscape is `natural` (peak, bay, cape, peninsula), and what a place is on or in is `water` (bay,
+lagoon, sea, seachannel). The rivers are the fourth: in `water_lines`, where everything that flows -
+burns and creeks included - is filed as `kind=river`.
+
+**Not drawn**, though they are there in the same layer: capes, peninsulas, lagoons, seachannels, the
+open sea, islands and archipelagoes. Each is a band away, and each is more clutter over a paddock; see
+`build/verify/place-name-kinds.txt` and `build/verify/southland-data.txt` for what else the tiles
+carry.
 
 ## How they are drawn
 
@@ -78,9 +93,9 @@ written one size on the phone and another on the desk is the drift the file exis
 ## The switch
 
 The switch is **off by default**, and it lives in the map's own **"What the map draws"** sheet - the
-layers button on the map - where its row reads *"Towns, lakes and peaks from LINZ, written over the
-imagery."* It is there because that is where this app puts every question about what is on the map, and
-because the question "why is that town name there" is asked while looking at the map.
+layers button on the map - where its row reads *"Towns, lakes, peaks, bays and rivers from LINZ, drawn
+over the imagery."* It is there because that is where this app puts every question about what is on the
+map, and because the question "why is that town name there" is asked while looking at the map.
 
 It is the one switch in that sheet that starts *off* (everything else there is the work, which is why
 the app was opened) and the one that fetches something new. Turned on, `place_names` is written to

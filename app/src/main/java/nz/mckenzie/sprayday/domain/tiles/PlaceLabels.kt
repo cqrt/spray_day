@@ -33,13 +33,25 @@ object PlaceLabels {
     const val SOURCE_LAYER = "place_labels"
 
     /**
-     * The property the name itself is in.
+     * The property the name itself is in, in `place_labels`.
      *
      * `label` rather than the `name` a vanilla Shortbread tile would carry: LINZ's own schema for this
      * layer lists `label`, and it was read out of a real tile rather than assumed - the reading is in
-     * `build/verify/place-names.txt`.
+     * `build/verify/place-names.txt`. **The water lines are the other way round** - their names are in
+     * `name`, which is not a guess either - which is why a band says which property its names are in
+     * rather than this file assuming one: see [Band.nameProperty] and [WATER_LINES_NAME_PROPERTY].
      */
     const val NAME_PROPERTY = "label"
+
+    /**
+     * The property a name is in, in `water_lines` - which is **not** the one above.
+     *
+     * Found the hard way: the rivers band was written asking for `label`, drew nothing at all, and said
+     * nothing about why - a missing property is a name the map simply does not have. Read out of real
+     * tiles afterwards (`build/verify/places/probe-name-property.mjs`), which is where both of these
+     * should have been read from in the first place.
+     */
+    const val WATER_LINES_NAME_PROPERTY = "name"
 
     /** The property that says what kind of place a point is: a city, a town, a locality, a peak, a lake. */
     const val KIND_PROPERTY = "place"
@@ -48,10 +60,19 @@ object PlaceLabels {
      * The second property that says what kind of thing a point is.
      *
      * LINZ files landscape under `natural` and settlements under `place`, so a band says which of the
-     * two it filters on - see [Band.property]. Peaks and bays are `natural`; everything with a name a
-     * person lives in or near is `place`.
+     * two it filters on - see [Band.property]. Peaks are `natural`; everything with a name a person
+     * lives in or near is `place`.
      */
     const val NATURAL_PROPERTY = "natural"
+
+    /**
+     * The third: what a place is on or in - a bay, a lagoon, a sea, a channel.
+     *
+     * The bays are worth knowing about in this app rather than filed away as trivia: **the sounds of
+     * Fiordland are `water=bay`**, so Milford, Doubtful and Dusky all arrive with the bays rather than
+     * anywhere else. Read out of real tiles - see `build/verify/southland-data.txt`.
+     */
+    const val WATER_PROPERTY = "water"
 
     /** How one of these tiles is named on disk and in a URL, and what the server answers with. */
     const val TILE_SUFFIX = ".pbf"
@@ -81,9 +102,19 @@ object PlaceLabels {
     const val SHORT_ATTRIBUTION = "\u00a9 Topographic data"
 
     /**
-     * The place kinds drawn as one band of names: what they are, when they appear, how big they are.
+     * How sharply a letter may turn, for the one band whose name is drawn along a line.
      *
-     * Two bands rather than one layer with a filter, because the thing that changes between them is
+     * The engine's own default is forty-five degrees, which loses the name of a river with an ordinary
+     * bend in it. The app's own track names allow as much as the engine does for the same reason - a
+     * name bent a little reads better than a name that is not there - and a river bends more than a
+     * track does.
+     */
+    const val LINE_MAX_ANGLE = 180f
+
+    /**
+     * The place kinds drawn as one layer of names: what they are, when they appear, how big they are.
+     *
+     * One layer per band rather than one with a filter, because the thing that changes between them is
      * *when* they are drawn - a country view with every locality on it is a muddle - and a MapLibre
      * layer's zoom range is a layer property rather than a filter's. One layer per band is also how
      * the app draws its own places, and how LINZ's own style draws these.
@@ -93,8 +124,9 @@ object PlaceLabels {
         val id: String,
         /**
          * The property this band's kinds live in: `place` for the places a person lives in or near,
-         * `natural` for the landscape - see [KIND_PROPERTY] and [NATURAL_PROPERTY]. LINZ files them
-         * under two names rather than one, so a band has to say which it means.
+         * `natural` for the landscape, `water` for what a place is on or in - see [KIND_PROPERTY],
+         * [NATURAL_PROPERTY] and [WATER_PROPERTY]. LINZ files them under separate names rather than
+         * one, so a band has to say which it means.
          */
         val property: String,
         /** The values of [property] this band draws. */
@@ -103,8 +135,43 @@ object PlaceLabels {
         val minZoom: Float,
         /** The letter size at [minZoom], and at the deepest zoom the tiles go to, in style pixels. */
         val sizeAtMinZoom: Float,
-        val sizeAtMaxZoom: Float
+        val sizeAtMaxZoom: Float,
+        /**
+         * Which layer of LINZ's vector tiles the features come from.
+         *
+         * [SOURCE_LAYER] - the place labels - for everything that is a named **point**. Rivers are the
+         * exception in this app: LINZ carries them in [WATER_LINES_LAYER] as lines, and a line is what
+         * a river's name wants to be drawn along.
+         */
+        val sourceLayer: String = SOURCE_LAYER,
+        /**
+         * How the name is placed: [Placement.POINT] at the feature, [Placement.LINE] along it.
+         *
+         * A point's name sits where the place is named. A **line**'s name runs along the line, which
+         * for a river is the only reading that says anything: a river is long and thin, and a name at
+         * one point on it would not say which way it goes or how far.
+         */
+        val placement: Placement = Placement.POINT,
+        /**
+         * Which property of the feature the name is in.
+         *
+         * [NAME_PROPERTY] for everything in `place_labels`, and [WATER_LINES_NAME_PROPERTY] for the
+         * water lines, because LINZ does not use one word for this either. A band that asks for a
+         * property its layer does not have draws nothing and says nothing - which is a silence worth
+         * remembering: see [WATER_LINES_NAME_PROPERTY].
+         */
+        val nameProperty: String = NAME_PROPERTY
     )
+
+    /** Where a band's name is written: at the thing, or along it. See [Band.placement]. */
+    enum class Placement { POINT, LINE }
+
+    /**
+     * The one kind of thing this app draws that LINZ names on a line rather than at a point.
+     *
+     * See [RIVERS], and [Band.placement] for why.
+     */
+    const val WATER_LINES_LAYER = "water_lines"
 
     /**
      * Towns and cities: the answer to "which town is this near", which is the whole question.
@@ -155,6 +222,47 @@ object PlaceLabels {
     )
 
     /**
+     * Bays - and, in this country, the sounds: Milford, Doubtful and Dusky are all `water=bay`.
+     *
+     * Drawn from the same wide view the lakes are, and for the same reason: a bay or a sound is a big
+     * thing that reads at the scale of a district, and one of the few names worth having when the
+     * operator is looking at a coastline rather than at ground.
+     */
+    val BAYS = Band(
+        id = "linz-place-bays",
+        property = WATER_PROPERTY,
+        kinds = listOf("bay"),
+        minZoom = 7f,
+        sizeAtMinZoom = 11f,
+        sizeAtMaxZoom = 13f
+    )
+
+    /**
+     * Rivers and streams: the one band whose name runs **along** the thing rather than sitting on it.
+     *
+     * LINZ carries these in `water_lines` as lines, and a line is what a river's name wants: a river is
+     * long and thin, and a name at one point on it would say neither which way it goes nor how far. So
+     * this band is the app's one [Placement.LINE], and its "kinds" are the values of the `kind`
+     * property in that layer - which is `river` for everything that flows, burns and creeks included.
+     *
+     * **Held back to zoom 12**, and this is the densest band of the lot: a Fiordland tile at z11 has
+     * over a hundred named streams in it, and at z12 the operator is looking at a few square kilometres
+     * of it. The map drops a name that will not fit without touching another, which is what keeps a
+     * catchment from becoming a screen of text.
+     */
+    val RIVERS = Band(
+        id = "linz-place-rivers",
+        property = "kind",
+        kinds = listOf("river"),
+        minZoom = 12f,
+        sizeAtMinZoom = 10f,
+        sizeAtMaxZoom = 12f,
+        sourceLayer = WATER_LINES_LAYER,
+        placement = Placement.LINE,
+        nameProperty = WATER_LINES_NAME_PROPERTY
+    )
+
+    /**
      * Peaks: which hill that is, once the operator is looking at the hill.
      *
      * Held back further than the rest, and further than a named summit might at first seem to deserve:
@@ -178,7 +286,7 @@ object PlaceLabels {
      * belongs to something bigger is under one that belongs to something smaller, so a peak is never
      * hidden by the lake five kilometres away.
      */
-    val BANDS: List<Band> = listOf(TOWNS, LAKES, LOCALITIES, PEAKS)
+    val BANDS: List<Band> = listOf(TOWNS, LAKES, BAYS, LOCALITIES, PEAKS, RIVERS)
 
     /**
      * White letters with a dark outline, as the app writes its own names - see
